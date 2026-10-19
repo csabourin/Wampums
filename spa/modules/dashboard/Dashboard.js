@@ -8,6 +8,7 @@ import {
   getAttendanceDates,
   getAttendance,
   getNextMeetingInfo,
+  getHonors,
   getPermissionSlips,
   getMedicationDistributions,
 } from '../../api/api-endpoints.js';
@@ -56,6 +57,22 @@ import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 import { offlineManager } from '../OfflineManager.js';
 
+/**
+ * On a meeting day the primary action follows the evening: attendance first
+ * (its tile already leads), then points once attendance is taken, honors once
+ * the meeting is over, and the meetings screen once honors are awarded.
+ */
+const MEETING_DAY_STAGE_ROUTES = Object.freeze({
+  points: '/managePoints',
+  honors: '/manageHonors',
+  meetings: '/reunions',
+});
+// Ahead of attendance (0), behind a time-sensitive medication dose (-1).
+const MEETING_DAY_STAGE_PRIORITY = -0.5;
+const MINUTES_PER_HOUR = 60;
+const MS_PER_MINUTE = 60000;
+const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
+
 export class Dashboard extends BaseModule {
   constructor(app, options = {}) {
     super(app);
@@ -68,6 +85,7 @@ export class Dashboard extends BaseModule {
     this.mode = options.mode || 'default';
     this.nextMeeting = null;
     this.medicationDoseIsTimeSensitive = false;
+    this.meetingDayStage = null;
     this.counters = {
       medicationDosesToday: null,
       permissionSlipsPending: null,
@@ -519,10 +537,14 @@ export class Dashboard extends BaseModule {
 
   _getTileContext(tile) {
     const ctx = getTileContext(tile.href);
-    if (tile.href !== '/medication-dispensing') {return ctx;}
+    if (tile.href === '/medication-dispensing') {
+      return this.medicationDoseIsTimeSensitive
+        ? { ...ctx, moment: 'now', priority: -1 }
+        : ctx;
+    }
 
-    return this.medicationDoseIsTimeSensitive
-      ? { ...ctx, moment: 'now', priority: -1 }
+    return ctx.moment === 'now' && tile.href === MEETING_DAY_STAGE_ROUTES[this.meetingDayStage]
+      ? { ...ctx, priority: MEETING_DAY_STAGE_PRIORITY }
       : ctx;
   }
 
@@ -665,10 +687,83 @@ export class Dashboard extends BaseModule {
       }
     }
 
+    const meetingDayStage = await this._resolveMeetingDayStage();
+    if (this.meetingDayStage !== meetingDayStage) {
+      this.meetingDayStage = meetingDayStage;
+      changed = true;
+    }
+
     if (changed && !this.isLoading && !this.isDestroyed) {
       this.render();
       this.attachEventListeners();
     }
+  }
+
+  /**
+   * Where today's meeting stands, to choose the primary action.
+   * Every lookup is best-effort: one that fails or is not permitted leaves
+   * the stage it would reveal undetected.
+   *
+   * @returns {Promise<'points'|'honors'|'meetings'|null>} null when today is
+   *   not a meeting day or attendance has not been taken yet
+   */
+  async _resolveMeetingDayStage() {
+    const today = getTodayISO();
+    const meeting = this.nextMeeting;
+    if (!meeting?.date || String(meeting.date).slice(0, ISO_DATE_LENGTH) !== today) {return null;}
+
+    const [attendance, honors] = await Promise.allSettled([
+      hasPermission('attendance.view') ? getAttendance(today) : null,
+      hasPermission('honors.view') ? getHonors() : null,
+    ]);
+
+    const honorDates = honors.status === 'fulfilled' ? honors.value?.data?.availableDates : null;
+    if (Array.isArray(honorDates) && honorDates.includes(today)) {return 'meetings';}
+
+    if (this._hasMeetingEnded(meeting, new Date())) {return 'honors';}
+
+    const records = attendance.status === 'fulfilled' ? attendance.value?.data : null;
+    if (Array.isArray(records) && records.length > 0) {return 'points';}
+
+    return null;
+  }
+
+  /**
+   * Whether a meeting is over: its end time, else its start time plus its
+   * duration, else the end of its last timeline activity.
+   *
+   * @param {Object} meeting - Meeting from GET /v1/meetings/next
+   * @param {Date} now
+   * @returns {boolean} False when no end time can be worked out
+   */
+  _hasMeetingEnded(meeting, now) {
+    const date = String(meeting.date).slice(0, ISO_DATE_LENGTH);
+    const meetingStart = meeting.start_time
+      ? this._parseLocalActivityDateTime(date, meeting.start_time)
+      : null;
+    let end = meeting.end_time ? this._parseLocalActivityDateTime(date, meeting.end_time) : null;
+    // A meeting crossing midnight (23:30–00:30) ends on the following day.
+    if (end && meetingStart && end.getTime() <= meetingStart.getTime()) {
+      end.setDate(end.getDate() + 1);
+    }
+
+    const duration = meeting.duration_override || meeting.duration_minutes;
+    if (!end && meetingStart && duration) {
+      end = new Date(meetingStart.getTime() + duration * MS_PER_MINUTE);
+    }
+
+    const activities = Array.isArray(meeting.activities) ? meeting.activities : [];
+    const last = activities[activities.length - 1];
+    if (!end && last?.time) {
+      const start = this._parseLocalActivityDateTime(date, last.time);
+      const [hours, minutes] = String(last.duration || '').split(':').map(Number);
+      const lastMinutes = hours * MINUTES_PER_HOUR + minutes;
+      end = start && Number.isFinite(lastMinutes)
+        ? new Date(start.getTime() + lastMinutes * MS_PER_MINUTE)
+        : null;
+    }
+
+    return Boolean(end) && now.getTime() >= end.getTime();
   }
 
   /**
@@ -830,7 +925,10 @@ export class Dashboard extends BaseModule {
 
     const [hero, ...rest] = nowTiles;
 
-    const isMeetingHero = hero.href === '/reunions' && this.nextMeeting;
+    // Once today's meeting is wrapped up, "Meetings" leads as an action, not
+    // as a card announcing the meeting that just ended.
+    const isMeetingHero = hero.href === '/reunions' && this.nextMeeting
+      && this.meetingDayStage !== 'meetings';
     // Every other "now" tile becomes a chip. Capping the list hid whichever
     // tile came last (Meetings, once walk-in children joined this moment).
     const chips = rest;
