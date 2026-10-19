@@ -25,6 +25,13 @@ jest.mock('stripe', () => {
   return () => Stripe('sk_test_signature_suite');
 });
 
+const mockRoomEmit = jest.fn();
+const mockTo = jest.fn(() => ({ emit: mockRoomEmit, except: () => ({ emit: mockRoomEmit }) }));
+jest.mock('../services/socket', () => ({
+  init: jest.fn(),
+  getIO: () => ({ to: mockTo, sockets: { sockets: new Map() } }),
+}));
+
 jest.mock('pg', () => {
   const mClient = { query: jest.fn(), release: jest.fn() };
   const mPool = {
@@ -71,7 +78,14 @@ afterAll((done) => {
   closeServerResources(app, done);
 });
 
+/** @returns {Promise<void>} Let the live-sync announcement, made after the response, complete */
+function settle() {
+  return new Promise((resolve) => setTimeout(resolve, 20));
+}
+
 beforeEach(() => {
+  mockRoomEmit.mockClear();
+  mockTo.mockClear();
   const { __mClient } = require('pg');
   __mClient.query.mockReset();
   __mClient.query.mockImplementation((sql, params) => {
@@ -132,6 +146,32 @@ describe('POST /api/v1/stripe/webhook', () => {
     expect(insert[1][0]).toBe(String(FEE_ID));
     expect(insert[1][1]).toBe(50);
     expect(clientSql()).toContain('UPDATE participant_fees SET status = $1 WHERE id = $2');
+
+    // The unit's open finance screens hear of it as if a leader had entered the payment.
+    await settle();
+    expect(mockTo).toHaveBeenCalledWith(`org-${ORG_ID}`);
+    expect(mockRoomEmit).toHaveBeenCalledWith('data-changed', expect.objectContaining({
+      path: `/api/v1/finance/participant-fees/${FEE_ID}/payments`,
+    }));
+  });
+
+  test('a payment already recorded is not announced again', async () => {
+    const { __mClient } = require('pg');
+    const base = __mClient.query.getMockImplementation();
+    __mClient.query.mockImplementation((sql, params) => (/FROM payments WHERE stripe_payment_intent_id/.test(sql)
+      ? Promise.resolve({ rows: [{ id: 7 }] })
+      : base(sql, params)));
+
+    const res = await sendSigned({
+      id: 'evt_paid_again',
+      type: 'payment_intent.succeeded',
+      data: { object: { id: PAYMENT_INTENT_ID, amount: 5000, currency: 'cad', metadata: { participant_fee_id: String(FEE_ID), organization_id: String(ORG_ID) } } },
+    });
+
+    await settle();
+    expect(res.status).toBe(200);
+    expect(clientSql().some((s) => /INSERT INTO payments/.test(s))).toBe(false);
+    expect(mockRoomEmit).not.toHaveBeenCalled();
   });
 
   test('the fee is locked before checking for an earlier delivery of the same payment', async () => {
