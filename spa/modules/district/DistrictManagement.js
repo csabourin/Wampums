@@ -229,6 +229,24 @@ export class DistrictManagement {
   }
 
   /**
+   * Asked by the router and the tabs before this screen is left. A screen
+   * opened while the switch is under way would load with the previous unit's
+   * token and keep it on screen once the new one is installed.
+   *
+   * @param {{refresh?: boolean}} [options] - refresh: a redraw nobody asked for
+   * @returns {boolean} Whether the screen may be left now
+   */
+  beforeLeave({ refresh = false } = {}) {
+    if (!this.switchingTo) {
+      return true;
+    }
+    if (!refresh) {
+      this.app.showMessage('district_management_leave_wait', 'info');
+    }
+    return false;
+  }
+
+  /**
    * Fetch users and roles with caching and offline fallback.
    * @param {boolean} forceRefresh - When true, bypass caches.
    */

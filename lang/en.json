@@ -2765,6 +2765,7 @@
   "district_management_title": "District Management",
   "district_management_switch_failed": "Could not switch to this unit. You are still working in the previous one.",
   "district_management_switch_wait": "A change is still being saved. Choose another unit once it is done.",
+  "district_management_leave_wait": "Please wait: the switch to the other unit is not finished.",
   "district_management_subtitle": "Assign role bundles with safeguards and offline awareness.",
   "district_management_search_label": "Search users",
   "district_management_search_placeholder": "Search by name or email",

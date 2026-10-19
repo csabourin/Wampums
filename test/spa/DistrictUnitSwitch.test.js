@@ -215,6 +215,31 @@ test('while the switch is under way, the previous unit\'s members cannot be open
   expect(select().getAttribute('aria-disabled')).toBeNull();
 });
 
+test('the screen cannot be left until the switch is over, so no screen opens with the old token', async () => {
+  const pending = deferred();
+  switchActiveUnit.mockReturnValue(pending.promise);
+  getUsers.mockResolvedValue({ success: true, data: [SECOND_UNIT_MEMBER] });
+  expect(view.beforeLeave()).toBe(true);
+
+  await chooseUnit('2');
+  expect(view.beforeLeave()).toBe(false);
+  expect(appInstance.showMessage).toHaveBeenCalledWith('district_management_leave_wait', 'info');
+  appInstance.showMessage.mockClear();
+  expect(view.beforeLeave({ refresh: true })).toBe(false);
+  expect(appInstance.showMessage).not.toHaveBeenCalled();
+
+  pending.resolve();
+  await flush();
+  await flush();
+  expect(view.beforeLeave()).toBe(true);
+});
+
+test('after a failed switch the screen can be left again', async () => {
+  switchActiveUnit.mockRejectedValue(new Error('offline'));
+  await chooseUnit('2');
+  expect(view.beforeLeave()).toBe(true);
+});
+
 test('a refresh of the previous unit that answers after the switch is dropped', async () => {
   const late = deferred();
   getUsers.mockReturnValueOnce(late.promise);
