@@ -282,11 +282,27 @@ export default defineConfig({
             src: '/images/icon-192x192.png',
             sizes: '192x192',
             type: 'image/png',
+            purpose: 'any',
           },
           {
             src: '/images/icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
+            purpose: 'any',
+          },
+          // Full-bleed, with the logo inside the safe zone (the centre circle,
+          // 40% radius), so Android's circle or squircle mask never clips it.
+          {
+            src: '/images/icon-maskable-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/images/icon-maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
           },
         ],
       },
