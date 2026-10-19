@@ -2,7 +2,7 @@
  * Points Routes
  *
  * Handles point management, leaderboards, and reporting
- * All endpoints in this module are prefixed with /api
+ * Endpoints are mounted under /api/v1/points.
  *
  * @module routes/points
  */
@@ -19,6 +19,13 @@ const { ensureActiveScoutYear } = require('../services/scoutYear');
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { success, error: errorResponse } = require('../middleware/response');
 
+const LEGACY_INDIVIDUAL_TYPE = 'participant';
+const POINT_UPDATE_TYPES = new Set(['individual', 'group', LEGACY_INDIVIDUAL_TYPE]);
+const POSTGRES_INTEGER_MIN = -2147483648;
+const POSTGRES_INTEGER_MAX = 2147483647;
+const HTTP_BAD_REQUEST = 400;
+const HTTP_NOT_FOUND = 404;
+
 /**
  * Export route factory function
  * Allows dependency injection of pool and logger
@@ -30,14 +37,26 @@ const { success, error: errorResponse } = require('../middleware/response');
 module.exports = (pool, logger) => {
   /**
    * @swagger
-   * /api/points-data:
+   * /api/v1/points:
    *   get:
-   *     summary: Get points data for groups and participants
-   *     description: Retrieve all groups and participants with their total points
+   *     summary: Get points data for groups and individuals
+   *     description: Retrieve groups and enrolled individuals for the selected program year, defaulting to the active year.
    *     tags: [Points]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: scout_year_id
+   *         description: Optional archived program year; defaults to the active year.
+   *         schema:
+   *           type: integer
    *     responses:
    *       200:
    *         description: Points data retrieved
+   *       400:
+   *         description: Unknown program year
+   *       403:
+   *         description: Insufficient permissions
    */
   router.get('/', authenticate, requirePermission('points.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
@@ -117,10 +136,10 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/update-points:
+   * /api/v1/points:
    *   post:
-   *     summary: Update points for groups or participants
-   *     description: Add points to groups or individual participants. Group points are distributed to all members.
+   *     summary: Update points for groups or individuals
+   *     description: Add points to groups or individuals. Group points are distributed to all eligible members. The legacy type `participant` is accepted for installed mobile clients.
    *     tags: [Points]
    *     security:
    *       - bearerAuth: []
@@ -139,7 +158,7 @@ module.exports = (pool, logger) => {
    *               properties:
    *                 type:
    *                   type: string
-   *                   enum: [group, participant]
+   *                   enum: [group, individual]
    *                 id:
    *                   type: integer
    *                 points:
@@ -147,6 +166,12 @@ module.exports = (pool, logger) => {
    *     responses:
    *       200:
    *         description: Points updated successfully
+   *       400:
+   *         description: Invalid update batch or entry
+   *       404:
+   *         description: Individual is not enrolled in the active program year
+   *       403:
+   *         description: Insufficient permissions
    */
   router.post('/', authenticate, blockDemoRoles, requirePermission('points.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
@@ -158,7 +183,29 @@ module.exports = (pool, logger) => {
     });
 
     if (!Array.isArray(updates)) {
-      return res.status(400).json({ success: false, message: 'Updates must be an array' });
+      return errorResponse(res, 'Updates must be an array', HTTP_BAD_REQUEST);
+    }
+
+    const normalizedUpdates = updates.map((update) => {
+      if (!update || typeof update !== 'object' || Array.isArray(update)) {
+        return update;
+      }
+      return {
+        ...update,
+        id: typeof update.id === 'string' && /^\d+$/.test(update.id) ? Number(update.id) : update.id,
+        type: update.type === LEGACY_INDIVIDUAL_TYPE ? 'individual' : update.type,
+      };
+    });
+
+    for (const update of normalizedUpdates) {
+      const validEntry = update && typeof update === 'object' && !Array.isArray(update);
+      const validType = validEntry && POINT_UPDATE_TYPES.has(update.type);
+      const validId = validEntry && Number.isSafeInteger(update.id) && update.id > 0;
+      const validPoints = validEntry && Number.isInteger(update.points)
+        && update.points >= POSTGRES_INTEGER_MIN && update.points <= POSTGRES_INTEGER_MAX;
+      if (!validType || !validId || !validPoints) {
+        return errorResponse(res, 'Each update needs a valid type, positive integer id, and integer points value', HTTP_BAD_REQUEST);
+      }
     }
 
     // Totals returned to the client are the running totals of the active scout
@@ -171,7 +218,7 @@ module.exports = (pool, logger) => {
     try {
       await client.query('BEGIN');
 
-      for (const update of updates) {
+      for (const update of normalizedUpdates) {
         // Frontend sends: {type, id, points, timestamp, date?}
         // We need to convert to: {participant_id, group_id, value}
         // date is optional - if provided, we filter by attendance (only present/late get points)
@@ -181,7 +228,7 @@ module.exports = (pool, logger) => {
         if (type === 'group') {
           // For group points, add points to the group AND to each individual member
           // If date is provided, only award points to present/late participants
-          const groupId = parseInt(id);
+          const groupId = id;
 
           // Group members still enrolled this year. Joining the roster keeps
           // participants who left at the last transition from being awarded
@@ -330,7 +377,7 @@ module.exports = (pool, logger) => {
           });
         } else {
           // For individual participant points
-          const participantId = parseInt(id);
+          const participantId = id;
 
           // Get the participant's group_id and verify they belong to this organization
           const participantResult = await client.query(
@@ -345,7 +392,9 @@ module.exports = (pool, logger) => {
           );
 
           if (participantResult.rows.length === 0) {
-            throw new Error(`Participant ${participantId} not found in organization ${organizationId}`);
+            const notFound = new Error('participant_not_found');
+            notFound.code = 'POINT_INDIVIDUAL_NOT_FOUND';
+            throw notFound;
           }
 
           const groupId = participantResult.rows[0].group_id || null;
@@ -365,7 +414,7 @@ module.exports = (pool, logger) => {
           );
 
           responseUpdates.push({
-            type: 'participant',
+            type: 'individual',
             id: participantId,
             totalPoints: parseInt(totalResult.rows[0].total)
           });
@@ -380,6 +429,9 @@ module.exports = (pool, logger) => {
       return success(res, { updates: responseUpdates }, 'Points updated successfully');
     } catch (error) {
       await client.query('ROLLBACK');
+      if (error.code === 'POINT_INDIVIDUAL_NOT_FOUND') {
+        return errorResponse(res, 'participant_not_found', HTTP_NOT_FOUND);
+      }
       throw error;
     } finally {
       client.release();
@@ -388,7 +440,7 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/points-leaderboard:
+   * /api/v1/points/leaderboard:
    *   get:
    *     summary: Get points leaderboard
    *     description: Retrieve top-scoring groups or individuals
@@ -475,10 +527,10 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/points-report:
+   * /api/v1/points/report:
    *   get:
    *     summary: Get points report
-   *     description: Comprehensive points report for all participants (admin/animation only)
+   *     description: Comprehensive points report for enrolled individuals. Requires reports.view.
    *     tags: [Reports]
    *     security:
    *       - bearerAuth: []

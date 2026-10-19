@@ -23,6 +23,7 @@ const ROLE_AUDIT_MAX_LIMIT = 50;
 
 /** Longest roles.role_name the column accepts. */
 const ROLE_NAME_MAX_LENGTH = 50;
+const HTTP_CONFLICT = 409;
 
 /**
  * @param {string|number} value - Route parameter or body field
@@ -228,6 +229,30 @@ module.exports = (pool, logger) => {
 
         const { permission_key: permissionKey } = permissionCheck.rows[0];
 
+        // A manage permission is only meaningful when the role can also see
+        // the resource. Keep the pair together in the role catalog.
+        const viewPermissionKey = permissionKey.endsWith('.manage')
+          ? `${permissionKey.slice(0, -'.manage'.length)}.view`
+          : null;
+        let pairedViewPermissionId = null;
+        if (viewPermissionKey) {
+          const viewPermission = await pool.query(
+            'SELECT id, self_scoped FROM permissions WHERE permission_key = $1',
+            [viewPermissionKey]
+          );
+          pairedViewPermissionId = viewPermission.rows[0]?.id || null;
+          if (pairedViewPermissionId
+            && permissionCountsAgainstGrantor(viewPermission.rows[0], role)
+            && !(req.userPermissions || []).includes(viewPermissionKey)) {
+            return forbidden(
+              res,
+              'You can only add permissions you hold',
+              [permissionKey, viewPermissionKey],
+              [viewPermissionKey]
+            );
+          }
+        }
+
         // The finance routes answer for every family in the unit. A role that
         // only sees its own children would read everyone's fees through them.
         if (role.data_scope === 'linked' && UNIT_FINANCE_PERMISSIONS.includes(permissionKey)) {
@@ -250,12 +275,15 @@ module.exports = (pool, logger) => {
           );
         }
 
-        // Add permission to role
+        // Insert a matching View permission with Manage in one statement.
+        // This also repairs a pre-existing incomplete pair when Manage is
+        // granted again.
         await pool.query(
           `INSERT INTO role_permissions (role_id, permission_id)
-           VALUES ($1, $2)
+           SELECT $1, permission_id
+             FROM unnest($2::int[]) AS ids(permission_id)
            ON CONFLICT DO NOTHING`,
-          [roleId, permissionId]
+          [roleId, pairedViewPermissionId ? [permissionId, pairedViewPermissionId] : [permissionId]]
         );
 
         return success(res, null, 'Permission added to role');
@@ -301,9 +329,29 @@ module.exports = (pool, logger) => {
           return error(res, 'Permission not found', 404);
         }
 
+        // A role carrying Manage must retain View. Refuse to remove View while
+        // its matching Manage permission is still attached.
+        const { permission_key: permissionKey } = permissionCheck.rows[0];
+        if (permissionKey.endsWith('.view')) {
+          const managePermissionKey = `${permissionKey.slice(0, -'.view'.length)}.manage`;
+          const pairedManage = await pool.query(
+            `SELECT 1
+               FROM permissions p
+               JOIN role_permissions rp ON rp.permission_id = p.id
+              WHERE rp.role_id = $1 AND p.permission_key = $2`,
+            [roleId, managePermissionKey]
+          );
+          if (pairedManage.rows.length > 0) {
+            return error(
+              res,
+              `Remove ${managePermissionKey} before removing ${permissionKey}`,
+              HTTP_CONFLICT
+            );
+          }
+        }
+
         // Removing a permission changes what every holder of the role can do,
         // so it takes the same standing as granting it.
-        const { permission_key: permissionKey } = permissionCheck.rows[0];
         if (permissionCountsAgainstGrantor(permissionCheck.rows[0], role)
           && !(req.userPermissions || []).includes(permissionKey)) {
           return forbidden(

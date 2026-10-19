@@ -44,7 +44,7 @@
     "routes/parentOnboarding.js": 5,
     "routes/participantDuplicates.js": 1,
     "routes/participants.js": 120,
-    "routes/points.js": 25,
+    "routes/points.js": 24,
     "routes/programProgress.js": 11,
     "routes/public.js": 24,
     "routes/reports.js": 8,
