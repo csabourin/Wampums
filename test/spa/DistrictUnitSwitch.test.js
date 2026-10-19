@@ -150,7 +150,7 @@ test('a failed switch says so and keeps showing the unit the session is still in
   expect(appInstance.showMessage).toHaveBeenCalledWith('district_management_switch_failed', 'error');
   expect(getUsers).not.toHaveBeenCalled();
   expect(select().value).toBe('1');
-  expect(select().disabled).toBe(false);
+  expect(select().getAttribute('aria-disabled')).toBeNull();
   expect(document.activeElement).toBe(select());
   expect(document.getElementById('app').textContent).toContain('Akela');
   expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
@@ -170,6 +170,62 @@ test('when the new unit\'s members cannot be loaded, the previous unit\'s are no
     expect.objectContaining({ users: [expect.objectContaining({ id: FIRST_UNIT_MEMBER.id })] }),
     expect.anything(),
   );
+});
+
+/**
+ * A promise settled from the outside, for a request still under way.
+ *
+ * @returns {{promise: Promise, resolve: Function}} The promise and its resolver
+ */
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+test('while the switch is under way, the previous unit\'s members cannot be opened and the selector holds', async () => {
+  const pending = deferred();
+  switchActiveUnit.mockReturnValue(pending.promise);
+  getUsers.mockResolvedValue({ success: true, data: [SECOND_UNIT_MEMBER] });
+  await chooseUnit('2');
+
+  expect(document.getElementById('app').textContent).not.toContain('Akela');
+  expect(select().getAttribute('aria-disabled')).toBe('true');
+  expect(select().value).toBe('2');
+  expect(document.activeElement).toBe(select());
+
+  // A refresh asked for meanwhile reads nothing: the token may still be the old one.
+  getUsers.mockClear();
+  await view.refreshData(true);
+  expect(getUsers).not.toHaveBeenCalled();
+
+  // Choosing again before the first switch ends starts no second one.
+  await chooseUnit('1');
+  expect(switchActiveUnit).toHaveBeenCalledTimes(1);
+  expect(select().value).toBe('2');
+
+  pending.resolve();
+  await flush();
+  await flush();
+  expect(document.getElementById('app').textContent).toContain('Bagheera');
+  expect(select().getAttribute('aria-disabled')).toBeNull();
+});
+
+test('a refresh of the previous unit that answers after the switch is dropped', async () => {
+  const late = deferred();
+  getUsers.mockReturnValueOnce(late.promise);
+  const refresh = view.refreshData(true);
+  getUsers.mockResolvedValue({ success: true, data: [SECOND_UNIT_MEMBER] });
+  await chooseUnit('2');
+  setCachedData.mockClear();
+
+  late.resolve({ success: true, data: [FIRST_UNIT_MEMBER] });
+  await refresh;
+  await flush();
+
+  expect(document.getElementById('app').textContent).toContain('Bagheera');
+  expect(document.getElementById('app').textContent).not.toContain('Akela');
+  expect(setCachedData).not.toHaveBeenCalled();
 });
 
 test('a unit where the person cannot see roles sends them to the dashboard', async () => {

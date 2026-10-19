@@ -80,6 +80,11 @@ export class DistrictManagement {
     this.userMeta = {};
     this.mfaAcknowledged = false;
     this.organizationId = getCurrentOrganizationId();
+    // Bumped when the session moves to another unit: a response to a request
+    // made before then belongs to the previous unit and is dropped.
+    this.unitGeneration = 0;
+    // The unit being switched to, while the switch is under way.
+    this.switchingTo = null;
     this.organizations = [];
     this.rolePermissions = {};
     this.roleBundleIndex = { list: [], byId: new Map(), byName: new Map() };
@@ -225,6 +230,12 @@ export class DistrictManagement {
    * @param {boolean} forceRefresh - When true, bypass caches.
    */
   async refreshData(forceRefresh = false) {
+    // Mid-switch the token may still name the previous unit; the switch
+    // loads the new unit itself once it ends.
+    if (this.switchingTo) {
+      return;
+    }
+    const generation = this.unitGeneration;
     this.syncing = true;
     this.loadFailed = false;
     this.renderSyncBadge();
@@ -248,10 +259,16 @@ export class DistrictManagement {
         getRoleBundles({ forceRefresh, organizationId }),
         getUsers(organizationId, { forceRefresh }),
       ]);
+      if (generation !== this.unitGeneration) {
+        return;
+      }
 
       if (roleResponse?.success) {
         const roleCatalog = roleResponse.data || [];
         await this.hydrateRoleBundles(roleCatalog, forceRefresh);
+        if (generation !== this.unitGeneration) {
+          return;
+        }
       }
 
       if (usersResponse?.success) {
@@ -268,9 +285,11 @@ export class DistrictManagement {
       debugError('district_management: failed to refresh data', error);
       this.loadFailed = true;
     } finally {
-      this.syncing = false;
+      if (generation === this.unitGeneration) {
+        this.syncing = false;
+      }
     }
-    if (this.destroyed) {
+    if (this.destroyed || generation !== this.unitGeneration) {
       return;
     }
     // With members cached, they stay shown under "last synced"; without, the
@@ -282,7 +301,12 @@ export class DistrictManagement {
   }
 
   async hydrateRoleBundles(roleCatalog = [], forceRefresh = false) {
-    this.rolePermissions = await this.fetchRolePermissionsForCatalog(roleCatalog, forceRefresh);
+    const generation = this.unitGeneration;
+    const rolePermissions = await this.fetchRolePermissionsForCatalog(roleCatalog, forceRefresh);
+    if (generation !== this.unitGeneration) {
+      return;
+    }
+    this.rolePermissions = rolePermissions;
     this.roleBundleIndex = buildRoleBundleIndex(roleCatalog, this.rolePermissions);
     this.roles = this.roleBundleIndex.list;
   }
@@ -409,41 +433,58 @@ export class DistrictManagement {
   }
 
   async handleOrganizationChange(newOrgId) {
+    // One switch at a time. The selector stays focusable meanwhile, so a
+    // keyboard change is possible: put back the unit being switched to.
+    if (this.switchingTo) {
+      const select = document.getElementById('dm-org-select');
+      if (select) {
+        select.value = String(this.switchingTo);
+      }
+      return;
+    }
     if (!newOrgId || String(newOrgId) === String(this.organizationId || '')) {
       return;
     }
 
-    // The server reads the unit from the token: until it issues one for the
-    // chosen unit, every list and role change here is still the previous one's.
-    const select = document.getElementById('dm-org-select');
-    if (select) {
-      select.disabled = true;
-    }
+    // The server reads the unit from the token. From the moment the switch
+    // starts, nothing of the previous unit may stay on screen, where a save
+    // would apply its roles to whichever unit the token names by then, and no
+    // answer to a request made before may land here.
+    const previous = this.unitState();
+    this.unitGeneration += 1;
+    this.switchingTo = newOrgId;
+    this.resetUnitState();
+    this.syncing = true;
+    this.loadFailed = false;
+    this.renderAndBind();
+    this.focusOrganizationSelect();
     try {
       await switchActiveUnit(this.app, newOrgId);
     } catch (error) {
       debugError('district_management: unit switch failed', error);
-      this.app.showMessage(apiErrorMessage(error, 'district_management_switch_failed'), 'error');
-      // Show the unit the session is still in, with the selector usable again.
-      if (!this.destroyed) {
-        this.renderAndBind();
-        this.focusOrganizationSelect();
+      this.switchingTo = null;
+      if (this.destroyed) {
+        return;
       }
+      // The session is still in the previous unit: show it again as it was.
+      Object.assign(this, previous);
+      this.syncing = false;
+      this.app.showMessage(apiErrorMessage(error, 'district_management_switch_failed'), 'error');
+      this.renderAndBind();
+      this.focusOrganizationSelect();
       return;
     }
     if (this.destroyed) {
       return;
     }
 
-    // Requests now act on the new unit: nothing of the previous one may stay
-    // on screen, where a save would apply its roles to the new unit. Start
-    // from what this unit's own cache holds, if anything.
-    this.resetUnitState();
+    // Start from what this unit's own cache holds, if anything.
     await this.hydrateFromCache();
     if (this.destroyed) {
       return;
     }
     this.organizationId = newOrgId;
+    this.switchingTo = null;
 
     if (!canViewRoles()) {
       this.app.router.navigate('/dashboard');
@@ -458,20 +499,45 @@ export class DistrictManagement {
   }
 
   /**
-   * Forget everything that belongs to the unit the session just left.
+   * Everything on this screen that belongs to the active unit.
+   *
+   * @returns {Object} The unit's members, roles, history and waiting changes
+   */
+  unitState() {
+    return {
+      users: this.users,
+      filteredUsers: this.filteredUsers,
+      roles: this.roles,
+      rolePermissions: this.rolePermissions,
+      roleBundleIndex: this.roleBundleIndex,
+      userMeta: this.userMeta,
+      auditLogByUser: this.auditLogByUser,
+      queuedChanges: this.queuedChanges,
+      lastSyncedAt: this.lastSyncedAt,
+      loadFailed: this.loadFailed,
+      selectedUserId: this.selectedUserId,
+      selectedRoleIds: this.selectedRoleIds,
+    };
+  }
+
+  /**
+   * Forget everything that belongs to the unit the session is leaving.
    */
   resetUnitState() {
-    this.users = [];
-    this.filteredUsers = [];
-    this.roles = [];
-    this.rolePermissions = {};
-    this.roleBundleIndex = buildRoleBundleIndex([], {});
-    this.userMeta = {};
-    this.auditLogByUser = {};
-    this.queuedChanges = [];
-    this.lastSyncedAt = null;
-    this.selectedUserId = null;
-    this.selectedRoleIds = new Set();
+    Object.assign(this, {
+      users: [],
+      filteredUsers: [],
+      roles: [],
+      rolePermissions: {},
+      roleBundleIndex: buildRoleBundleIndex([], {}),
+      userMeta: {},
+      auditLogByUser: {},
+      queuedChanges: [],
+      lastSyncedAt: null,
+      loadFailed: false,
+      selectedUserId: null,
+      selectedRoleIds: new Set(),
+    });
   }
 
   /**
@@ -613,7 +679,7 @@ export class DistrictManagement {
 
   renderOrganizationSelector() {
     if (!this.organizations.length) {return '';}
-    const currentId = String(this.organizationId || getCurrentOrganizationId() || '');
+    const currentId = String(this.switchingTo || this.organizationId || getCurrentOrganizationId() || '');
     const hasMultiple = this.organizations.length > 1;
     const options = this.organizations
       .map((org) => {
@@ -630,7 +696,7 @@ export class DistrictManagement {
 
     const selector = hasMultiple
       ? `<label class="dm-section-title" for="dm-org-select">${label}</label>
-         <select id="dm-org-select" aria-label="${label}">${options}</select>`
+         <select id="dm-org-select" aria-label="${label}" ${this.switchingTo ? 'aria-disabled="true"' : ''}>${options}</select>`
       : `<p class="dm-section-title">${label}</p><p class="dm-helper">${activeName}</p>`;
 
     return `
@@ -1657,12 +1723,17 @@ export class DistrictManagement {
       return;
     }
 
+    const generation = this.unitGeneration;
     await this.refreshData(true);
     const remaining = [];
     let staleCount = 0;
     let errorCount = 0;
 
     for (const change of this.queuedChanges) {
+      // The session moved to another unit: the rest would be sent there.
+      if (generation !== this.unitGeneration) {
+        return;
+      }
       if (change.organizationId && String(change.organizationId) !== String(this.organizationId)) {
         remaining.push({ ...change, reason: 'organization_mismatch' });
         continue;
