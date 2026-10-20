@@ -1,6 +1,8 @@
 /**
- * Parent invitations — where an administrator hands a family the means to
- * register themselves.
+ * Invitations — where an administrator hands a family, or someone joining the
+ * team, the means to register themselves. The invitation names the role the
+ * person will hold: a family role lets them register their children, a team
+ * role opens the unit's tools to them. Roles the unit hid are not offered.
  *
  * Invitations are listed apart from real users on purpose: an invited address
  * is not an account until someone claims it, and showing the two together
@@ -22,12 +24,13 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { apiErrorMessageKey } from '../../utils/ApiErrorUtils.js';
+import { roleLabel } from '../../utils/RoleLabelUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { confirm } from '../../utils/DialogUtils.js';
 import {
   getParentInvitations,
-  getLeaderInvitationRoles,
+  getInvitationRoles,
   createParentInvitation,
   updateParentInvitation,
   resendParentInvitation,
@@ -51,24 +54,8 @@ const CONFLICT_MESSAGES = {
   already_invited: 'parent_invitations_already_invited',
 };
 
-/** What the page says, for families and for leaders. */
-const TEXTS = {
-  family: {
-    title: 'parent_invitations_title',
-    intro: 'parent_invitations_intro',
-    invite: 'parent_invitations_invite',
-    empty: 'parent_invitations_empty',
-  },
-  leader: {
-    title: 'leader_invitations_title',
-    intro: 'leader_invitations_intro',
-    invite: 'leader_invitations_invite',
-    empty: 'leader_invitations_empty',
-  },
-};
-
-/** The built-in role a leader invitation proposes first, when it may be granted. */
-const DEFAULT_LEADER_ROLE = 'leader';
+/** Role data scope of family roles, as the role picker groups them. */
+const FAMILY_SCOPE = 'linked';
 
 /** Fields of the invitation form, in the order they are read. */
 const OPTIONAL_FIELDS = [
@@ -84,14 +71,19 @@ export class ParentInvitations {
   /**
    * @param {Object} app - Application instance
    */
-  constructor(app, options = {}) {
+  constructor(app) {
     this.app = app;
     this.invitations = [];
     this.roles = [];
-    // Inviting a leader also grants them a role (POST /v1/parent-invitations)
-    this.isLeader = options.kind === 'leader';
-    this.texts = this.isLeader ? TEXTS.leader : TEXTS.family;
-    this.canInvite = hasPermission('users.invite') && (!this.isLeader || hasPermission('users.assign_roles'));
+    this.destroyed = false;
+    // Naming a role other than the unit's parent role also takes
+    // users.assign_roles; the role list says which the member may grant.
+    this.canInvite = hasPermission('users.invite');
+  }
+
+  /** Called by the router when the person leaves this screen. */
+  destroy() {
+    this.destroyed = true;
   }
 
   /**
@@ -114,11 +106,31 @@ export class ParentInvitations {
   /** @returns {Promise<void>} */
   async load() {
     const [response, rolesResponse] = await Promise.all([
-      getParentInvitations({ kind: this.isLeader ? 'leader' : 'family' }),
-      this.isLeader && this.canInvite ? getLeaderInvitationRoles() : null,
+      getParentInvitations({ kind: 'all' }),
+      this.canInvite ? getInvitationRoles() : null,
     ]);
     this.invitations = Array.isArray(response?.data) ? response.data : [];
     this.roles = Array.isArray(rolesResponse?.data) ? rolesResponse.data : [];
+  }
+
+  /** @returns {Object|undefined} The unit's parent role, granted by an invitation naming none */
+  defaultFamilyRole() {
+    return this.roles.find((role) => role.default_family);
+  }
+
+  /**
+   * The role an invitation grants, as the list shows it.
+   *
+   * @param {Object} invitation - Row from the API
+   * @returns {string} Escaped role names
+   */
+  invitationRoleText(invitation) {
+    const named = Array.isArray(invitation.roles) ? invitation.roles : [];
+    if (named.length > 0) {
+      return named.map((role) => escapeHTML(roleLabel(role))).join(', ');
+    }
+    const family = this.defaultFamilyRole();
+    return escapeHTML(family ? roleLabel(family) : translate('invitations_role_family'));
   }
 
   /** @returns {HTMLElement|null} The page root */
@@ -146,7 +158,7 @@ export class ParentInvitations {
     setContent(this.root(), `
       <section class="page parent-invitations" aria-busy="true">
         ${renderBackLink()}
-        <h1>${translate(this.texts.title)}</h1>
+        <h1>${translate('invitations_title')}</h1>
         <p role="status">${translate('loading')}</p>
       </section>
     `);
@@ -154,10 +166,11 @@ export class ParentInvitations {
 
   /** @returns {void} */
   renderError() {
+    if (this.destroyed) {return;}
     setContent(this.root(), `
       <section class="page parent-invitations">
         ${renderBackLink()}
-        <h1>${translate(this.texts.title)}</h1>
+        <h1>${translate('invitations_title')}</h1>
         <p class="status-message error" role="alert">${translate('error_loading_data')}</p>
         <button type="button" class="button" id="parent-invitations-retry">${translate('parent_invitations_retry')}</button>
       </section>
@@ -167,21 +180,22 @@ export class ParentInvitations {
 
   /** @returns {void} */
   render() {
+    if (this.destroyed) {return;}
     setContent(this.root(), `
       <section class="page parent-invitations">
         ${renderBackLink()}
         <header class="page__header">
-          <h1>${translate(this.texts.title)}</h1>
+          <h1>${translate('invitations_title')}</h1>
           ${this.canInvite ? `
             <button type="button" id="invite-parent-btn" class="button button--primary">
-              ${translate(this.texts.invite)}
+              ${translate('invitations_invite')}
             </button>
           ` : ''}
         </header>
-        <p>${translate(this.texts.intro)}</p>
+        <p>${translate('invitations_intro')}</p>
         <p id="parent-invitations-status" class="status-message" role="status" hidden></p>
         ${this.invitations.length === 0
-    ? `<p class="empty-state">${translate(this.texts.empty)}</p>`
+    ? `<p class="empty-state">${translate('invitations_empty')}</p>`
     : `<ul class="invitation-list">${this.invitations.map((invitation) => this.renderRow(invitation)).join('')}</ul>`}
       </section>
     `);
@@ -225,12 +239,9 @@ export class ParentInvitations {
             ${invitation.children.map((child) => escapeHTML(`${child.first_name} ${child.last_name}`)).join(', ')}
           </div>
         ` : ''}
-        ${Array.isArray(invitation.roles) && invitation.roles.length > 0 ? `
-          <div class="invitation-card__meta">
-            ${translate('leader_invitations_roles')}
-            ${invitation.roles.map((role) => escapeHTML(role.display_name)).join(', ')}
-          </div>
-        ` : ''}
+        <div class="invitation-card__meta">
+          ${translate('invitations_role_label')} ${this.invitationRoleText(invitation)}
+        </div>
         ${invitation.deactivation_override_reason ? `
           <div class="invitation-card__meta">
             ${translate('parent_invitations_reinstating')}: ${escapeHTML(invitation.deactivation_override_reason)}
@@ -304,13 +315,15 @@ export class ParentInvitations {
     openModal({
       id: MODAL_ID,
       canClose: () => !this.pendingAction,
-      title: translate(invitation ? 'family_invitation_edit' : this.texts.invite),
+      title: translate(invitation ? 'family_invitation_edit' : 'invitations_invite'),
       body: `
         <form id="parent-invitation-form" novalidate>
           ${field('email', 'email', 'email', 'required autocomplete="off" maxlength="255"')}
           ${invitationLanguageField('invite-language', invitation?.language || this.lang())}
-          ${this.isLeader && !invitation ? this.renderRoleField() : ''}
-          ${invitation ? `<p class="form-hint">${translate('family_invitation_edit_hint')}</p>` : ''}
+          ${invitation
+    ? `<p class="form-hint">${translate('invitations_role_label')} ${this.invitationRoleText(invitation)}</p>
+             <p class="form-hint">${translate('family_invitation_edit_hint')}</p>`
+    : this.renderRoleField()}
           <p class="form-hint">${translate('parent_invitations_optional_hint')}</p>
           ${field('first_name', 'text', 'first_name', 'maxlength="255"')}
           ${field('last_name', 'text', 'last_name', 'maxlength="255"')}
@@ -344,27 +357,32 @@ export class ParentInvitations {
   }
 
   /**
-   * The role a leader will hold. Roles the member may not grant are listed,
-   * disabled, so the choice is honest about what exists.
+   * The role the invited person will hold, families' roles first, then the
+   * team's. Roles the member may not grant are listed, disabled, so the choice
+   * is honest about what exists. The unit's parent role is proposed first.
    *
    * @returns {string} HTML
    */
   renderRoleField() {
     const assignable = this.roles.filter((role) => role.assignable);
-    const preferred = assignable.find((role) => role.role_name === DEFAULT_LEADER_ROLE) || assignable[0];
+    const preferred = this.defaultFamilyRole() || assignable[0];
     if (!preferred) {
-      return `<p class="status-message warning" role="alert">${translate('leader_invitations_no_role')}</p>`;
+      return `<p class="status-message warning" role="alert">${translate('invitations_no_role')}</p>`;
     }
+    const option = (role) => `
+      <option value="${Number(role.id)}" ${role.id === preferred.id ? 'selected' : ''} ${role.assignable ? '' : 'disabled'}>
+        ${escapeHTML(roleLabel(role))}${role.assignable ? '' : ` — ${escapeHTML(translate('invitations_role_unavailable'))}`}
+      </option>`;
+    const group = (labelKey, roles) => (roles.length
+      ? `<optgroup label="${escapeHTML(translate(labelKey))}">${roles.map(option).join('')}</optgroup>` : '');
     return `
       <div class="form-group">
-        <label for="invite-role">${translate('leader_invitations_role')}</label>
+        <label for="invite-role">${translate('invitations_role')}</label>
         <select id="invite-role" name="role_id" required aria-describedby="invite-role-hint">
-          ${this.roles.map((role) => `
-            <option value="${Number(role.id)}" ${role.id === preferred.id ? 'selected' : ''} ${role.assignable ? '' : 'disabled'}>
-              ${escapeHTML(role.display_name)}
-            </option>`).join('')}
+          ${group('invitations_role_group_family', this.roles.filter((role) => role.data_scope === FAMILY_SCOPE))}
+          ${group('invitations_role_group_team', this.roles.filter((role) => role.data_scope !== FAMILY_SCOPE))}
         </select>
-        <p class="form-hint" id="invite-role-hint">${translate('leader_invitations_role_hint')}</p>
+        <p class="form-hint" id="invite-role-hint">${translate('invitations_role_hint')}</p>
       </div>
     `;
   }
@@ -382,9 +400,13 @@ export class ParentInvitations {
       const entered = value(name);
       if (entered || this.editingInvitationId) {body[name] = entered || null;}
     });
-    if (this.isLeader && !this.editingInvitationId) {
-      const roleId = Number(value('role_id'));
-      body.role_ids = Number.isInteger(roleId) && roleId > 0 ? [roleId] : [];
+    if (!this.editingInvitationId) {
+      // The unit's parent role is granted by a family invitation naming none.
+      const role = this.roles.find((candidate) => candidate.id === Number(value('role_id')));
+      this.roleChosen = Boolean(role);
+      if (role && !role.default_family) {
+        body.role_ids = [role.id];
+      }
     }
     return body;
   }
@@ -402,8 +424,8 @@ export class ParentInvitations {
       this.showFormError('parent_invitations_email_required');
       return;
     }
-    if (this.isLeader && !this.editingInvitationId && body.role_ids.length === 0) {
-      this.showFormError('leader_invitations_no_role');
+    if (!this.editingInvitationId && !this.roleChosen) {
+      this.showFormError('invitations_no_role');
       return;
     }
 
@@ -441,7 +463,7 @@ export class ParentInvitations {
       debugError('Failed to invite parent:', error);
       // A refused role is a refusal, not a failure: say which
       this.showFormError(familyOperationErrorKey(error, CONFLICT_MESSAGES[error?.code]
-        || (this.isLeader ? apiErrorMessageKey(error, 'parent_invitations_failed') : 'parent_invitations_failed')));
+        || apiErrorMessageKey(error, 'parent_invitations_failed')));
     } finally {
       release();
     }

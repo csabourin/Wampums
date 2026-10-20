@@ -184,20 +184,21 @@ describe('tool groups separate weekly work from unit set-up', () => {
   test('"Administration de l\'unité" holds the settings changed a few times a year', () => {
     expect(routesIn('admin').sort()).toEqual([
       '/communication-history',
-      '/leader-invitations',
+      '/invitations',
       '/manage-groups',
       '/manage-participants',
       '/manage-users-participants',
-      '/parent-invitations',
       '/participant-duplicates',
       '/roles',
       '/unit-settings',
     ]);
   });
 
-  test('inviting leaders is offered only to those who may also grant them a role', () => {
-    const tile = DASHBOARD_TILES.find((item) => item.href === '/leader-invitations');
-    expect(tile.gate).toEqual({ all: ['users.invite', 'users.assign_roles'] });
+  test('families and leaders are invited from one tile, open to whoever may invite', () => {
+    const tiles = DASHBOARD_TILES.filter((item) => /invitations/.test(item.href));
+    expect(tiles.map((tile) => tile.href)).toEqual(['/invitations']);
+    // Naming a team role also takes users.assign_roles; the page's role list says so.
+    expect(tiles[0].gate).toEqual({ permission: 'users.invite' });
   });
 
   test('"Administration" holds my account first, then district and system tools', () => {
@@ -273,7 +274,7 @@ describe('tiles follow the permissions their page acts on', () => {
     const links = Array.from(group('admin').querySelectorAll('a')).map((a) => a.getAttribute('href'));
     expect(links).toEqual([
       '/manage-groups',
-      '/parent-invitations',
+      '/invitations',
       '/manage-users-participants',
       '/participant-duplicates',
       '/communication-history',

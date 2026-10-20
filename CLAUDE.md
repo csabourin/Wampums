@@ -204,6 +204,14 @@ description, sharing the active-membership check with `authenticate`.
   h.role_id = r.id)`, or `rolesToOffer()` from `spa/utils/RoleVisibilityUtils.js`, which keeps one the
   member already holds), and a **new** grant of one answers 409 `role_hidden_in_unit`
   (`findHiddenAmong`). Removing the last unit role replacing it shows it again.
+- ✅ **Automatic grants follow the replacement.** Code that grants a built-in role by itself
+  (registration, family invitations and links, walk-ins, reactivation, transfers, imports) takes its id
+  from `resolveUnitRoleId(db, 'parent', unit)`: the built-in role, or the unit role replacing it once
+  hidden. An invitation naming a role hidden since is granted the replacement (`replaceHiddenRoleIds`).
+- ✅ **One invitation screen** (`/invitations`, `GET /api/v1/parent-invitations/roles`). The invitation
+  names the role: a team role (scope `organization`) makes a leader invitation; a family role, or none
+  (the unit's parent role, `default_family`), a family one. Naming a role takes `users.assign_roles`
+  and its permissions; the parent role needs only `users.invite`.
 
 #### Granting Roles and Permissions
 - ✅ **Someone may grant only what they hold.** Adding or removing a member's role, adding or removing a

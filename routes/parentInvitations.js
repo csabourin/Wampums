@@ -29,7 +29,7 @@ const {
 } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { checkRolesGrantable, findRolesInUnit, normalizeRoleIds } = require('../services/roleAssignment');
-const { findHiddenAmong } = require('../services/roleVisibility');
+const { findHiddenAmong, resolveUnitRoleId } = require('../services/roleVisibility');
 const { ALL_INTERFACE_LANGUAGES } = require('../utils/interfaceLanguages');
 const {
   validateEmail,
@@ -63,24 +63,26 @@ const MAX_INVITATION_ROLES = 10;
 const ROLE_ID_RANGE = { min: 1, max: 2147483647 };
 
 /**
- * Whether the request invites a leader: it names the roles they will hold.
+ * Whether the request names the roles the invited person will hold: a team
+ * role, or a family role other than the unit's parent role. An invitation
+ * naming none is a family invitation granting the unit's parent role.
  *
  * @param {Object} req - Request
  * @returns {boolean}
  */
-function invitesLeader(req) {
+function namesRoles(req) {
   return Array.isArray(req.body?.role_ids) && req.body.role_ids.length > 0;
 }
 
 /**
- * Inviting a leader is also granting them roles, so it takes the permission
- * to assign roles as well as the one to invite.
+ * Naming the roles is also granting them, so it takes the permission to
+ * assign roles as well as the one to invite.
  *
  * @param {Object} req - Request
  * @returns {string[]} Permission keys required
  */
 function invitationPermissions(req) {
-  return invitesLeader(req) ? ['users.invite', 'users.assign_roles'] : ['users.invite'];
+  return namesRoles(req) ? ['users.invite', 'users.assign_roles'] : ['users.invite'];
 }
 
 /**
@@ -151,39 +153,56 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * The roles a leader may be invited into: the unit's staff roles (whole-unit
-   * data scope), each saying whether the caller may grant it.
+   * The roles someone may be invited into: every role the unit offers (not
+   * the built-in roles it replaced and hid, nor the demo roles), family roles
+   * (data scope 'linked') and team roles alike.
+   *
+   * `default_family` marks the unit's parent role, which a family invitation
+   * grants without naming it and so needs only users.invite. Every other role
+   * is `assignable` when the caller holds users.assign_roles and each of its
+   * permissions (services/roleAssignment.js, with the same self-scoped
+   * exception for family roles).
    */
-  router.get('/leader-roles',
+  router.get('/roles',
     authenticate,
-    requirePermission('users.invite', 'users.assign_roles'),
+    requirePermission('users.invite'),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const result = await pool.query(
-        `SELECT r.id, r.role_name, r.display_name,
-                NOT EXISTS (
-                  SELECT 1
-                    FROM role_permissions rp
-                    JOIN permissions p ON p.id = rp.permission_id
-                   WHERE rp.role_id = r.id
-                     AND NOT (p.permission_key = ANY($2::text[]))
-                ) AS assignable
-           FROM roles r
-          WHERE (r.organization_id = $1 OR (r.organization_id IS NULL AND r.is_system_role))
-            AND r.data_scope = 'organization'
-            -- built-in roles the unit replaced and hid (services/roleVisibility.js)
-            AND NOT EXISTS (SELECT 1 FROM organization_hidden_roles h
-                             WHERE h.organization_id = $1 AND h.role_id = r.id)
-          ORDER BY r.display_name`,
-        [organizationId, req.userPermissions || []]
-      );
-      return success(res, result.rows);
+      const held = req.userPermissions || [];
+      const [result, parentRoleId] = await Promise.all([
+        pool.query(
+          `SELECT r.id, r.role_name, r.display_name, r.description, r.data_scope,
+                  NOT EXISTS (
+                    SELECT 1
+                      FROM role_permissions rp
+                      JOIN permissions p ON p.id = rp.permission_id
+                     WHERE rp.role_id = r.id
+                       AND NOT (p.permission_key = ANY($2::text[]))
+                       AND NOT (p.self_scoped AND r.data_scope = 'linked')
+                  ) AS holds_permissions
+             FROM roles r
+            WHERE (r.organization_id = $1 OR (r.organization_id IS NULL AND r.is_system_role))
+              -- built-in roles the unit replaced and hid (services/roleVisibility.js)
+              AND NOT EXISTS (SELECT 1 FROM organization_hidden_roles h
+                               WHERE h.organization_id = $1 AND h.role_id = r.id)
+              -- policy-allow role-names: demo accounts are described by role (CLAUDE.md §3)
+              AND r.role_name NOT IN ('demoadmin', 'demoparent')
+            ORDER BY r.data_scope = 'linked' DESC, r.display_name`,
+          [organizationId, held]
+        ),
+        resolveUnitRoleId(pool, 'parent', organizationId),
+      ]);
+      const mayAssign = held.includes('users.assign_roles');
+      return success(res, result.rows.map(({ holds_permissions: holdsPermissions, ...role }) => {
+        const defaultFamily = Number(role.id) === parentRoleId;
+        return { ...role, default_family: defaultFamily, assignable: defaultFamily || (mayAssign && holdsPermissions) };
+      }));
     })
   );
 
   /**
-   * Check the roles a leader invitation would grant: roles of this unit, for
-   * its team, that the caller holds every permission of.
+   * Check the roles an invitation names: roles this unit offers, family or
+   * team, that the caller holds every permission of.
    *
    * @param {Object} req - Request, after requirePermission
    * @param {Object} res - Response
@@ -193,7 +212,7 @@ module.exports = (pool, logger) => {
   async function checkInvitationRoles(req, res, organizationId) {
     const roleIds = normalizeRoleIds(req.body.role_ids);
     const unitRoles = await findRolesInUnit(pool, roleIds, organizationId);
-    if (unitRoles.length !== roleIds.length || unitRoles.some((role) => role.data_scope !== 'organization')) {
+    if (unitRoles.length !== roleIds.length) {
       error(res, 'leader_invitation_role_invalid', HTTP_STATUS.BAD_REQUEST, [{ field: 'role_ids', value: req.body.role_ids }]);
       return null;
     }
@@ -263,7 +282,7 @@ module.exports = (pool, logger) => {
 
     // Editing keeps the roles the invitation was made with
     let roleIds = null;
-    if (!editing && invitesLeader(req)) {
+    if (!editing && namesRoles(req)) {
       const checked = await checkInvitationRoles(req, res, organizationId);
       if (!checked) {
         return res;

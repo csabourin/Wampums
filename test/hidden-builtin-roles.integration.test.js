@@ -129,14 +129,14 @@ describe.skipIf(!DATABASE_URL)('Hiding a built-in role the unit replaced', () =>
 
   test('a hidden role is no longer offered to invite a leader or to write to families', async () => {
     await customize(builtIn);
-    const before = await request(app).get('/api/v1/parent-invitations/leader-roles');
+    const before = await request(app).get('/api/v1/parent-invitations/roles');
     expect(before.body.data.map((r) => r.id)).toContain(builtIn);
     const announcementsBefore = await request(app).get('/api/v1/announcements');
     expect(announcementsBefore.status).toBe(200);
     expect(announcementsBefore.body.roles.map((r) => r.role_name)).toContain(`leader_builtin_${suffix}`);
 
     expect((await setHidden(builtIn, true)).status).toBe(200);
-    const after = await request(app).get('/api/v1/parent-invitations/leader-roles');
+    const after = await request(app).get('/api/v1/parent-invitations/roles');
     expect(after.body.data.map((r) => r.id)).not.toContain(builtIn);
     const announcementsAfter = await request(app).get('/api/v1/announcements');
     expect(announcementsAfter.body.roles.map((r) => r.role_name)).not.toContain(`leader_builtin_${suffix}`);
@@ -188,6 +188,21 @@ describe.skipIf(!DATABASE_URL)('Hiding a built-in role the unit replaced', () =>
     // Clearing what it replaces shows the built-in role again.
     expect((await request(app).patch(`/api/v1/roles/${earlier}`).send({ customized_from_role_id: null })).status).toBe(200);
     expect((await listedRole(builtIn)).hidden).toBe(false);
+  });
+
+  test('automatic grants give the built-in role, or the unit role replacing it once hidden', async () => {
+    const { resolveUnitRoleId, replaceHiddenRoleIds } = require('../services/roleVisibility');
+    const name = `leader_builtin_${suffix}`;
+    expect(await resolveUnitRoleId(pool, name, unit)).toBe(builtIn);
+    const custom = await customize(builtIn);
+    // Customized but still offered: the built-in role is still the one granted.
+    expect(await resolveUnitRoleId(pool, name, unit)).toBe(builtIn);
+    expect((await setHidden(builtIn, true)).status).toBe(200);
+    expect(await resolveUnitRoleId(pool, name, unit)).toBe(custom.id);
+    expect(await replaceHiddenRoleIds(pool, [builtIn, everything], unit)).toEqual([custom.id, everything]);
+    // Another unit keeps the built-in role.
+    expect(await resolveUnitRoleId(pool, name, otherUnit)).toBe(builtIn);
+    expect(await resolveUnitRoleId(pool, `missing_${suffix}`, unit)).toBeNull();
   });
 
   test('the role holding every permission is never hidden', async () => {

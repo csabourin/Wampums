@@ -11,24 +11,25 @@
 import { API } from './api-core.js';
 
 /**
- * Every invitation this unit has issued, to families or to leaders.
+ * Every invitation this unit has issued, to families and to leaders.
  *
  * @param {Object} [options]
- * @param {'family'|'leader'} [options.kind='family'] - Which invitations
+ * @param {'all'|'family'|'leader'} [options.kind='all'] - Which invitations
  * @returns {Promise<Object>} API response
  */
-export function getParentInvitations({ kind = 'family' } = {}) {
+export function getParentInvitations({ kind = 'all' } = {}) {
   return API.getNoCache('v1/parent-invitations', { kind });
 }
 
 /**
- * The unit's team roles a leader may be invited into, each saying whether the
- * signed-in member may grant it.
+ * The roles someone may be invited into: the unit's family and team roles,
+ * without those it hid. Each says whether the signed-in member may grant it,
+ * and `default_family` marks the unit's parent role.
  *
  * @returns {Promise<Object>} API response
  */
-export function getLeaderInvitationRoles() {
-  return API.getNoCache('v1/parent-invitations/leader-roles');
+export function getInvitationRoles() {
+  return API.getNoCache('v1/parent-invitations/roles');
 }
 
 /**

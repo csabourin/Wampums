@@ -52,6 +52,7 @@ function inactiveMembershipMessage(user) {
 }
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { sendEmail, sendAdminVerificationEmail, getTranslationsByCode, getUserEmailLanguage } = require('../utils/index');
+const { resolveUnitRoleId } = require('../services/roleVisibility');
 const {
   generate2FACode,
   store2FACode,
@@ -731,17 +732,12 @@ module.exports = (pool, logger) => {
 
         const userId = createdUser.id;
 
-        // Get role ID from roles table
-        const roleResult = await client.query(
-          `SELECT id FROM roles WHERE role_name = $1`,
-          [role]
-        );
-
-        if (roleResult.rows.length === 0) {
+        // The built-in role, or the unit's own when it replaced and hid it
+        // (services/roleVisibility.js).
+        const roleId = await resolveUnitRoleId(client, role, organizationId);
+        if (!roleId) {
           throw new Error(`Role '${role}' not found in roles table`);
         }
-
-        const roleId = roleResult.rows[0].id;
 
         // Link user to organization with the requested role (parent by default)
         await client.query(

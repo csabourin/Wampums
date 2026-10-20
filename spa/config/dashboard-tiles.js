@@ -402,26 +402,16 @@ export const DASHBOARD_TILES = [
     gate: { permission: 'participants.view' },
   },
   {
+    // Families and leaders alike: the invitation names the role to grant.
     featureKey: 'parent_invitations',
-    href: '/parent-invitations',
+    href: '/invitations',
     icon: 'fa-envelope-open-text',
-    label: 'tile_parent_invitations',
+    label: 'tile_invitations',
+    aliases: 'tile_invitations_aliases',
     moment: 'tools',
     domain: 'admin',
     priority: 13,
     gate: { permission: 'users.invite' },
-  },
-  {
-    featureKey: 'leader_invitations',
-    href: '/leader-invitations',
-    icon: 'fa-user-plus',
-    label: 'tile_leader_invitations',
-    aliases: 'tile_leader_invitations_aliases',
-    moment: 'tools',
-    domain: 'admin',
-    priority: 13,
-    // Inviting a leader also grants them a role
-    gate: { all: ['users.invite', 'users.assign_roles'] },
   },
   {
     featureKey: 'family_links',

@@ -192,8 +192,7 @@ const routes = {
   '/reactivate-account': 'reactivateAccount',
   '/complete-registration': 'completeRegistration',
   '/family-link': 'familyLink',
-  '/parent-invitations': 'parentInvitations',
-  '/leader-invitations': 'leaderInvitations',
+  '/invitations': 'invitations',
   '/participant-duplicates': 'participantDuplicates',
   '/parent-onboarding': 'parentOnboarding',
   '/family-access': 'familyAccess',
@@ -794,18 +793,13 @@ export class Router {
         case 'familyLink':
           await this.loadModuleInstance('FamilyLinkReview');
           break;
-        case 'parentInvitations':
+        case 'invitations':
+          // Families and leaders alike; naming a team role also takes
+          // users.assign_roles, which the role list reflects.
           if (!guard(hasPermission('users.invite'))) {
             break;
           }
           await this.loadModuleInstance('ParentInvitations');
-          break;
-        case 'leaderInvitations':
-          // Inviting a leader also grants them a role
-          if (!guard(hasPermission('users.invite') && hasPermission('users.assign_roles'))) {
-            break;
-          }
-          await this.loadModuleInstance('ParentInvitations', { kind: 'leader' });
           break;
         case 'participantDuplicates':
           if (!guard(hasPermission('participants.edit'))) {

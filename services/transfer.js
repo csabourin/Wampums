@@ -35,6 +35,8 @@
  * @module services/transfer
  */
 
+const { resolveUnitRoleId } = require('./roleVisibility');
+
 /** Roles that make an account "a parent and nothing more". */
 const PARENT_ONLY_ROLES = ['parent', 'guardian', 'demoparent'];
 
@@ -410,11 +412,8 @@ async function transferParticipant(client, {
 
   // Take the parents along.
   const userIds = await findLinkedUsers(client, participantId);
-  const parentRole = await client.query(
-    'SELECT id FROM roles WHERE role_name = $1 LIMIT 1',
-    [PARENT_ROLE]
-  );
-  const parentRoleId = parentRole.rows[0]?.id;
+  // The destination's own parent role when it replaced and hid the built-in one.
+  const parentRoleId = await resolveUnitRoleId(client, PARENT_ROLE, targetOrganizationId);
 
   let membershipsCreated = 0;
   let membershipsReactivated = 0;

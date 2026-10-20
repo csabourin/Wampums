@@ -31,7 +31,7 @@ const SCREENS = {
     '/progression?tab=programme', '/reunions?tab=preparation',
   ],
   admin: [
-    '/dashboard', '/manage-participants', '/parent-invitations', '/leader-invitations',
+    '/dashboard', '/manage-participants', '/invitations',
     '/unit-settings', '/roles', '/finance', '/budgets', '/expenses', '/reports',
     '/messages', '/yearly-planner', '/medication-management', '/inventory', '/permission-slips',
     `/permission-slips/${seededActivityId()}`,

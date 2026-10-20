@@ -169,4 +169,7 @@ export const MERGED_ROUTE_REDIRECTS = {
   '/role-management': '/roles?tab=attribution',
   '/roles/permissions': '/roles?tab=permissions',
   '/form-permissions': '/roles?tab=formulaires',
+  // Families and leaders are invited from one screen, choosing the role.
+  '/parent-invitations': '/invitations',
+  '/leader-invitations': '/invitations',
 };

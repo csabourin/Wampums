@@ -57,18 +57,45 @@ const {
 const { ACCESS_SOURCE, grantParticipantAccess } = require('./participantAccess');
 const { DETECTED_VIA, flagDuplicatesAmong } = require('./duplicateCandidates');
 const { findRolesInUnit, recordRoleChange } = require('./roleAssignment');
+const { replaceHiddenRoleIds } = require('./roleVisibility');
 
 /** Languages the email bundles cover. Anything else falls back to the unit's own. */
 const SUPPORTED_EMAIL_LANGUAGES = ['en', 'fr', 'uk', 'it', 'id'];
 
 /** Note kept in role_assignment_audit for roles granted by accepting an invitation. */
 const LEADER_INVITATION_AUDIT_NOTE = 'Accepted a leader invitation';
-
-/** Who an invitation is for: a family (the parent role) or the unit's team. */
-const INVITATION_KIND = Object.freeze({ FAMILY: 'family', LEADER: 'leader' });
+/** The same, for a family invitation that named the family role to grant. */
+const FAMILY_INVITATION_AUDIT_NOTE = 'Accepted a family invitation';
 
 /**
- * The roles a leader's invitation grants; empty for a family invitation.
+ * Who an invitation is for. A leader invitation names at least one team role
+ * (whole-unit data scope); a family invitation names a family role (scope
+ * 'linked') or none, and then grants the unit's parent role on acceptance.
+ * The queries below test "names a team role" on `pi.role_ids` inline.
+ */
+const INVITATION_KIND = Object.freeze({ FAMILY: 'family', LEADER: 'leader', ALL: 'all' });
+
+/**
+ * Whether the given roles make an invitation a leader's: one of them is a team role.
+ *
+ * @param {Object} db - Database pool or client
+ * @param {number[]} roleIds - Roles the invitation names
+ * @returns {Promise<boolean>}
+ */
+async function namesTeamRole(db, roleIds) {
+  if (roleIds.length === 0) {
+    return false;
+  }
+  const result = await db.query(
+    "SELECT EXISTS (SELECT 1 FROM roles WHERE id = ANY($1::int[]) AND data_scope = 'organization') AS team",
+    [roleIds]
+  );
+  return result.rows[0]?.team === true;
+}
+
+/**
+ * The roles an invitation names; empty for a family invitation granting the
+ * unit's parent role.
  *
  * @param {Object|null} invitation - Row from `parent_invitations`
  * @returns {number[]} Role ids
@@ -98,7 +125,11 @@ const WITHDRAWN_FAMILY_ACCOUNT_SQL = `(
       FROM parent_invitations pi
      WHERE pi.organization_id = $1
        AND LOWER(pi.email) = LOWER(u.email)
-       AND jsonb_array_length(COALESCE(pi.role_ids, '[]'::jsonb)) = 0
+       -- a family invitation: it names no team role
+       AND NOT EXISTS (
+         SELECT 1 FROM jsonb_array_elements_text(COALESCE(pi.role_ids, '[]'::jsonb)) held(role_id)
+           JOIN roles r ON r.id = held.role_id::integer
+          WHERE r.data_scope = 'organization')
      ORDER BY pi.created_at DESC
      LIMIT 1
   ) IS NOT DISTINCT FROM 'revoked'
@@ -236,6 +267,11 @@ async function findInvitationByToken(pool, token) {
             pi.accepted_user_id,
             pi.onboarding_completed_at,
             pi.role_ids,
+            EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(COALESCE(pi.role_ids, '[]'::jsonb)) held(role_id)
+                JOIN roles r ON r.id = held.role_id::integer
+               WHERE r.data_scope = 'organization'
+            ) AS for_team,
             o.name AS organization_name,
             (u.id IS NOT NULL) AS account_exists
        FROM parent_invitations pi
@@ -298,7 +334,7 @@ async function describeInvitation(pool, token, { now = new Date(), logger } = {}
     support_contact_email: invitation.support_contact_email,
     language: invitation.language,
     // A leader joins the unit's team; the page does not ask them to add children
-    invites_leader: invitationRoleIds(invitation).length > 0,
+    invites_leader: invitation.for_team === true,
   };
 }
 
@@ -332,7 +368,7 @@ function invitationAdminState(invitation, now = new Date()) {
  * @param {Date} [options.now] - Clock reading, for tests
  * @returns {Promise<Array<Object>>} Invitations with a derived `state`
  */
-async function listInvitations(pool, organizationId, { now = new Date(), kind = INVITATION_KIND.FAMILY } = {}) {
+async function listInvitations(pool, organizationId, { now = new Date(), kind = INVITATION_KIND.ALL } = {}) {
   const result = await pool.query(
     `SELECT pi.id,
             pi.email,
@@ -355,10 +391,15 @@ async function listInvitations(pool, organizationId, { now = new Date(), kind = 
             pi.created_at,
             pi.role_ids,
             COALESCE((
-              SELECT json_agg(json_build_object('id', r.id, 'display_name', r.display_name) ORDER BY r.id)
+              SELECT json_agg(json_build_object('id', r.id, 'role_name', r.role_name, 'display_name', r.display_name) ORDER BY r.id)
                 FROM roles r
                WHERE COALESCE(pi.role_ids, '[]'::jsonb) @> jsonb_build_array(r.id)
             ), '[]'::json) AS roles,
+            EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(COALESCE(pi.role_ids, '[]'::jsonb)) held(role_id)
+                JOIN roles r ON r.id = held.role_id::integer
+               WHERE r.data_scope = 'organization'
+            ) AS for_team,
             inviter.full_name AS invited_by_name,
             COALESCE((
               SELECT json_agg(json_build_object('id', p.id, 'first_name', p.first_name, 'last_name', p.last_name)
@@ -371,12 +412,14 @@ async function listInvitations(pool, organizationId, { now = new Date(), kind = 
        LEFT JOIN users inviter ON inviter.id = pi.invited_by
       WHERE pi.organization_id = $1
         AND pi.status <> 'revoked'
-        AND (jsonb_array_length(COALESCE(pi.role_ids, '[]'::jsonb)) > 0) = ($2::text = 'leader')
       ORDER BY pi.created_at DESC`,
-    [organizationId, kind === INVITATION_KIND.LEADER ? INVITATION_KIND.LEADER : INVITATION_KIND.FAMILY]
+    [organizationId]
   );
 
-  return result.rows.map((row) => ({ ...row, state: invitationAdminState(row, now) }));
+  // Leader invitations name a team role; family invitations, a family role or none.
+  return result.rows
+    .filter((row) => kind === INVITATION_KIND.ALL || row.for_team === (kind === INVITATION_KIND.LEADER))
+    .map((row) => ({ ...row, state: invitationAdminState(row, now) }));
 }
 
 /**
@@ -789,7 +832,7 @@ async function deliverInvitation(pool, { invitation, token, baseUrl, logger }) {
 
   const { subject, text, html } = buildInvitationMessage({
     forChild: children.rows[0].n > 0,
-    forLeader: invitationRoleIds(invitation).length > 0,
+    forLeader: await namesTeamRole(pool, invitationRoleIds(invitation)),
     language: invitation.language,
     organizationName,
     completeLink,
@@ -968,16 +1011,21 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
     let userId = invitation.existing_user_id;
     let result;
 
-    // A leader's invitation grants the roles it carries that the unit still has
-    const forLeader = invitationRoleIds(invitation).length > 0;
-    const roleIds = forLeader
-      ? (await findRolesInUnit(client, invitationRoleIds(invitation), invitation.organization_id)).map((role) => role.id)
-      : null;
-    if (forLeader && roleIds.length === 0) {
+    // An invitation naming roles grants those the unit still has; a role the
+    // unit hid since is granted as the unit role replacing it. A family
+    // invitation naming none grants the unit's parent role.
+    const namedRoleIds = invitationRoleIds(invitation);
+    const invitedRoles = namedRoleIds.length > 0
+      ? await findRolesInUnit(client,
+        await replaceHiddenRoleIds(client, namedRoleIds, invitation.organization_id), invitation.organization_id)
+      : [];
+    const forLeader = invitedRoles.some((role) => role.data_scope === 'organization');
+    const roleIds = namedRoleIds.length > 0 ? invitedRoles.map((role) => role.id) : null;
+    if (roleIds && roleIds.length === 0) {
       await client.query('ROLLBACK');
       return { state, error: 'invitation_roles_unavailable' };
     }
-    const rolesBefore = forLeader && userId
+    const rolesBefore = roleIds && userId
       ? await membershipRoleIds(client, userId, invitation.organization_id)
       : [];
 
@@ -1040,7 +1088,7 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
 
     await linkInvitationChildren(client, { invitation, userId });
 
-    if (forLeader && result !== ACCEPTANCE_RESULT.PENDING_APPROVAL) {
+    if (roleIds && result !== ACCEPTANCE_RESULT.PENDING_APPROVAL) {
       // The roles were chosen by whoever sent the invitation, and recorded as theirs
       await recordRoleChange(client, {
         organizationId: invitation.organization_id,
@@ -1048,7 +1096,7 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
         changedBy: invitation.invited_by,
         previousRoleIds: rolesBefore,
         newRoleIds: await membershipRoleIds(client, userId, invitation.organization_id),
-        note: LEADER_INVITATION_AUDIT_NOTE,
+        note: forLeader ? LEADER_INVITATION_AUDIT_NOTE : FAMILY_INVITATION_AUDIT_NOTE,
       });
     }
 

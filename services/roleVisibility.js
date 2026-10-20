@@ -46,6 +46,66 @@ async function findHiddenAmong(db, roleIds, organizationId) {
 }
 
 /**
+ * The role an automatic grant gives in a unit: the built-in role named
+ * `roleName`, or, when the unit hid it, the unit role that replaces it. Used
+ * wherever the server grants a built-in role by itself (registration, family
+ * invitations and links, walk-ins, reactivation, transfers, imports), so a unit
+ * that replaced the parent or leader role gets its own role there too.
+ *
+ * Several unit roles may replace the same built-in role; the oldest is used.
+ *
+ * @param {Object} db - Database pool or client
+ * @param {string} roleName - Built-in role key, e.g. 'parent'
+ * @param {number} organizationId - The unit
+ * @returns {Promise<?number>} Role ID, or null when no such built-in role exists
+ */
+async function resolveUnitRoleId(db, roleName, organizationId) {
+  const result = await db.query(
+    `SELECT COALESCE(
+              (SELECT c.id FROM roles c
+                WHERE c.organization_id = $2 AND c.customized_from_role_id = b.id
+                  AND EXISTS (SELECT 1 FROM organization_hidden_roles h
+                               WHERE h.organization_id = $2 AND h.role_id = b.id)
+                ORDER BY c.id LIMIT 1),
+              b.id) AS id
+       FROM roles b
+      WHERE b.role_name = $1 AND b.organization_id IS NULL
+      ORDER BY b.is_system_role DESC NULLS LAST, b.id
+      LIMIT 1`,
+    [roleName, organizationId]
+  );
+  return result.rows[0] ? Number(result.rows[0].id) : null;
+}
+
+/**
+ * Swap each role the unit hid for the unit role that replaces it (the oldest),
+ * keeping the others. For grants decided before the role was hidden, such as
+ * an invitation accepted afterwards.
+ *
+ * @param {Object} db - Database pool or client
+ * @param {Array<number|string>} roleIds - Role IDs
+ * @param {number} organizationId - The unit
+ * @returns {Promise<number[]>} Role IDs, without duplicates, in their order
+ */
+async function replaceHiddenRoleIds(db, roleIds, organizationId) {
+  const ids = normalizeRoleIds(roleIds);
+  if (ids.length === 0) {
+    return [];
+  }
+  const result = await db.query(
+    `SELECT h.role_id,
+            (SELECT c.id FROM roles c
+              WHERE c.organization_id = $1 AND c.customized_from_role_id = h.role_id
+              ORDER BY c.id LIMIT 1) AS replacement_id
+       FROM organization_hidden_roles h
+      WHERE h.organization_id = $1 AND h.role_id = ANY($2::int[])`,
+    [organizationId, ids]
+  );
+  const replacements = new Map(result.rows.map((row) => [Number(row.role_id), row.replacement_id && Number(row.replacement_id)]));
+  return [...new Set(ids.map((id) => (replacements.has(id) ? replacements.get(id) : id)).filter(Boolean))];
+}
+
+/**
  * Whether a role may be hidden in the unit.
  *
  * @param {{organization_id: ?number, is_system_role: boolean, grants_all_permissions?: boolean, customized_count?: number|string}} role
@@ -130,6 +190,8 @@ async function releaseUnreplacedHiddenRoles(client, organizationId) {
 module.exports = {
   HIDE_REFUSALS,
   findHiddenAmong,
+  resolveUnitRoleId,
+  replaceHiddenRoleIds,
   hideRefusal,
   setRoleHidden,
   releaseUnreplacedHiddenRoles,

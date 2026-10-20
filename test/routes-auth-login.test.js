@@ -657,7 +657,8 @@ describe('POST /public/register', () => {
           }]
         });
       }
-      if (query.includes('SELECT id FROM roles')) {
+      // the parent role, or the unit's replacement (services/roleVisibility.js)
+      if (query.includes('FROM roles b')) {
         return Promise.resolve({ rows: [{ id: 3 }] }); // parent role
       }
       if (query.includes('INSERT INTO user_organizations')) {

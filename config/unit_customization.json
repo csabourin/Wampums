@@ -116,7 +116,6 @@
     "participants",
     "groups",
     "parent_invitations",
-    "leader_invitations",
     "participant_duplicates",
     "family_links",
     "participant_documents",
