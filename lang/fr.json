@@ -4243,7 +4243,7 @@
   "role_hide_refused_not_customized": "Personnalisez ce rôle intégré avant de le masquer.",
   "role_hide_refused_all_permissions": "Le rôle qui détient toutes les permissions ne peut pas être masqué.",
   "role_hide_refused_not_built_in": "Seul un rôle intégré peut être masqué.",
-  "role_replacement_not_grantable": "Pour qu’un rôle en remplace un rôle intégré, ou pour masquer ce rôle intégré, vous devez détenir toutes les permissions du rôle de remplacement.",
+  "role_replacement_not_grantable": "Pour qu’un rôle remplace un rôle intégré, ou pour masquer ce rôle intégré, vous devez détenir toutes les permissions du rôle qui le remplace.",
   "role_replaces_invalid": "Choisissez un rôle intégré que ce rôle remplace.",
   "role_matrix_hide_role": "Masquer dans l’unité",
   "role_matrix_show_role": "Afficher dans l’unité",
