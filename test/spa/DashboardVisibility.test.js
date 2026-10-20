@@ -184,15 +184,13 @@ describe('tool groups separate weekly work from unit set-up', () => {
   test('"Administration de l\'unité" holds the settings changed a few times a year', () => {
     expect(routesIn('admin').sort()).toEqual([
       '/communication-history',
-      '/form-permissions',
       '/leader-invitations',
       '/manage-groups',
       '/manage-participants',
       '/manage-users-participants',
       '/parent-invitations',
       '/participant-duplicates',
-      '/role-management',
-      '/roles/permissions',
+      '/roles',
       '/unit-settings',
     ]);
   });
@@ -241,10 +239,21 @@ describe('tiles follow the permissions their page acts on', () => {
     expect(group('people').querySelector('a[href="/reports"]')).not.toBeNull();
   });
 
-  test('form access needs forms.manage, not just admin-panel access', () => {
-    expect(renderAs(['users.view']).has('/form-permissions')).toBe(false);
-    expect(renderAs(['users.view', 'forms.manage']).has('/form-permissions')).toBe(true);
-    expect(renderAs(['forms.manage'], { adminPanel: false }).has('/form-permissions')).toBe(false);
+  test('roles, role permissions and form access share one tile, shown to whoever can open one of its tabs', () => {
+    expect(renderAs(['participants.view'], { adminPanel: false }).has('/roles')).toBe(false);
+    expect(renderAs(['roles.view']).has('/roles')).toBe(true);
+    expect(renderAs(['roles.manage']).has('/roles')).toBe(true);
+    expect(renderAs(['users.view', 'users.assign_roles']).has('/roles')).toBe(true);
+    // Form access needs forms.manage, not just admin-panel access.
+    expect(renderAs(['users.view']).has('/roles')).toBe(false);
+    expect(renderAs(['users.view', 'forms.manage']).has('/roles')).toBe(true);
+    expect(renderAs(['forms.manage'], { adminPanel: false }).has('/roles')).toBe(false);
+  });
+
+  test('the former role and form tiles are gone from the dashboard', () => {
+    const { has } = renderAs(['roles.view', 'roles.manage', 'users.view', 'users.assign_roles', 'forms.manage']);
+    expect(has('/roles')).toBe(true);
+    ['/role-management', '/roles/permissions', '/form-permissions'].forEach((href) => expect(has(href)).toBe(false));
   });
 
   test('unit settings need a permission the page uses', () => {

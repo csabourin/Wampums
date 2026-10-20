@@ -29,6 +29,7 @@ const {
 } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { checkRolesGrantable, findRolesInUnit, normalizeRoleIds } = require('../services/roleAssignment');
+const { findHiddenAmong } = require('../services/roleVisibility');
 const { ALL_INTERFACE_LANGUAGES } = require('../utils/interfaceLanguages');
 const {
   validateEmail,
@@ -170,6 +171,9 @@ module.exports = (pool, logger) => {
            FROM roles r
           WHERE (r.organization_id = $1 OR (r.organization_id IS NULL AND r.is_system_role))
             AND r.data_scope = 'organization'
+            -- built-in roles the unit replaced and hid (services/roleVisibility.js)
+            AND NOT EXISTS (SELECT 1 FROM organization_hidden_roles h
+                             WHERE h.organization_id = $1 AND h.role_id = r.id)
           ORDER BY r.display_name`,
         [organizationId, req.userPermissions || []]
       );
@@ -191,6 +195,10 @@ module.exports = (pool, logger) => {
     const unitRoles = await findRolesInUnit(pool, roleIds, organizationId);
     if (unitRoles.length !== roleIds.length || unitRoles.some((role) => role.data_scope !== 'organization')) {
       error(res, 'leader_invitation_role_invalid', HTTP_STATUS.BAD_REQUEST, [{ field: 'role_ids', value: req.body.role_ids }]);
+      return null;
+    }
+    if ((await findHiddenAmong(pool, roleIds, organizationId)).length > 0) {
+      error(res, 'role_hidden_in_unit', HTTP_STATUS.CONFLICT, [{ field: 'role_ids', value: req.body.role_ids }]);
       return null;
     }
     const check = await checkRolesGrantable(pool, roleIds, req.userPermissions || []);

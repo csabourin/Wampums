@@ -39,6 +39,7 @@ import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { youthDisplayName } from '../../utils/DisplayNameUtils.js';
+import { rolesToOffer } from '../../utils/RoleVisibilityUtils.js';
 const CACHE_KEY = 'district_management_state';
 const CACHE_DURATION = CONFIG.CACHE_DURATION.SHORT;
 const ADMIN_ROLES = ['district', 'unitadmin', 'demoadmin'];
@@ -891,7 +892,8 @@ export class DistrictManagement {
     const user = this.users.find((u) => u.id === this.selectedUserId);
     if (!user) {return null;}
 
-    const bundles = this.getRoleBundles();
+    // A built-in role the unit hid is offered only to a member who holds it.
+    const bundles = rolesToOffer(this.getRoleBundles(), user.role_ids || []);
     const mfaRequired = this.isHighRiskChange(user);
     const incidentUrl = sanitizeURL(INCIDENT_REPORT_URL);
     const validationState = this.getValidationState(user);

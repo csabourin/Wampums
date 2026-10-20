@@ -11,7 +11,7 @@ import { openModal } from '../../utils/ModalUtils.js';
 import { confirm, confirmDestructive } from '../../utils/DialogUtils.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { hasPermission, isDemoUser } from '../../utils/PermissionUtils.js';
-import { getRoleMatrix, replaceRolePermissions, createUnitRole, updateUnitRole, deleteUnitRole } from '../../api/api-roles.js';
+import { getRoleMatrix, replaceRolePermissions, createUnitRole, updateUnitRole, deleteUnitRole, setRoleHidden } from '../../api/api-roles.js';
 import { getUserOrganizations } from '../../api/api-endpoints.js';
 import { switchActiveUnit } from '../session/UnitSwitch.js';
 
@@ -137,13 +137,37 @@ export class RolePermissionMatrix {
       <span id="${id}-reason" class="role-matrix-reason" ${reason ? '' : 'hidden'}>${reason ? `<span class="fa-solid fa-lock" aria-hidden="true"></span> ${escapeHTML(translate(`role_matrix_lock_${reason}`))}` : ''}</span>
     </div>`;
   }
-  roleActions(role) {
+  /** Built-in roles a unit role may replace: every one but the role holding all permissions. */
+  replaceableRoles() {
+    return this.roles.filter((r) => r.is_system_role && !r.grants_all_permissions);
+  }
+  /** What a role is in this unit: hidden, or the built-in role it replaces. */
+  roleStatus(role) {
+    const replaced = role.customized_from_role_id
+      ? this.roles.find((r) => Number(r.id) === Number(role.customized_from_role_id)) : null;
+    return `${role.hidden ? `<p class="role-matrix-hidden"><span class="fa-solid fa-eye-slash" aria-hidden="true"></span> ${translate('role_hidden_badge')}</p>` : ''}
+      ${replaced ? `<p class="role-matrix-scope">${escapeHTML(translate('role_matrix_replaces').replace('{name}', roleLabel(replaced)))}</p>` : ''}`;
+  }
+  /**
+   * Hiding a built-in role the unit replaced. The district role, which holds
+   * every permission, offers no such control.
+   */
+  visibilityAction(role, prefix) {
+    if (!role.is_system_role || role.grants_all_permissions) { return ''; }
+    const blocked = !role.hidden && !!role.hide_refusal;
+    const noteId = `role-matrix-visibility-${prefix}-${Number(role.id)}`;
+    return `<button class="button button--secondary" type="button" data-visibility="${Number(role.id)}"
+        ${blocked ? `disabled aria-describedby="${noteId}"` : ''}>${translate(role.hidden ? 'role_matrix_show_role' : 'role_matrix_hide_role')}</button>
+      ${blocked ? `<p class="role-matrix-reason" id="${noteId}">${translate('role_matrix_hide_needs_custom')}</p>` : ''}`;
+  }
+  roleActions(role, prefix) {
     if (isDemoUser()) { return ''; }
     return `<div class="role-matrix-actions">
       <button class="button button--secondary" type="button" data-copy="${Number(role.id)}" ${role.can_copy ? '' : 'disabled'}>${translate(role.is_system_role ? 'role_matrix_customize' : 'role_matrix_copy')}</button>
       ${role.is_system_role ? '' : `<button class="button button--secondary" type="button" data-edit="${Number(role.id)}">${translate('edit')}</button>
       <button class="button button--danger" type="button" data-delete="${Number(role.id)}" ${(role.can_delete ?? role.can_copy) ? '' : 'disabled'}>${translate('delete')}</button>`}
       ${!role.can_copy ? `<p class="role-matrix-reason">${translate('role_matrix_cannot_copy')}</p>` : ''}
+      ${this.visibilityAction(role, prefix)}
     </div>`;
   }
   render() {
@@ -156,17 +180,18 @@ export class RolePermissionMatrix {
         ${this.organizations.map((o) => `<option value="${Number(o.id)}" ${Number(o.id) === Number(this.organizationId) ? 'selected' : ''}>${escapeHTML(o.name)}</option>`).join('')}</select>
         <p>${translate('role_matrix_district_help')}</p>` : ''}
       <p>${translate('role_matrix_builtin_help')}</p>
+      <p>${translate('role_matrix_hide_help')}</p>
       <div class="role-matrix-actions"><button type="button" id="role-matrix-create" class="button button--primary" ${isDemoUser() ? 'disabled' : ''}>${translate('role_matrix_create')}</button></div>
       ${this.roles.length ? `
       <div class="role-matrix-mobile"><label for="role-matrix-role">${translate('role_matrix_role')}</label>
-        <select id="role-matrix-role">${this.roles.map((r) => `<option value="${Number(r.id)}" ${r.id === selected?.id ? 'selected' : ''}>${escapeHTML(roleLabel(r))}</option>`).join('')}</select>
-        ${selected ? `<p>${escapeHTML(roleDescription(selected))}</p><p>${translate(selected.data_scope === 'linked' ? 'role_matrix_scope_linked' : 'role_matrix_scope_organization')}</p>${this.roleActions(selected)}
+        <select id="role-matrix-role">${this.roles.map((r) => `<option value="${Number(r.id)}" ${r.id === selected?.id ? 'selected' : ''}>${escapeHTML(roleLabel(r))}${r.hidden ? ` — ${escapeHTML(translate('role_hidden_badge'))}` : ''}</option>`).join('')}</select>
+        ${selected ? `<p>${escapeHTML(roleDescription(selected))}</p><p>${translate(selected.data_scope === 'linked' ? 'role_matrix_scope_linked' : 'role_matrix_scope_organization')}</p>${this.roleStatus(selected)}${this.roleActions(selected, 'mobile')}
         ${categories.map((category) => `<details open><summary>${escapeHTML(categoryLabel(category))}</summary><fieldset><legend class="sr-only">${escapeHTML(categoryLabel(category))}</legend>
           ${this.permissions.filter((p) => p.category === category).map((p) => this.checkbox(selected, p, 'mobile')).join('')}</fieldset></details>`).join('')}` : ''}
       </div>
       <div class="role-matrix-desktop"><div class="role-matrix-scroll" role="region" tabindex="0" aria-label="${escapeAttribute(translate('role_matrix_title'))}">
         <table><caption>${translate('role_matrix_title')}</caption><thead><tr><th scope="col">${translate('permissions')}</th>
-          ${this.roles.map((r) => `<th scope="col">${escapeHTML(roleLabel(r))}<p class="role-matrix-scope">${translate(r.data_scope === 'linked' ? 'role_matrix_scope_linked' : 'role_matrix_scope_organization')}</p>${this.roleActions(r)}</th>`).join('')}
+          ${this.roles.map((r) => `<th scope="col">${escapeHTML(roleLabel(r))}<p class="role-matrix-scope">${translate(r.data_scope === 'linked' ? 'role_matrix_scope_linked' : 'role_matrix_scope_organization')}</p>${this.roleStatus(r)}${this.roleActions(r, 'table')}</th>`).join('')}
         </tr></thead><tbody>${categories.map((category) => `<tr><th scope="rowgroup" colspan="${this.roles.length + 1}">${escapeHTML(categoryLabel(category))}</th></tr>
           ${this.permissions.filter((p) => p.category === category).map((p) => `<tr><th scope="row">${escapeHTML(permissionLabel(p))}</th>${this.roles.map((r) => `<td>${this.checkbox(r, p, 'table')}</td>`).join('')}</tr>`).join('')}`).join('')}</tbody></table>
       </div></div>` : `<p>${translate('role_matrix_empty')}</p>`}
@@ -182,6 +207,9 @@ export class RolePermissionMatrix {
     root.querySelector('#role-matrix-role')?.addEventListener('change', (event) => { this.selectedRoleId = Number(event.target.value); this.render(); this.root().querySelector('#role-matrix-role')?.focus(); });
     root.querySelectorAll('input[data-permission]').forEach((box) => box.addEventListener('change', () => this.toggle(box)));
     root.querySelector('#role-matrix-create').addEventListener('click', () => this.editRole());
+    root.querySelectorAll('[data-visibility]').forEach((button) => button.addEventListener('click', () => {
+      this.toggleVisibility(this.roles.find((r) => r.id === Number(button.dataset.visibility)));
+    }));
     for (const action of ['copy', 'edit', 'delete']) {
       root.querySelectorAll(`[data-${action}]`).forEach((button) => button.addEventListener('click', () => {
         const role = this.roles.find((r) => r.id === Number(button.dataset[action]));
@@ -258,6 +286,12 @@ export class RolePermissionMatrix {
           <option value="organization" ${role?.data_scope !== 'linked' ? 'selected' : ''}>${translate('role_matrix_scope_organization')}</option>
           <option value="linked" ${role?.data_scope === 'linked' ? 'selected' : ''}>${translate('role_matrix_scope_linked')}</option></select>
         ${copy ? `<label class="role-matrix-check-label"><input type="checkbox" name="reassign_members">${translate('role_matrix_reassign')}</label>` : ''}
+        ${editing ? `<label for="role-matrix-replaces">${translate('role_matrix_replaces_label')}</label>
+          <select id="role-matrix-replaces" name="customized_from_role_id" aria-describedby="role-matrix-replaces-help">
+            <option value="">${translate('role_matrix_replaces_none')}</option>
+            ${this.replaceableRoles().map((r) => `<option value="${Number(r.id)}" ${Number(r.id) === Number(role.customized_from_role_id) ? 'selected' : ''}>${escapeHTML(roleLabel(r))}</option>`).join('')}
+          </select>
+          <p id="role-matrix-replaces-help" class="role-matrix-reason">${translate('role_matrix_replaces_help')}</p>` : ''}
         <p id="role-matrix-definition-error" role="alert"></p></form>`,
       footer: `<button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button><button type="submit" form="role-matrix-definition" class="button button--primary">${translate('save')}</button>`,
     });
@@ -272,6 +306,7 @@ export class RolePermissionMatrix {
           const values = new FormData(form);
           const definition = { display_name: values.get('display_name').trim(), description: values.get('description'), data_scope: copy ? role.data_scope : values.get('data_scope') };
           if (copy) { definition.base_role_id = role.id; definition.reassign_members = values.get('reassign_members') === 'on'; }
+          if (editing) { definition.customized_from_role_id = Number(values.get('customized_from_role_id')) || null; }
           if (editing) { await updateUnitRole(role.id, definition); }
           else { const response = await createUnitRole(definition); this.selectedRoleId = response.data.id; }
           this.pending.clear();
@@ -289,6 +324,33 @@ export class RolePermissionMatrix {
       busy = false;
     });
     form.addEventListener('input', () => { form.querySelector('#role-matrix-definition-error').textContent = ''; });
+  }
+  /**
+   * Hide a built-in role the unit replaced, or show it again. Members holding
+   * it keep it; hiding only stops it being offered, so the confirmation says so.
+   */
+  async toggleVisibility(role) {
+    if (!role || !(await this.beforeLeave())) { return; }
+    const hiding = !role.hidden;
+    if (hiding && !(await confirm({
+      title: translate('role_matrix_hide_title').replace('{name}', roleLabel(role)),
+      message: translate(role.member_count > 0 ? 'role_matrix_hide_confirm_held' : 'role_matrix_hide_confirm')
+        .replace('{count}', String(role.member_count || 0)),
+      confirmLabel: translate('role_matrix_hide_role'),
+    }))) { return; }
+    this.saving = true;
+    try {
+      await setRoleHidden(role.id, hiding);
+    } catch (error) {
+      this.app.showMessage(apiErrorMessage(error, 'role_matrix_save_failed'), 'error');
+      return;
+    } finally { this.saving = false; }
+    this.pending.clear();
+    this.app.showMessage(translate(hiding ? 'role_matrix_role_hidden' : 'role_matrix_role_shown'), 'success');
+    await this.reload();
+    // The control was redrawn: return focus to it in whichever layout is shown.
+    const controls = [...(this.root()?.querySelectorAll(`[data-visibility="${Number(role.id)}"]`) || [])];
+    (controls.find((control) => control.getClientRects().length > 0) || controls[0])?.focus();
   }
   async removeRole(role) {
     if (!(await this.beforeLeave()) || !(await confirmDestructive({ title: translate('role_matrix_delete_title'), message: translate('role_matrix_delete_confirm').replace('{name}', roleLabel(role)) }))) { return; }

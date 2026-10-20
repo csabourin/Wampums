@@ -100,7 +100,53 @@ export const TABBED_PAGES = {
       },
     ],
   },
+
+  // Who holds which role, what each role may do, and who may use each form.
+  // Each tab keeps the permission its endpoints require.
+  roles: {
+    path: '/roles',
+    titleKey: 'page_roles_title',
+    defaultTab: 'attribution',
+    tabs: [
+      {
+        key: 'attribution',
+        labelKey: 'tab_roles_assign',
+        // Listing the members takes users.view; changing their roles, users.assign_roles.
+        gate: () => hasPermission('users.assign_roles') && hasPermission('users.view'),
+        options: { view: 'users' },
+        load: () => import('../modules/roles/RoleManagement.js').then((m) => m.RoleManagement),
+      },
+      {
+        key: 'permissions',
+        labelKey: 'tab_roles_permissions',
+        gate: () => hasAnyPermission('roles.view', 'roles.manage'),
+        options: { view: 'roles' },
+        // Someone who may change roles edits the matrix (and hides the built-in
+        // roles the unit replaced); anyone else reads the catalog.
+        load: () => (hasPermission('roles.manage')
+          ? import('../modules/roles/RolePermissionMatrix.js').then((m) => m.RolePermissionMatrix)
+          : import('../modules/roles/RoleManagement.js').then((m) => m.RoleManagement)),
+      },
+      {
+        key: 'formulaires',
+        labelKey: 'tab_roles_forms',
+        gate: () => canAccessAdminPanel() && hasPermission('forms.manage'),
+        load: () => import('../modules/forms/FormPermissions.js').then((m) => m.FormPermissionsManager),
+      },
+    ],
+  },
 };
+
+/**
+ * Whether the person can see at least one tab of a tabbed page: the guard of
+ * its route and of the dashboard tile that opens it.
+ *
+ * @param {string} key - Key into TABBED_PAGES
+ * @returns {boolean}
+ */
+export function hasVisibleTab(key) {
+  return (TABBED_PAGES[key]?.tabs || []).some((tab) => !tab.gate || tab.gate());
+}
 
 /**
  * Legacy routes kept working: each redirects to its tab inside the merged page,
@@ -120,4 +166,7 @@ export const MERGED_ROUTE_REDIRECTS = {
   '/preparation-reunions': '/reunions?tab=preparation',
   '/district-management': '/district?tab=unites',
   '/admin': '/district?tab=outils',
+  '/role-management': '/roles?tab=attribution',
+  '/roles/permissions': '/roles?tab=permissions',
+  '/form-permissions': '/roles?tab=formulaires',
 };

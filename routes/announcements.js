@@ -166,7 +166,8 @@ async function filterGroupsInUnit(pool, groupIds, organizationId) {
 }
 
 /**
- * Roles the unit may address: its own custom roles and the built-in ones.
+ * Roles the unit may address: its own custom roles and the built-in ones,
+ * except built-in roles it replaced and hid (services/roleVisibility.js).
  *
  * @param {Object} pool - Database pool
  * @param {number} organizationId - Organization ID
@@ -176,7 +177,9 @@ async function listUnitRoles(pool, organizationId) {
   const { rows } = await pool.query(
     `SELECT r.role_name, r.display_name
      FROM roles r
-     WHERE r.organization_id = $1 OR (r.organization_id IS NULL AND r.is_system_role)
+     WHERE (r.organization_id = $1 OR (r.organization_id IS NULL AND r.is_system_role))
+       AND NOT EXISTS (SELECT 1 FROM organization_hidden_roles h
+                        WHERE h.organization_id = $1 AND h.role_id = r.id)
      ORDER BY r.organization_id NULLS FIRST, r.id`,
     [organizationId],
   );

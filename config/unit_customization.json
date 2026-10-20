@@ -139,8 +139,6 @@
     "reports",
     "account_info",
     "role_management",
-    "role_permission_matrix",
-    "form_permissions",
     "district",
     "create_organization"
   ],

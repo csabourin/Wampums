@@ -457,36 +457,17 @@ export const DASHBOARD_TILES = [
     gate: { check: 'member' },
   },
   {
-    featureKey: 'role_permission_matrix',
-    href: '/roles/permissions',
-    icon: 'fa-table-cells',
-    label: 'tile_role_permission_matrix',
-    aliases: 'tile_role_permission_matrix_aliases',
-    moment: 'tools',
-    domain: 'admin',
-    gate: { permission: 'roles.manage' },
-  },
-  {
+    // One destination for roles: who holds which, what each may do, and who
+    // may use each form (spa/config/tabbed-pages.js). Shown when any tab is.
     featureKey: 'role_management',
-    href: '/role-management',
+    href: '/roles',
     icon: 'fa-user-tag',
     label: 'tile_role_management',
     aliases: 'tile_role_management_aliases',
     moment: 'tools',
     domain: 'admin',
     priority: 20,
-    gate: { any: ['roles.view', 'roles.manage'] },
-  },
-  {
-    featureKey: 'form_permissions',
-    href: '/form-permissions',
-    icon: 'fa-clipboard-check',
-    label: 'tile_form_permissions',
-    aliases: 'tile_form_permissions_aliases',
-    moment: 'tools',
-    domain: 'admin',
-    priority: 21,
-    gate: { check: 'formPermissions' },
+    gate: { check: 'rolesPage' },
   },
 
   // ---------------------------------------------------------------

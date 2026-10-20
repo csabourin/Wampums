@@ -15,7 +15,7 @@ import { releaseAllScrollLocks } from './utils/ScrollLockUtils.js';
 import { initScrollMemory, beginScrollNavigation, restoreScrollPosition } from './utils/ScrollMemory.js';
 import { resetPageReads } from './modules/live-sync/LiveSyncState.js';
 import { focusPageStart } from './utils/PageFocusUtils.js';
-import { TABBED_PAGES, MERGED_ROUTE_REDIRECTS } from './config/tabbed-pages.js';
+import { TABBED_PAGES, MERGED_ROUTE_REDIRECTS, hasVisibleTab } from './config/tabbed-pages.js';
 import {
   canApproveBadges,
   // ... (imports continue)
@@ -26,7 +26,6 @@ import {
   canManageFundraisers,
   canManageInventory,
   canManagePoints,
-  canManageRoles,
   canViewRoles,
   canSendCommunications,
   canAccessAdminPanel,
@@ -125,10 +124,7 @@ const lazyModules = {
   Activities: () => import('./modules/activities/Activities.js').then(m => m.Activities),
   CarpoolLanding: () => import('./modules/carpool/CarpoolLanding.js').then(m => m.CarpoolLanding),
   CarpoolDashboard: () => import('./modules/carpool/CarpoolDashboard.js').then(m => m.CarpoolDashboard),
-  RolePermissionMatrix: () => import('./modules/roles/RolePermissionMatrix.js').then(m => m.RolePermissionMatrix),
-  RoleManagement: () => import('./modules/roles/RoleManagement.js').then(m => m.RoleManagement),
   DistrictManagement: () => import('./modules/district/DistrictManagement.js').then(m => m.DistrictManagement),
-  FormPermissions: () => import('./modules/forms/FormPermissions.js').then(m => m.initFormPermissions),
   CommunicationSettings: () => import('./modules/communication-settings/CommunicationSettings.js').then(m => m.CommunicationSettings),
   UnitSettings: () => import('./modules/unit-settings/unit-settings.js').then(m => m.UnitSettings),
   OfflinePreparation: () => import('./modules/offline/OfflinePreparation.js').then(m => m.OfflinePreparation),
@@ -161,6 +157,7 @@ const routes = {
   '/progression': 'progression',
   '/reunions': 'reunions',
   '/district': 'district',
+  '/roles': 'roles',
   '/dashboard': 'dashboard',
   '/main-dashboard': 'mainDashboard',
   '/login': 'login',
@@ -232,10 +229,7 @@ const routes = {
   '/activities': 'activities',
   '/carpool': 'carpoolLanding',
   '/carpool/:id': 'carpool',
-  '/role-management': 'roleManagement',
-  '/roles/permissions': 'rolePermissionMatrix',
   '/district-management': 'districtManagement',
-  '/form-permissions': 'formPermissions',
   '/communications': 'communications',
   '/prepare-offline': 'offlinePreparation',
   '/incident-reports': 'incidentReports',
@@ -1023,23 +1017,12 @@ export class Router {
           this.currentModuleInstance = carpoolDashboard;
           await carpoolDashboard.init();
           break;
-        case 'rolePermissionMatrix': {
-          if (!guard(hasPermission('roles.manage'))) { break; }
-          const RolePermissionMatrix = await this.loadModule('RolePermissionMatrix');
-          this.currentModuleInstance = new RolePermissionMatrix(this.app);
-          await this.currentModuleInstance.init();
-          break;
-        }
-        case 'roleManagement':
-          // Only accessible by users with role management permissions
-          // Permission check is done within the RoleManagement component
-          if (!guard(canManageRoles() || canViewRoles())) {
+        case 'roles':
+          // Each tab carries the permission its endpoints require.
+          if (!guard(hasVisibleTab('roles'))) {
             break;
           }
-          const RoleManagement = await this.loadModule('RoleManagement');
-          const roleManagement = new RoleManagement(this.app);
-          this.currentModuleInstance = roleManagement;
-          await roleManagement.init();
+          await this.loadTabbedPage('roles');
           break;
         case 'districtManagement':
           if (!guard(canViewRoles())) {
@@ -1049,14 +1032,6 @@ export class Router {
           const districtManagement = new DistrictManagement(this.app);
           this.currentModuleInstance = districtManagement;
           await districtManagement.init();
-          break;
-        case 'formPermissions':
-          // Whoever may open the admin panel.
-          if (!guard(canAccessAdminPanel())) {
-            break;
-          }
-          const initFormPermissions = await this.loadModule('FormPermissions');
-          this.currentModuleInstance = await initFormPermissions(this.app);
           break;
         case 'register':
           if (this.app.isLoggedIn) {

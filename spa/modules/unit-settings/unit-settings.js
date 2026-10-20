@@ -695,7 +695,7 @@ export class UnitSettings extends BaseModule {
         description: translate('unit_settings_link_communications') || 'Configure WhatsApp, Google Chat, and messaging.',
       },
       canViewRoles() && {
-        href: '/role-management',
+        href: '/roles?tab=permissions',
         icon: 'fa-user-tag',
         label: translate('role_management') || 'Role Management',
         description: translate('unit_settings_link_roles') || 'Manage roles and permissions for your members.',
@@ -707,7 +707,7 @@ export class UnitSettings extends BaseModule {
         description: translate('unit_settings_link_form_builder'),
       },
       canManageForms() && {
-        href: '/form-permissions',
+        href: '/roles?tab=formulaires',
         icon: 'fa-clipboard-check',
         label: translate('form_permissions') || 'Form Permissions',
         description: translate('unit_settings_link_forms') || 'Control which roles can access each form.',

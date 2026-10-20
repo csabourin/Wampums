@@ -4,7 +4,7 @@ import { ACCOUNTS, storageStateFor, openScreen, axeViolations } from './helpers.
 
 test.use({ storageState: storageStateFor(ACCOUNTS.admin) });
 
-for (const target of ['/roles/permissions', '/district?tab=roles']) {
+for (const target of ['/roles?tab=permissions', '/district?tab=roles']) {
   test(`${target} lets an admin configure a unit role using the keyboard`, async ({ page }, testInfo) => {
     await openScreen(page, target);
     await expect(page.locator('#role-matrix-create')).toBeVisible();

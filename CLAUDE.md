@@ -196,6 +196,14 @@ description, sharing the active-membership check with `authenticate`.
   `r.organization_id = $unit OR (r.organization_id IS NULL AND r.is_system_role)`.
 - ✅ A custom role's `role_name` is an internal key the server generates (`u<unit>_<slug>`); show
   `display_name` to people. Built-in roles may be looked up by name; custom roles never collide with them.
+- ✅ **A unit may hide a built-in role it replaced** (migration 038, `services/roleVisibility.js`).
+  `roles.customized_from_role_id` records the built-in role a unit role was customized from; while one
+  exists, the unit may hide the original (`organization_hidden_roles`; never the role holding every
+  permission). Hiding changes no one's rights. A list that **offers** roles leaves hidden ones out
+  (`AND NOT EXISTS (SELECT 1 FROM organization_hidden_roles h WHERE h.organization_id = $unit AND
+  h.role_id = r.id)`, or `rolesToOffer()` from `spa/utils/RoleVisibilityUtils.js`, which keeps one the
+  member already holds), and a **new** grant of one answers 409 `role_hidden_in_unit`
+  (`findHiddenAmong`). Removing the last unit role replacing it shows it again.
 
 #### Granting Roles and Permissions
 - ✅ **Someone may grant only what they hold.** Adding or removing a member's role, adding or removing a
@@ -216,7 +224,12 @@ description, sharing the active-membership check with `authenticate`.
 
 #### Role Permission Matrices
 
-`/roles/permissions` requires `roles.manage`. The Roles tab of `/district` requires
+Roles have one destination, `/roles` ("Rôles et permissions", `TABBED_PAGES.roles`): assigning roles
+(`users.view` + `users.assign_roles`), role permissions (the matrix with `roles.manage`, the read-only
+catalog with only `roles.view`) and form access (`forms.manage`). `/role-management`,
+`/roles/permissions` and `/form-permissions` redirect to their tab. The matrix is also where a unit
+hides a built-in role it customized (`PUT /api/v1/roles/:roleId/visibility`, `roles.manage`), and
+where a custom role created before migration 038 is marked as replacing one. The Roles tab of `/district` requires
 `roles.manage_district` as well as unit management rights. It switches the active authenticated
 unit using `/api/v1/organizations/switch`; matrix requests never accept a target unit ID.
 Built-in roles remain read-only. Customization copies their permissions, data scope and this

@@ -39,7 +39,7 @@
   },
   "spa/router.js": {
     "no-case-declarations": {
-      "count": 69
+      "count": 66
     }
   },
   "spa/utils/SecurityUtils.js": {

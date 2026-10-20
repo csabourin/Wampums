@@ -60,5 +60,6 @@
   {"method": "PUT", "path": "/api/v1/roles/:roleId/permissions", "routePath": "/api/v1/roles/:roleId/permissions", "routerVariable": "rolesRoutes", "routeFile": "routes/roles.js", "clientFile": "spa/api/api-roles.js", "clientEndpoint": "v1/roles/${encodeURIComponent(roleId)}/permissions"},
   {"method": "PATCH", "path": "/api/v1/roles/:roleId", "routePath": "/api/v1/roles/:roleId", "routerVariable": "rolesRoutes", "routeFile": "routes/roles.js", "clientFile": "spa/api/api-roles.js", "clientEndpoint": "v1/roles/${encodeURIComponent(roleId)}"},
   {"method": "POST", "path": "/api/v1/roles", "routePath": "/api/v1/roles", "routerVariable": "rolesRoutes", "routeFile": "routes/roles.js", "clientFile": "spa/api/api-roles.js", "clientEndpoint": "v1/roles"},
-  {"method": "DELETE", "path": "/api/v1/roles/:roleId", "routePath": "/api/v1/roles/:roleId", "routerVariable": "rolesRoutes", "routeFile": "routes/roles.js", "clientFile": "spa/api/api-roles.js", "clientEndpoint": "v1/roles/${encodeURIComponent(roleId)}"}
+  {"method": "DELETE", "path": "/api/v1/roles/:roleId", "routePath": "/api/v1/roles/:roleId", "routerVariable": "rolesRoutes", "routeFile": "routes/roles.js", "clientFile": "spa/api/api-roles.js", "clientEndpoint": "v1/roles/${encodeURIComponent(roleId)}"},
+  {"method": "PUT", "path": "/api/v1/roles/:roleId/visibility", "routePath": "/api/v1/roles/:roleId/visibility", "routerVariable": "rolesRoutes", "routeFile": "routes/roles.js", "clientFile": "spa/api/api-roles.js", "clientEndpoint": "v1/roles/${encodeURIComponent(roleId)}/visibility"}
 ]

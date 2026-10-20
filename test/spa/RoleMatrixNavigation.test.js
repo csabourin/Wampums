@@ -9,21 +9,21 @@ beforeEach(() => { document.body.innerHTML = '<main id="app"><h1>Matrix</h1></ma
 
 test('declining to discard changes preserves the editor and restores its URL', async () => {
   const router = new Router({ isLoggedIn: true });
-  router.currentPath = '/roles/permissions';
+  router.currentPath = '/roles?tab=permissions';
   router.currentModuleInstance = { beforeLeave: jest.fn().mockResolvedValue(false), destroy: jest.fn() };
   const render = jest.spyOn(router, 'renderRoute').mockResolvedValue();
   window.history.pushState(null, '', '/dashboard');
   await router.route('/dashboard');
   expect(render).not.toHaveBeenCalled();
   expect(router.currentModuleInstance.destroy).not.toHaveBeenCalled();
-  expect(window.location.pathname).toBe('/roles/permissions');
+  expect(window.location.pathname + window.location.search).toBe('/roles?tab=permissions');
 });
 test('a live refresh consults the editor before tearing it down', async () => {
   const router = new Router({ isLoggedIn: true });
   const beforeLeave = jest.fn().mockResolvedValue(false);
   router.currentModuleInstance = { beforeLeave };
   const render = jest.spyOn(router, 'renderRoute').mockResolvedValue();
-  await router.route('/roles/permissions', { refresh: true });
+  await router.route('/roles?tab=permissions', { refresh: true });
   expect(beforeLeave).toHaveBeenCalledWith({ refresh: true });
   expect(render).not.toHaveBeenCalled();
 });
