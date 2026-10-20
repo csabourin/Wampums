@@ -24,31 +24,6 @@ const HIDE_REFUSALS = {
 };
 
 /**
- * SQL condition, on a row `r` of roles, true when unit `$unit` hid it.
- * Callers bind the unit to the placeholder they pass.
- *
- * @param {string} placeholder - Placeholder holding the unit id, e.g. '$1'
- * @returns {string} SQL boolean expression
- */
-function hiddenInUnitSql(placeholder) {
-  return `EXISTS (SELECT 1 FROM organization_hidden_roles h
-                  WHERE h.organization_id = ${placeholder} AND h.role_id = r.id)`;
-}
-
-/**
- * @param {Object} db - Database pool or client
- * @param {number} organizationId - The unit
- * @returns {Promise<number[]>} IDs of the roles the unit hid
- */
-async function findHiddenRoleIds(db, organizationId) {
-  const result = await db.query(
-    'SELECT role_id FROM organization_hidden_roles WHERE organization_id = $1 ORDER BY role_id',
-    [organizationId]
-  );
-  return result.rows.map((row) => Number(row.role_id));
-}
-
-/**
  * The roles among `roleIds` that the unit hid.
  *
  * @param {Object} db - Database pool or client
@@ -154,8 +129,6 @@ async function releaseUnreplacedHiddenRoles(client, organizationId) {
 
 module.exports = {
   HIDE_REFUSALS,
-  hiddenInUnitSql,
-  findHiddenRoleIds,
   findHiddenAmong,
   hideRefusal,
   setRoleHidden,
