@@ -324,6 +324,19 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
     expect(recipients.emails).not.toContain(emails.leader);
   });
 
+  test('the unit\'s own parent role reaches every family, guardians included, like the parent role', async () => {
+    await pool.query(
+      "UPDATE roles SET customized_from_role_id = (SELECT id FROM roles WHERE role_name = 'parent' AND organization_id IS NULL) WHERE id = $1",
+      [ids.familyRoleId]
+    );
+
+    const recipients = await buildRecipientsForTests(pool, ids.unit, [ids.familyRole], [], 'members');
+
+    expect(recipients.emails.sort()).toEqual([
+      emails['guardian-blue'], emails['guardian-red'], emails['parent-blue'], emails['parent-red'],
+    ].sort());
+  });
+
   test('a leader can send a message to one den without ticking a role', async () => {
     const response = await request(app).post('/api/v1/announcements').send({
       subject: 'Sortie',

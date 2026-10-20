@@ -187,6 +187,35 @@ async function listUnitRoles(pool, organizationId) {
 }
 
 /**
+ * Whether the roles chosen include the unit's own role made from the built-in
+ * parent role. Once the unit hides the built-in one, that role stands for
+ * "all families" in the composer, as `parent` did.
+ *
+ * @param {Object} pool - Database pool
+ * @param {number} organizationId - Organization ID
+ * @param {Array<string>} roleNames - Recipient role names
+ * @returns {Promise<boolean>} True when one replaces the built-in parent role
+ */
+async function namesUnitParentRole(pool, organizationId, roleNames) {
+  if (!roleNames.length) {
+    return false;
+  }
+  const { rows } = await pool.query(
+    `SELECT 1
+       FROM roles r
+       JOIN roles builtin ON builtin.id = r.customized_from_role_id
+      WHERE r.organization_id = $1
+        AND r.role_name = ANY($2::text[])
+        AND builtin.organization_id IS NULL
+        -- policy-allow role-names: built-in roles may be looked up by name (CLAUDE.md §3); this picks an audience, not access
+        AND builtin.role_name = 'parent'
+      LIMIT 1`,
+    [organizationId, roleNames]
+  );
+  return rows.length > 0;
+}
+
+/**
  * Fetch announcement templates for the organization with organization defaults
  */
 async function fetchAnnouncementTemplates(pool, organizationId) {
@@ -259,7 +288,9 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
   const roleFilter = roles || [];
   // Dens chosen without any role: the message is for those dens' families.
   const familiesOnly = !roleFilter.length && groupIds.length > 0;
-  const includeParents = familiesOnly || roleFilter.includes('parent');
+  const includeParents = familiesOnly
+    || roleFilter.includes('parent')
+    || await namesUnitParentRole(pool, organizationId, roleFilter);
   const groupFilterClause = groupIds.length
     ? 'AND pgroups.group_id = ANY($2::int[]) AND pgroups.organization_id = $1'
     : '';
