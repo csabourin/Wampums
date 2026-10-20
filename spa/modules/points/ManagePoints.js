@@ -235,7 +235,7 @@ export class ManagePoints {
               <option value="">${translate('all_groups')}</option>
               ${this.groups
     .map(
-      (group) => `<option value="${group.id}">${group.name}</option>`,
+      (group) => `<option value="${Number(group.id)}">${escapeHTML(group.name)}</option>`,
     )
     .join('')}
             </select>
@@ -276,9 +276,9 @@ export class ManagePoints {
     return this.groups
       .map(
         (group) => `
-        <button type="button" class="group-header" data-group-id="${group.id}"
+        <button type="button" class="group-header" data-group-id="${Number(group.id)}"
           data-type="group" aria-pressed="false">
-          <span class="group-header__name">${group.name}</span>
+          <span class="group-header__name">${escapeHTML(group.name)}</span>
           <span class="group-header__points">${translate('group_points')}: ${this.store.getGroupTotal(group.id)}</span>
         </button>
         <div class="group-content">

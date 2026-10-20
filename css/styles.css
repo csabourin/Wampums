@@ -3937,6 +3937,16 @@ tr:hover {
   min-block-size: var(--touch-target-min);
 }
 
+/* The header is a <button>, which the global rule paints white on green;
+   unselected it sits on a pale grey, so it needs the dark text. */
+.manage-points-page .group-header {
+  color: var(--color-text);
+}
+
+.manage-points-page .group-header.selected {
+  color: white;
+}
+
 .manage-points-page .list-item {
   color: var(--color-text);
   background: var(--color-surface);
@@ -4038,13 +4048,15 @@ tr:hover {
     transform var(--transition-fast);
 }
 
-.points-action-bar .point-btn,
+/* Each selector carries its own state: a bare `.points-action-bar .point-btn`
+   here once drew the focus ring and the faded busy look on every bar button. */
+.points-action-bar .point-btn:focus-visible,
 .points-game-result-dialog .point-btn:focus-visible {
-  outline: 3px solid var(--color-link);
+  outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
-.points-action-bar .point-btn,
+.points-action-bar .point-btn:disabled,
 .points-game-result-dialog .point-btn:disabled {
   cursor: wait;
   opacity: 0.65;

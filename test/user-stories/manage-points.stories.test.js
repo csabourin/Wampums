@@ -160,6 +160,24 @@ describe('US-PTS-001 — See group and member totals at a glance', () => {
   });
 });
 
+describe('A group name shows as text', () => {
+  it('a group named like markup appears as written in its header and in the filter', async () => {
+    seedStandardData();
+    const name = '<img src=x onerror=alert(1)>';
+    ajax.getGroups.mockResolvedValue({
+      success: true,
+      data: buildGroups([{ id: GROUP_ID, name, total_points: 20 }])
+    });
+    await initPage();
+
+    const header = document.querySelector(`.group-header[data-group-id="${GROUP_ID}"] .group-header__name`);
+    expect(header.textContent).toBe(name);
+    const option = document.querySelector(`#group-filter option[value="${GROUP_ID}"]`);
+    expect(option.textContent).toBe(name);
+    expect(document.querySelector('#app img')).toBeNull();
+  });
+});
+
 describe('US-PTS-002 — +5 shows instantly and sticks after the server confirms', () => {
   it('shows 15 before the response and still 15 after the absolute total arrives', async () => {
     seedStandardData();
