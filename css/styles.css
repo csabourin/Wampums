@@ -6207,6 +6207,16 @@ html.has-programme-bar body {
   display: none;
 }
 
+/* A screen's own bottom bar (points, attendance, honours…) sits just above the
+   programme bar instead of under it; the page already keeps room for both. */
+html.has-programme-bar :is(.points-action-bar, .fixed-bottom, .status-buttons, .fixed-footer, .dm-action-bar) {
+  inset-block-end: var(--programme-bar-space);
+}
+
+html.has-programme-bar .badge-tracker__fab {
+  bottom: calc(var(--programme-bar-space) + var(--space-sm));
+}
+
 .programme-bar__button {
   inline-size: 100%;
   min-block-size: 5.5rem;
