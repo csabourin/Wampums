@@ -122,8 +122,8 @@ describe.skipIf(!DATABASE_URL)('Transfer to a sister unit', () => {
     ids.targetYearId = await makeYear(ids.targetId);
 
     ids.parentRoleId = await one(
-      `INSERT INTO roles (role_name, display_name) VALUES ('parent', 'Parent')
-       ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name RETURNING id`
+      `INSERT INTO roles (role_name, display_name, data_scope) VALUES ('parent', 'Parent', 'linked')
+       ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name, data_scope = 'linked' RETURNING id`
     );
     ids.animationRoleId = await one(
       `INSERT INTO roles (role_name, display_name) VALUES ('animation', 'Animation')

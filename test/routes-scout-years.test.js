@@ -460,7 +460,7 @@ describe('POST /api/v1/scout-years/transition', () => {
     expect(res.body.data.new_year).toMatchObject({ label: '2026-2027' });
   });
 
-  test('early transition: deactivation guardrail SQL excludes non-parent roles', async () => {
+  test('early transition: deactivation guardrail SQL spares anyone holding more than a family role', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken();
 
@@ -479,9 +479,11 @@ describe('POST /api/v1/scout-years/transition', () => {
 
     expect(res.body.success).toBe(true);
     // The deactivation query must contain the role guardrail so that
-    // non-parent role holders are never deactivated automatically.
+    // anyone holding a role beyond their own children is never deactivated
+    // automatically. The guardrail reads the role's scope, not its name.
     const dq = getDeactivationQuery();
-    expect(dq).toContain("parent','guardian','demoparent'");
+    expect(dq).toContain("r.data_scope IS DISTINCT FROM 'linked'");
+    expect(dq).not.toMatch(/role_name/);
     expect(dq).toContain('NOT EXISTS');
   });
 

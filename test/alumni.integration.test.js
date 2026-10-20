@@ -134,8 +134,8 @@ describe.skipIf(!DATABASE_URL)('Alumni consent', () => {
     );
 
     ids.parentRoleId = await one(
-      `INSERT INTO roles (role_name, display_name) VALUES ('parent', 'Parent')
-       ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name RETURNING id`
+      `INSERT INTO roles (role_name, display_name, data_scope) VALUES ('parent', 'Parent', 'linked')
+       ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name, data_scope = 'linked' RETURNING id`
     );
     ids.animationRoleId = await one(
       `INSERT INTO roles (role_name, display_name) VALUES ('animation', 'Animation')
@@ -268,6 +268,43 @@ describe.skipIf(!DATABASE_URL)('Alumni consent', () => {
   test('offers the invitation only to a departed parent, never to a leader or a current family', async () => {
     const candidates = await listInvitationCandidates(pool, ids.organizationId);
     expect(candidates.map(row => row.membership_id)).toEqual([ids.departedMembershipId]);
+  });
+
+  test('a parent is known by the scope of their role, not its name', async () => {
+    // The unit's own family role counts; a role named like a parent but
+    // reaching the whole unit does not (shared 'guardian' role, upserted and left in place).
+    const familyRoleId = await one(
+      `INSERT INTO roles (role_name, display_name, organization_id, data_scope)
+       VALUES ($1, 'Famille de la meute', $2, 'linked') RETURNING id`,
+      [`u${ids.organizationId}_famille_${Date.now()}`, ids.organizationId]
+    );
+    const staffRoleId = await one(
+      `INSERT INTO roles (role_name, display_name, data_scope) VALUES ('guardian', 'Guardian', 'organization')
+       ON CONFLICT (role_name) DO UPDATE SET data_scope = 'organization' RETURNING id`
+    );
+    const users = [];
+    try {
+      const departed = async (name, roleId) => {
+        const userId = await one(
+          `INSERT INTO users (email, password, full_name)
+           VALUES ($1 || '-' || gen_random_uuid() || '@example.test', 'x', $1) RETURNING id`, [name]);
+        users.push(userId);
+        return one(
+          `INSERT INTO user_organizations (user_id, organization_id, role_ids, status, deactivated_at)
+           VALUES ($1, $2, to_jsonb(ARRAY[$3::text]), 'inactive', now()) RETURNING id`,
+          [userId, ids.organizationId, String(roleId)]);
+      };
+      const familyMembership = await departed('Famille partie', familyRoleId);
+      const staffMembership = await departed('Accompagnateur parti', staffRoleId);
+
+      const candidates = (await listInvitationCandidates(pool, ids.organizationId)).map(row => row.membership_id);
+      expect(candidates).toContain(familyMembership);
+      expect(candidates).not.toContain(staffMembership);
+    } finally {
+      await pool.query('DELETE FROM user_organizations WHERE user_id = ANY($1::uuid[])', [users]);
+      await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [users]);
+      await pool.query('DELETE FROM roles WHERE id = $1', [familyRoleId]);
+    }
   });
 
   test('sends the invitation once and never a second time', async () => {
