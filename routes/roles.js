@@ -10,7 +10,7 @@
 const express = require('express');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
-const { findRolesInUnit, pairedViewKey, checkPermissionChange, permissionLockReason, recordRoleChange, recordRoleDefinitionChange } = require('../services/roleAssignment');
+const { findRolesInUnit, pairedViewKey, checkPermissionChange, checkRolesGrantable, permissionLockReason, recordRoleChange, recordRoleDefinitionChange } = require('../services/roleAssignment');
 const { hideRefusal, setRoleHidden, releaseUnreplacedHiddenRoles } = require('../services/roleVisibility');
 const { query, body, param } = require('express-validator');
 const { checkValidation } = require('../middleware/validation');
@@ -33,6 +33,9 @@ const validateDefinition = () => [
 ];
 /** Largest id a PostgreSQL integer column holds. */
 const MAX_INTEGER_ID = 2147483647;
+/** Refusal when a replacement, granted automatically, holds permissions the caller lacks. */
+const REPLACEMENT_NOT_GRANTABLE = 'role_replacement_not_grantable';
+
 /** Fields of a unit role that PATCH may change. */
 const EDITABLE_ROLE_FIELDS = ['display_name', 'description', 'data_scope', 'customized_from_role_id'];
 
@@ -215,6 +218,12 @@ module.exports = (pool, logger) => {
           [updated.customized_from_role_id]
         )).rows[0];
         if (!replaced) { return { refusal: { status: HTTP.BAD_REQUEST, message: 'role_replaces_invalid' } }; }
+        // A replacement is granted automatically once the built-in role is
+        // hidden: whoever makes it one must be able to grant it.
+        const grant = await checkRolesGrantable(client, [role.id], req.userPermissions || []);
+        if (!grant.allowed) {
+          return { refusal: { status: HTTP.FORBIDDEN, message: REPLACEMENT_NOT_GRANTABLE, required: grant.required, missing: grant.missing } };
+        }
       }
       const refusal = checkPermissionChange({ role: updated, catalog, currentKeys, requestedKeys: currentKeys,
         heldPermissions: req.userPermissions || [], previousScope: role.data_scope });
@@ -240,6 +249,19 @@ module.exports = (pool, logger) => {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
+        if (req.body.hidden) {
+          // Hiding a built-in role makes the unit's replacements for it granted
+          // automatically: whoever hides it must be able to grant them.
+          const replacements = await client.query(
+            'SELECT id FROM roles WHERE organization_id = $1 AND customized_from_role_id = $2',
+            [organizationId, req.params.roleId]
+          );
+          const grant = await checkRolesGrantable(client, replacements.rows.map((row) => row.id), req.userPermissions || []);
+          if (!grant.allowed) {
+            await client.query('ROLLBACK');
+            return forbidden(res, REPLACEMENT_NOT_GRANTABLE, grant.required, grant.missing);
+          }
+        }
         const result = await setRoleHidden(client, {
           organizationId, roleId: req.params.roleId, hidden: req.body.hidden, changedBy: req.user.id,
         });
