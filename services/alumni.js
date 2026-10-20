@@ -25,7 +25,11 @@ const { signJWTToken, verifyJWTToken } = require('../utils/jwt-config');
 const { sendEmail, getTranslationsByCode, getUserEmailLanguage } = require('../utils/index');
 const { resolveOrganizationEmailSender } = require('./emailSender');
 
-/** Roles that make an account "a parent and nothing more". */
+/**
+ * Roles that make an account "a parent and nothing more", whatever their
+ * scope. Any role acting only on the holder's own children (data_scope
+ * 'linked'), such as a unit's own replacement for the parent role, counts too.
+ */
 const PARENT_ONLY_ROLES = ['parent', 'guardian', 'demoparent'];
 
 /** Token purposes. A consent token can never be replayed as an unsubscribe. */
@@ -134,6 +138,7 @@ async function listInvitationCandidates(pool, organizationId) {
             FROM jsonb_array_elements_text(uo.role_ids) AS role_id_text
             JOIN roles r ON r.id = role_id_text::integer
            WHERE r.role_name <> ALL ($2::text[])
+             AND r.data_scope IS DISTINCT FROM 'linked'
         )
       ORDER BY u.full_name NULLS LAST, u.email`,
     [organizationId, PARENT_ONLY_ROLES]

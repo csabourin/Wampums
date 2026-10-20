@@ -536,6 +536,55 @@ describe.skipIf(!DATABASE_URL)('Transfer to a sister unit', () => {
       .toMatchObject({ status: 'inactive', deactivated_reason: 'transferred' });
   });
 
+  /**
+   * Give the one-child parent the unit's own role replacing the parent role.
+   *
+   * @returns {Promise<number>} The replacement role, to delete afterwards
+   */
+  async function holdUnitParentRole() {
+    const roleId = await one(
+      `INSERT INTO roles (role_name, display_name, data_scope, is_system_role, organization_id, customized_from_role_id)
+       VALUES ('u' || $1::text || '_familles_' || gen_random_uuid(), 'Familles', 'linked', false, $1::int, $2) RETURNING id`,
+      [ids.originId, ids.parentRoleId]
+    );
+    await pool.query(
+      'UPDATE user_organizations SET role_ids = to_jsonb(ARRAY[$2::text]) WHERE id = $1',
+      [ids.parentOneKidMembershipId, roleId]
+    );
+    return roleId;
+  }
+
+  test('closes the origin membership of a family holding the unit\'s own parent role', async () => {
+    const roleId = await holdUnitParentRole();
+    try {
+      await transfer(ids.onlyChildId, ids.targetId);
+
+      expect(await membership(ids.parentOneKidId, ids.originId))
+        .toMatchObject({ status: 'inactive', deactivated_reason: 'transferred' });
+    } finally {
+      await pool.query('DELETE FROM roles WHERE id = $1', [roleId]);
+    }
+  });
+
+  test('a family holding the unit\'s own parent role is offered for deactivation once no child is enrolled', async () => {
+    const { listMembershipsWithoutEnrolledChild } = require('../services/scoutYear');
+    const roleId = await holdUnitParentRole();
+    try {
+      await pool.query(
+        "UPDATE participant_enrollments SET status = 'left', ended_on = CURRENT_DATE WHERE participant_id = $1",
+        [ids.onlyChildId]
+      );
+
+      const candidates = await listMembershipsWithoutEnrolledChild(pool, ids.originId, ids.originYearId);
+
+      expect(candidates.map((row) => row.membership_id)).toContain(ids.parentOneKidMembershipId);
+      // A parent who is also a leader is never offered
+      expect(candidates.map((row) => row.membership_id)).not.toContain(ids.parentLeaderMembershipId);
+    } finally {
+      await pool.query('DELETE FROM roles WHERE id = $1', [roleId]);
+    }
+  });
+
   test('gives a parent with children in both units a membership of each', async () => {
     await transfer(ids.movingChildId, ids.targetId);
 

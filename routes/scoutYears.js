@@ -226,8 +226,8 @@ module.exports = (pool, logger) => {
           WHERE uo.organization_id = $1
             AND uo.status = 'active'
           GROUP BY uo.id, uo.user_id, u.email, u.full_name
-         HAVING ARRAY_AGG(DISTINCT r.role_name::text) FILTER (WHERE r.role_name IS NOT NULL)
-                  <@ ARRAY['parent','guardian','demoparent']::text[]
+         HAVING BOOL_AND(r.role_name::text = ANY(ARRAY['parent','guardian','demoparent']) OR r.data_scope = 'linked')
+                  FILTER (WHERE r.role_name IS NOT NULL)
             AND NOT EXISTS (
               SELECT 1 FROM linked_participants lp
                JOIN staying s ON s.participant_id = lp.participant_id
@@ -344,7 +344,8 @@ module.exports = (pool, logger) => {
       );
 
       // Deactivate the confirmed memberships. Never touch a membership that
-      // holds a non-parent role, whatever the client sent.
+      // holds a role other than a family one (a parent role, or one acting only
+      // on the holder's own children), whatever the client sent.
       let deactivated = { rows: [] };
       if (membershipIds.length > 0) {
         deactivated = await client.query(
@@ -361,6 +362,7 @@ module.exports = (pool, logger) => {
                   FROM jsonb_array_elements_text(uo.role_ids) AS role_id_text
                   JOIN roles r ON r.id = role_id_text::integer
                  WHERE r.role_name <> ALL (ARRAY['parent','guardian','demoparent'])
+                   AND r.data_scope IS DISTINCT FROM 'linked'
               )
             RETURNING uo.id, uo.user_id`,
           [organizationId, membershipIds, previousYear.id]

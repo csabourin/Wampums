@@ -37,7 +37,11 @@
 
 const { resolveUnitRoleId } = require('./roleVisibility');
 
-/** Roles that make an account "a parent and nothing more". */
+/**
+ * Roles that make an account "a parent and nothing more", whatever their
+ * scope. Any role acting only on the holder's own children (data_scope
+ * 'linked'), such as a unit's own replacement for the parent role, counts too.
+ */
 const PARENT_ONLY_ROLES = ['parent', 'guardian', 'demoparent'];
 
 /** Role granted to a parent arriving in the destination unit. */
@@ -469,6 +473,7 @@ async function transferParticipant(client, {
               FROM jsonb_array_elements_text(uo.role_ids) AS role_id_text
               JOIN roles r ON r.id = role_id_text::integer
              WHERE r.role_name <> ALL ($3::text[])
+               AND r.data_scope IS DISTINCT FROM 'linked'
           )
           AND NOT EXISTS (
             SELECT 1
