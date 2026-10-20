@@ -4243,6 +4243,7 @@
   "role_hide_refused_not_customized": "Customize this built-in role before hiding it.",
   "role_hide_refused_all_permissions": "The role holding every permission cannot be hidden.",
   "role_hide_refused_not_built_in": "Only a built-in role can be hidden.",
+  "role_replacement_not_grantable": "You can only make a role replace a built-in one, or hide that built-in role, if you hold every permission of the replacement.",
   "role_replaces_invalid": "Choose a built-in role for this role to replace.",
   "role_matrix_hide_role": "Hide in this unit",
   "role_matrix_show_role": "Show in this unit",

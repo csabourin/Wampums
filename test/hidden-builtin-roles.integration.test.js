@@ -190,6 +190,28 @@ describe.skipIf(!DATABASE_URL)('Hiding a built-in role the unit replaced', () =>
     expect((await listedRole(builtIn)).hidden).toBe(false);
   });
 
+  test('a role manager cannot make a role they could not grant replace a built-in one, nor hide the role it replaces', async () => {
+    const privileged = await role('privileged', { keys: ['finance.view', 'finance.manage'] });
+    const roleManager = await newMember(unit, [await role('role_manager', { keys: ['roles.view', 'roles.manage'] })]);
+
+    as(roleManager);
+    const linked = await request(app).patch(`/api/v1/roles/${privileged}`).send({ customized_from_role_id: builtIn });
+    expect(linked.status).toBe(403);
+    expect(linked.body.message).toBe('role_replacement_not_grantable');
+    expect(linked.body.missing).toEqual(expect.arrayContaining(['finance.manage']));
+    expect(await one('SELECT customized_from_role_id FROM roles WHERE id = $1', [privileged])).toBeNull();
+
+    // Linked by someone who may grant it, it still cannot be made automatic by them.
+    as(admin);
+    expect((await request(app).patch(`/api/v1/roles/${privileged}`).send({ customized_from_role_id: builtIn })).status).toBe(200);
+    as(roleManager);
+    const hidden = await setHidden(builtIn, true);
+    expect(hidden.status).toBe(403);
+    expect(hidden.body.missing).toEqual(expect.arrayContaining(['finance.manage']));
+    as(admin);
+    expect((await listedRole(builtIn)).hidden).toBe(false);
+  });
+
   test('automatic grants give the built-in role, or the unit role replacing it once hidden', async () => {
     const { resolveUnitRoleId, replaceHiddenRoleIds } = require('../services/roleVisibility');
     const name = `leader_builtin_${suffix}`;
