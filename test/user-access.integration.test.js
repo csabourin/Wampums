@@ -123,6 +123,8 @@ describe.skipIf(!DATABASE_URL)('Current access', () => {
     expect(response.body.data.permissions).toEqual(expect.arrayContaining(['carpools.view', 'participants.create_own']));
     expect(response.body.data.permissions).not.toContain('finance.view');
     expect(response.body.data.data_scope).toBe('linked');
+    // A family role, told by its scope rather than its name
+    expect(response.body.data.family_role).toBe(true);
   });
 
   test('a parent who also holds a whole-unit role reads the whole unit', async () => {
@@ -160,7 +162,7 @@ describe.skipIf(!DATABASE_URL)('Current access', () => {
       const response = await request(app).get('/api/v1/users/me/access');
 
       expect(response.status).toBe(200);
-      expect(response.body.data).toEqual({ roles: [], permissions: [], data_scope: 'linked' });
+      expect(response.body.data).toEqual({ roles: [], permissions: [], data_scope: 'linked', family_role: false });
     } finally {
       await pool.query(
         "UPDATE user_organizations SET status = 'active' WHERE user_id = $1 AND organization_id = $2",

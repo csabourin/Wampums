@@ -39,6 +39,7 @@ const {
 const { getOrganizationName } = require('./alumni');
 const { resolveOrganizationEmailSender } = require('./emailSender');
 const { listLeaderContactsWithPermissions } = require('./unitLeaders');
+const { resolveUnitRoleId } = require('./roleVisibility');
 
 /**
  * Token purpose. Distinct from the alumni purposes so that an opt-in link can
@@ -370,19 +371,16 @@ async function describeReactivationLink(pool, token, logger) {
  * @returns {Promise<void>}
  */
 async function insertParentMembership(client, payload) {
-  const roleResult = await client.query(
-    'SELECT id FROM roles WHERE role_name = $1',
-    ['parent']
-  );
-
-  if (roleResult.rows.length === 0) {
+  // The unit's own parent role when it replaced and hid the built-in one.
+  const parentRoleId = await resolveUnitRoleId(client, 'parent', payload.organization_id);
+  if (!parentRoleId) {
     throw new Error("Role 'parent' not found in roles table");
   }
 
   await client.query(
     `INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
      VALUES ($1, $2, $3, 'active')`,
-    [payload.user_id, payload.organization_id, JSON.stringify([roleResult.rows[0].id])]
+    [payload.user_id, payload.organization_id, JSON.stringify([parentRoleId])]
   );
 }
 

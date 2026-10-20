@@ -47,7 +47,8 @@ jest.mock('../../spa/utils/DOMUtils.js', () => {
 
 jest.mock('../../spa/api/api-parent-invitations.js', () => ({
   getParentInvitations: jest.fn(),
-  getLeaderInvitationRoles: jest.fn(),
+  getInvitationRoles: jest.fn(),
+  updateParentInvitation: jest.fn(),
   createParentInvitation: jest.fn(),
   resendParentInvitation: jest.fn(),
   revokeParentInvitation: jest.fn(),
@@ -108,96 +109,130 @@ beforeEach(() => {
   mockPermissions.clear();
   mockPermissions.add('users.invite');
   api.getParentInvitations.mockResolvedValue({ data: [] });
+  api.getInvitationRoles.mockResolvedValue({ data: [PARENT_ROLE] });
 });
 
-describe('inviting leaders', () => {
+const PARENT_ROLE = { id: 2, role_name: 'parent', display_name: 'Parent', data_scope: 'linked', default_family: true, assignable: true };
+
+test('the former family and leader invitation pages lead to the one invitations page', () => {
+  const { MERGED_ROUTE_REDIRECTS } = require('../../spa/config/tabbed-pages.js');
+  expect(MERGED_ROUTE_REDIRECTS['/parent-invitations']).toBe('/invitations');
+  expect(MERGED_ROUTE_REDIRECTS['/leader-invitations']).toBe('/invitations');
+});
+
+describe('choosing the role of the person invited', () => {
+  const FAMILY_ROLE = { id: 5, role_name: 'u1_famille', display_name: 'Famille de la meute', data_scope: 'linked', default_family: false, assignable: true };
   const ROLES = [
-    { id: 3, role_name: 'leader', display_name: 'Animateur', assignable: true },
-    { id: 4, role_name: 'u1_tresorier', display_name: '<b>Trésorier</b>', assignable: true },
-    { id: 1, role_name: 'district', display_name: 'District', assignable: false },
+    PARENT_ROLE,
+    FAMILY_ROLE,
+    { id: 3, role_name: 'leader', display_name: 'Animateur', data_scope: 'organization', assignable: true },
+    { id: 4, role_name: 'u1_tresorier', display_name: '<b>Trésorier</b>', data_scope: 'organization', assignable: true },
+    { id: 1, role_name: 'district', display_name: 'District', data_scope: 'organization', assignable: false },
   ];
 
   beforeEach(() => {
     mockPermissions.add('users.assign_roles');
-    api.getLeaderInvitationRoles.mockResolvedValue({ data: ROLES });
+    api.getInvitationRoles.mockResolvedValue({ data: ROLES });
   });
 
-  test('lists only leader invitations, with the role each one offers', async () => {
+  test('families and leaders are invited from one list, each showing the role it grants', async () => {
     api.getParentInvitations.mockResolvedValue({
-      data: [{ id: 'a', email: 'baloo@example.org', state: 'pending', sent_at: null, roles: [{ id: 3, display_name: 'Animateur' }] }],
+      data: [
+        { id: 'a', email: 'baloo@example.org', state: 'pending', sent_at: null, roles: [{ id: 3, role_name: 'leader', display_name: 'Animateur' }] },
+        { id: 'b', email: 'maman@example.org', state: 'pending', sent_at: null, roles: [] },
+      ],
     });
 
-    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
+    await new ParentInvitations({ lang: 'fr' }).init();
 
-    expect(api.getParentInvitations).toHaveBeenCalledWith({ kind: 'leader' });
+    expect(api.getParentInvitations).toHaveBeenCalledWith({ kind: 'all' });
     const root = document.getElementById('app');
-    expect(root.querySelector('h1').textContent).toBe('leader_invitations_title');
-    expect(root.textContent).toContain('leader_invitations_roles');
-    expect(root.textContent).toContain('Animateur');
+    expect(root.querySelector('h1').textContent).toBe('invitations_title');
+    const cards = [...root.querySelectorAll('.invitation-card')].map((card) => card.textContent.replace(/\s+/g, ' '));
+    expect(cards[0]).toContain('invitations_role_label Animateur');
+    // An invitation naming no role grants the unit's parent role.
+    expect(cards[1]).toContain('invitations_role_label Parent');
   });
 
-  test('the form proposes the leader role, and roles the inviter may not grant are disabled', async () => {
-    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
+  test('the form groups family and team roles, proposes the parent role, and disables what the inviter cannot grant', async () => {
+    await new ParentInvitations({ lang: 'fr' }).init();
     document.getElementById('invite-parent-btn').click();
 
     const select = document.getElementById('invite-role');
-    expect(document.querySelector('label[for="invite-role"]').textContent).toBe('leader_invitations_role');
-    expect(select.value).toBe('3');
+    expect(document.querySelector('label[for="invite-role"]').textContent).toBe('invitations_role');
+    expect(select.value).toBe('2');
+    expect([...select.querySelectorAll('optgroup')].map((group) => group.label))
+      .toEqual(['invitations_role_group_family', 'invitations_role_group_team']);
+    expect(select.querySelector('optgroup:first-child option[value="5"]')).not.toBeNull();
     expect(select.querySelector('option[value="1"]').disabled).toBe(true);
+    expect(select.querySelector('option[value="1"]').textContent).toContain('invitations_role_unavailable');
     // Role names typed by people are text
     expect(select.querySelector('b')).toBeNull();
     expect(select.querySelector('option[value="4"]').textContent.trim()).toBe('<b>Trésorier</b>');
   });
 
-  test('sends the chosen role with the invitation', async () => {
+  test('the unit\'s parent role is granted without naming it', async () => {
     api.createParentInvitation.mockResolvedValue({ data: { email_sent: true } });
-    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
+    await new ParentInvitations({ lang: 'fr' }).init();
+
+    openFormWith('maman@example.org');
+    await send();
+
+    expect(api.createParentInvitation).toHaveBeenCalledWith({ email: 'maman@example.org', language: 'fr' });
+  });
+
+  test.each([['a team role', '4', 4], ['another family role', '5', 5]])('sends %s with the invitation', async (_label, value, roleId) => {
+    api.createParentInvitation.mockResolvedValue({ data: { email_sent: true } });
+    await new ParentInvitations({ lang: 'fr' }).init();
 
     openFormWith('baloo@example.org');
-    document.getElementById('invite-role').value = '4';
+    document.getElementById('invite-role').value = value;
     await send();
 
     expect(api.createParentInvitation).toHaveBeenCalledWith({
       email: 'baloo@example.org',
       language: 'fr',
-      role_ids: [4],
+      role_ids: [roleId],
     });
     expect(document.getElementById('parent-invitations-status').textContent).toBe('parent_invitations_sent');
   });
 
   test('a refused role reads as a refusal', async () => {
     api.createParentInvitation.mockRejectedValueOnce(apiError(403, 'forbidden'));
-    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
+    await new ParentInvitations({ lang: 'fr' }).init();
 
     openFormWith('baloo@example.org');
+    document.getElementById('invite-role').value = '3';
     await send();
 
     expect(document.getElementById('parent-invitation-error').textContent).toBe('api_error_forbidden');
   });
 
-  test('without users.assign_roles a leader cannot be invited', async () => {
-    mockPermissions.delete('users.assign_roles');
-
-    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
-
-    expect(document.getElementById('invite-parent-btn')).toBeNull();
-    expect(api.getLeaderInvitationRoles).not.toHaveBeenCalled();
-  });
-
   test('with no role the inviter may grant, the form says so and sends nothing', async () => {
-    api.getLeaderInvitationRoles.mockResolvedValue({ data: [{ ...ROLES[2] }] });
-    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
+    api.getInvitationRoles.mockResolvedValue({ data: [{ ...ROLES[4] }] });
+    await new ParentInvitations({ lang: 'fr' }).init();
 
     openFormWith('baloo@example.org');
     await send();
 
-    expect(document.querySelector('[role="alert"]').textContent).toBe('leader_invitations_no_role');
+    expect(document.querySelector('[role="alert"]').textContent).toBe('invitations_no_role');
     expect(api.createParentInvitation).not.toHaveBeenCalled();
   });
 
-  test('the leader form has no accessibility violations', async () => {
+  test('editing an invitation shows its role and keeps it', async () => {
+    api.getParentInvitations.mockResolvedValue({
+      data: [{ id: 'a', email: 'baloo@example.org', state: 'pending', roles: [{ id: 3, role_name: 'leader', display_name: 'Animateur' }] }],
+    });
+    await new ParentInvitations({ lang: 'fr' }).init();
+    document.querySelector('[data-action="edit"]').click();
+
+    expect(document.getElementById('invite-role')).toBeNull();
+    expect(document.querySelector('.modal-dialog').textContent).toContain('Animateur');
+  });
+
+  test('the invitation form has no accessibility violations', async () => {
     const axe = require('axe-core');
-    await new ParentInvitations({ lang: 'fr' }, { kind: 'leader' }).init();
+    await new ParentInvitations({ lang: 'fr' }).init();
     document.getElementById('invite-parent-btn').click();
 
     const results = await axe.run(document.body, {

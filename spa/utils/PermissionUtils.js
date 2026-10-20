@@ -107,14 +107,16 @@ export function isDemoUser() {
 }
 
 /**
- * Check if the user holds a family role (parent or demo parent), whatever
- * other roles they also hold. Use it for what belongs to the person as a
- * guardian, such as their guardian profile.
+ * Check if the user holds a family role (parent, demo parent, or the unit's
+ * own role replacing one), whatever other roles they also hold. Use it for
+ * what belongs to the person as a guardian, such as their guardian profile.
+ * The server reports a family role by its scope, so a unit's renamed copy of
+ * the parent role counts; a session stored before it did falls back to names.
  *
  * @returns {boolean} True if user holds a family role
  */
 export function holdsFamilyRole() {
-  return hasRole('parent') || hasRole('demoparent');
+  return app.userFamilyRole === true || hasRole('parent') || hasRole('demoparent');
 }
 
 /**

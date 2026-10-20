@@ -65,7 +65,8 @@ function makePool(overrides = {}) {
       id: USER_ID, email: 'parent@example.org', full_name: 'Parent Example'
     }]],
     ['SELECT id FROM users', overrides.user || [{ id: USER_ID }]],
-    ['SELECT id FROM roles', [{ id: 3 }]],
+    // the parent role, or the unit's replacement (services/roleVisibility.js)
+    ['FROM roles b', [{ id: 3 }]],
     ['p.permission_key = ANY', overrides.admins || [{ email: 'admin@example.org' }]],
     ['FROM organizations o', [{ name: '12e Meute' }]]
   ];

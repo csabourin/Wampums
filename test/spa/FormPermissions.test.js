@@ -2,6 +2,8 @@
  * @jest-environment jsdom
  */
 
+import axe from 'axe-core';
+
 const mockApiGet = jest.fn();
 const mockApiPut = jest.fn();
 
@@ -179,4 +181,54 @@ test('locks a role row while its complete permission snapshot is saving', async 
   });
   expect([...row.querySelectorAll('.permission-checkbox')].every(input => !input.disabled)).toBe(true);
   expect(row.hasAttribute('aria-busy')).toBe(false);
+});
+
+describe('built-in roles the unit replaced and hid', () => {
+  const LEADER_ROW = { ...PERMISSION_ROW, role_id: 3, role_name: 'leader', role_display_name: 'Leader', role_hidden: true, can_view: true };
+  const roleRows = () => [...document.querySelectorAll('.permissions-table tbody tr')]
+    .map((row) => row.querySelector('th').textContent.trim().split(/\s+/)[0]);
+
+  test('are folded away, and a switch shows them again with their rights', async () => {
+    mockApiGet.mockResolvedValue({ success: true, data: [PERMISSION_ROW, LEADER_ROW] });
+    await manager.init();
+    expect(roleRows()).toEqual(['Parent']);
+
+    const toggle = document.getElementById('form-permissions-show-hidden');
+    expect(toggle.closest('label').textContent).toContain('form_permissions_show_hidden_roles');
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(roleRows()).toEqual(['Leader', 'Parent']);
+    expect(document.querySelector('.permissions-table tbody tr th').textContent).toContain('role_hidden_badge');
+    expect(document.querySelector('.permission-checkbox[data-role-id="3"][data-permission="can_view"]').checked).toBe(true);
+    expect(document.activeElement).toBe(document.getElementById('form-permissions-show-hidden'));
+    const results = await axe.run(document.getElementById('app'), {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
+  });
+
+  test('without any hidden role, no switch is shown', async () => {
+    mockApiGet.mockResolvedValue({ success: true, data: [PERMISSION_ROW] });
+    await manager.init();
+    expect(document.getElementById('form-permissions-show-hidden')).toBeNull();
+  });
+
+  test('every right is a labelled checkbox naming the role', async () => {
+    mockApiGet.mockResolvedValue({ success: true, data: [{ ...PERMISSION_ROW, role_display_name: '<img src=x onerror=alert(1)>', role_name: 'u1_x' }] });
+    await manager.init();
+    expect(document.querySelector('#app img')).toBeNull();
+    const box = document.querySelector('.permission-checkbox[data-permission="can_edit"]');
+    expect(box.getAttribute('aria-label')).toBe('can_edit — <img src=x onerror=alert(1)>');
+  });
+
+  test('mounted as a tab, the screen draws neither its own heading nor a way back', async () => {
+    document.body.innerHTML = '<div id="app"><div id="tab-mount"></div></div>';
+    mockApiGet.mockResolvedValue({ success: true, data: [PERMISSION_ROW] });
+    await new FormPermissionsManager(app, { containerId: 'tab-mount', embedded: true }).init();
+    const mount = document.getElementById('tab-mount');
+    expect(mount.querySelector('h1')).toBeNull();
+    expect(mount.querySelector('.permissions-table')).not.toBeNull();
+  });
 });

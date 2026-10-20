@@ -16,7 +16,7 @@ const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 
 // Import middleware
-const { authenticate, dataScopeOfRoles } = require('../middleware/auth');
+const { authenticate, dataScopeOfRoles, holdsFamilyRoleOf } = require('../middleware/auth');
 const { ROLE_PRIORITY } = require('../config/role-constants');
 const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 const {
@@ -52,6 +52,7 @@ function inactiveMembershipMessage(user) {
 }
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { sendEmail, sendAdminVerificationEmail, getTranslationsByCode, getUserEmailLanguage } = require('../utils/index');
+const { resolveUnitRoleId } = require('../services/roleVisibility');
 const {
   generate2FACode,
   store2FACode,
@@ -430,6 +431,7 @@ module.exports = (pool, logger) => {
           user_roles: roleNames, // All user roles
           user_permissions: permissions, // All user permissions
           user_data_scope: dataScopeOfRoles(rolesResult.rows),
+          user_family_role: holdsFamilyRoleOf(rolesResult.rows),
           user_full_name: user.full_name,
           user_id: user.id,
           organization_id: organizationId
@@ -610,6 +612,7 @@ module.exports = (pool, logger) => {
           user_roles: roleNames,
           user_permissions: permissions,
           user_data_scope: dataScopeOfRoles(rolesResult.rows),
+          user_family_role: holdsFamilyRoleOf(rolesResult.rows),
           user_full_name: user.full_name,
           user_id: user.id,
           organization_id: organizationId
@@ -731,17 +734,12 @@ module.exports = (pool, logger) => {
 
         const userId = createdUser.id;
 
-        // Get role ID from roles table
-        const roleResult = await client.query(
-          `SELECT id FROM roles WHERE role_name = $1`,
-          [role]
-        );
-
-        if (roleResult.rows.length === 0) {
+        // The built-in role, or the unit's own when it replaced and hid it
+        // (services/roleVisibility.js).
+        const roleId = await resolveUnitRoleId(client, role, organizationId);
+        if (!roleId) {
           throw new Error(`Role '${role}' not found in roles table`);
         }
-
-        const roleId = roleResult.rows[0].id;
 
         // Link user to organization with the requested role (parent by default)
         await client.query(

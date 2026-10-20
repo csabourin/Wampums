@@ -41,6 +41,9 @@ import { FormulaireInscription } from '../../spa/modules/participants/Formulaire
 import { createParentInvitation, updateParentInvitation, resendParentInvitation } from '../../spa/api/api-parent-invitations.js';
 import { saveParticipant, saveFormSubmission, saveGuardian } from '../../spa/ajax-functions.js';
 
+/** The unit's parent role, which a family invitation grants without naming it. */
+const UNIT_PARENT_ROLE = { id: 2, role_name: 'parent', display_name: 'Parent', data_scope: 'linked', default_family: true, assignable: true };
+
 beforeEach(() => {
   jest.clearAllMocks();
   setContent(document.body, '<div id="app"><button id="enabled">save</button><button id="disabled" disabled>restricted</button></div>');
@@ -117,6 +120,7 @@ test('invitation edit preserves recipient language, clears fields and uses the u
 
 test('a saved invitation with a failed reload remains visibly saved with a retry', async () => {
   const page = new ParentInvitations({ lang: 'en' });
+  page.roles = [UNIT_PARENT_ROLE];
   page.render();
   page.openInviteForm();
   const form = document.getElementById('parent-invitation-form');
@@ -144,6 +148,7 @@ test('two resend submissions only rotate and send once while the first is pendin
 
 test('an invitation dialog keeps its draft while saving and closes after confirmed success', async () => {
   const page = new ParentInvitations({ lang: 'en' });
+  page.roles = [UNIT_PARENT_ROLE];
   page.openInviteForm();
   const form = document.getElementById('parent-invitation-form');
   form.querySelector('[name="email"]').value = 'pending@example.test';

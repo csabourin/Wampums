@@ -1,6 +1,7 @@
 const { authenticate, blockDemoRoles, requirePermission, getOrganizationId } = require('../middleware/auth');
 const express = require('express');
 const { checkRolesGrantable } = require('../services/roleAssignment');
+const { resolveUnitRoleId } = require('../services/roleVisibility');
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { asyncHandler, error: errorResponse } = require('../middleware/response');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
@@ -166,13 +167,13 @@ module.exports = function (pool, logger) {
       };
 
       // Someone may grant only what they hold (services/roleAssignment.js).
-      // Staff rows grant 'animation' and guardian e-mails grant 'parent'; a row
+      // Staff rows grant 'animation' and guardian e-mails grant 'parent' (or the
+      // unit's own role replacing either, services/roleVisibility.js); a row
       // needing a role the importer cannot grant is skipped and reported.
-      const importRoles = await client.query(
-        // policy-allow role-names: the import grants these two built-in roles by name
-        "SELECT id, role_name FROM roles WHERE role_name IN ('animation', 'parent')"
-      );
-      const importRoleIds = Object.fromEntries(importRoles.rows.map((row) => [row.role_name, row.id]));
+      const importRoleIds = {
+        animation: await resolveUnitRoleId(client, 'animation', organizationId),
+        parent: await resolveUnitRoleId(client, 'parent', organizationId),
+      };
       for (const roleName of ['animation', 'parent']) {
         if (!importRoleIds[roleName]) {
           throw new Error(`Role '${roleName}' not found in roles table`);

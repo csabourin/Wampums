@@ -51,6 +51,7 @@ import {
   getDashboardPrefs,
   setCollapsedToolGroups,
 } from '../../utils/DashboardPreferences.js';
+import { hasVisibleTab } from '../../config/tabbed-pages.js';
 import { CommandPalette } from '../CommandPalette.js';
 import { DashboardSettingsModal } from '../DashboardSettingsModal.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
@@ -504,8 +505,8 @@ export class Dashboard extends BaseModule {
       // only message families no longer sees settings they cannot change.
       case 'unitSettings':
         return canAccessAdminPanel() && hasAnyPermission(...UNIT_SETTINGS_TILE_PERMISSIONS);
-      case 'formPermissions':
-        return canAccessAdminPanel() && hasPermission('forms.manage');
+      case 'rolesPage':
+        return hasVisibleTab('roles');
       case 'parentTools':
         return canAccessParentTools();
       case 'carpool':

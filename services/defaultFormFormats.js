@@ -206,6 +206,9 @@ async function installDefaultFormFormats(client, organizationId) {
          SELECT $1, r.id, $3, $4, $5, $6
          FROM roles r
          WHERE r.role_name = $2
+            -- the unit's own roles replacing that built-in role (services/roleVisibility.js)
+            OR (r.organization_id = $7 AND r.customized_from_role_id IN (
+                  SELECT b.id FROM roles b WHERE b.role_name = $2 AND b.organization_id IS NULL))
          ON CONFLICT (form_format_id, role_id) DO NOTHING`,
         [
           formFormatId,
@@ -214,6 +217,7 @@ async function installDefaultFormFormats(client, organizationId) {
           permission.can_submit,
           permission.can_edit,
           permission.can_approve,
+          organizationId,
         ],
       );
     }

@@ -1329,6 +1329,9 @@ module.exports = (pool, logger) => {
            r.id AS role_id,
            r.role_name,
            r.display_name AS role_display_name,
+           -- a built-in role the unit replaced and hid (services/roleVisibility.js)
+           EXISTS (SELECT 1 FROM organization_hidden_roles h
+                    WHERE h.organization_id = $1 AND h.role_id = r.id) AS role_hidden,
            COALESCE(fp.can_view, false) AS can_view,
            COALESCE(fp.can_submit, false) AS can_submit,
            COALESCE(fp.can_edit, false) AS can_edit,

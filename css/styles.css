@@ -2206,6 +2206,14 @@ tr:hover {
   font-size: 0.875rem;
 }
 
+/* A built-in role the unit replaced and hid (still held by some members). */
+.role-hidden-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 /* ----------------------------------------------------------------------------
    5.13 TOAST NOTIFICATIONS
    ---------------------------------------------------------------------------- */
@@ -11731,12 +11739,33 @@ details p {
 .permissions-table .role-name {
   font-weight: var(--font-weight-medium);
   color: var(--color-text);
+  text-align: start;
+}
+
+.permissions-table .role-name .role-hidden-note {
+  display: block;
+}
+
+/* Shows the built-in roles the unit hid; their holders keep these rights. */
+.form-permissions-hidden-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm, 8px);
+  min-height: var(--touch-target-min);
+  margin-block: var(--space-md);
+}
+
+.form-permissions-hidden-toggle input {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  flex-shrink: 0;
 }
 
 .permission-checkbox {
   cursor: pointer;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   accent-color: var(--color-primary);
   margin: 0;
 }
@@ -12193,8 +12222,11 @@ body.modal-open {
 }
 
 .tabbed-page__tab {
-  flex: 1 0 auto;
-  min-width: 120px;
+  /* Tabs share the row and wrap their labels, so a third tab stays in view
+     on a phone instead of scrolling off the edge. */
+  flex: 1 1 0;
+  min-width: 6rem;
+  overflow-wrap: break-word;
   min-height: 44px;
   border: 1px solid #e5e7eb;
   border-bottom: none;

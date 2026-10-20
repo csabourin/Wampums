@@ -116,7 +116,6 @@
     "participants",
     "groups",
     "parent_invitations",
-    "leader_invitations",
     "participant_duplicates",
     "family_links",
     "participant_documents",
@@ -139,8 +138,6 @@
     "reports",
     "account_info",
     "role_management",
-    "role_permission_matrix",
-    "form_permissions",
     "district",
     "create_organization"
   ],

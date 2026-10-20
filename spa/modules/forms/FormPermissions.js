@@ -2,7 +2,12 @@
  * Form Permissions Management Module
  *
  * Allows district and unit administrators to manage which roles can
- * view, submit, edit, and approve different form types
+ * view, submit, edit, and approve different form types. It is the
+ * "Accès aux formulaires" tab of the "Rôles et permissions" page and follows
+ * the spa/utils/PageMount.js contract.
+ *
+ * Built-in roles the unit replaced and hid (services/roleVisibility.js) are
+ * folded away: their holders keep these rights, so they can be shown again.
  *
  * @module form_permissions
  */
@@ -13,17 +18,28 @@ import { translate } from '../../app.js';
 import { formTypeLabel } from '../../utils/FormLabelUtils.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { roleLabel } from '../../utils/RoleLabelUtils.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
+import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
+
+/** The rights a role may hold on a form, in column order. */
+const FORM_RIGHTS = ['can_view', 'can_submit', 'can_edit', 'can_approve'];
 
 export class FormPermissionsManager {
-  constructor(app) {
+  /**
+   * @param {Object} app - Application instance
+   * @param {{containerId?: string, embedded?: boolean}} [options]
+   */
+  constructor(app, options = {}) {
     this.app = app;
+    Object.assign(this, resolveMountOptions(options));
     this.permissions = [];
     this.formTypes = new Set();
     this.roles = new Set();
+    this.hiddenRoles = new Set();
+    this.showHiddenRoles = false;
     this.destroyed = false;
   }
 
@@ -38,14 +54,14 @@ export class FormPermissionsManager {
       return;
     }
 
-    const pageOptions = { title: translate('form_permissions_management'), className: 'form-permissions-page' };
-    showPageLoading(document.getElementById('app'), pageOptions);
+    const pageOptions = { title: translate('form_permissions_management'), className: 'form-permissions-page', embedded: this.embedded };
+    showPageLoading(getMountPoint(this), pageOptions);
     try {
       await this.loadPermissions();
     } catch (error) {
       debugError('Error initializing form permissions manager:', error);
       if (!this.destroyed) {
-        showPageError(document.getElementById('app'), {
+        showPageError(getMountPoint(this), {
           ...pageOptions,
           message: translate('error_loading_form_permissions'),
         }, () => this.init());
@@ -82,11 +98,15 @@ export class FormPermissionsManager {
         this.permissions = response.data;
         this.formTypes.clear();
         this.roles.clear();
+        this.hiddenRoles.clear();
 
         // Extract unique form types and roles
         this.permissions.forEach(perm => {
           this.formTypes.add(perm.form_type);
           this.roles.add(perm.role_name);
+          if (perm.role_hidden) {
+            this.hiddenRoles.add(perm.role_name);
+          }
         });
 
         debugLog('Loaded form permissions:', this.permissions);
@@ -198,20 +218,37 @@ export class FormPermissionsManager {
    */
   render() {
     const content = `
-      ${renderBackLink()}
+      ${this.embedded ? '' : renderBackLink('/roles')}
       <div class="form-permissions-manager">
         <header class="page-header">
-          <h1>${translate('form_permissions_management')}</h1>
+          ${this.embedded ? '' : `<h1>${translate('form_permissions_management')}</h1>`}
           <p class="page-subtitle">${translate('form_permissions_description')}</p>
         </header>
-
+        ${this.renderHiddenRolesToggle()}
         <div class="permissions-container">
           ${this.renderPermissionsMatrix()}
         </div>
       </div>
     `;
 
-    setContent(document.getElementById('app'), content);
+    setContent(getMountPoint(this), content);
+  }
+
+  /**
+   * The switch that shows the built-in roles the unit hid, when it hid any.
+   *
+   * @returns {string} HTML
+   */
+  renderHiddenRolesToggle() {
+    if (this.hiddenRoles.size === 0) {
+      return '';
+    }
+    return `
+      <label class="form-permissions-hidden-toggle">
+        <input type="checkbox" id="form-permissions-show-hidden" ${this.showHiddenRoles ? 'checked' : ''} />
+        <span>${escapeHTML(translate('form_permissions_show_hidden_roles').replace('{count}', String(this.hiddenRoles.size)))}</span>
+      </label>
+    `;
   }
 
   /**
@@ -219,11 +256,13 @@ export class FormPermissionsManager {
    */
   renderPermissionsMatrix() {
     const formTypesArray = Array.from(this.formTypes).sort();
-    const rolesArray = Array.from(this.roles).sort((a, b) => {
-      // Sort roles in a logical order
-      const order = ['district', 'unitadmin', 'leader', 'parent', 'finance', 'equipment', 'administration', 'demoadmin', 'demoparent'];
-      return order.indexOf(a) - order.indexOf(b);
-    });
+    const rolesArray = Array.from(this.roles)
+      .filter((roleName) => this.showHiddenRoles || !this.hiddenRoles.has(roleName))
+      .sort((a, b) => {
+        // Sort roles in a logical order
+        const order = ['district', 'unitadmin', 'leader', 'parent', 'finance', 'equipment', 'administration', 'demoadmin', 'demoparent'];
+        return order.indexOf(a) - order.indexOf(b);
+      });
 
     return `
       <div class="permissions-matrix">
@@ -271,61 +310,34 @@ export class FormPermissionsManager {
           <table class="permissions-table">
             <thead>
               <tr>
-                <th>${translate('role')}</th>
-                <th>${translate('can_view')}</th>
-                <th>${translate('can_submit')}</th>
-                <th>${translate('can_edit')}</th>
-                <th>${translate('can_approve')}</th>
+                <th scope="col">${translate('role')}</th>
+                ${FORM_RIGHTS.map((right) => `<th scope="col">${translate(right)}</th>`).join('')}
               </tr>
             </thead>
             <tbody>
               ${rolesArray.map(roleName => {
     const perm = formPerms.find(p => p.role_name === roleName);
     if (!perm) {return '';}
+    const name = roleLabel({ role_name: roleName, display_name: perm.role_display_name });
 
     return `
                   <tr>
-                    <td class="role-name">${escapeHTML(roleLabel({ role_name: roleName, display_name: perm.role_display_name }))}</td>
+                    <th scope="row" class="role-name">
+                      ${escapeHTML(name)}
+                      ${perm.role_hidden ? `<span class="role-hidden-note">${translate('role_hidden_badge')}</span>` : ''}
+                    </th>
+                    ${FORM_RIGHTS.map((right) => `
                     <td>
                       <input
                         type="checkbox"
                         class="permission-checkbox"
                         data-form-format-id="${perm.form_format_id}"
                         data-role-id="${perm.role_id}"
-                        data-permission="can_view"
-                        ${perm.can_view ? 'checked' : ''}
+                        data-permission="${right}"
+                        aria-label="${escapeAttribute(`${translate(right)} — ${name}`)}"
+                        ${perm[right] ? 'checked' : ''}
                       />
-                    </td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        class="permission-checkbox"
-                        data-form-format-id="${perm.form_format_id}"
-                        data-role-id="${perm.role_id}"
-                        data-permission="can_submit"
-                        ${perm.can_submit ? 'checked' : ''}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        class="permission-checkbox"
-                        data-form-format-id="${perm.form_format_id}"
-                        data-role-id="${perm.role_id}"
-                        data-permission="can_edit"
-                        ${perm.can_edit ? 'checked' : ''}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        class="permission-checkbox"
-                        data-form-format-id="${perm.form_format_id}"
-                        data-role-id="${perm.role_id}"
-                        data-permission="can_approve"
-                        ${perm.can_approve ? 'checked' : ''}
-                      />
-                    </td>
+                    </td>`).join('')}
                   </tr>
                 `;
   }).join('')}
@@ -340,8 +352,16 @@ export class FormPermissionsManager {
    * Attach event listeners
    */
   attachEventListeners() {
+    const root = getMountPoint(this);
+    root.querySelector('#form-permissions-show-hidden')?.addEventListener('change', (event) => {
+      this.showHiddenRoles = event.target.checked;
+      this.render();
+      this.attachEventListeners();
+      getMountPoint(this).querySelector('#form-permissions-show-hidden')?.focus();
+    });
+
     // Listen for permission checkbox changes
-    document.querySelectorAll('.permission-checkbox').forEach(checkbox => {
+    root.querySelectorAll('.permission-checkbox').forEach(checkbox => {
       checkbox.addEventListener('change', async (event) => {
         const formFormatId = parseInt(event.target.dataset.formFormatId, 10);
         const roleId = parseInt(event.target.dataset.roleId, 10);
@@ -382,7 +402,7 @@ export class FormPermissionsManager {
     });
 
     // Listen for display context checkbox changes
-    document.querySelectorAll('.context-checkbox').forEach(checkbox => {
+    root.querySelectorAll('.context-checkbox').forEach(checkbox => {
       checkbox.addEventListener('change', async (event) => {
         const formFormatId = parseInt(event.target.dataset.formFormatId, 10);
         const isChecked = event.target.checked;
@@ -427,8 +447,8 @@ export class FormPermissionsManager {
  * @param {Object} app - Application instance
  * @returns {Promise<FormPermissionsManager>} The screen, for the router to tear down
  */
-export async function initFormPermissions(app) {
-  const manager = new FormPermissionsManager(app);
+export async function initFormPermissions(app, options = {}) {
+  const manager = new FormPermissionsManager(app, options);
   await manager.init();
   return manager;
 }

@@ -209,6 +209,7 @@ export const app = {
       this.userRoles = session.userRoles || [];
       this.userPermissions = session.userPermissions || [];
       this.userDataScope = session.userDataScope;
+      this.userFamilyRole = session.userFamilyRole;
       this.userFullName = session.userFullName;
 
       debugLog('Session checked:', {

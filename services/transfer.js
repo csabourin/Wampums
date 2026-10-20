@@ -35,7 +35,13 @@
  * @module services/transfer
  */
 
-/** Roles that make an account "a parent and nothing more". */
+const { resolveUnitRoleId } = require('./roleVisibility');
+
+/**
+ * Roles that make an account "a parent and nothing more", whatever their
+ * scope. Any role acting only on the holder's own children (data_scope
+ * 'linked'), such as a unit's own replacement for the parent role, counts too.
+ */
 const PARENT_ONLY_ROLES = ['parent', 'guardian', 'demoparent'];
 
 /** Role granted to a parent arriving in the destination unit. */
@@ -410,11 +416,8 @@ async function transferParticipant(client, {
 
   // Take the parents along.
   const userIds = await findLinkedUsers(client, participantId);
-  const parentRole = await client.query(
-    'SELECT id FROM roles WHERE role_name = $1 LIMIT 1',
-    [PARENT_ROLE]
-  );
-  const parentRoleId = parentRole.rows[0]?.id;
+  // The destination's own parent role when it replaced and hid the built-in one.
+  const parentRoleId = await resolveUnitRoleId(client, PARENT_ROLE, targetOrganizationId);
 
   let membershipsCreated = 0;
   let membershipsReactivated = 0;
@@ -470,6 +473,7 @@ async function transferParticipant(client, {
               FROM jsonb_array_elements_text(uo.role_ids) AS role_id_text
               JOIN roles r ON r.id = role_id_text::integer
              WHERE r.role_name <> ALL ($3::text[])
+               AND r.data_scope IS DISTINCT FROM 'linked'
           )
           AND NOT EXISTS (
             SELECT 1

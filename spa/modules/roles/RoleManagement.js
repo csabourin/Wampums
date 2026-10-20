@@ -1,9 +1,10 @@
 /**
- * Role Management Page (Refactored - Role-Centric)
+ * Roles: the read-only catalog of roles and their permissions, and assigning
+ * roles to members.
  *
- * Allows district and unitadmin users to:
- * 1. View roles and their permissions
- * 2. Assign roles to users
+ * Each is one tab of the "Rôles et permissions" page (spa/config/tabbed-pages.js),
+ * chosen with `options.view`: 'roles' for the catalog, 'users' for assignment.
+ * Follows the spa/utils/PageMount.js contract.
  */
 
 import roleManagementStylesheetUrl from '../../../css/role-management.css?url';
@@ -28,15 +29,26 @@ import { API } from '../../api/api-core.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
+import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
+import { rolesToOffer } from '../../utils/RoleVisibilityUtils.js';
+
+/** The two views this screen draws, as `options.view`. */
+const VIEWS = ['roles', 'users'];
+
 export class RoleManagement {
-  constructor(appInstance) {
+  /**
+   * @param {Object} appInstance - Application instance
+   * @param {{view?: 'roles'|'users', containerId?: string, embedded?: boolean}} [options]
+   */
+  constructor(appInstance, options = {}) {
     this.app = appInstance;
+    Object.assign(this, resolveMountOptions(options));
     this.users = [];
     this.roles = [];
     this.permissions = {};
     this.selectedUserId = null;
     this.selectedRoleId = null;
-    this.activeTab = 'roles'; // 'roles' or 'users'
+    this.activeTab = VIEWS.includes(options.view) ? options.view : 'roles';
     // The deactivated accounts' section stays open or closed across renders.
     this.inactiveExpanded = false;
     this.searchTerm = '';
@@ -54,9 +66,10 @@ export class RoleManagement {
       return;
     }
 
-    showPageLoading(document.getElementById('app'), {
+    showPageLoading(getMountPoint(this), {
       title: translate('role_management'),
       className: 'role-management-container',
+      embedded: this.embedded,
     });
     try {
       // Fetch roles first
@@ -120,11 +133,10 @@ export class RoleManagement {
   }
 
   renderAccessDenied() {
-    const appContainer = document.getElementById('app');
-    setContent(appContainer, `
-      ${renderBackLink()}
+    setContent(getMountPoint(this), `
+      ${this.embedded ? '' : renderBackLink()}
       <div class="role-management-container">
-        <h1>${translate('access_denied')}</h1>
+        ${this.embedded ? '' : `<h1>${translate('access_denied')}</h1>`}
         <p>${translate('no_permission_role_management')}</p>
       </div>
     `);
@@ -134,9 +146,10 @@ export class RoleManagement {
     if (this.destroyed) {
       return;
     }
-    showPageError(document.getElementById('app'), {
+    showPageError(getMountPoint(this), {
       title: translate('role_management'),
       className: 'role-management-container',
+      embedded: this.embedded,
       message,
     }, () => this.init());
   }
@@ -147,42 +160,19 @@ export class RoleManagement {
   }
 
   render() {
-    const canAssignRoles = hasPermission('users.assign_roles');
-
+    // The tabs of the "Rôles et permissions" page choose the view; standalone,
+    // the screen draws its own way back and title.
     const content = `
-      ${renderBackLink()}
+      ${this.embedded ? '' : renderBackLink('/roles')}
       <div class="role-management-container">
-        <div class="page-header">
-          <h1>${translate('role_management')}</h1>
-          ${hasPermission('roles.manage') ? `<a class="button button--secondary" href="/roles/permissions">${translate('role_matrix_title')}</a>` : ''}
-        </div>
-
-        <!-- Tab Navigation -->
-        <div class="tab-navigation">
-          <button
-            class="tab-button ${this.activeTab === 'roles' ? 'active' : ''}"
-            data-tab="roles"
-          >
-            ${translate('roles_and_permissions')}
-          </button>
-          <button
-            class="tab-button ${this.activeTab === 'users' ? 'active' : ''}"
-            data-tab="users"
-            ${!canAssignRoles ? 'disabled' : ''}
-          >
-            ${translate('assign_roles_to_users')}
-          </button>
-        </div>
-
-        <!-- Tab Content -->
+        ${this.embedded ? '' : `<h1>${translate(this.activeTab === 'roles' ? 'roles_and_permissions' : 'assign_roles_to_users')}</h1>`}
         <div class="tab-content">
           ${this.activeTab === 'roles' ? this.renderRolesTab() : this.renderUsersTab()}
         </div>
       </div>
     `;
 
-    const appContainer = document.getElementById('app');
-    setContent(appContainer, content);
+    setContent(getMountPoint(this), content);
     // Attach event listeners
     this.attachEventListeners();
   }
@@ -209,6 +199,7 @@ export class RoleManagement {
         <div class="role-card-header">
           <div class="role-info">
             <h3 class="role-name">${this.escapeHtml(roleLabel(role))}</h3>
+            ${role.hidden ? `<p class="role-hidden-note">${translate('role_hidden_badge')}</p>` : ''}
           </div>
           <button type="button" class="toggle-permissions-btn" data-role-id="${role.id}"
             aria-expanded="${isExpanded}" aria-controls="role-permissions-${role.id}">
@@ -371,12 +362,14 @@ export class RoleManagement {
             <p class="help-text">${translate('select_roles_help')}</p>
 
             <div class="role-checkboxes">
-              ${this.roles.map(role => {
+              ${rolesToOffer(this.roles, userRoleIds).map(role => {
     // Roles carrying permissions the viewer does not hold cannot be
     // granted or removed by them; they stay visible, keeping their
     // state, so saving sends them back unchanged.
     const locked = role.assignable === false;
     const noteId = `role-locked-note-${role.id}`;
+    // A built-in role the unit hid shows only to whoever already holds it.
+    const hiddenNoteId = `role-hidden-note-${role.id}`;
     return `
                 <div class="role-checkbox-option">
                   <label class="role-checkbox-item${locked ? ' role-checkbox-item--locked' : ''}">
@@ -385,7 +378,8 @@ export class RoleManagement {
                       name="role_ids"
                       value="${role.id}"
                       ${userRoleIds.includes(role.id) ? 'checked' : ''}
-                      ${locked ? `disabled aria-describedby="${noteId}"` : ''}
+                      ${locked ? 'disabled' : ''}
+                      ${locked || role.hidden ? `aria-describedby="${[locked && noteId, role.hidden && hiddenNoteId].filter(Boolean).join(' ')}"` : ''}
                     />
                     <div class="role-checkbox-content">
                       <div class="role-checkbox-header">
@@ -395,6 +389,7 @@ export class RoleManagement {
                     </div>
                   </label>
                   ${locked ? `<small class="role-locked-note" id="${noteId}">${translate('role_not_assignable')}</small>` : ''}
+                  ${role.hidden ? `<small class="role-locked-note" id="${hiddenNoteId}">${translate('role_hidden_held_note')}</small>` : ''}
                 </div>
               `;
   }).join('')}
@@ -494,24 +489,6 @@ export class RoleManagement {
   }
 
   attachEventListeners() {
-    // Tab switching
-    const tabButtons = document.querySelectorAll('.tab-button');
-    tabButtons.forEach(button => {
-      button.addEventListener('click', async (e) => {
-        const tab = e.currentTarget.dataset.tab;
-        if (tab && tab !== this.activeTab) {
-          this.activeTab = tab;
-
-          // Fetch users if switching to users tab and not loaded yet
-          if (tab === 'users' && this.users.length === 0) {
-            await this.fetchUsers();
-          }
-
-          this.render();
-        }
-      });
-    });
-
     if (this.activeTab === 'roles') {
       this.attachRolesTabListeners();
     } else {
@@ -731,7 +708,7 @@ export class RoleManagement {
         debugError('Error updating roles:', error);
         const FORBIDDEN = 403;
         this.showAssignmentMessage(
-          translate(error.status === FORBIDDEN ? 'role_grant_forbidden' : 'error_updating_role'),
+          error.status === FORBIDDEN ? translate('role_grant_forbidden') : apiErrorMessage(error, 'error_updating_role'),
           'error'
         );
       }

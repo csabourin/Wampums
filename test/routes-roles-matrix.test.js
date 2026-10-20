@@ -51,7 +51,7 @@ describe('role definition endpoints require authentication', () => {
     ['get', '/api/v1/roles/matrix'], ['put', '/api/v1/roles/1/permissions'],
     ['patch', '/api/v1/roles/1'], ['post', '/api/v1/roles'],
     ['post', '/api/v1/roles/1/permissions'], ['delete', '/api/v1/roles/1/permissions/1'],
-    ['delete', '/api/v1/roles/1'],
+    ['delete', '/api/v1/roles/1'], ['put', '/api/v1/roles/1/visibility'],
   ])('%s %s refuses an anonymous request', async (method, url) => {
     expect((await request(app)[method](url).send({})).status).toBe(401);
   });

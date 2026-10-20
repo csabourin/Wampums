@@ -39,13 +39,13 @@ test('the emailed-link pages open without a session', () => {
 });
 
 test('the admin pages do not', () => {
-  expect(loggedOutRoutes()).not.toContain('parentInvitations');
+  expect(loggedOutRoutes()).not.toContain('invitations');
   expect(loggedOutRoutes()).not.toContain('participantDuplicates');
 });
 
 test('the admin pages are guarded by the permission their endpoints require', () => {
   expect(routerSource).toMatch(
-    /case ["']parentInvitations["']:\s*if \(!guard\(hasPermission\('users\.invite'\)\)\)/
+    /case ["']invitations["']:\s*(?:\/\/[^\n]*\n\s*)*if \(!guard\(hasPermission\('users\.invite'\)\)\)/
   );
   expect(routerSource).toMatch(
     /case ["']participantDuplicates["']:\s*if \(!guard\(hasPermission\('participants\.edit'\)\)\)/

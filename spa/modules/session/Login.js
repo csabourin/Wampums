@@ -264,6 +264,7 @@ export class Login {
     const userPermissions = result.user_permissions || (result.data && result.data.user_permissions) || []; // Array of permission keys
     const userFullName = result.user_full_name || (result.data && result.data.user_full_name) || 'User';
     const userDataScope = result.user_data_scope || (result.data && result.data.user_data_scope) || null;
+    const userFamilyRole = (result.user_family_role ?? result.data?.user_family_role) === true;
     const organizationId = result.organization_id || (result.data && result.data.organization_id);
 
     // The answer arrives on the sign-in or the verification step.
@@ -295,6 +296,7 @@ export class Login {
     this.app.userRoles = userRoles; // All roles
     this.app.userPermissions = userPermissions; // All permissions
     this.app.userDataScope = userDataScope; // 'organization' when any role covers the whole unit
+    this.app.userFamilyRole = userFamilyRole; // A family role, whatever the unit named it
     this.app.userFullName = userFullName;
 
     // Store user data in localStorage using StorageUtils
@@ -305,7 +307,8 @@ export class Login {
       userPermissions: JSON.stringify(userPermissions), // Store as JSON string
       userFullName: userFullName,
       userId: userId,
-      userDataScope: userDataScope || ''
+      userDataScope: userDataScope || '',
+      userFamilyRole: userFamilyRole ? 'true' : ''
     };
 
     // Store organization ID from login response

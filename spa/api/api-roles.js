@@ -18,3 +18,7 @@ export function updateUnitRole(roleId, definition) {
 export function deleteUnitRole(roleId) {
   return API.delete(`v1/roles/${encodeURIComponent(roleId)}`);
 }
+/** Hide a built-in role the unit customized, or show it again. */
+export function setRoleHidden(roleId, hidden) {
+  return API.put(`v1/roles/${encodeURIComponent(roleId)}/visibility`, { hidden });
+}

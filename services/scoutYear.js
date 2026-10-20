@@ -340,13 +340,16 @@ async function openNextScoutYear(client, { organizationId, userId }) {
  *
  * A user is considered linked to a participant either directly
  * (`user_participants`) or through a guardian record (`guardian_users` ->
- * `participant_guardians`). Memberships holding any role other than a parent
+ * `participant_guardians`). Memberships holding any role other than a family
  * role are never listed: a leader who is also a parent must keep their access.
+ * A family role is one named in `parentRoleNames`, or one acting only on the
+ * holder's own children (data_scope 'linked'), such as a unit's own role
+ * replacing the parent role.
  *
  * @param {Object} pool - Database pool or client
  * @param {number} organizationId - Organization ID
  * @param {number} scoutYearId - Scout year the enrollment check runs against
- * @param {Array<string>} [parentRoleNames] - Role names considered "parent only"
+ * @param {Array<string>} [parentRoleNames] - Role names considered "parent only" whatever their scope
  * @returns {Promise<Array<Object>>} Candidate memberships
  */
 async function listMembershipsWithoutEnrolledChild(
@@ -360,7 +363,9 @@ async function listMembershipsWithoutEnrolledChild(
        SELECT uo.id AS membership_id,
               uo.user_id,
               uo.status,
-              ARRAY_AGG(DISTINCT r.role_name::text) FILTER (WHERE r.role_name IS NOT NULL) AS role_names
+              ARRAY_AGG(DISTINCT r.role_name::text) FILTER (WHERE r.role_name IS NOT NULL) AS role_names,
+              BOOL_AND(r.role_name::text = ANY($3::text[]) OR r.data_scope = 'linked')
+                FILTER (WHERE r.role_name IS NOT NULL) AS family_only
          FROM user_organizations uo
          LEFT JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text ON TRUE
          LEFT JOIN roles r ON r.id = role_id_text::integer
@@ -392,7 +397,7 @@ async function listMembershipsWithoutEnrolledChild(
        LEFT JOIN participants p ON p.id = lp.participant_id
       WHERE mr.status = 'active'
         AND mr.role_names IS NOT NULL
-        AND mr.role_names <@ $3::text[]
+        AND mr.family_only
         AND NOT EXISTS (
           SELECT 1
             FROM linked_participants lp2

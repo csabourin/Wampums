@@ -7,6 +7,7 @@
 .role-matrix input[type="checkbox"] { width: 24px; height: 24px; flex: 0 0 24px; margin: 0; }
 .role-matrix-cell { padding-block: 0.4rem; }
 .role-matrix-reason, .role-matrix-scope { font-size: 0.875rem; line-height: 1.5; font-weight: normal; }
+.role-matrix-hidden { font-size: 0.875rem; line-height: 1.5; font-weight: 600; }
 .role-matrix-desktop { display: none; }
 .role-matrix-save { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-block: 1rem; }
 .role-matrix-save p { flex: 1 0 100%; }

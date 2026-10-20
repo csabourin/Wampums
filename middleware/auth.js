@@ -551,3 +551,13 @@ exports.getUserDataScope = async (req, pool) => {
 exports.dataScopeOfRoles = (roles) => (
   (roles || []).some((role) => role.data_scope === 'organization') ? 'organization' : 'linked'
 );
+
+/**
+ * Whether one of the roles is a family role (data_scope 'linked'): the
+ * built-in parent role, or the unit's own role replacing it. The SPA reads it
+ * instead of matching role names.
+ *
+ * @param {Array<{data_scope: ?string}>} roles - Role rows holding data_scope
+ * @returns {boolean} True when a role covers only the holder's own children
+ */
+exports.holdsFamilyRoleOf = (roles) => (roles || []).some((role) => role.data_scope === 'linked');

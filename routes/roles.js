@@ -11,6 +11,7 @@ const express = require('express');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { findRolesInUnit, pairedViewKey, checkPermissionChange, permissionLockReason, recordRoleChange, recordRoleDefinitionChange } = require('../services/roleAssignment');
+const { hideRefusal, setRoleHidden, releaseUnreplacedHiddenRoles } = require('../services/roleVisibility');
 const { query, body, param } = require('express-validator');
 const { checkValidation } = require('../middleware/validation');
 
@@ -30,6 +31,10 @@ const validateDefinition = () => [
   body('description').optional({ nullable: true }).isString().isLength({ max: ROLE_DESCRIPTION_MAX_LENGTH }),
   body('data_scope').optional().isIn(['organization', 'linked']),
 ];
+/** Largest id a PostgreSQL integer column holds. */
+const MAX_INTEGER_ID = 2147483647;
+/** Fields of a unit role that PATCH may change. */
+const EDITABLE_ROLE_FIELDS = ['display_name', 'description', 'data_scope', 'customized_from_role_id'];
 
 /** Translate a policy refusal to the shared response contract. */
 function policyResponse(res, refusal) {
@@ -108,6 +113,8 @@ module.exports = (pool, logger) => {
       if (result.refusal) { await client.query('ROLLBACK'); return policyResponse(res, result.refusal); }
       await recordRoleDefinitionChange(client, { organizationId, changedBy: req.user.id, roleId: role.id, before, after: result.after });
       if (result.deleted) { await client.query('DELETE FROM roles WHERE id = $1 AND organization_id = $2', [role.id, organizationId]); }
+      // A built-in role stays hidden only while a unit role still replaces it.
+      await releaseUnreplacedHiddenRoles(client, organizationId);
       await client.query('COMMIT');
       return success(res, result.data ?? null, 'Role updated');
     } catch (err) {
@@ -140,6 +147,15 @@ module.exports = (pool, logger) => {
         COALESCE((SELECT jsonb_agg(p ORDER BY p.category, p.permission_key) FROM permissions p), '[]'::jsonb) AS permissions,
         COALESCE((SELECT jsonb_agg(item ORDER BY item.id) FROM (
           SELECT r.id, r.role_name, r.display_name, r.description, r.data_scope, r.is_system_role,
+                 r.organization_id, r.grants_all_permissions, r.customized_from_role_id,
+                 EXISTS (SELECT 1 FROM organization_hidden_roles h
+                          WHERE h.organization_id = $1 AND h.role_id = r.id) AS hidden,
+                 (SELECT COUNT(*)::int FROM roles c
+                   WHERE c.organization_id = $1 AND c.customized_from_role_id = r.id) AS customized_count,
+                 (SELECT COUNT(*)::int FROM user_organizations uo
+                   WHERE uo.organization_id = $1 AND uo.status = 'active' AND EXISTS (
+                     SELECT 1 FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) held(role_id)
+                     WHERE held.role_id = r.id::text)) AS member_count,
                  COALESCE((SELECT jsonb_agg(rp.permission_id ORDER BY rp.permission_id)
                              FROM role_permissions rp WHERE rp.role_id = r.id), '[]'::jsonb) AS permission_ids
             FROM roles r WHERE r.organization_id = $1 OR (r.organization_id IS NULL AND r.is_system_role)
@@ -149,6 +165,8 @@ module.exports = (pool, logger) => {
     const held = req.userPermissions || [];
     return success(res, { organization_id: organizationId, permissions, roles: roles.map((role) => ({
       ...role,
+      // Why the unit may not hide this role (services/roleVisibility.js), or null.
+      hide_refusal: hideRefusal(role),
       can_delete: !checkPermissionChange({ role, catalog: permissions, currentKeys: permissions.filter((p) => role.permission_ids.includes(p.id)).map((p) => p.permission_key), requestedKeys: [], heldPermissions: held }),
       can_copy: !checkPermissionChange({ role: { ...role, is_system_role: false }, catalog: permissions, currentKeys: [],
         requestedKeys: permissions.filter((p) => role.permission_ids.includes(p.id)).map((p) => p.permission_key), heldPermissions: held }),
@@ -183,20 +201,62 @@ module.exports = (pool, logger) => {
 
   router.patch('/api/v1/roles/:roleId', authenticate, blockDemoRoles, requirePermission('roles.manage'),
     ...validateRoleId(), ...validateDefinition(),
-    body().custom((value) => value && ['display_name', 'description', 'data_scope'].some((key) => Object.hasOwn(value, key))), checkValidation,
+    body('customized_from_role_id').optional({ nullable: true }).isInt({ min: 1, max: MAX_INTEGER_ID }).toInt(),
+    body().custom((value) => value && EDITABLE_ROLE_FIELDS.some((key) => Object.hasOwn(value, key))), checkValidation,
     asyncHandler((req, res) => changeRole(req, res, async ({ client, organizationId, role, catalog, currentKeys }) => {
-      const updated = { ...role, ...Object.fromEntries(['display_name', 'description', 'data_scope']
-        .filter((key) => Object.hasOwn(req.body, key)).map((key) => [key, req.body[key]])) };
+      const updated = { ...role, ...Object.fromEntries(EDITABLE_ROLE_FIELDS
+        .filter((key) => Object.hasOwn(req.body, key)).map((key) => [key, req.body[key] ?? null])) };
+      if (updated.customized_from_role_id && updated.customized_from_role_id !== role.customized_from_role_id) {
+        // A unit role can only stand in for a built-in role, other than the
+        // district role, which no unit role can replace.
+        const replaced = (await client.query(
+          `SELECT id FROM roles WHERE id = $1 AND organization_id IS NULL AND is_system_role
+             AND NOT grants_all_permissions`,
+          [updated.customized_from_role_id]
+        )).rows[0];
+        if (!replaced) { return { refusal: { status: HTTP.BAD_REQUEST, message: 'role_replaces_invalid' } }; }
+      }
       const refusal = checkPermissionChange({ role: updated, catalog, currentKeys, requestedKeys: currentKeys,
         heldPermissions: req.userPermissions || [], previousScope: role.data_scope });
       if (refusal) { return { refusal }; }
       const result = await client.query(
-        `UPDATE roles SET display_name = $1, description = $2, data_scope = $3, updated_at = NOW()
-         WHERE id = $4 AND organization_id = $5 RETURNING *`,
-        [updated.display_name, updated.description, updated.data_scope, role.id, organizationId]
+        `UPDATE roles SET display_name = $1, description = $2, data_scope = $3, customized_from_role_id = $4, updated_at = NOW()
+         WHERE id = $5 AND organization_id = $6 RETURNING *`,
+        [updated.display_name, updated.description, updated.data_scope, updated.customized_from_role_id, role.id, organizationId]
       );
       return { data: result.rows[0], after: definitionSnapshot(updated, currentKeys) };
     })));
+
+  /**
+   * PUT /api/v1/roles/:roleId/visibility
+   * Hide a built-in role the unit has customized, or show it again. Members
+   * holding it keep it; it is only no longer offered or granted in the unit.
+   * Body: { hidden: boolean }
+   */
+  router.put('/api/v1/roles/:roleId/visibility', authenticate, blockDemoRoles, requirePermission('roles.manage'),
+    ...validateRoleId(), body('hidden').isBoolean({ strict: true }).toBoolean(), checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const result = await setRoleHidden(client, {
+          organizationId, roleId: req.params.roleId, hidden: req.body.hidden, changedBy: req.user.id,
+        });
+        if (result.status !== 'ok') {
+          await client.query('ROLLBACK');
+          return result.status === 'not_found'
+            ? error(res, 'Role not found', HTTP.NOT_FOUND)
+            : error(res, `role_hide_refused_${result.reason}`, HTTP.CONFLICT);
+        }
+        await client.query('COMMIT');
+        return success(res, { role_id: req.params.roleId, hidden: result.hidden }, 'Role visibility updated');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        logger.error('Error changing role visibility:', err);
+        return error(res, 'Failed to change role visibility', HTTP.INTERNAL);
+      } finally { client.release(); }
+    }));
 
   /**
    * GET /api/v1/roles
@@ -216,6 +276,11 @@ module.exports = (pool, logger) => {
         // (services/roleAssignment.js findRolesInUnit).
         const result = await pool.query(
           `SELECT r.id, r.role_name, r.display_name, r.description, r.is_system_role, r.created_at,
+                  r.customized_from_role_id,
+                  -- A built-in role the unit replaced and hid (services/roleVisibility.js):
+                  -- pickers leave it out unless the member already holds it.
+                  EXISTS (SELECT 1 FROM organization_hidden_roles h
+                           WHERE h.organization_id = $2 AND h.role_id = r.id) AS hidden,
                   NOT EXISTS (
                     SELECT 1
                     FROM role_permissions rp
@@ -388,10 +453,13 @@ module.exports = (pool, logger) => {
         if (refusal) { await client.query('ROLLBACK'); return policyResponse(res, refusal); }
         const roleKey = customRoleKey(organizationId, req.body.role_name || role.display_name);
         if (!roleKey) { await client.query('ROLLBACK'); return error(res, 'role_name must contain letters or digits', HTTP.BAD_REQUEST); }
+        // Customizing a built-in role records which one the unit role replaces,
+        // so the unit may then hide the built-in one (services/roleVisibility.js).
+        const replaces = base?.is_system_role && !base.grants_all_permissions ? base.id : null;
         const created = (await client.query(
-          `INSERT INTO roles (role_name, display_name, description, is_system_role, organization_id, data_scope)
-           VALUES ($1, $2, $3, false, $4, $5) RETURNING *`,
-          [roleKey, role.display_name, role.description, organizationId, role.data_scope]
+          `INSERT INTO roles (role_name, display_name, description, is_system_role, organization_id, data_scope, customized_from_role_id)
+           VALUES ($1, $2, $3, false, $4, $5, $6) RETURNING *`,
+          [roleKey, role.display_name, role.description, organizationId, role.data_scope, replaces]
         )).rows[0];
         let reassigned = 0;
         if (base) {

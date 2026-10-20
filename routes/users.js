@@ -27,6 +27,7 @@ const {
 } = require('../services/participantAccess');
 const { listUnitLeaders } = require('../services/unitLeaders');
 const { checkRoleChange, checkRolesGrantable, findRolesInUnit, normalizeRoleIds, recordRoleChange } = require('../services/roleAssignment');
+const { findHiddenAmong } = require('../services/roleVisibility');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 const { ROUTINE_DEACTIVATION_REASON } = require('../services/reactivation');
 const { param, body } = require('express-validator');
@@ -96,6 +97,14 @@ module.exports = (pool, logger) => {
       if (membership.rows.length === 0) {
         await client.query('ROLLBACK');
         return error(res, 'User not found in this organization', 404);
+      }
+
+      // A built-in role the unit hid is kept by those who hold it, never granted anew.
+      const currentRoleIds = normalizeRoleIds(membership.rows[0].role_ids || []);
+      const added = normalizeRoleIds(roleIds).filter((id) => !currentRoleIds.includes(id));
+      if ((await findHiddenAmong(client, added, organizationId)).length > 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'role_hidden_in_unit', HTTP_CONFLICT);
       }
 
       const check = await checkRoleChange(client, {

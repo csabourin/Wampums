@@ -9,12 +9,12 @@ jest.mock('../../spa/config.js', () => ({ CONFIG: {}, getApiUrl: (key) => key })
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(() => true), isDemoUser: jest.fn(() => false) }));
 jest.mock('../../spa/utils/DOMUtils.js', () => ({ ...jest.requireActual('../../spa/utils/DOMUtils.js'), loadStylesheet: jest.fn(() => Promise.resolve()) }));
-jest.mock('../../spa/api/api-roles.js', () => ({ getRoleMatrix: jest.fn(), replaceRolePermissions: jest.fn(), createUnitRole: jest.fn(), updateUnitRole: jest.fn(), deleteUnitRole: jest.fn() }));
+jest.mock('../../spa/api/api-roles.js', () => ({ getRoleMatrix: jest.fn(), replaceRolePermissions: jest.fn(), createUnitRole: jest.fn(), updateUnitRole: jest.fn(), deleteUnitRole: jest.fn(), setRoleHidden: jest.fn() }));
 jest.mock('../../spa/api/api-endpoints.js', () => ({ getUserOrganizations: jest.fn(), switchOrganization: jest.fn() }));
 jest.mock('../../spa/utils/DialogUtils.js', () => ({ ...jest.requireActual('../../spa/utils/DialogUtils.js'), confirm: jest.fn(() => Promise.resolve(true)), confirmDestructive: jest.fn(() => Promise.resolve(true)) }));
 
 import { RolePermissionMatrix } from '../../spa/modules/roles/RolePermissionMatrix.js';
-import { getRoleMatrix, replaceRolePermissions, createUnitRole, updateUnitRole, deleteUnitRole } from '../../spa/api/api-roles.js';
+import { getRoleMatrix, replaceRolePermissions, createUnitRole, updateUnitRole, deleteUnitRole, setRoleHidden } from '../../spa/api/api-roles.js';
 import { getUserOrganizations, switchOrganization } from '../../spa/api/api-endpoints.js';
 import { confirm, confirmDestructive } from '../../spa/utils/DialogUtils.js';
 import { hasPermission, isDemoUser } from '../../spa/utils/PermissionUtils.js';
@@ -132,7 +132,7 @@ test('editing changes metadata without sending the internal role key', async () 
   await open(); await screen.editRole(screen.roles[0]);
   const form = document.getElementById('role-matrix-definition'); form.querySelector('[name="display_name"]').value = 'Coordination';
   form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await flush(); await flush();
-  expect(updateUnitRole).toHaveBeenCalledWith(20, { display_name: 'Coordination', description: 'Organisation', data_scope: 'organization' });
+  expect(updateUnitRole).toHaveBeenCalledWith(20, { display_name: 'Coordination', description: 'Organisation', data_scope: 'organization', customized_from_role_id: null });
 });
 test('Escape closes a modal and restores keyboard focus to its opener, and the modal passes axe', async () => {
   await open(); const opener = document.getElementById('role-matrix-create'); opener.focus(); opener.click(); await flush();
@@ -202,4 +202,91 @@ test('a late response never paints over the next screen', async () => {
   screen = new RolePermissionMatrix(app); const initializing = screen.init(); await flush(); screen.destroy();
   document.getElementById('app').textContent = 'Next screen'; finish(matrix()); await initializing;
   expect(document.getElementById('app').textContent).toBe('Next screen');
+});
+
+describe('hiding a built-in role the unit replaced', () => {
+  const withRoles = (customOverrides, systemOverrides) => ({ data: { organization_id: 3, permissions, roles: [
+    { ...structuredClone(role), ...customOverrides }, { ...structuredClone(system), ...systemOverrides },
+  ] } });
+  const hideButtons = () => [...document.querySelectorAll('[data-visibility="1"]')];
+
+  test('a built-in role the unit has not customized cannot be hidden, and the page says why', async () => {
+    getRoleMatrix.mockResolvedValue(withRoles({}, { hide_refusal: 'not_customized', member_count: 0 }));
+    await open();
+    const [button] = hideButtons();
+    expect(button.disabled).toBe(true);
+    expect(document.getElementById(button.getAttribute('aria-describedby')).textContent)
+      .toBe(mockFr.role_matrix_hide_needs_custom);
+    expect((await axe.run(document.getElementById('app'), options)).violations).toEqual([]);
+  });
+
+  test('hiding asks first, warns that members keep the role, then hides it and returns focus', async () => {
+    getRoleMatrix.mockResolvedValueOnce(withRoles({ customized_from_role_id: 1 }, { hide_refusal: null, member_count: 2 }))
+      .mockResolvedValue(withRoles({ customized_from_role_id: 1 }, { hide_refusal: null, member_count: 2, hidden: true }));
+    setRoleHidden.mockResolvedValue({ success: true });
+    await open();
+    const [button] = hideButtons();
+    expect(button.disabled).toBe(false);
+    expect(button.textContent.trim()).toBe(mockFr.role_matrix_hide_role);
+    button.click(); await flush(); await flush();
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
+      message: mockFr.role_matrix_hide_confirm_held.replace('{count}', '2'),
+    }));
+    expect(setRoleHidden).toHaveBeenCalledWith(1, true);
+    expect(app.showMessage).toHaveBeenCalledWith(mockFr.role_matrix_role_hidden, 'success');
+    expect(document.activeElement.dataset.visibility).toBe('1');
+    expect(document.activeElement.textContent.trim()).toBe(mockFr.role_matrix_show_role);
+    expect(document.querySelector('.role-matrix-hidden').textContent).toContain(mockFr.role_hidden_badge);
+  });
+
+  test('declining the confirmation leaves the role offered', async () => {
+    getRoleMatrix.mockResolvedValue(withRoles({ customized_from_role_id: 1 }, { hide_refusal: null, member_count: 0 }));
+    confirm.mockResolvedValue(false);
+    await open();
+    hideButtons()[0].click(); await flush();
+    expect(setRoleHidden).not.toHaveBeenCalled();
+  });
+
+  test('a hidden role is marked as such and is shown again without a confirmation', async () => {
+    getRoleMatrix.mockResolvedValue(withRoles({ customized_from_role_id: 1 }, { hide_refusal: null, hidden: true }));
+    setRoleHidden.mockResolvedValue({ success: true });
+    await open();
+    expect(document.querySelector('#role-matrix-role option[value="1"]').textContent).toContain(mockFr.role_hidden_badge);
+    hideButtons()[0].click(); await flush(); await flush();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(setRoleHidden).toHaveBeenCalledWith(1, false);
+  });
+
+  test('a refused hide is explained, not reported as done', async () => {
+    getRoleMatrix.mockResolvedValue(withRoles({ customized_from_role_id: 1 }, { hide_refusal: null }));
+    setRoleHidden.mockRejectedValue(Object.assign(new Error('role_hide_refused_not_customized'), { status: 409 }));
+    await open();
+    hideButtons()[0].click(); await flush(); await flush();
+    expect(app.showMessage).toHaveBeenCalledWith(mockFr.role_hide_refused_not_customized, 'error');
+    expect(app.showMessage).not.toHaveBeenCalledWith(mockFr.role_matrix_role_hidden, 'success');
+  });
+
+  test('the role holding every permission offers no way to hide it', async () => {
+    getRoleMatrix.mockResolvedValue(withRoles({}, { grants_all_permissions: true, hide_refusal: 'all_permissions' }));
+    await open();
+    expect(hideButtons()).toHaveLength(0);
+  });
+
+  test('a unit role names the built-in role it replaces, as text', async () => {
+    getRoleMatrix.mockResolvedValue(withRoles({ customized_from_role_id: 1 }, { display_name: '<img src=x onerror=alert(1)>', role_name: 'u3_x', is_system_role: true }));
+    await open();
+    expect(document.querySelector('#app img')).toBeNull();
+    expect(document.querySelector('.role-matrix-mobile').textContent).toContain('Remplace : <img src=x onerror=alert(1)>');
+  });
+
+  test('editing a unit role sets which built-in role it replaces', async () => {
+    await open(); await screen.editRole(screen.roles[0]);
+    const form = document.getElementById('role-matrix-definition');
+    const select = form.querySelector('#role-matrix-replaces');
+    expect(select.labels[0].textContent).toBe(mockFr.role_matrix_replaces_label);
+    select.value = '1';
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await flush(); await flush();
+    expect(updateUnitRole).toHaveBeenCalledWith(20, expect.objectContaining({ customized_from_role_id: 1 }));
+    expect((await axe.run(document.querySelector('.modal-dialog') || document.body, options)).violations).toEqual([]);
+  });
 });

@@ -19,6 +19,7 @@
 const bcrypt = require('bcryptjs');
 const { ROUTINE_DEACTIVATION_REASON } = require('./reactivation');
 const { syncAccountNamesForGuardians } = require('./accountNames');
+const { resolveUnitRoleId } = require('./roleVisibility');
 
 /**
  * What acceptance did.
@@ -62,26 +63,24 @@ async function insertParentMembership(client, userId, organizationId, roleIds = 
   await client.query(
     `INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
      VALUES ($1, $2, $3, 'active')`,
-    [userId, organizationId, JSON.stringify([await findParentRoleId(client)])]
+    [userId, organizationId, JSON.stringify([await findParentRoleId(client, organizationId)])]
   );
 }
 
 /**
- * The built-in parent role, which every family membership holds.
+ * The parent role, which every family membership holds: the built-in one, or
+ * the unit's own when it replaced and hid it (services/roleVisibility.js).
  *
  * @param {Object} client - Database client
+ * @param {number} organizationId - Unit
  * @returns {Promise<number>} Role id
  */
-async function findParentRoleId(client) {
-  const roleResult = await client.query(
-    'SELECT id FROM roles WHERE role_name = $1',
-    ['parent']
-  );
-
-  if (roleResult.rows.length === 0) {
+async function findParentRoleId(client, organizationId) {
+  const roleId = await resolveUnitRoleId(client, 'parent', organizationId);
+  if (!roleId) {
     throw new Error("Role 'parent' not found in roles table");
   }
-  return roleResult.rows[0].id;
+  return roleId;
 }
 
 /**
@@ -113,7 +112,7 @@ async function ensureFamilyRole(client, userId, organizationId) {
     return null;
   }
   const previousRoleIds = (row.role_ids || []).map(Number);
-  await addMembershipRoles(client, row.id, [await findParentRoleId(client)]);
+  await addMembershipRoles(client, row.id, [await findParentRoleId(client, organizationId)]);
   const updated = await client.query('SELECT role_ids FROM user_organizations WHERE id = $1', [row.id]);
   return { previousRoleIds, newRoleIds: (updated.rows[0].role_ids || []).map(Number) };
 }

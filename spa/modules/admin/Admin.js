@@ -26,6 +26,7 @@ import { roleLabel } from '../../utils/RoleLabelUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderPushRecipients, pushSendResultKey, describePushSendResult } from '../push/pushRecipients.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { rolesToOffer } from '../../utils/RoleVisibilityUtils.js';
 export class Admin {
   constructor(app, options = {}) {
     this.app = app;
@@ -451,9 +452,10 @@ ${showNotifications ? `
 
     const currentRoleIds = this.getUserRoleIds(user);
     const safeName = escapeHTML(user.full_name || user.fullName || user.email || '');
-    const roles = this.roleCatalog.length > 0
+    // A built-in role the unit hid is offered only to a member who holds it.
+    const roles = rolesToOffer(this.roleCatalog.length > 0
       ? this.roleCatalog
-      : this.buildRoleCatalogFromUsers();
+      : this.buildRoleCatalogFromUsers(), currentRoleIds);
 
     if (roles.length === 0) {
       debugWarn('No roles available in catalog');

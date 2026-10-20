@@ -5,7 +5,8 @@ import { debugLog, debugError } from './DebugUtils.js';
 /**
  * Check if user has a valid session
  * @returns {Object} Session information: isLoggedIn, userRole, userRoles, userPermissions, userFullName,
- *   userId and userDataScope ('organization', 'linked', or null before the server has said)
+ *   userId, userDataScope ('organization', 'linked', or null before the server has said) and
+ *   userFamilyRole (true when one role is a family role, whatever its name)
  */
 export function checkSession() {
   const token = getStorage('jwtToken');
@@ -15,6 +16,7 @@ export function checkSession() {
   const userFullName = getStorage('userFullName');
   const userId = getStorage('userId');
   const userDataScope = getStorage('userDataScope') || null;
+  const userFamilyRole = getStorage('userFamilyRole') === 'true';
 
   // Parse roles and permissions from JSON strings
   let userRoles = [];
@@ -40,6 +42,7 @@ export function checkSession() {
     userPermissions,
     userFullName,
     userId,
-    userDataScope
+    userDataScope,
+    userFamilyRole
   };
 }

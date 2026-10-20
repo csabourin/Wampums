@@ -214,10 +214,13 @@ describe.skipIf(!DATABASE_URL)('Leader invitations', () => {
 
     const leaders = await request(app).get('/api/v1/parent-invitations').query({ kind: 'leader' });
     expect(leaders.body.data.map((row) => row.email)).toEqual(['baloo@leaders.example.org']);
-    expect(leaders.body.data[0].roles).toEqual([{ id: ids.teamRoleId, display_name: 'Role team' }]);
+    expect(leaders.body.data[0].roles).toEqual([expect.objectContaining({ id: ids.teamRoleId, display_name: 'Role team' })]);
+    expect(leaders.body.data[0].for_team).toBe(true);
 
     const families = await request(app).get('/api/v1/parent-invitations');
     expect(families.body.data).toEqual([]);
+    const everyone = await request(app).get('/api/v1/parent-invitations').query({ kind: 'all' });
+    expect(everyone.body.data.map((row) => row.email)).toEqual(['baloo@leaders.example.org']);
   });
 
   test('inviting a leader takes the permission to assign roles', async () => {
@@ -259,14 +262,39 @@ describe.skipIf(!DATABASE_URL)('Leader invitations', () => {
     expect(sentEmails).toHaveLength(0);
   });
 
-  test.each([
-    ['another unit\'s role', 'otherUnitRoleId'],
-    ['a family (linked) role', 'linkedRoleId'],
-  ])('%s is refused as a bad request', async (_label, roleKey) => {
-    const response = await invite({ email: 'baloo@leaders.example.org', role_ids: [ids[roleKey]] });
+  test('another unit\'s role is refused as a bad request', async () => {
+    const response = await invite({ email: 'baloo@leaders.example.org', role_ids: [ids.otherUnitRoleId] });
 
     expect(response.status).toBe(400);
     expect(response.body.message).toBe('leader_invitation_role_invalid');
+  });
+
+  test('a family role named by the invitation makes a family member holding it, listed with the families', async () => {
+    const response = await invite({ email: 'mowgli@leaders.example.org', role_ids: [ids.linkedRoleId] });
+    expect(response.status).toBe(201);
+    expect(sentEmails[0].message).not.toMatch(/team of leaders|équipe/i);
+    const families = await request(app).get('/api/v1/parent-invitations').query({ kind: 'family' });
+    expect(families.body.data.map((row) => row.email)).toEqual(['mowgli@leaders.example.org']);
+
+    const token = tokenFromLastEmail();
+    const described = await request(app).get('/api/v1/public/parent-invitations/describe').query({ token });
+    expect(described.body.data.invites_leader).toBe(false);
+    const accepted = await accept(token, { first_name: 'Mow', last_name: 'Gli', password: newAccountPassphrase() });
+
+    expect(accepted.body.data.as_leader).toBe(false);
+    const userId = await one('SELECT id FROM users WHERE email = $1', ['mowgli@leaders.example.org']);
+    expect(await one('SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+      [userId, ids.organizationId])).toEqual([ids.linkedRoleId]);
+    // A family member: a guardian record, and the role recorded as the inviter's choice
+    expect(await one('SELECT count(*) FROM parents_guardians WHERE courriel = $1', ['mowgli@leaders.example.org'])).toBe('1');
+    expect(await one('SELECT note FROM role_assignment_audit WHERE user_id = $1 AND organization_id = $2',
+      [userId, ids.organizationId])).toBe('Accepted a family invitation');
+  });
+
+  test('naming the family role takes the permission to assign roles; the unit\'s parent role does not', async () => {
+    mockContext.permissions = ['users.invite', 'participants.view'];
+    expect((await invite({ email: 'mowgli@leaders.example.org', role_ids: [ids.linkedRoleId] })).status).toBe(403);
+    expect((await invite({ email: 'mowgli@leaders.example.org' })).status).toBe(201);
   });
 
   test('a malformed role id is a bad request', async () => {
@@ -274,15 +302,44 @@ describe.skipIf(!DATABASE_URL)('Leader invitations', () => {
     expect(response.status).toBe(400);
   });
 
-  test('the roles offered are the unit\'s team roles, each saying whether it may be granted', async () => {
-    const response = await request(app).get('/api/v1/parent-invitations/leader-roles');
+  test('the roles offered are the unit\'s family and team roles, each saying whether it may be granted', async () => {
+    const response = await request(app).get('/api/v1/parent-invitations/roles');
 
     expect(response.status).toBe(200);
-    const byId = Object.fromEntries(response.body.data.map((role) => [role.id, role.assignable]));
-    expect(byId[ids.teamRoleId]).toBe(true);
-    expect(byId[ids.bigRoleId]).toBe(false);
-    expect(byId).not.toHaveProperty(String(ids.linkedRoleId));
+    const byId = Object.fromEntries(response.body.data.map((role) => [role.id, role]));
+    const parentRoleId = await one("SELECT id FROM roles WHERE role_name = 'parent' AND organization_id IS NULL");
+    expect(byId[ids.teamRoleId]).toMatchObject({ assignable: true, data_scope: 'organization', default_family: false });
+    expect(byId[ids.bigRoleId].assignable).toBe(false);
+    expect(byId[ids.linkedRoleId]).toMatchObject({ assignable: true, data_scope: 'linked' });
     expect(byId).not.toHaveProperty(String(ids.otherUnitRoleId));
+    if (byId[parentRoleId]) {
+      expect(byId[parentRoleId].default_family).toBe(true);
+    }
+  });
+
+  test('without users.assign_roles, only the unit\'s parent role may be chosen', async () => {
+    mockContext.permissions = ['users.invite', 'participants.view', 'activities.view'];
+    const response = await request(app).get('/api/v1/parent-invitations/roles');
+    expect(response.status).toBe(200);
+    expect(response.body.data.filter((role) => role.assignable).every((role) => role.default_family)).toBe(true);
+  });
+
+  test('a role hidden after the invitation was sent is granted as the unit role replacing it', async () => {
+    await invite({ email: 'kaa2@leaders.example.org', role_ids: [ids.teamRoleId] });
+    const token = tokenFromLastEmail();
+    const replacement = await createRole(ids.organizationId, 'team_v2', 'organization', ['participants.view']);
+    await pool.query('UPDATE roles SET customized_from_role_id = $1 WHERE id = $2', [ids.teamRoleId, replacement]);
+    await pool.query('INSERT INTO organization_hidden_roles (organization_id, role_id) VALUES ($1, $2)', [ids.organizationId, ids.teamRoleId]);
+    try {
+      const accepted = await accept(token, { first_name: 'K', last_name: 'Aa', password: newAccountPassphrase() });
+      expect(accepted.status).toBe(200);
+      const userId = await one('SELECT id FROM users WHERE email = $1', ['kaa2@leaders.example.org']);
+      expect(await one('SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+        [userId, ids.organizationId])).toEqual([replacement]);
+    } finally {
+      await pool.query('DELETE FROM organization_hidden_roles WHERE organization_id = $1', [ids.organizationId]);
+      await pool.query('DELETE FROM roles WHERE id = $1', [replacement]);
+    }
   });
 
   test('accepting creates a team member with the role, no guardian record, and a role history entry', async () => {
@@ -396,6 +453,36 @@ describe.skipIf(!DATABASE_URL)('Leader invitations', () => {
     expect(await one('SELECT status FROM parent_invitations WHERE email = $1', ['kaa@leaders.example.org'])).toBe('accepted');
   });
 
+  test('a family role invitation followed while the membership waits on approval is kept, then grants the role', async () => {
+    const userId = await one(
+      "INSERT INTO users (email, password, full_name, is_verified) VALUES ('raksha@leaders.example.org', 'x', 'Raksha', true) RETURNING id"
+    );
+    await invite({ email: 'raksha@leaders.example.org', role_ids: [ids.linkedRoleId] });
+    const token = tokenFromLastEmail();
+    await pool.query(
+      `INSERT INTO user_organizations (user_id, organization_id, role_ids, status, deactivated_at, deactivated_reason)
+       VALUES ($1, $2, '[]'::jsonb, 'inactive', now(), 'removed_by_admin')`,
+      [userId, ids.organizationId]
+    );
+
+    const waiting = await accept(token);
+
+    expect(waiting.body.data.result).toBe(ACCEPTANCE_RESULT.PENDING_APPROVAL);
+    expect(await one('SELECT status FROM parent_invitations WHERE email = $1', ['raksha@leaders.example.org'])).toBe('pending');
+
+    await pool.query(
+      "UPDATE user_organizations SET status = 'active', deactivated_at = NULL, deactivated_reason = NULL WHERE user_id = $1 AND organization_id = $2",
+      [userId, ids.organizationId]
+    );
+    await accept(token);
+
+    expect(await one(
+      'SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+      [userId, ids.organizationId]
+    )).toEqual([ids.linkedRoleId]);
+    expect(await one('SELECT status FROM parent_invitations WHERE email = $1', ['raksha@leaders.example.org'])).toBe('accepted');
+  });
+
   test('a family invitation still makes a parent', async () => {
     const response = await invite({ email: 'family@leaders.example.org' });
     expect(response.status).toBe(201);
@@ -405,5 +492,26 @@ describe.skipIf(!DATABASE_URL)('Leader invitations', () => {
     const userId = await one('SELECT id FROM users WHERE email = $1', ['family@leaders.example.org']);
     const parentRoleId = await one("SELECT id FROM roles WHERE role_name = 'parent'");
     expect(await one('SELECT role_ids FROM user_organizations WHERE user_id = $1', [userId])).toEqual([parentRoleId]);
+  });
+
+  test('a family invitation makes a member of the unit\'s own parent role once it hid the built-in one', async () => {
+    const parentRoleId = await one("SELECT id FROM roles WHERE role_name = 'parent' AND organization_id IS NULL");
+    const unitParent = await createRole(ids.organizationId, 'parents', 'linked', ['participants.view']);
+    await pool.query('UPDATE roles SET customized_from_role_id = $1 WHERE id = $2', [parentRoleId, unitParent]);
+    await pool.query('INSERT INTO organization_hidden_roles (organization_id, role_id) VALUES ($1, $2)', [ids.organizationId, parentRoleId]);
+    try {
+      const roles = await request(app).get('/api/v1/parent-invitations/roles');
+      const byId = Object.fromEntries(roles.body.data.map((role) => [role.id, role]));
+      expect(byId).not.toHaveProperty(String(parentRoleId));
+      expect(byId[unitParent].default_family).toBe(true);
+
+      expect((await invite({ email: 'family2@leaders.example.org' })).status).toBe(201);
+      await accept(tokenFromLastEmail(), { first_name: 'Jo', last_name: 'Roy', password: newAccountPassphrase() });
+      const userId = await one('SELECT id FROM users WHERE email = $1', ['family2@leaders.example.org']);
+      expect(await one('SELECT role_ids FROM user_organizations WHERE user_id = $1', [userId])).toEqual([unitParent]);
+    } finally {
+      await pool.query('DELETE FROM organization_hidden_roles WHERE organization_id = $1', [ids.organizationId]);
+      await pool.query('DELETE FROM roles WHERE id = $1', [unitParent]);
+    }
   });
 });
