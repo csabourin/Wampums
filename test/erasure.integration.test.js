@@ -427,6 +427,28 @@ describe.skipIf(!DATABASE_URL)('Right to erasure', () => {
     expect(await one('SELECT COUNT(*)::int FROM users WHERE id = $1', [ids.parentBId])).toBe(0);
   });
 
+  test('erases a parent left with nobody who holds the unit\'s own parent role', async () => {
+    const roleId = await one(
+      `INSERT INTO roles (role_name, display_name, data_scope, is_system_role, organization_id, customized_from_role_id)
+       VALUES ('u' || $1::text || '_familles_' || gen_random_uuid(), 'Familles', 'linked', false, $1::int, $2) RETURNING id`,
+      [ids.organizationId, ids.parentRoleId]
+    );
+    try {
+      await pool.query(
+        'UPDATE user_organizations SET role_ids = to_jsonb(ARRAY[$3::text]) WHERE user_id = $1 AND organization_id = $2',
+        [ids.parentBId, ids.organizationId, String(roleId)]
+      );
+
+      const response = await erase(ids.childB, 'Bruno Bergeron');
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toMatchObject({ users_erased: 1, users_retained: [] });
+      expect(await one('SELECT COUNT(*)::int FROM users WHERE id = $1', [ids.parentBId])).toBe(0);
+    } finally {
+      await pool.query('DELETE FROM roles WHERE id = $1', [roleId]);
+    }
+  });
+
   test('keeps a parent who still has another child enrolled', async () => {
     const response = await erase(ids.childA1, 'Alice Aubert');
     expect(response.status).toBe(200);

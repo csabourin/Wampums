@@ -29,7 +29,11 @@
  * @module services/erasure
  */
 
-/** Roles that make an account "a parent and nothing more". */
+/**
+ * Roles that make an account "a parent and nothing more", whatever their
+ * scope. Any role acting only on the holder's own children (data_scope
+ * 'linked'), such as a unit's own replacement for the parent role, counts too.
+ */
 const PARENT_ONLY_ROLES = ['parent', 'guardian', 'demoparent'];
 
 /**
@@ -217,15 +221,17 @@ async function eraseUserIfOrphaned(client, userId) {
   }
 
   const roles = await client.query(
-    `SELECT DISTINCT r.role_name
+    `SELECT DISTINCT r.role_name, r.data_scope
        FROM user_organizations uo
        CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
        JOIN roles r ON r.id = role_id_text::integer
       WHERE uo.user_id = $1`,
     [userId]
   );
-  const heldRoles = roles.rows.map(row => row.role_name);
-  if (heldRoles.some(role => !PARENT_ONLY_ROLES.includes(role))) {
+  const holdsStaffRole = roles.rows.some(
+    (role) => !PARENT_ONLY_ROLES.includes(role.role_name) && role.data_scope !== 'linked'
+  );
+  if (holdsStaffRole) {
     return { erased: false, reason: 'holds_staff_role' };
   }
 
