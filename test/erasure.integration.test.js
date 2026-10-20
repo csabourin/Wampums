@@ -135,8 +135,8 @@ describe.skipIf(!DATABASE_URL)('Right to erasure', () => {
        ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name RETURNING id`
     );
     ids.parentRoleId = await one(
-      `INSERT INTO roles (role_name, display_name) VALUES ('parent', 'Parent')
-       ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name RETURNING id`
+      `INSERT INTO roles (role_name, display_name, data_scope) VALUES ('parent', 'Parent', 'linked')
+       ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name, data_scope = 'linked' RETURNING id`
     );
     ids.animationRoleId = await one(
       `INSERT INTO roles (role_name, display_name) VALUES ('animation', 'Animation')
@@ -462,6 +462,25 @@ describe.skipIf(!DATABASE_URL)('Right to erasure', () => {
     expect(await one(
       'SELECT COUNT(*)::int FROM user_participants WHERE user_id = $1', [ids.parentAId]
     )).toBe(1);
+  });
+
+  test('keeps someone whose role reaches the whole unit, even one named like a parent role', async () => {
+    // Known by the role's scope, not its name: a 'guardian' role over the whole unit is staff.
+    // Shared with other suites, so it is upserted and left in place.
+    const roleId = await one(
+      `INSERT INTO roles (role_name, display_name, data_scope) VALUES ('guardian', 'Guardian', 'organization')
+       ON CONFLICT (role_name) DO UPDATE SET data_scope = 'organization' RETURNING id`
+    );
+    try {
+      await pool.query('UPDATE user_organizations SET role_ids = to_jsonb(ARRAY[$1::text]) WHERE user_id = $2',
+        [String(roleId), ids.parentBId]);
+      const response = await erase(ids.childB, 'Bruno Bergeron');
+      expect(response.status).toBe(200);
+      expect(response.body.data).toMatchObject({ users_erased: 0, users_retained: ['holds_staff_role'] });
+    } finally {
+      await pool.query('UPDATE user_organizations SET role_ids = to_jsonb(ARRAY[$1::text]) WHERE user_id = $2',
+        [String(ids.parentRoleId), ids.parentBId]);
+    }
   });
 
   test('keeps a parent who is also a leader, and says so', async () => {

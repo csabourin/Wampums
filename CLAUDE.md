@@ -139,6 +139,9 @@ or renamed role holding the right permissions would be refused. The role-based `
 - ✅ What someone may **do**: a permission (`requirePermission`, `req.user.permissions`, `hasPermission()` in the SPA).
 - ✅ Whether someone sees the **whole unit or only their own children**: the role's `data_scope`
   (`getUserDataScope(req, pool)` → `'organization'` or `'linked'`).
+- ✅ Whether an account is **a parent and nothing more** (scout-year cleanup, alumni, erasure,
+  transfers): every role it holds has `data_scope = 'linked'`; any other scope, or none, is staff
+  (`r.data_scope IS DISTINCT FROM 'linked'`, as in migration 011). Never a list of role names.
 - ⚠️ Role names are only for describing the kind of account (demo, parent dashboard) and display.
 
 **Every protected route uses the shared authorization engine.** `authenticate`

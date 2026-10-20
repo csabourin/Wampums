@@ -340,32 +340,25 @@ async function openNextScoutYear(client, { organizationId, userId }) {
  *
  * A user is considered linked to a participant either directly
  * (`user_participants`) or through a guardian record (`guardian_users` ->
- * `participant_guardians`). Memberships holding any role other than a family
- * role are never listed: a leader who is also a parent must keep their access.
- * A family role is one named in `parentRoleNames`, or one acting only on the
- * holder's own children (data_scope 'linked'), such as a unit's own role
- * replacing the parent role.
+ * `participant_guardians`). Only a parent and nothing more is listed: every
+ * role of the membership is a family role, limited to the holder's own children
+ * (`data_scope = 'linked'`), read from the role's scope rather than its name.
+ * A leader who is also a parent must keep their access.
  *
  * @param {Object} pool - Database pool or client
  * @param {number} organizationId - Organization ID
  * @param {number} scoutYearId - Scout year the enrollment check runs against
- * @param {Array<string>} [parentRoleNames] - Role names considered "parent only" whatever their scope
  * @returns {Promise<Array<Object>>} Candidate memberships
  */
-async function listMembershipsWithoutEnrolledChild(
-  pool,
-  organizationId,
-  scoutYearId,
-  parentRoleNames = ['parent', 'guardian', 'demoparent']
-) {
+async function listMembershipsWithoutEnrolledChild(pool, organizationId, scoutYearId) {
   const result = await pool.query(
     `WITH membership_roles AS (
        SELECT uo.id AS membership_id,
               uo.user_id,
               uo.status,
               ARRAY_AGG(DISTINCT r.role_name::text) FILTER (WHERE r.role_name IS NOT NULL) AS role_names,
-              BOOL_AND(r.role_name::text = ANY($3::text[]) OR r.data_scope = 'linked')
-                FILTER (WHERE r.role_name IS NOT NULL) AS family_only
+              -- a parent and nothing more: at least one role, each limited to the holder's own children
+              BOOL_AND(r.data_scope IS NOT DISTINCT FROM 'linked') FILTER (WHERE r.id IS NOT NULL) AS family_only
          FROM user_organizations uo
          LEFT JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text ON TRUE
          LEFT JOIN roles r ON r.id = role_id_text::integer
@@ -396,7 +389,6 @@ async function listMembershipsWithoutEnrolledChild(
        LEFT JOIN linked_participants lp ON lp.user_id = mr.user_id
        LEFT JOIN participants p ON p.id = lp.participant_id
       WHERE mr.status = 'active'
-        AND mr.role_names IS NOT NULL
         AND mr.family_only
         AND NOT EXISTS (
           SELECT 1
@@ -410,7 +402,7 @@ async function listMembershipsWithoutEnrolledChild(
         )
       GROUP BY mr.membership_id, mr.user_id, mr.status, mr.role_names, u.email, u.full_name
       ORDER BY u.full_name NULLS LAST, u.email`,
-    [organizationId, scoutYearId, parentRoleNames]
+    [organizationId, scoutYearId]
   );
 
   return result.rows;
