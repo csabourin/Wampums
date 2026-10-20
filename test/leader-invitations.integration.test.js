@@ -453,6 +453,36 @@ describe.skipIf(!DATABASE_URL)('Leader invitations', () => {
     expect(await one('SELECT status FROM parent_invitations WHERE email = $1', ['kaa@leaders.example.org'])).toBe('accepted');
   });
 
+  test('a family role invitation followed while the membership waits on approval is kept, then grants the role', async () => {
+    const userId = await one(
+      "INSERT INTO users (email, password, full_name, is_verified) VALUES ('raksha@leaders.example.org', 'x', 'Raksha', true) RETURNING id"
+    );
+    await invite({ email: 'raksha@leaders.example.org', role_ids: [ids.linkedRoleId] });
+    const token = tokenFromLastEmail();
+    await pool.query(
+      `INSERT INTO user_organizations (user_id, organization_id, role_ids, status, deactivated_at, deactivated_reason)
+       VALUES ($1, $2, '[]'::jsonb, 'inactive', now(), 'removed_by_admin')`,
+      [userId, ids.organizationId]
+    );
+
+    const waiting = await accept(token);
+
+    expect(waiting.body.data.result).toBe(ACCEPTANCE_RESULT.PENDING_APPROVAL);
+    expect(await one('SELECT status FROM parent_invitations WHERE email = $1', ['raksha@leaders.example.org'])).toBe('pending');
+
+    await pool.query(
+      "UPDATE user_organizations SET status = 'active', deactivated_at = NULL, deactivated_reason = NULL WHERE user_id = $1 AND organization_id = $2",
+      [userId, ids.organizationId]
+    );
+    await accept(token);
+
+    expect(await one(
+      'SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+      [userId, ids.organizationId]
+    )).toEqual([ids.linkedRoleId]);
+    expect(await one('SELECT status FROM parent_invitations WHERE email = $1', ['raksha@leaders.example.org'])).toBe('accepted');
+  });
+
   test('a family invitation still makes a parent', async () => {
     const response = await invite({ email: 'family@leaders.example.org' });
     expect(response.status).toBe(201);

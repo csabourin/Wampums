@@ -98,6 +98,18 @@ describe('refreshAccess', () => {
     expect(localStorage.getItem('userDataScope')).toBe('organization');
   });
 
+  test('picks up a family role the server reports, whatever the unit named it', async () => {
+    const app = signedInParent();
+    getCurrentAccess.mockResolvedValue({
+      success: true,
+      data: { roles: ['parent'], permissions: SIGNED_IN_PERMISSIONS, family_role: true }
+    });
+
+    await expect(refreshAccess(app)).resolves.toBe(true);
+    expect(app.userFamilyRole).toBe(true);
+    expect(localStorage.getItem('userFamilyRole')).toBe('true');
+  });
+
   test('keeps the stored copy when the server cannot be reached', async () => {
     const app = signedInParent();
     getCurrentAccess.mockRejectedValue(new Error('offline'));

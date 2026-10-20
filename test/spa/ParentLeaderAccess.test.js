@@ -37,9 +37,10 @@ import { roleLabel } from '../../spa/utils/RoleLabelUtils.js';
  * @param {string[]} roles - Role names
  * @param {?string} dataScope - Scope reported by the server
  */
-function signIn(roles, dataScope) {
+function signIn(roles, dataScope, familyRole = false) {
   mockApp.userRoles = roles;
   mockApp.userDataScope = dataScope;
+  mockApp.userFamilyRole = familyRole;
 }
 
 describe('isParent', () => {
@@ -64,6 +65,18 @@ describe('isParent', () => {
   test('a session stored before the scope was known stays as it was until refreshed', () => {
     signIn(['leader', 'parent'], null);
     expect(isParent()).toBe(true);
+  });
+
+  test('a unit\'s own role replacing the parent role makes a parent, whatever its name', () => {
+    signIn(['u12_familles'], 'linked', true);
+    expect(isParent()).toBe(true);
+    expect(holdsFamilyRole()).toBe(true);
+  });
+
+  test('a leader who also holds the unit\'s replacement parent role keeps the family role', () => {
+    signIn(['leader', 'u12_familles'], 'organization', true);
+    expect(isParent()).toBe(false);
+    expect(holdsFamilyRole()).toBe(true);
   });
 
   test('a staff account without a family role is not a parent', () => {

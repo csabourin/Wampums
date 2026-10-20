@@ -16,7 +16,7 @@ const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 
 // Import middleware
-const { authenticate, dataScopeOfRoles } = require('../middleware/auth');
+const { authenticate, dataScopeOfRoles, holdsFamilyRoleOf } = require('../middleware/auth');
 const { ROLE_PRIORITY } = require('../config/role-constants');
 const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 const {
@@ -431,6 +431,7 @@ module.exports = (pool, logger) => {
           user_roles: roleNames, // All user roles
           user_permissions: permissions, // All user permissions
           user_data_scope: dataScopeOfRoles(rolesResult.rows),
+          user_family_role: holdsFamilyRoleOf(rolesResult.rows),
           user_full_name: user.full_name,
           user_id: user.id,
           organization_id: organizationId
@@ -611,6 +612,7 @@ module.exports = (pool, logger) => {
           user_roles: roleNames,
           user_permissions: permissions,
           user_data_scope: dataScopeOfRoles(rolesResult.rows),
+          user_family_role: holdsFamilyRoleOf(rolesResult.rows),
           user_full_name: user.full_name,
           user_id: user.id,
           organization_id: organizationId

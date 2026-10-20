@@ -424,6 +424,7 @@ export class Router {
     this.app.userRoles = session.userRoles;
     this.app.userPermissions = session.userPermissions;
     this.app.userDataScope = session.userDataScope;
+    this.app.userFamilyRole = session.userFamilyRole;
 
     if (this.app.isLoggedIn) {
       this.app.addSettingsIcon();

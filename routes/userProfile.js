@@ -14,7 +14,7 @@ const rateLimit = require('express-rate-limit');
 const { check } = require('express-validator');
 
 // Import middleware
-const { authenticate, blockDemoRoles, getOrganizationId, dataScopeOfRoles } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId, dataScopeOfRoles, holdsFamilyRoleOf } = require('../middleware/auth');
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 const {
   validateEmail,
@@ -297,7 +297,8 @@ module.exports = (pool, logger) => {
     return success(res, {
       roles: rolesResult.rows.map((row) => row.role_name),
       permissions: permissionsResult.rows.map((row) => row.permission_key),
-      data_scope: dataScopeOfRoles(rolesResult.rows)
+      data_scope: dataScopeOfRoles(rolesResult.rows),
+      family_role: holdsFamilyRoleOf(rolesResult.rows)
     }, 'Access retrieved');
   }));
 

@@ -1100,10 +1100,11 @@ async function acceptInvitation(pool, params, { now = new Date(), logger } = {})
       });
     }
 
-    // A leader whose membership now waits on a human keeps the invitation: its
-    // roles are granted only once they can be, by following the link again
-    // after the approval. The reactivation request itself stands.
-    const keepForApproval = forLeader && result === ACCEPTANCE_RESULT.PENDING_APPROVAL;
+    // An invitation naming roles, for a leader or a family, is kept while the
+    // membership waits on a human: its roles are granted only once they can be,
+    // by following the link again after the approval. The reactivation request
+    // itself stands.
+    const keepForApproval = Boolean(roleIds) && result === ACCEPTANCE_RESULT.PENDING_APPROVAL;
     if (keepForApproval) {
       // The link must still work once the return is approved
       await client.query(

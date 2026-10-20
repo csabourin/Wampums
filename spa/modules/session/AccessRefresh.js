@@ -45,7 +45,7 @@ function sameKeys(first, second) {
  * Failure (offline, server error) leaves the stored copy as it is: the API
  * still decides every request, so a stale copy only affects what is shown.
  *
- * @param {Object} app - The application object (userRoles, userPermissions, userDataScope)
+ * @param {Object} app - The application object (userRoles, userPermissions, userDataScope, userFamilyRole)
  * @returns {Promise<boolean>} True when the stored access changed
  */
 export async function refreshAccess(app) {
@@ -63,9 +63,11 @@ export async function refreshAccess(app) {
   }
 
   const dataScope = access.data_scope || null;
+  const familyRole = access.family_role === true;
   if (sameKeys(access.roles, app.userRoles)
     && sameKeys(access.permissions, app.userPermissions)
-    && dataScope === (app.userDataScope || null)) {
+    && dataScope === (app.userDataScope || null)
+    && familyRole === (app.userFamilyRole === true)) {
     return false;
   }
 
@@ -73,10 +75,12 @@ export async function refreshAccess(app) {
   app.userRoles = access.roles;
   app.userPermissions = access.permissions;
   app.userDataScope = dataScope;
+  app.userFamilyRole = familyRole;
   setStorageMultiple({
     userRoles: JSON.stringify(access.roles),
     userPermissions: JSON.stringify(access.permissions),
     userDataScope: dataScope || '',
+    userFamilyRole: familyRole ? 'true' : '',
   });
 
   // The caller shows the current address again; make it the right home.

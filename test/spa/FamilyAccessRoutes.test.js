@@ -45,7 +45,7 @@ test('the admin pages do not', () => {
 
 test('the admin pages are guarded by the permission their endpoints require', () => {
   expect(routerSource).toMatch(
-    /case ["']invitations["']:\s*(\/\/.*\s*)*if \(!guard\(hasPermission\('users\.invite'\)\)\)/
+    /case ["']invitations["']:\s*(?:\/\/[^\n]*\n\s*)*if \(!guard\(hasPermission\('users\.invite'\)\)\)/
   );
   expect(routerSource).toMatch(
     /case ["']participantDuplicates["']:\s*if \(!guard\(hasPermission\('participants\.edit'\)\)\)/
