@@ -142,8 +142,8 @@ describe.skipIf(!DATABASE_URL)('Scout year rollback', () => {
     );
 
     ids.parentRoleId = await one(
-      `INSERT INTO roles (role_name, display_name) VALUES ('parent', 'Parent')
-       ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name
+      `INSERT INTO roles (role_name, display_name, data_scope) VALUES ('parent', 'Parent', 'linked')
+       ON CONFLICT (role_name) DO UPDATE SET display_name = EXCLUDED.display_name, data_scope = 'linked'
        RETURNING id`
     );
 
@@ -374,6 +374,36 @@ describe.skipIf(!DATABASE_URL)('Scout year rollback', () => {
   beforeEach(async () => {
     await cleanup();
     await seed();
+  });
+
+  test.each([
+    ['closes the membership of a parent holding the unit\'s own family role', 'linked', 'inactive'],
+    ['never closes one whose role reaches the whole unit, even one named like a parent role', 'organization', 'active'],
+  ])('a transition %s', async (_label, dataScope, expectedStatus) => {
+    // Known by the role's scope, not its name: the unit's own family role, or a
+    // 'guardian' role over the whole unit (shared, so upserted and left in place).
+    const roleId = dataScope === 'linked'
+      ? await one(
+        `INSERT INTO roles (role_name, display_name, organization_id, data_scope)
+         VALUES ($1, 'Parent de la meute', $2, 'linked') RETURNING id`,
+        [`u${ids.organizationId}_parent_${Date.now()}`, ids.organizationId])
+      : await one(
+        `INSERT INTO roles (role_name, display_name, data_scope) VALUES ('guardian', 'Guardian', 'organization')
+       ON CONFLICT (role_name) DO UPDATE SET data_scope = 'organization' RETURNING id`
+      );
+    try {
+      await pool.query('UPDATE user_organizations SET role_ids = to_jsonb(ARRAY[$1::text]) WHERE id = $2',
+        [String(roleId), ids.parentMembershipId]);
+      expect((await runTransition()).status).toBe(201);
+      expect(await one('SELECT status FROM user_organizations WHERE id = $1', [ids.parentMembershipId]))
+        .toBe(expectedStatus);
+    } finally {
+      await pool.query('UPDATE user_organizations SET role_ids = to_jsonb(ARRAY[$1::text]) WHERE id = $2',
+        [String(ids.parentRoleId), ids.parentMembershipId]);
+      if (dataScope === 'linked') {
+        await pool.query('DELETE FROM roles WHERE id = $1', [roleId]);
+      }
+    }
   });
 
   test('a transition is undone completely while the new year is still empty', async () => {

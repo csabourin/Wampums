@@ -29,12 +29,6 @@
  * @module services/erasure
  */
 
-/**
- * Roles that make an account "a parent and nothing more", whatever their
- * scope. Any role acting only on the holder's own children (data_scope
- * 'linked'), such as a unit's own replacement for the parent role, counts too.
- */
-const PARENT_ONLY_ROLES = ['parent', 'guardian', 'demoparent'];
 
 /**
  * Tables holding participant rows that no foreign key would cascade.
@@ -220,18 +214,19 @@ async function eraseUserIfOrphaned(client, userId) {
     return { erased: false, reason: 'has_other_child' };
   }
 
-  const roles = await client.query(
-    `SELECT DISTINCT r.role_name, r.data_scope
+  // A parent and nothing more, in every unit: a role reaching beyond the
+  // holder's own children (data_scope other than 'linked') is a staff role.
+  const staffRoles = await client.query(
+    `SELECT 1
        FROM user_organizations uo
        CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
        JOIN roles r ON r.id = role_id_text::integer
-      WHERE uo.user_id = $1`,
+      WHERE uo.user_id = $1
+        AND r.data_scope IS DISTINCT FROM 'linked'
+      LIMIT 1`,
     [userId]
   );
-  const holdsStaffRole = roles.rows.some(
-    (role) => !PARENT_ONLY_ROLES.includes(role.role_name) && role.data_scope !== 'linked'
-  );
-  if (holdsStaffRole) {
+  if (staffRoles.rows.length > 0) {
     return { erased: false, reason: 'holds_staff_role' };
   }
 
@@ -401,7 +396,6 @@ async function eraseParticipant(client, { organizationId, participant, performed
 }
 
 module.exports = {
-  PARENT_ONLY_ROLES,
   findOwningOrganizations,
   UNLINKED_PARTICIPANT_TABLES,
   findOtherOrganizations,

@@ -226,8 +226,8 @@ module.exports = (pool, logger) => {
           WHERE uo.organization_id = $1
             AND uo.status = 'active'
           GROUP BY uo.id, uo.user_id, u.email, u.full_name
-         HAVING BOOL_AND(r.role_name::text = ANY(ARRAY['parent','guardian','demoparent']) OR r.data_scope = 'linked')
-                  FILTER (WHERE r.role_name IS NOT NULL)
+         -- a parent and nothing more: at least one role, each limited to the holder's own children
+         HAVING BOOL_AND(r.data_scope IS NOT DISTINCT FROM 'linked') FILTER (WHERE r.id IS NOT NULL)
             AND NOT EXISTS (
               SELECT 1 FROM linked_participants lp
                JOIN staying s ON s.participant_id = lp.participant_id
@@ -361,8 +361,8 @@ module.exports = (pool, logger) => {
                 SELECT 1
                   FROM jsonb_array_elements_text(uo.role_ids) AS role_id_text
                   JOIN roles r ON r.id = role_id_text::integer
-                 WHERE r.role_name <> ALL (ARRAY['parent','guardian','demoparent'])
-                   AND r.data_scope IS DISTINCT FROM 'linked'
+                 -- a parent and nothing more: no role beyond the holder's own children
+                 WHERE r.data_scope IS DISTINCT FROM 'linked'
               )
             RETURNING uo.id, uo.user_id`,
           [organizationId, membershipIds, previousYear.id]
