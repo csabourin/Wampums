@@ -154,3 +154,81 @@ test('each field is named for its youth, and the page has no accessibility viola
   const results = await axe.run(root, AXE_OPTIONS);
   expect(results.violations).toEqual([]);
 });
+
+const rowIds = () => Array.from(document.querySelectorAll('.nickname-input'), (input) => Number(input.dataset.participantId));
+
+async function renderSortablePage() {
+  app.lang = 'fr';
+  getGroups.mockResolvedValue({ success: true, data: [{ id: 1, name: 'Rouge' }, { id: 2, name: 'Bleue' }] });
+  getParticipants.mockResolvedValue({
+    success: true,
+    data: [
+      { id: 1, first_name: 'Zoé', group_id: 2, second_leader: true, roles: 'Équipement' },
+      { id: 2, first_name: 'Émile', group_id: 1, first_leader: true, roles: 'Animation' },
+      { id: 3, first_name: 'Alice', group_id: 2, first_leader: true, roles: 'Animation' },
+      { id: 4, first_name: 'Béatrice', group_id: null },
+      { id: 5, first_name: 'Charles', nickname: 'Abel', group_id: 1 },
+    ],
+  });
+  document.body.innerHTML = '<main id="app"></main>';
+  const screen = new ManageParticipants(app);
+  await screen.init();
+  return screen;
+}
+
+function chooseSort(value) {
+  const select = document.getElementById('participants-sort');
+  select.value = value;
+  select.dispatchEvent(new Event('change'));
+}
+
+test('youth start in alphabetical order using their displayed names', async () => {
+  await renderSortablePage();
+  expect(rowIds()).toEqual([5, 3, 4, 2, 1]);
+});
+
+test('sorting by den orders den names then youth names and places unassigned youth last', async () => {
+  const screen = await renderSortablePage();
+  const sourceOrder = screen.participants.map((participant) => participant.id);
+  chooseSort('group');
+  expect(rowIds()).toEqual([3, 1, 5, 2, 4]);
+  expect(screen.participants.map((participant) => participant.id)).toEqual(sourceOrder);
+});
+
+test('sorting by role orders translated role labels then youth names and places youth without roles last', async () => {
+  await renderSortablePage();
+  chooseSort('role');
+  expect(rowIds()).toEqual([3, 2, 1, 5, 4]);
+});
+
+test('sorting by other roles orders their text then youth names and places empty roles last', async () => {
+  await renderSortablePage();
+  chooseSort('roles');
+  expect(rowIds()).toEqual([3, 2, 1, 5, 4]);
+  chooseSort('name');
+  expect(rowIds()).toEqual([5, 3, 4, 2, 1]);
+});
+
+test('changing sort preserves editable fields and their save listeners', async () => {
+  await renderSortablePage();
+  const field = document.querySelector('.nickname-input[data-participant-id="1"]');
+  field.value = 'Aaa';
+  chooseSort('name');
+  expect(rowIds()[0]).toBe(1);
+  expect(document.querySelector('.nickname-input[data-participant-id="1"]')).toBe(field);
+  updateParticipantNickname.mockResolvedValue({ success: true });
+  field.dispatchEvent(new Event('change'));
+  await flush();
+  expect(updateParticipantNickname).toHaveBeenCalledWith(1, 'Aaa');
+});
+
+test('the selected sort survives a data reload and remains available in an archived year', async () => {
+  const screen = await renderSortablePage();
+  chooseSort('group');
+  await screen.fetchData();
+  screen.render();
+  screen.attachEventListeners();
+  expect(document.getElementById('participants-sort').value).toBe('group');
+  expect(document.getElementById('participants-sort').hasAttribute('data-archive-safe')).toBe(true);
+  expect(rowIds()).toEqual([3, 1, 5, 2, 4]);
+});

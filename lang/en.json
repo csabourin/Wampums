@@ -1297,6 +1297,8 @@
   "manage_honors": "Honor Wolves",
   "manage_installments": "Manage installments",
   "manage_names": "Participant List",
+  "participants_sort_by": "Sort by",
+  "participants_sort_alphabetical": "Alphabetical order",
   "manage_participants": "Assign Groups and Roles",
   "manage_points": "Manage Points",
   "manage_users_participants": "Link Youth to Parents",

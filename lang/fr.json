@@ -1273,6 +1273,8 @@
   "manage_honors": "Loups d’honneurs",
   "manage_installments": "Gérer les versements",
   "manage_names": "Liste des participants",
+  "participants_sort_by": "Trier par",
+  "participants_sort_alphabetical": "Ordre alphabétique",
   "manage_participants": "Assigner les groupes et les rôles",
   "manage_points": "Gérer les Points",
   "manage_users_participants": "Lier les jeunes aux parents",
