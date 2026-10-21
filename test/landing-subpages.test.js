@@ -113,6 +113,13 @@ describe('inner pages of the public site', () => {
     expect(caption.trim().length).toBeGreaterThan(10);
   });
 
+  test.each(['/en/', '/fr/', ...PAGES])('every file %s links to exists on the site', (pagePath) => {
+    const links = [...read(pagePath).matchAll(/(?:href|src)="(\/[^"#?]+\.(?:png|jpe?g|webp|svg|ico|css|js|json|webmanifest))(?:#[^"]*)?"/g)]
+      .map((match) => match[1]);
+    expect(links.length).toBeGreaterThan(0);
+    expect([...new Set(links)].filter((link) => !fs.existsSync(path.join(LANDING, link)))).toEqual([]);
+  });
+
   test('every screenshot in the images folder is shown on a page', () => {
     const shown = new Set(PAGES.flatMap((pagePath) => [...read(pagePath).matchAll(/src="\/images\/screenshots\/([^"]+)"/g)].map((match) => match[1])));
     const files = fs.readdirSync(path.join(LANDING, 'images', 'screenshots'));
