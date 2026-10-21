@@ -65,7 +65,9 @@ const PUBLIC_ORGANIZATION_SETTING_KEYS = [
   INTERFACE_LANGUAGES_SETTING_KEY,
   // Parents may not hold org.view, so the buttons their dashboard hides must
   // reach them through the public settings. It only lists button keys.
-  PARENT_DASHBOARD_SETTING_KEY
+  PARENT_DASHBOARD_SETTING_KEY,
+  // A demo unit's sign-in page offers the parent and leader views instead of a password.
+  'demo_sign_in'
 ];
 
 // PERFORMANCE OPTIMIZATION: In-memory cache for organization settings

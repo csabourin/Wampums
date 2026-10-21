@@ -42,6 +42,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   hasPermission: (key) => mockRole.permissions.has(key),
 }));
 jest.mock('../../spa/api/api-family.js', () => ({ getOnboardingContext: jest.fn() }));
+jest.mock('../../spa/api/api-demo.js', () => ({ startDemoSession: jest.fn() }));
 
 import { getOnboardingContext } from '../../spa/api/api-family.js';
 import { Login } from '../../spa/modules/session/Login.js';

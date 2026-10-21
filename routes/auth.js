@@ -148,6 +148,110 @@ const passwordResetLookupLimiter = rateLimit({
 });
 
 /**
+ * The session a successful sign-in answers with: the member's roles and
+ * permissions in the unit, a token, and the children an email already names.
+ * Shared by the password sign-in and the demo sign-in, so both open the same session.
+ *
+ * @param {Object} pool - Database pool
+ * @param {{id: string, full_name: string}} user - The account signing in
+ * @param {number} organizationId - The unit
+ * @param {string} email - The account's normalized email
+ * @returns {Promise<Object>} Response body
+ */
+async function buildSignInResponse(pool, user, organizationId, email) {
+  const rolesResult = await pool.query(
+    `SELECT DISTINCT r.id as role_id, r.role_name, r.data_scope
+     FROM user_organizations uo
+     CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+     JOIN roles r ON r.id = role_id_text::integer
+     WHERE uo.user_id = $1 AND uo.organization_id = $2
+       AND uo.status = 'active'`,
+    [user.id, organizationId]
+  );
+
+  const permissionsResult = await pool.query(
+    `SELECT DISTINCT p.permission_key
+     FROM user_organizations uo
+     CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+     JOIN role_permissions rp ON rp.role_id = role_id_text::integer
+     JOIN permissions p ON p.id = rp.permission_id
+     WHERE uo.user_id = $1 AND uo.organization_id = $2
+       AND uo.status = 'active'`,
+    [user.id, organizationId]
+  );
+
+  const roleIds = rolesResult.rows.map(r => r.role_id);
+  const roleNames = rolesResult.rows.map(r => r.role_name);
+  const permissions = permissionsResult.rows.map(p => p.permission_key);
+
+  // policy-allow role-names: legacy display role claim, not an access decision
+  const primaryRole = ROLE_PRIORITY.find(role => roleNames.includes(role)) || roleNames[0] || 'parent';
+
+  const token = signJWTToken(
+    {
+      user_id: user.id,
+      user_role: primaryRole, // Legacy: primary role for backward compatibility
+      roleIds: roleIds,
+      roleNames: roleNames,
+      permissions: permissions,
+      organizationId: organizationId
+    },
+    { expiresIn: '7d' }
+  );
+
+  const guardianResult = await pool.query(
+    `SELECT pg.id, p.id AS participant_id, p.first_name, p.last_name
+     FROM parents_guardians pg
+     JOIN participant_guardians pgu ON pg.id = pgu.guardian_id
+     JOIN participants p ON pgu.participant_id = p.id
+     LEFT JOIN user_participants up ON up.participant_id = p.id AND up.user_id = $1
+     WHERE pg.courriel = $2 AND up.participant_id IS NULL`,
+    [user.id, email]
+  );
+
+  const response = {
+    success: true,
+    message: 'login_successful',
+    token: token,
+    user_role: primaryRole, // Primary role for backward compatibility
+    user_roles: roleNames, // All user roles
+    user_permissions: permissions, // All user permissions
+    user_data_scope: dataScopeOfRoles(rolesResult.rows),
+    user_family_role: holdsFamilyRoleOf(rolesResult.rows),
+    user_full_name: user.full_name,
+    user_id: user.id,
+    organization_id: organizationId
+  };
+
+  if (guardianResult.rows.length > 0) {
+    response.guardian_participants = guardianResult.rows;
+  }
+
+  return response;
+}
+
+/**
+ * The demo role each view of the demo unit signs in with.
+ * policy-allow role-names: demo accounts are described by role (CLAUDE.md §3)
+ */
+const DEMO_VIEW_ROLES = { parent: 'demoparent', leader: 'demoadmin' };
+
+const DEMO_LOGIN_WINDOW_MS = 900000; // 15 minutes
+const DEMO_LOGIN_MAX_PRODUCTION = 30;
+const DEMO_LOGIN_MAX_OTHER = 300;
+const HTTP_NOT_FOUND = 404;
+const HTTP_INTERNAL_ERROR = 500;
+
+// Every visitor of the demo signs in this way, and may switch views a few times.
+const demoLoginLimiter = rateLimit({
+  windowMs: DEMO_LOGIN_WINDOW_MS,
+  max: isProduction ? DEMO_LOGIN_MAX_PRODUCTION : DEMO_LOGIN_MAX_OTHER,
+  message: { success: false, message: 'too_many_login_attempts' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
  * Export route factory function
  * Allows dependency injection of pool and logger
  *
@@ -367,81 +471,7 @@ module.exports = (pool, logger) => {
         }
 
         // Demo users bypass 2FA, trusted devices skip 2FA - proceed with normal login
-        // Fetch user's roles and permissions for this organization
-        const rolesResult = await pool.query(
-          `SELECT DISTINCT r.id as role_id, r.role_name, r.data_scope
-           FROM user_organizations uo
-           CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
-           JOIN roles r ON r.id = role_id_text::integer
-           WHERE uo.user_id = $1 AND uo.organization_id = $2
-             AND uo.status = 'active'`,
-          [user.id, organizationId]
-        );
-
-        const permissionsResult = await pool.query(
-          `SELECT DISTINCT p.permission_key
-           FROM user_organizations uo
-           CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
-           JOIN role_permissions rp ON rp.role_id = role_id_text::integer
-           JOIN permissions p ON p.id = rp.permission_id
-           WHERE uo.user_id = $1 AND uo.organization_id = $2
-             AND uo.status = 'active'`,
-          [user.id, organizationId]
-        );
-
-        const roleIds = rolesResult.rows.map(r => r.role_id);
-        const roleNames = rolesResult.rows.map(r => r.role_name);
-        const permissions = permissionsResult.rows.map(p => p.permission_key);
-
-        // Determine primary role for backward compatibility
-        // Priority: district > unitadmin > leader > finance > equipment > administration > parent
-        // Use centralized role priority from config
-        const rolePriority = ROLE_PRIORITY;
-        // policy-allow role-names: legacy display role claim, not an access decision
-        const primaryRole = rolePriority.find(role => roleNames.includes(role)) || roleNames[0] || 'parent';
-
-        const token = signJWTToken(
-          {
-            user_id: user.id,
-            user_role: primaryRole, // Legacy: primary role for backward compatibility
-            roleIds: roleIds,
-            roleNames: roleNames,
-            permissions: permissions,
-            organizationId: organizationId
-          },
-          { expiresIn: '7d' }
-        );
-
-        // Check for guardian participants
-        const guardianResult = await pool.query(
-          `SELECT pg.id, p.id AS participant_id, p.first_name, p.last_name
-           FROM parents_guardians pg
-           JOIN participant_guardians pgu ON pg.id = pgu.guardian_id
-           JOIN participants p ON pgu.participant_id = p.id
-           LEFT JOIN user_participants up ON up.participant_id = p.id AND up.user_id = $1
-           WHERE pg.courriel = $2 AND up.participant_id IS NULL`,
-          [user.id, normalizedEmail]
-        );
-
-        const response = {
-          success: true,
-          message: 'login_successful',
-          token: token,
-          user_role: primaryRole, // Primary role for backward compatibility
-          user_roles: roleNames, // All user roles
-          user_permissions: permissions, // All user permissions
-          user_data_scope: dataScopeOfRoles(rolesResult.rows),
-          user_family_role: holdsFamilyRoleOf(rolesResult.rows),
-          user_full_name: user.full_name,
-          user_id: user.id,
-          organization_id: organizationId
-        };
-
-        if (guardianResult.rows.length > 0) {
-          response.guardian_participants = guardianResult.rows;
-        }
-
-        res.json(response);
+        return res.json(await buildSignInResponse(pool, user, organizationId, normalizedEmail));
       } catch (error) {
         if (handleOrganizationResolutionError(res, error, logger)) {
           return;
@@ -451,6 +481,96 @@ module.exports = (pool, logger) => {
           success: false,
           message: 'internal_server_error'
         });
+      }
+    }));
+
+  /**
+   * @swagger
+   * /api/v1/auth/demo-login:
+   *   post:
+   *     summary: Open the demo as a parent or as a leader
+   *     description: On a unit whose demo_sign_in setting is on, signs in to the unit's
+   *       read-only demo account for the chosen view, without a password.
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [view]
+   *             properties:
+   *               view:
+   *                 type: string
+   *                 enum: [parent, leader]
+   *     responses:
+   *       200:
+   *         description: Signed in, same body as /api/v1/auth/login
+   *       400:
+   *         description: Unknown view
+   *       404:
+   *         description: This unit offers no demo, or no demo account for that view
+   */
+  router.post('/api/v1/auth/demo-login',
+    demoLoginLimiter,
+    body('view').isString().bail().isIn(Object.keys(DEMO_VIEW_ROLES)).withMessage('invalid_demo_view'),
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        // policy-allow manual-auth: public demo sign-in, no session yet
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+        // Only a unit set up as a demo opens without a password: a real unit
+        // may also hold demo accounts, and those show its real families.
+        const demoSetting = await pool.query(
+          `SELECT setting_value FROM organization_settings
+           WHERE organization_id = $1 AND setting_key = 'demo_sign_in'`,
+          [organizationId]
+        );
+        const rawSetting = demoSetting.rows[0]?.setting_value;
+        const enabled = rawSetting === true || rawSetting === 'true';
+        if (!enabled) {
+          return errorResponse(res, 'demo_sign_in_unavailable', HTTP_NOT_FOUND);
+        }
+
+        // An account holding any role besides the demo ones could write, so it
+        // is never opened this way.
+        const accountResult = await pool.query(
+          `SELECT u.id, u.email, u.full_name
+           FROM users u
+           JOIN user_organizations uo ON uo.user_id = u.id
+           WHERE uo.organization_id = $1
+             AND uo.status = 'active'
+             AND u.is_verified = TRUE
+             AND EXISTS (
+               SELECT 1 FROM jsonb_array_elements_text(uo.role_ids) AS rid
+               JOIN roles r ON r.id = rid::integer
+               WHERE r.role_name = $2
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM jsonb_array_elements_text(uo.role_ids) AS rid
+               JOIN roles r ON r.id = rid::integer
+               -- policy-allow role-names: demo accounts are described by role (CLAUDE.md §3)
+               WHERE r.role_name NOT IN ('demoadmin', 'demoparent')
+             )
+           ORDER BY u.created_at, u.id
+           LIMIT 1`,
+          [organizationId, DEMO_VIEW_ROLES[req.body.view]]
+        );
+        const user = accountResult.rows[0];
+        if (!user) {
+          logger.warn('Demo sign-in has no account for this view', { organizationId, view: req.body.view });
+          return errorResponse(res, 'demo_account_unavailable', HTTP_NOT_FOUND);
+        }
+
+        logger.info('Demo sign-in', { organizationId, view: req.body.view, userId: user.id });
+        return res.json(await buildSignInResponse(pool, user, organizationId, normalizeEmailValue(user.email)));
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return undefined;
+        }
+        logger.error('Demo sign-in error:', error);
+        return errorResponse(res, 'internal_server_error', HTTP_INTERNAL_ERROR);
       }
     }));
 
@@ -548,81 +668,9 @@ module.exports = (pool, logger) => {
         const userAgent = req.headers['user-agent'] || '';
         const newDeviceToken = await createTrustedDevice(pool, user.id, organizationId, userAgent);
 
-        // Fetch user's roles and permissions for this organization
-        const rolesResult = await pool.query(
-          `SELECT DISTINCT r.id as role_id, r.role_name, r.data_scope
-           FROM user_organizations uo
-           CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
-           JOIN roles r ON r.id = role_id_text::integer
-           WHERE uo.user_id = $1 AND uo.organization_id = $2
-             AND uo.status = 'active'`,
-          [user.id, organizationId]
-        );
-
-        const permissionsResult = await pool.query(
-          `SELECT DISTINCT p.permission_key
-           FROM user_organizations uo
-           CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
-           JOIN role_permissions rp ON rp.role_id = role_id_text::integer
-           JOIN permissions p ON p.id = rp.permission_id
-           WHERE uo.user_id = $1 AND uo.organization_id = $2
-             AND uo.status = 'active'`,
-          [user.id, organizationId]
-        );
-
-        const roleIds = rolesResult.rows.map(r => r.role_id);
-        const roleNames = rolesResult.rows.map(r => r.role_name);
-        const permissions = permissionsResult.rows.map(p => p.permission_key);
-
-        // Determine primary role for backward compatibility
-        // Use centralized role priority from config
-        const rolePriority = ROLE_PRIORITY;
-        // policy-allow role-names: legacy display role claim, not an access decision
-        const primaryRole = rolePriority.find(role => roleNames.includes(role)) || roleNames[0] || 'parent';
-
-        const token = signJWTToken(
-          {
-            user_id: user.id,
-            user_role: primaryRole,
-            roleIds: roleIds,
-            roleNames: roleNames,
-            permissions: permissions,
-            organizationId: organizationId
-          },
-          { expiresIn: '7d' }
-        );
-
-        // Check for guardian participants
-        const guardianResult = await pool.query(
-          `SELECT pg.id, p.id AS participant_id, p.first_name, p.last_name
-           FROM parents_guardians pg
-           JOIN participant_guardians pgu ON pg.id = pgu.guardian_id
-           JOIN participants p ON pgu.participant_id = p.id
-           LEFT JOIN user_participants up ON up.participant_id = p.id AND up.user_id = $1
-           WHERE pg.courriel = $2 AND up.participant_id IS NULL`,
-          [user.id, normalizedEmail]
-        );
-
-        const response = {
-          success: true,
-          message: 'login_successful',
-          token: token,
-          device_token: newDeviceToken,  // Return device token for client to store
-          user_role: primaryRole,
-          user_roles: roleNames,
-          user_permissions: permissions,
-          user_data_scope: dataScopeOfRoles(rolesResult.rows),
-          user_family_role: holdsFamilyRoleOf(rolesResult.rows),
-          user_full_name: user.full_name,
-          user_id: user.id,
-          organization_id: organizationId
-        };
-
-        if (guardianResult.rows.length > 0) {
-          response.guardian_participants = guardianResult.rows;
-        }
-
-        res.json(response);
+        const response = await buildSignInResponse(pool, user, organizationId, normalizedEmail);
+        // The client keeps the device token so this device skips the code next time.
+        return res.json({ ...response, device_token: newDeviceToken });
       } catch (error) {
         if (handleOrganizationResolutionError(res, error, logger)) {
           return;
