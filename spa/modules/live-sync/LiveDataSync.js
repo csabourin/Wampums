@@ -54,7 +54,7 @@ const MAX_TRUSTED_ABSENCE_MS = 600000;
 /** Delay before retrying a connection the server refused. */
 const RECONNECT_DELAY_MS = 30000;
 
-const EDITABLE_SELECTOR = 'input, textarea, select, [contenteditable="true"]';
+const INTERACTIVE_SELECTOR = 'input, textarea, select, button, a[href], [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
 const OPEN_DIALOG_SELECTOR = 'dialog[open], [role="dialog"], [aria-modal="true"], .modal-overlay';
 
 /**
@@ -93,15 +93,17 @@ function isFieldModified(field) {
 
 /**
  * Redrawing the page would throw away what the person is doing when a field
- * has focus, a dialog is open, or a form holds unsaved changes. Filters and
- * search boxes outside a form are not unsaved work and do not hold it back.
+ * or another interactive control has focus, a dialog is open, or a form holds
+ * unsaved changes. Preserve focused buttons and links so a refresh cannot
+ * remove their keyboard activation target. Unfocused filters outside a form
+ * are not unsaved work and do not hold it back.
  * @returns {boolean} True when the page can be redrawn without loss
  */
 function isSafeToRedraw() {
   if (document.visibilityState === 'hidden') {
     return false;
   }
-  if (document.activeElement?.matches?.(EDITABLE_SELECTOR)) {
+  if (document.activeElement?.matches?.(INTERACTIVE_SELECTOR)) {
     return false;
   }
   if (document.querySelector(OPEN_DIALOG_SELECTOR)) {
@@ -489,7 +491,18 @@ class LiveDataSync {
     }
     // The router keeps the screen where it was scrolled.
     // A refresh: screens keep what is on display while they load (no skeleton).
-    await showRefreshed(() => router.route(currentLocation(), { refresh: true }));
+    await showRefreshed(async () => {
+      // Importing the app and capturing a view transition both yield: focus
+      // or navigation may have changed since the checks above.
+      if (currentLocation() !== this.redrawLocation) {
+        return;
+      }
+      if (!isSafeToRedraw()) {
+        this.redrawTimer = setTimeout(() => this.redraw(), REFRESH_RETRY_MS);
+        return;
+      }
+      await router.route(currentLocation(), { refresh: true });
+    });
   }
 }
 
