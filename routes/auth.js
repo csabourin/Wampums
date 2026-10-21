@@ -533,8 +533,9 @@ module.exports = (pool, logger) => {
           return errorResponse(res, 'demo_sign_in_unavailable', HTTP_NOT_FOUND);
         }
 
-        // An account holding any role besides the demo ones could write, so it
-        // is never opened this way.
+        // Only dedicated demo accounts may open without a password. Even an
+        // inactive membership elsewhere could later be reactivated and let
+        // this ordinary account session switch into a real unit.
         const accountResult = await pool.query(
           `SELECT u.id, u.email, u.full_name
            FROM users u
@@ -542,6 +543,11 @@ module.exports = (pool, logger) => {
            WHERE uo.organization_id = $1
              AND uo.status = 'active'
              AND u.is_verified = TRUE
+             AND NOT EXISTS (
+               SELECT 1 FROM user_organizations other_membership
+               WHERE other_membership.user_id = u.id
+                 AND other_membership.organization_id <> $1
+             )
              AND EXISTS (
                SELECT 1 FROM jsonb_array_elements_text(uo.role_ids) AS rid
                JOIN roles r ON r.id = rid::integer

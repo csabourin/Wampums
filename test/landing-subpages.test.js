@@ -1,4 +1,7 @@
-/** @jest-environment jsdom */
+/**
+ * @jest-environment jsdom
+ * @jest-environment-options {"customExportConditions": ["node", "node-addons"]}
+ */
 /*
  * The public site's inner pages (features, modules, comparisons, FAQ, blog)
  * share the home page's look: its stylesheet, header, footer and demo dialog.
