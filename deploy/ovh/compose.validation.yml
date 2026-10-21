@@ -1,6 +1,8 @@
 # Isolate the restored test copy from external messaging/email/payment services.
 # Apply this override to ALL services during pre-cutover validation.
 services:
+  caddy:
+    networks: [default, preview]
   app:
     environment:
       AWS_ENDPOINT_URL: http://files.localhost:3900

@@ -1,8 +1,10 @@
 {$APP_DOMAINS} {
+    tls /etc/wampums/tls/fullchain.pem /etc/wampums/tls/privkey.pem
     encode zstd gzip
     reverse_proxy app:5000
 }
 
 {$STORAGE_DOMAIN} {
+    tls /etc/wampums/tls/fullchain.pem /etc/wampums/tls/privkey.pem
     reverse_proxy garage:3900
 }

@@ -63,9 +63,16 @@ organization routing; outbound integrations stay blocked during this stage.
    WAMPUMS_IMAGE=wampums:REPLACE_WITH_COMMIT_SHA
    ```
 
-   Use an actual resolving hostname. For production, this becomes the
-   comma-separated set of all domains being moved. Caddy issues certificates
-   only after their DNS points to this VPS. During validation use the real
+   For production, use the comma-separated set of all domains being moved.
+   Before cutover, run `configure-tls.sh` as root with a private Cloudflare token
+   file. Its token needs DNS Edit and Zone Read for both zones. It installs
+   Certbot's Cloudflare DNS plugin, issues a certificate for both apex domains
+   and their wildcards using temporary TXT records, and enables automatic
+   renewal. Existing app DNS records can still point to Railway during issuance.
+   The deployment hook copies only the certificate and key to `/opt/wampums/tls`
+   and reloads Caddy after renewal; the API token remains outside the container.
+   Keep `/etc/letsencrypt` and `/opt/wampums/tls` in the secure server backup.
+   During validation use the real
    organization hostnames with a local hosts entry or `curl --resolve`; an
    arbitrary hostname is not automatically an organization in this app.
 4. Copy resolved runtime variables from Railway securely into
