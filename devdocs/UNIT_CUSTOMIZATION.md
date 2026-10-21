@@ -52,6 +52,13 @@ from leaking into another unit's session.
 The General tab also links authorized form managers to `/form-builder`; forms
 remain governed by the existing form-management permissions.
 
+On the youth group and role assignment page, the sort selector uses the unit's
+vocabulary for groups and roles. Youth can be sorted by displayed name, group,
+translated role label, or free-text additional roles. Assignment sorts use the
+displayed name to break ties and put unassigned youth last. The choice lasts
+while the screen is open, including after an assignment reload, and is also
+available when browsing an archived year.
+
 ## Adding vocabulary-aware text
 
 Keep user-facing sentence structure in `lang/en.json` and `lang/fr.json`. Add a

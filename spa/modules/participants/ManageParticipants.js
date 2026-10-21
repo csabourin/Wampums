@@ -17,6 +17,7 @@ import { updateParticipantNickname } from '../../api/api-participants.js';
 import { canViewParticipants, hasPermission } from '../../utils/PermissionUtils.js';
 import { normalizeParticipantList } from '../../utils/ParticipantRoleUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
+import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 /** Longest a nickname may be, matching participants.nickname. */
@@ -30,6 +31,7 @@ export class ManageParticipants {
     this.participants = [];
     this.groups = [];
     this.programSections = [];
+    this.sortBy = 'name';
   }
 
   async loadProgramSections() {
@@ -125,6 +127,15 @@ export class ManageParticipants {
     const content = `
       ${renderBackLink()}
       <h1>${translate('manage_participants')}</h1>
+      <div class="participants-sort">
+        <label for="participants-sort">${translate('participants_sort_by')}</label>
+        <select id="participants-sort" data-archive-safe>
+          <option value="name" ${this.sortBy === 'name' ? 'selected' : ''}>${translate('participants_sort_alphabetical')}</option>
+          <option value="group" ${this.sortBy === 'group' ? 'selected' : ''}>${translate('group')}</option>
+          <option value="role" ${this.sortBy === 'role' ? 'selected' : ''}>${translate('role')}</option>
+          <option value="roles" ${this.sortBy === 'roles' ? 'selected' : ''}>${translate('additional_roles')}</option>
+        </select>
+      </div>
       <p class="participants-nickname-hint" id="participants-nickname-hint">${translate('nickname_youth_hint')}</p>
       <div class="participants-table-container">
         <table class="participants-table">
@@ -143,6 +154,18 @@ export class ManageParticipants {
         </table>
       </div>
       <style>
+        .participants-sort {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .participants-sort select {
+          min-height: 44px;
+          max-width: 100%;
+        }
+
         .participants-table-container {
           overflow-x: auto;
           margin: 1rem 0;
@@ -217,7 +240,7 @@ export class ManageParticipants {
   }
 
   renderParticipantRows() {
-    return this.participants
+    return this.sortedParticipants()
       .map(
         (participant) => {
           const legalName = `${participant.first_name || ''} ${participant.last_name || ''}`.trim();
@@ -267,6 +290,58 @@ export class ManageParticipants {
         }
       )
       .join('');
+  }
+
+  /**
+   * Sort by the chosen assignment, then the displayed name; unassigned youth go last.
+   * @param {Object[]} [participants] - Records to sort without changing the source
+   * @returns {Object[]} Sorted records
+   */
+  sortedParticipants(participants = this.participants) {
+    const collator = new Intl.Collator(localeForLanguage(this.app.lang), { sensitivity: 'base', numeric: true });
+    const groups = new Map(this.groups.map((group) => [String(group.id), group.name]));
+    const value = (participant) => {
+      switch (this.sortBy) {
+        case 'group':
+          return groups.get(String(participant.group_id)) || '';
+        case 'role':
+          return participant.first_leader ? translate('first_leader')
+            : participant.second_leader ? translate('second_leader') : '';
+        case 'roles':
+          return (participant.roles || '').trim();
+        default:
+          return youthDisplayName(participant);
+      }
+    };
+    return [...participants].sort((a, b) => {
+      const left = value(a);
+      const right = value(b);
+      return Number(!left) - Number(!right)
+        || collator.compare(left, right)
+        || collator.compare(youthDisplayName(a), youthDisplayName(b));
+    });
+  }
+
+  /** Reorder existing rows so changing the sort preserves fields and their listeners. */
+  sortRows() {
+    const tbody = document.querySelector('.participants-table tbody');
+    const rows = new Map();
+    const participants = Array.from(tbody.rows, (row) => {
+      const input = row.querySelector('.nickname-input');
+      const id = Number(input.dataset.participantId);
+      rows.set(id, row);
+      const role = row.querySelector('.role-select').value;
+      return {
+        ...this.participants.find((participant) => Number(participant.id) === id),
+        id,
+        nickname: input.value,
+        group_id: row.querySelector('.group-select').value,
+        first_leader: role === 'leader',
+        second_leader: role === 'second_leader',
+        roles: row.querySelector('.roles-input').value,
+      };
+    });
+    this.sortedParticipants(participants).forEach((participant) => tbody.append(rows.get(participant.id)));
   }
 
   /**
@@ -328,6 +403,11 @@ export class ManageParticipants {
   }
 
   attachEventListeners() {
+    document.getElementById('participants-sort')?.addEventListener('change', (event) => {
+      this.sortBy = event.target.value;
+      this.sortRows();
+    });
+
     document.querySelectorAll('.group-select').forEach((select) => {
       select.addEventListener('change', (event) => this.handleGroupChange(event));
     });
