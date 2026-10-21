@@ -1,0 +1,26 @@
+# Isolate the restored test copy from external messaging/email/payment services.
+# Apply this override to ALL services during pre-cutover validation.
+services:
+  caddy:
+    networks: [default, preview]
+  app:
+    environment:
+      AWS_ENDPOINT_URL: http://files.localhost:3900
+  garage:
+    networks:
+      default:
+        aliases: [files.localhost]
+  preview:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:18080:8080'
+      - '127.0.0.1:13900:3900'
+    volumes:
+      - ./Caddyfile.validation:/etc/caddy/Caddyfile:ro
+    networks: [default, preview]
+
+networks:
+  default:
+    internal: true
+  preview: {}

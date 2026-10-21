@@ -1,0 +1,11 @@
+{
+    auto_https off
+}
+
+:8080 {
+    reverse_proxy app:5000
+}
+
+:3900 {
+    reverse_proxy garage:3900
+}
