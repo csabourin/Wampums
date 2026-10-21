@@ -222,18 +222,21 @@ registerRoute(
   ({ request }) => fetchAndCacheInIndexedDB(request)
 );
 
-// 4e. Images (CacheFirst, except temporary signed Railway bucket URLs)
+/**
+ * Only this origin's images are cached. A worker's fetch is governed by its own
+ * connect-src, which does not list the photo bucket (files.wampums.app) or
+ * Gravatar, so routing them here would block them; the page loads them itself
+ * under img-src. Signed bucket URLs also change hourly and would never hit.
+ * @param {{request: Request, url: URL}} context
+ * @returns {boolean}
+ */
+function isCacheableImageRequest({ request, url }) {
+  return request.destination === 'image' && url.origin === self.location.origin;
+}
+
+// 4e. Images (CacheFirst, same origin only)
 registerRoute(
-  ({ request, url }) => {
-    if (request.destination !== 'image') {return false;}
-    if (
-      url.hostname === 'storage.railway.app' ||
-      url.hostname.endsWith('.storage.railway.app') ||
-      url.hostname === 'storageapi.dev' ||
-      url.hostname.endsWith('.storageapi.dev')
-    ) {return false;}
-    return true;
-  },
+  isCacheableImageRequest,
   new CacheFirst({
     cacheName: 'image-cache',
     plugins: [
