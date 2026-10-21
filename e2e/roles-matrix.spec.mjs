@@ -34,7 +34,7 @@ for (const target of ['/roles?tab=permissions', '/district?tab=roles']) {
       const saved = await page.request.get(`/api/v1/roles/${role.id}/permissions`, { headers });
       expect((await saved.json()).data.map((p) => p.permission_key).sort()).toEqual(['points.manage', 'points.view']);
       const opener = page.locator('#role-matrix-create');
-      await opener.focus(); await page.keyboard.press('Enter');
+      await opener.focus(); await opener.press('Enter');
       const dialog = page.getByRole('dialog'); await expect(dialog).toBeVisible();
       await page.locator('#role-matrix-name').fill('Rôle temporaire');
       const last = dialog.locator('button[type="submit"]'); await last.focus();

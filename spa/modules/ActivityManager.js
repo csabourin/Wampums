@@ -1,5 +1,4 @@
 import { translate } from '../app.js';
-import { CONFIG } from '../config.js';
 import { getSectionActivityTemplates } from '../utils/meetingSections.js';
 import { setContent } from '../utils/DOMUtils.js';
 import { debugLog, debugWarn } from '../utils/DebugUtils.js';
@@ -662,7 +661,7 @@ export class ActivityManager {
 
   /**
          * Attach pointer and keyboard controls to the agenda drag handles.
-         * Mouse dragging starts immediately; touch and pen input require a long press.
+         * Dragging starts immediately from the handle for mouse, touch and pen input.
          */
   addReorderListeners() {
     this.cancelReorder();
@@ -704,7 +703,7 @@ export class ActivityManager {
   }
 
   /**
-         * Begin or schedule a row reorder from its dedicated handle.
+         * Begin a row reorder immediately from its dedicated handle.
          * @param {PointerEvent} event - Pointer-down event from a drag handle
          */
   handleReorderPointerDown(event) {
@@ -727,32 +726,21 @@ export class ActivityManager {
       rowContainer: row.closest('.activity-row-container'),
       sourceIndex,
       targetPosition: sourceIndex,
-      startX: event.clientX,
-      startY: event.clientY,
       lastY: event.clientY,
       rowCenter: row.getBoundingClientRect().top +
                                 row.getBoundingClientRect().height / 2,
       active: false,
-      longPressTimer: null,
     };
 
     if (typeof event.currentTarget.setPointerCapture === 'function') {
       event.currentTarget.setPointerCapture(event.pointerId);
     }
 
-    if (event.pointerType === 'mouse') {
-      this.startReorder();
-      return;
-    }
-
-    this.reorderState.longPressTimer = window.setTimeout(
-      () => this.startReorder(),
-      CONFIG.UI.MEETING_REORDER_LONG_PRESS_DELAY,
-    );
+    this.startReorder();
   }
 
   /**
-         * Activate visual reorder mode after the pointer gesture is accepted.
+         * Activate visual reorder mode when the drag handle is pressed.
          */
   startReorder() {
     const state = this.reorderState;
@@ -760,7 +748,6 @@ export class ActivityManager {
       return;
     }
 
-    state.longPressTimer = null;
     state.active = true;
     this.selectedActivities = this.getSelectedActivitiesFromDOM();
     const list = document.getElementById('activities-list');
@@ -803,7 +790,7 @@ export class ActivityManager {
   }
 
   /**
-         * Track a pending long press or update the active insertion marker.
+         * Update the active insertion marker as the pointer moves.
          * @param {PointerEvent} event - Pointer movement event
          */
   handleReorderPointerMove(event) {
@@ -813,17 +800,6 @@ export class ActivityManager {
     }
 
     state.lastY = event.clientY;
-    if (!state.active) {
-      const distance = Math.hypot(
-        event.clientX - state.startX,
-        event.clientY - state.startY,
-      );
-      if (distance > CONFIG.UI.MEETING_REORDER_MOVE_TOLERANCE) {
-        this.cancelReorder();
-      }
-      return;
-    }
-
     event.preventDefault();
     this.updateReorderTarget(event.clientY);
   }
@@ -955,13 +931,10 @@ export class ActivityManager {
   }
 
   /**
-         * Clear timers and visual state for the current reorder gesture.
+         * Clear pointer capture and visual state for the current reorder gesture.
          */
   cancelReorder() {
     const state = this.reorderState;
-    if (state?.longPressTimer) {
-      window.clearTimeout(state.longPressTimer);
-    }
     if (
       state?.handle &&
                         typeof state.handle.releasePointerCapture === 'function' &&

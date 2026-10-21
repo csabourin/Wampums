@@ -14,6 +14,7 @@
 
 const REDRAW_DEBOUNCE_MS = 1500;
 const MAX_TRANSITION_HOLD_MS = 300;
+const REDRAW_RETRY_MS = 5000;
 const SLOW_SCREEN_MS = 2000;
 
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
@@ -263,6 +264,57 @@ describe('live sync redraw', () => {
     await pointsChangedElsewhere();
 
     expect(document.getElementById('app').textContent).toBe('15 points');
+  });
+
+  test.each([
+    '<button id="live-sync-action">Create a role</button>',
+    '<a id="live-sync-action" href="/roles">Roles</a>',
+    '<div id="live-sync-action" role="tab" tabindex="0">Roles</div>',
+  ])('a focused action survives a live refresh until focus leaves it: %s', async (markup) => {
+    document.getElementById('app').insertAdjacentHTML('beforeend', markup);
+    const action = document.getElementById('live-sync-action');
+    action.focus();
+
+    await pointsChangedElsewhere();
+
+    expect(mockRoute).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(action);
+    action.blur();
+    await jest.advanceTimersByTimeAsync(REDRAW_RETRY_MS);
+    expect(mockRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test('a control focused before the transition draws survives the refresh', async () => {
+    document.getElementById('app').insertAdjacentHTML('beforeend', '<button id="live-sync-action">Create a role</button>');
+    const action = document.getElementById('live-sync-action');
+    document.startViewTransition = jest.fn((update) => {
+      action.focus();
+      const updateCallbackDone = Promise.resolve().then(update);
+      return { updateCallbackDone, ready: updateCallbackDone, finished: updateCallbackDone };
+    });
+
+    await pointsChangedElsewhere();
+
+    expect(mockRoute).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(action);
+    action.blur();
+    delete document.startViewTransition;
+    await jest.advanceTimersByTimeAsync(REDRAW_RETRY_MS);
+    expect(mockRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test('a button focused while refreshed data loads keeps its keyboard activation target', async () => {
+    mockApiGet.mockImplementation(() => {
+      document.getElementById('app').insertAdjacentHTML('beforeend', '<button id="live-sync-action">Create a role</button>');
+      document.getElementById('live-sync-action').focus();
+      return Promise.resolve({ success: true });
+    });
+
+    await pointsChangedElsewhere();
+
+    expect(mockApiGet).toHaveBeenCalled();
+    expect(mockRoute).not.toHaveBeenCalled();
+    expect(document.activeElement.id).toBe('live-sync-action');
   });
 
   test('the screen is not redrawn while the person is typing in it', async () => {
