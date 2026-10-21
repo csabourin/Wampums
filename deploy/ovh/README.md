@@ -9,14 +9,20 @@ checkout is needed on the VPS. Docker Compose 2.30+ is required (`env_file.forma
 
 ## Status and information needed
 
-As of 2026-10-21, the blank OVH VPS at `148.113.174.196` has Docker, Compose,
-firewall rules and the `wampums-deploy` account installed. The admin login is
-`ubuntu`. Its ED25519 host-key fingerprint was verified through KVM. A snapshot
-of production has been restored into PostgreSQL 18; current main
-`456dc8cac713980d36c95e9770a9646f82c2761d` is running in an isolated validation
-stack under `/opt/wampums/validation`. No public DNS records were changed.
-The GitHub environment and deployment credentials are configured, and the
-repository variable `OVH_DEPLOY_ENABLED` is **false**.
+The OVH production VPS is `148.113.174.196`, with Docker, Compose, firewall
+rules and the `wampums-deploy` account installed. The admin login is `ubuntu`.
+Its ED25519 host-key fingerprint was verified through KVM. Production uses
+`/opt/wampums/current`; read `/opt/wampums/current-image` for the active release.
+The isolated pre-cutover stack used `/opt/wampums/validation` and was replaced
+with a final Railway snapshot before public DNS switched to OVH.
+
+The GitHub environment and deployment credentials are configured. The repository
+variable `OVH_DEPLOY_ENABLED` controls automation: keep it false during setup and
+enable it only after the manual production deployment is verified. Railway's
+GitHub source was disconnected and its app deployment stopped at cutover; its
+database, bucket and deployment history were retained for recovery. Reconnecting
+the source or redeploying that app requires a data reconciliation plan after
+OVH has accepted writes.
 
 The migration includes the app, PostgreSQL and files. The resolved production
 database is Railway PostgreSQL 18.6 (about 32 MB). All 26 objects in the active
