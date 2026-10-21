@@ -1,0 +1,8 @@
+{$APP_DOMAINS} {
+    encode zstd gzip
+    reverse_proxy app:5000
+}
+
+{$STORAGE_DOMAIN} {
+    reverse_proxy garage:3900
+}
