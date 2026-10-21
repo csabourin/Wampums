@@ -57,13 +57,14 @@ organization routing; outbound integrations stay blocked during this stage.
 3. Create `/opt/wampums/.env`, mode 600, with:
 
    ```dotenv
-   APP_DOMAINS=wampums.app,demo.wampums.app,meute6b.wampums.app,1stwilliamsburg.wampums.app,castors6h.wampums.app,mobile.meute6a.app,meute6a.app
+   APP_DOMAINS=wampums.app, demo.wampums.app, meute6b.wampums.app, 1stwilliamsburg.wampums.app, castors6h.wampums.app, mobile.meute6a.app, meute6a.app
    STORAGE_DOMAIN=files.wampums.app
    WAMPUMS_ROOT=/opt/wampums
    WAMPUMS_IMAGE=wampums:REPLACE_WITH_COMMIT_SHA
    ```
 
-   For production, use the comma-separated set of all domains being moved.
+   For production, separate each domain with a comma **and a space**, as Caddy
+   requires when expanding the address list from an environment variable.
    Before cutover, run `configure-tls.sh` as root with a private Cloudflare token
    file. Its token needs DNS Edit and Zone Read for both zones. It installs
    Certbot's Cloudflare DNS plugin, issues a certificate for both apex domains
