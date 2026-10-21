@@ -4274,5 +4274,17 @@
   "invitations_role_hint": "Un rôle de famille permet à la personne d’inscrire ses enfants ; un rôle d’équipe lui ouvre les outils de l’unité. Les rôles que vous ne pouvez pas attribuer vous-même sont affichés, mais pas disponibles.",
   "invitations_no_role": "Choisissez le rôle que la personne recevra.",
   "tile_invitations": "Inviter des familles et des animateurs",
-  "tile_invitations_aliases": "invitation, inviter, famille, parent, animateur, équipe, rôle"
+  "tile_invitations_aliases": "invitation, inviter, famille, parent, animateur, équipe, rôle",
+  "demo_sign_in_title": "Essayer la démo",
+  "demo_sign_in_intro": "Choisissez comment explorer Wampums. La démo est en lecture seule : elle montre des données fictives et ne garde aucune modification.",
+  "demo_view_parent": "Vue parent",
+  "demo_view_parent_text": "Suivez la progression d’un enfant, signez les autorisations, consultez les covoiturages et les nouvelles de l’unité.",
+  "demo_view_leader": "Vue animation",
+  "demo_view_leader_text": "Prenez les présences, attribuez points et badges, planifiez les réunions et gérez l’unité.",
+  "demo_sign_in_with_account": "Se connecter avec un compte",
+  "demo_sign_in_back": "Retour aux vues de la démo",
+  "demo_sign_in_opening": "Ouverture de la démo…",
+  "demo_sign_in_unavailable": "Cette unité n’offre pas de démo.",
+  "demo_account_unavailable": "Cette vue de la démo n’est pas disponible pour le moment. Essayez l’autre, ou écrivez à hello@wampums.app.",
+  "demo_sign_in_failed": "La démo n’a pas pu s’ouvrir. Vérifiez votre connexion et réessayez."
 }

@@ -132,6 +132,15 @@ function offlineMutationKinds() {
   return [...new Set([...source.matchAll(/kind: '([a-z_]+)'/g)].map((match) => match[1]))];
 }
 
+/**
+ * @param {string} name - A constant of the sign-in screen holding a list of strings
+ * @returns {string[]} Its values, read from the source
+ */
+function loginList(name) {
+  const source = code(path.join(ROOT, 'spa/modules/session/Login.js'));
+  return [...source.match(new RegExp(`const ${name} = \\[([^\\]]*)\\]`))[1].matchAll(/'([a-z_]+)'/g)].map((match) => match[1]);
+}
+
 test('every key built from a state exists for each state the server returns', () => {
   const built = [
     ...['pending', 'expired', 'accepted', 'revoked', 'invalid'].map((s) => [`parent_invitation_state_${s}`, 'ParentInvitations']),
@@ -140,10 +149,13 @@ test('every key built from a state exists for each state the server returns', ()
     ...[...programProgressStatuses(), 'other'].map((s) => [`program_progress_status_${s}`, 'ProgramProgressDashboard']),
     ['sync.rejected', 'OfflineManager'],
     ...[...offlineMutationKinds(), 'other'].map((kind) => [`sync.rejected_kind_${kind}`, 'OfflineManager']),
+    ...loginList('DEMO_VIEWS').flatMap((view) => [[`demo_view_${view}`, 'Login'], [`demo_view_${view}_text`, 'Login']]),
+    ...loginList('DEMO_REFUSALS').map((refusal) => [refusal, 'Login']),
   ];
 
   expect(programProgressStatuses().length).toBeGreaterThan(10);
   expect(offlineMutationKinds()).toEqual(expect.arrayContaining(['attendance', 'medication', 'badges']));
+  expect(loginList('DEMO_VIEWS')).toEqual(['parent', 'leader']);
 
   expect(missing(built)).toEqual([]);
 });

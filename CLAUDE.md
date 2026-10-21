@@ -144,6 +144,10 @@ or renamed role holding the right permissions would be refused. The role-based `
   (`r.data_scope IS DISTINCT FROM 'linked'`, as in migration 011). Never a list of role names.
 - ⚠️ Role names are only for describing the kind of account (demo, parent dashboard) and display.
 
+Passwordless demo sign-in requires the unit's `demo_sign_in` setting and a verified, active
+account holding only demo roles. The account must belong exclusively to that unit: any membership
+elsewhere, including an inactive one, makes it unavailable for passwordless sign-in.
+
 **Every protected route uses the shared authorization engine.** `authenticate`
 checks active membership, and `requirePermission` reads current permissions and
 role metadata from the database, once per request and organization. Membership,

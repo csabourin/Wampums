@@ -64,80 +64,90 @@
 </script>
 </head>
 <body>
-<a class="skip-link" href="#main"><%= post.lang === 'fr' ? 'Aller au contenu principal' : 'Skip to main content' %></a>
-<%- include('../partials/nav', { lang: post.lang, enPath, frPath }) %>
+<% const fr = post.lang === 'fr'; const blogBase = fr ? '/fr/blogue/' : '/en/blog/'; %>
+    <a class="skip-link" href="#intro"><%= fr ? 'Passer au contenu principal' : 'Skip to main content' %></a>
 
-<main id="main">
-  <article class="section">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb" aria-label="Breadcrumb">
-      <ol>
-        <li><a href="/<%= post.lang %>/">Wampums</a></li>
-        <li><a href="/<%= post.lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/"><%= post.lang === 'fr' ? 'Blogue' : 'Blog' %></a></li>
-        <li aria-current="page"><%= post.title %></li>
-      </ol>
-    </nav>
+    <div class="hero hero--page">
+<%- include('../partials/nav', { lang: post.lang, enPath, frPath, isBlogIndex: false }) %>
 
-    <header class="post-header">
-      <p class="meta">
-        <time datetime="<%= post.date %>"><%= post.date %></time>
-        · <%= post.readingTime %> min
-        <% if (post.lang === 'fr') { %>read<% } else { %>read<% } %>
-        <% if (post.category) { %> · <span class="category"><%= post.category %></span><% } %>
-      </p>
-      <h1><%= post.title %></h1>
-      <p class="lead"><%= post.description %></p>
-      <% if (alternatePost) { %>
+      <div class="shell page-intro" id="intro">
+        <nav class="breadcrumb-nav" aria-label="<%= fr ? 'Fil d\'Ariane' : 'Breadcrumb' %>">
+          <ol>
+            <li><a href="/<%= post.lang %>/">Wampums</a></li>
+            <li><a href="<%= blogBase %>"><%= fr ? 'Blogue' : 'Blog' %></a></li>
+            <li aria-current="page"><%= post.title %></li>
+          </ol>
+        </nav>
+        <p class="meta">
+          <time datetime="<%= post.date %>"><%= post.date %></time>
+          · <%= post.readingTime %> <%= fr ? 'min de lecture' : 'min read' %>
+          <% if (post.category) { %> · <span class="category"><%= post.category %></span><% } %>
+        </p>
+        <h1><%= post.title %></h1>
+        <p class="hero-lede"><%= post.description %></p>
+        <% if (alternatePost) { %>
         <p class="lang-notice">
-          <% if (post.lang === 'fr') { %>
-            Lire en anglais : <a href="/en/blog/<%= alternatePost.slug %>/"><%= alternatePost.title %></a>
+          <% if (fr) { %>
+            Lire en anglais : <a href="/en/blog/<%= alternatePost.slug %>/" lang="en-CA" hreflang="en-CA"><%= alternatePost.title %></a>
           <% } else { %>
-            Read in French: <a href="/fr/blogue/<%= alternatePost.slug %>/"><%- alternatePost.title %></a>
+            Read in French: <a href="/fr/blogue/<%= alternatePost.slug %>/" lang="fr-CA" hreflang="fr-CA"><%= alternatePost.title %></a>
           <% } %>
         </p>
-      <% } %>
-    </header>
-
-    <% if (post.toc && post.toc.length > 2) { %>
-    <nav class="toc" aria-label="<%= post.lang === 'fr' ? 'Table des matières' : 'Table of contents' %>">
-      <h2><%= post.lang === 'fr' ? 'Sommaire' : 'Contents' %></h2>
-      <ol>
-        <% post.toc.forEach(item => { %>
-          <li class="toc-level-<%= item.level %>">
-            <a href="#<%= item.id %>"><%= item.text %></a>
-          </li>
-        <% }) %>
-      </ol>
-    </nav>
-    <% } %>
-
-    <div class="post-content">
-      <%- post.content %>
+        <% } %>
+      </div>
     </div>
 
-    <!-- Adjacent posts -->
-    <nav class="post-nav" aria-label="<%= post.lang === 'fr' ? 'Navigation entre articles' : 'Post navigation' %>">
-      <% if (prev) { %>
-        <a class="post-nav__prev" href="/<%= post.lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/<%= prev.slug %>/">
-          &larr; <%= prev.title %>
-        </a>
+<main id="main" class="page-body">
+  <article class="section">
+    <div class="shell post-layout">
+      <% if (post.toc && post.toc.length > 2) { %>
+      <nav class="toc" aria-labelledby="toc-title">
+        <h2 id="toc-title"><%= fr ? 'Sommaire' : 'Contents' %></h2>
+        <ol>
+          <% post.toc.forEach(item => { %>
+            <li class="toc-level-<%= item.level %>">
+              <a href="#<%= item.id %>"><%= item.text %></a>
+            </li>
+          <% }) %>
+        </ol>
+      </nav>
       <% } %>
-      <% if (next) { %>
-        <a class="post-nav__next" href="/<%= post.lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/<%= next.slug %>/">
-          <%= next.title %> &rarr;
-        </a>
-      <% } %>
-    </nav>
 
-    <!-- CTA -->
-    <section class="cta-section" style="margin-top: 3rem;">
-      <h2><%= post.lang === 'fr' ? 'Prêt à essayer Wampums ?' : 'Ready to try Wampums?' %></h2>
-      <p><%= post.lang === 'fr' ? 'Rejoignez les groupes scouts qui utilisent Wampums chaque semaine.' : 'Join scout groups across Canada using Wampums every week.' %></p>
-      <a class="btn-primary" href="mailto:hello@wampums.app"><%= post.lang === 'fr' ? 'Demander une démo' : 'Request a demo' %></a>
-    </section>
+      <div class="post-content">
+        <%- post.content %>
+      </div>
+
+      <% if (prev || next) { %>
+      <nav class="post-nav" aria-label="<%= fr ? 'Navigation entre articles' : 'Post navigation' %>">
+        <% if (prev) { %>
+          <a class="post-nav__prev" href="<%= blogBase %><%= prev.slug %>/">&larr; <%= prev.title %></a>
+        <% } %>
+        <% if (next) { %>
+          <a class="post-nav__next" href="<%= blogBase %><%= next.slug %>/"><%= next.title %> &rarr;</a>
+        <% } %>
+      </nav>
+      <% } %>
+    </div>
   </article>
+
+  <section class="final" aria-labelledby="final-title">
+    <div class="shell">
+      <div class="final-card">
+        <div class="bead-rule bead-rule--center" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <h2 id="final-title"><%= fr ? 'Prêts à essayer Wampums?' : 'Ready to try Wampums?' %></h2>
+        <p><%= fr ? 'Parlez-nous de votre unité. Nous vous montrerons Wampums en pensant à votre semaine.' : 'Tell us about your unit. We will show you Wampums with your week in mind.' %></p>
+        <div class="hero-actions">
+          <button type="button" class="btn btn--ember" data-open-demo-modal>
+            <%= fr ? 'Demander une démo' : 'Request a demo' %>
+            <svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-arrow" /></svg>
+          </button>
+          <a class="btn btn--ghost-light" href="mailto:hello@wampums.app">hello@wampums.app</a>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
-<%- include('../partials/footer', { lang: post.lang }) %>
+<%- include('../partials/footer', { lang: post.lang, enPath, frPath }) %>
 </body>
 </html>

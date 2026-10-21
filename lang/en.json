@@ -4274,5 +4274,17 @@
   "invitations_role_hint": "A family role lets the person register their children; a team role opens the unit’s tools to them. Roles you cannot grant yourself are shown but unavailable.",
   "invitations_no_role": "Choose the role the person will hold.",
   "tile_invitations": "Invite families and leaders",
-  "tile_invitations_aliases": "invitation, invite, family, parent, leader, team, role"
+  "tile_invitations_aliases": "invitation, invite, family, parent, leader, team, role",
+  "demo_sign_in_title": "Try the demo",
+  "demo_sign_in_intro": "Choose how to explore Wampums. The demo is read-only: it shows sample data and keeps no changes.",
+  "demo_view_parent": "Parent view",
+  "demo_view_parent_text": "Follow a child’s progress, sign permission slips, and see carpools and unit news.",
+  "demo_view_leader": "Leader view",
+  "demo_view_leader_text": "Take attendance, award points and badges, plan meetings, and run the unit.",
+  "demo_sign_in_with_account": "Sign in with an account",
+  "demo_sign_in_back": "Back to the demo views",
+  "demo_sign_in_opening": "Opening the demo…",
+  "demo_sign_in_unavailable": "This unit does not offer a demo.",
+  "demo_account_unavailable": "This view of the demo is not available right now. Try the other one, or write to hello@wampums.app.",
+  "demo_sign_in_failed": "The demo could not be opened. Check your connection and try again."
 }

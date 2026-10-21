@@ -37,8 +37,10 @@ jest.mock('../../spa/utils/StorageUtils.js', () => ({
 jest.mock('../../spa/utils/ClientCleanupUtils.js', () => ({ clearAllClientData: jest.fn() }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({ isParent: () => false, hasPermission: () => false }));
 jest.mock('../../spa/api/api-family.js', () => ({ getOnboardingContext: jest.fn() }));
+jest.mock('../../spa/api/api-demo.js', () => ({ startDemoSession: jest.fn() }));
 
 import { login, register, fetchOrganizationId, getCurrentOrganizationId } from '../../spa/ajax-functions.js';
+import { startDemoSession } from '../../spa/api/api-demo.js';
 import { Login } from '../../spa/modules/session/Login.js';
 import { Register } from '../../spa/modules/session/Register.js';
 import { ResetPassword } from '../../spa/modules/session/ResetPassword.js';
@@ -174,6 +176,98 @@ describe('sign-in', () => {
 
       expect(document.getElementById('login-form')).not.toBeNull();
     });
+  });
+});
+
+describe('signing in to the demo unit', () => {
+  /** @returns {Object} The app of a unit set up as a demo */
+  function demoApp(name = 'Unité démo') {
+    const app = loginApp(name);
+    app.organizationSettings = { ...app.organizationSettings, demo_sign_in: true };
+    return app;
+  }
+
+  const DEMO_SESSION = { success: true, token: 'jwt', user_id: 'u-1', user_roles: ['demoparent'], user_permissions: [], organization_id: 1 };
+
+  test('offers the parent and the leader views instead of an email and a password, and passes axe', async () => {
+    new Login(demoApp(HOSTILE_NAME)).render();
+
+    expect(document.getElementById('login-form')).toBeNull();
+    expect(document.getElementById('login-password')).toBeNull();
+    const choices = [...document.querySelectorAll('[data-demo-view]')];
+    expect(choices.map((button) => button.tagName)).toEqual(['BUTTON', 'BUTTON']);
+    expect(choices.map((button) => button.querySelector('.demo-choice__title').textContent)).toEqual(['demo_view_parent', 'demo_view_leader']);
+    expect(document.querySelector('.login-container h2').textContent).toBe(HOSTILE_NAME);
+    expect(await violations()).toEqual([]);
+  });
+
+  test('choosing the parent view opens the demo as a parent', async () => {
+    startDemoSession.mockResolvedValue(DEMO_SESSION);
+    const app = demoApp();
+    new Login(app).render();
+
+    document.querySelector('[data-demo-view="parent"]').click();
+    await flush();
+    await flush();
+
+    expect(startDemoSession).toHaveBeenCalledWith('parent');
+    expect(app.isLoggedIn).toBe(true);
+    expect(app.router.route).toHaveBeenCalled();
+  });
+
+  test('while the demo opens, both choices are disabled so a double tap sends one request', () => {
+    startDemoSession.mockReturnValue(new Promise(() => {}));
+    new Login(demoApp()).render();
+
+    document.querySelector('[data-demo-view="leader"]').click();
+    document.querySelector('[data-demo-view="leader"]').click();
+
+    expect(startDemoSession).toHaveBeenCalledTimes(1);
+    expect([...document.querySelectorAll('[data-demo-view]')].every((button) => button.disabled)).toBe(true);
+    expect(document.querySelector('[role="status"]').textContent).toBe('demo_sign_in_opening');
+  });
+
+  test('a refusal is announced as an alert with its own words, and the choices come back', async () => {
+    startDemoSession.mockResolvedValue({ success: false, status: 404, message: 'demo_account_unavailable' });
+    new Login(demoApp()).render();
+
+    document.querySelector('[data-demo-view="leader"]').click();
+    await flush();
+
+    expect(document.querySelector('[role="alert"]').textContent).toBe('demo_account_unavailable');
+    expect(document.querySelector('[role="status"]').textContent).toBe('');
+    expect(document.querySelector('[data-demo-view="leader"]').disabled).toBe(false);
+  });
+
+  test('a server message the page does not know reads as the general demo error', async () => {
+    startDemoSession.mockResolvedValue({ success: false, status: 500, message: 'Something exploded in SQL' });
+    new Login(demoApp()).render();
+
+    document.querySelector('[data-demo-view="parent"]').click();
+    await flush();
+
+    expect(document.querySelector('[role="alert"]').textContent).toBe('demo_sign_in_failed');
+  });
+
+  test('the people who run the demo can still sign in with their account, and come back', async () => {
+    new Login(demoApp()).render();
+
+    document.getElementById('login-with-account').click();
+    expect(document.getElementById('login-form')).not.toBeNull();
+    expect(document.activeElement.id).toBe('login-email');
+    expect(await violations()).toEqual([]);
+
+    document.getElementById('login-demo-views').click();
+    expect(document.getElementById('login-form')).toBeNull();
+    expect(document.activeElement.dataset.demoView).toBe('parent');
+  });
+
+  test('a unit that is not a demo keeps the email and password form', () => {
+    new Login(loginApp()).render();
+
+    expect(document.getElementById('login-form')).not.toBeNull();
+    expect(document.querySelector('[data-demo-view]')).toBeNull();
+    expect(document.getElementById('login-demo-views')).toBeNull();
   });
 });
 

@@ -22,8 +22,15 @@
 <meta name="twitter:title" content="Wampums vs Scoutbook — Canadian Scout Group Management" />
 <meta name="twitter:description" content="Why Canadian bilingual scout groups choose Wampums over Scoutbook: PIPEDA compliance, per-user French/English, offline camp mode, and finance built in." />
 <meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
-<meta name="theme-color" content="#0f7a5a" />
-<link rel="stylesheet" href="/landing.css" />
+<meta name="theme-color" content="#0c2a30" />
+<link rel="manifest" href="/manifest.json" />
+<link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500..700;1,9..144,500&family=Inter:wght@400..750&display=swap" />
+<link rel="stylesheet" href="/site.css" />
+<script>document.documentElement.classList.add('js');</script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -74,52 +81,55 @@
 </script>
 </head>
 <body>
-<a class="skip-link" href="#main">Skip to main content</a>
+    <a class="skip-link" href="#intro">Skip to main content</a>
 
-<header>
-  <div class="shell">
-    <div class="top-bar">
-      <a class="brand" href="/en/" aria-label="Wampums home">
-        <img src="/images/defaultImage.webp" width="90" alt="Wampums logo" />
-        <span>Wampums</span>
-      </a>
-      <div class="nav-actions">
-        <nav class="lang-toggle" aria-label="Marketing pages">
-          <a class="lang-link" href="/en/blog/">Blog</a>
-          <a class="lang-link" href="/en/features/attendance/">Features</a>
-          <a class="lang-link" href="/en/compare/wampums-vs-scoutbook/" aria-current="page">Compare</a>
-        </nav>
-        <nav class="lang-toggle" aria-label="Change language">
-          <a class="lang-link" href="/fr/comparer/wampums-vs-scoutbook/" lang="fr-CA">Français</a>
-          <a class="lang-link" href="/en/compare/wampums-vs-scoutbook/" lang="en-CA" aria-current="page">English</a>
-        </nav>
-      </div>
-    </div>
-  </div>
-</header>
+    <div class="hero hero--page">
+      <header class="site-header">
+        <div class="shell topbar">
+          <a class="brand" href="/en/">
+            <img src="/images/defaultImage.webp" width="40" height="40" alt="" />
+            <span>Wampums</span>
+          </a>
+          <nav class="site-nav" aria-label="Main">
+            <a class="nav-pages" href="/en/#week">How it works</a>
+            <a class="nav-pages" href="/en/#roles">Features</a>
+            <a class="nav-pages" href="/en/#compare">Compare</a>
+            <a class="nav-pages" href="/en/faq/">FAQ</a>
+            <a class="nav-pages" href="/en/blog/">Blog</a>
+            <span class="lang-switch">
+              <a href="/fr/comparer/wampums-vs-scoutbook/" lang="fr-CA" hreflang="fr-CA">FR<span class="sr-only"> — Français</span></a>
+              <a href="/en/compare/wampums-vs-scoutbook/" lang="en-CA" aria-current="page">EN<span class="sr-only"> — English</span></a>
+            </span>
+          </nav>
+        </div>
+      </header>
 
-<main id="main">
-  <section class="section section-center">
-    <nav aria-label="Breadcrumb" class="breadcrumb-nav">
+      <div class="shell page-intro" id="intro">
+        <nav aria-label="Breadcrumb" class="breadcrumb-nav">
       <ol>
         <li><a href="/en/">Wampums</a></li>
         <li><a href="/en/compare/wampums-vs-scoutbook/">Compare</a></li>
         <li aria-current="page">Wampums vs Scoutbook</li>
       </ol>
     </nav>
-
-    <p class="pill">Comparison</p>
-    <h1>Wampums vs Scoutbook: Purpose-Built for Canada's Bilingual Scout Groups</h1>
-    <p>Scoutbook is the official digital platform for Scouts BSA, the American scouting organization. It does many things well for US troops. But Canada's scout landscape is fundamentally different — bilingual families, provincial privacy laws, a mix of Scouts Canada, Guides, Cadets, and independent youth organizations, and cultural expectations around French-language services that Scoutbook was simply not designed to meet. This comparison explains the key differences and why Canadian groups increasingly choose Wampums.</p>
-
-    <div class="actions">
-      <a class="btn-primary" href="mailto:hello@wampums.app">Request a demo</a>
-      <a class="btn-secondary" href="/en/features/attendance/">See all features</a>
+        <p class="kicker">Comparison</p>
+        <h1>Wampums vs Scoutbook: Purpose-Built for Canada's Bilingual Scout Groups</h1>
+          <p class="hero-lede">Scoutbook is the official digital platform for Scouts BSA, the American scouting organization. It does many things well for US troops. But Canada's scout landscape is fundamentally different — bilingual families, provincial privacy laws, a mix of Scouts Canada, Guides, Cadets, and independent youth organizations, and cultural expectations around French-language services that Scoutbook was simply not designed to meet. This comparison explains the key differences and why Canadian groups increasingly choose Wampums.</p>
+        <div class="hero-actions">
+          <button type="button" class="btn btn--ember" data-open-demo-modal>
+Request a demo
+<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-arrow" /></svg>
+</button>
+      <a class="btn btn--ghost-light" href="/en/features/attendance/">See all features</a>
+        </div>
+      </div>
     </div>
-  </section>
+
+<main id="main" class="page-body">
 
   <section class="section">
-    <div class="grid">
+    <div class="shell">
+    <div class="cards">
       <article class="card">
         <h2>Built for Canada, Not Translated for It</h2>
         <p>Scoutbook is an American product that has been made available to Canadian users, but availability is not the same as fit. The badge programs reflect BSA's specific merit badge structure, the privacy assumptions are shaped by US law, and the bilingual support amounts to a UI language toggle rather than a genuine per-family experience. Canadian groups end up working around these limitations rather than being served by the tool.</p>
@@ -156,13 +166,18 @@
         <p>Wampums works for any Canadian youth organization. Scouts Canada, Girl Guides, Air Cadets, Sea Cadets, heritage clubs, cultural youth programs, and independent organizations all get the same full-featured bilingual platform. The configurable badge system supports any advancement framework without requiring BSA membership or conformity to BSA program structure. A group migrating from Scoutbook to Wampums does not lose any of its operational capability — it gains the Canadian-specific features that Scoutbook was never designed to provide.</p>
       </article>
     </div>
+    </div>
   </section>
 
-  <div class="screenshot-placeholder screenshot-placeholder--spaced" aria-label="Screenshot: Wampums bilingual group dashboard">
-    <p class="meta">Screenshot: Wampums bilingual group dashboard — coming soon</p>
-  </div>
+  <figure class="app-shot">
+    <div class="app-shot__phone">
+      <img src="/images/screenshots/dashboard-en.webp" width="390" height="844" alt="Leaders&#x27; dashboard for a cub pack: take attendance, give points, permission slips to collect and this week&#x27;s carpooling." loading="lazy" decoding="async" />
+    </div>
+    <figcaption>The leaders' dashboard: what to do right now on top, then the week ahead.</figcaption>
+  </figure>
 
   <section class="section" itemscope itemtype="https://schema.org/FAQPage">
+    <div class="shell">
     <h2>Questions about Wampums vs Scoutbook</h2>
     <div class="faq-grid">
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
@@ -190,36 +205,139 @@
         </div>
       </div>
     </div>
+    </div>
   </section>
 
-  <section class="section">
-    <div class="cta-section">
-      <h2>Ready to see how Wampums handles your Canadian group's specific needs?</h2>
-      <p>Request a demo and we'll walk through the features that matter most for your organization.</p>
-      <a class="btn-primary" href="mailto:hello@wampums.app">Request a demo</a>
-      <a class="btn-secondary" href="/en/features/attendance/">See all features</a>
+  <section class="final" aria-labelledby="final-title">
+    <div class="shell">
+      <div class="final-card">
+        <div class="bead-rule bead-rule--center" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <h2 id="final-title">Ready to see how Wampums handles your Canadian group's specific needs?</h2>
+        <p>Request a demo and we'll walk through the features that matter most for your organization.</p>
+        <div class="hero-actions">
+          <button type="button" class="btn btn--ember" data-open-demo-modal>
+Request a demo
+<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-arrow" /></svg>
+</button>
+          <a class="btn btn--ghost-light" href="mailto:hello@wampums.app">hello@wampums.app</a>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="section">
+    <div class="shell">
     <p class="meta">Related comparisons: <a href="/en/compare/wampums-vs-sporteasy/">Wampums vs Sporteasy</a> · <a href="/en/compare/wampums-vs-trooptrack/">Wampums vs Trooptrack</a> · <a href="/en/compare/wampums-vs-spreadsheets/">Wampums vs Spreadsheets</a></p>
+    </div>
   </section>
 </main>
 
-<footer>
-  <div class="shell">
-    <p>Built for scout units that meet every week — simple, bilingual, and ready to deploy.</p>
-    <nav aria-label="Feature links">
-      <a href="/en/features/attendance/">Attendance</a> ·
-      <a href="/en/features/badges/">Badges</a> ·
-      <a href="/en/features/communication/">Communication</a> ·
-      <a href="/en/features/finance/">Finance</a> ·
-      <a href="/en/features/forms/">Forms</a> ·
-      <a href="/en/features/logistics/">Logistics</a> ·
-      <a href="/en/blog/">Blog</a>
-    </nav>
-    <p><a href="mailto:hello@wampums.app">hello@wampums.app</a></p>
-  </div>
-</footer>
+    <footer class="site-footer">
+      <div class="shell">
+        <div class="footer-grid">
+          <div class="footer-brand">
+            <a class="brand" href="/en/">
+              <img src="/images/defaultImage.webp" width="40" height="40" alt="" />
+              <span>Wampums</span>
+            </a>
+            <p>Scouts at your fingertips. Built in Canada for units that meet every week: simple, bilingual and ready to use.</p>
+            <p class="contact"><a href="mailto:hello@wampums.app">hello@wampums.app</a></p>
+          </div>
+          <nav aria-labelledby="footer-features">
+            <h2 id="footer-features">Features</h2>
+            <ul>
+              <li><a href="/en/features/attendance/">Attendance</a></li>
+              <li><a href="/en/features/badges/">Badges</a></li>
+              <li><a href="/en/features/communication/">Communication</a></li>
+              <li><a href="/en/features/forms/">Forms</a></li>
+              <li><a href="/en/features/logistics/">Logistics</a></li>
+              <li><a href="/en/features/finance/">Finance</a></li>
+            </ul>
+          </nav>
+          <nav aria-labelledby="footer-modules">
+            <h2 id="footer-modules">Modules</h2>
+            <ul>
+              <li><a href="/en/modules/finance/">Finance</a></li>
+              <li><a href="/en/modules/fundraising/">Fundraising</a></li>
+              <li><a href="/en/modules/on-site/">On site</a></li>
+              <li><a href="/en/modules/offline/">Offline</a></li>
+              <li><a href="/en/modules/medications/">Medications</a></li>
+              <li><a href="/en/modules/carpool/">Carpools</a></li>
+            </ul>
+          </nav>
+          <nav aria-labelledby="footer-compare">
+            <h2 id="footer-compare">Compare</h2>
+            <ul>
+              <li><a href="/en/compare/wampums-vs-spreadsheets/">vs Spreadsheets</a></li>
+              <li><a href="/en/compare/wampums-vs-sporteasy/">vs SportEasy</a></li>
+              <li><a href="/en/compare/wampums-vs-trooptrack/">vs TroopTrack</a></li>
+              <li><a href="/en/compare/wampums-vs-scoutbook/">vs Scoutbook</a></li>
+              <li><a href="/en/compare/wampums-vs-scouts-digital/">vs Scouts Digital</a></li>
+            </ul>
+          </nav>
+          <nav aria-labelledby="footer-learn">
+            <h2 id="footer-learn">Learn</h2>
+            <ul>
+              <li><a href="/en/faq/">FAQ</a></li>
+              <li><a href="/en/blog/">Blog</a></li>
+              <li><a href="/fr/comparer/wampums-vs-scoutbook/" lang="fr-CA" hreflang="fr-CA">Version française</a></li>
+            </ul>
+          </nav>
+        </div>
+        <div class="footer-base">
+          <span>© Wampums</span>
+          <span>Made in Canada · English &amp; French</span>
+        </div>
+      </div>
+    </footer>
+
+    <div id="demoModal" class="modal" hidden>
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalIntro">
+        <div class="modal-header">
+          <h2 id="modalTitle">Request a demo</h2>
+          <button type="button" class="modal-close" aria-label="Close" data-close-modal>
+            <svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-x" /></svg>
+          </button>
+        </div>
+        <p class="modal-intro" id="modalIntro">Tell us a little about your unit. We'll write back, and you can try the demo right away.</p>
+
+        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the demo…</p>
+        <p class="form-status" id="formStatus" role="alert" hidden data-generic="Your request could not be sent. Check your connection and try again, or write to hello@wampums.app." data-busy="Too many requests from this connection. Wait a few minutes and try again."></p>
+
+        <form id="demoForm" novalidate>
+          <div class="form-group">
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" autocomplete="name" required aria-describedby="name-error" />
+            <span class="form-error" id="name-error">Enter your name.</span>
+          </div>
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" autocomplete="email" required aria-describedby="email-error" />
+            <span class="form-error" id="email-error">Enter an email address such as name@example.com.</span>
+          </div>
+          <div class="form-group">
+            <label for="organization">Unit or organization <span class="optional">(optional)</span></label>
+            <input type="text" id="organization" name="organization" autocomplete="organization" />
+          </div>
+          <div class="form-group">
+            <label for="phone">Phone <span class="optional">(optional)</span></label>
+            <input type="tel" id="phone" name="phone" autocomplete="tel" />
+          </div>
+          <div class="form-group">
+            <label for="message">Message</label>
+            <textarea id="message" name="message" required aria-describedby="message-hint message-error"></textarea>
+            <span class="form-hint" id="message-hint">How many youth and leaders, and what you'd like to fix first.</span>
+            <span class="form-error" id="message-error">Write a few words (at least 10 characters).</span>
+          </div>
+          <div class="honeypot" aria-hidden="true">
+            <label for="honeypot">Leave this field empty</label>
+            <input type="text" id="honeypot" name="honeypot" tabindex="-1" autocomplete="off" />
+          </div>
+          <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Sending…">Send request</button>
+        </form>
+      </div>
+    </div>
+
+    <script src="/landing.js" defer></script>
 </body>
 </html>

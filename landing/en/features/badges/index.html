@@ -21,8 +21,15 @@
 <meta name="twitter:title" content="Scout Badge Tracking Software — Wampums" />
 <meta name="twitter:description" content="Track scout badges, honors, and points digitally. Multi-level system with approval workflows and parent visibility." />
 <meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
-<meta name="theme-color" content="#0f7a5a" />
-<link rel="stylesheet" href="/landing.css" />
+<meta name="theme-color" content="#0c2a30" />
+<link rel="manifest" href="/manifest.json" />
+<link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500..700;1,9..144,500&family=Inter:wght@400..750&display=swap" />
+<link rel="stylesheet" href="/site.css" />
+<script>document.documentElement.classList.add('js');</script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -67,49 +74,55 @@
 </script>
 </head>
 <body>
-<a class="skip-link" href="#main">Skip to main content</a>
-<header>
-  <div class="shell">
-    <div class="top-bar">
-      <a class="brand" href="/en/" aria-label="Wampums home">
-        <img src="/images/defaultImage.webp" width="90" alt="Wampums logo" />
-        <span>Wampums</span>
-      </a>
-      <div class="nav-actions">
-        <nav class="lang-toggle" aria-label="Marketing pages">
-          <a class="lang-link" href="/en/blog/">Blog</a>
-          <a class="lang-link" href="/en/features/badges/" aria-current="page">Features</a>
-          <a class="lang-link" href="/en/compare/wampums-vs-sporteasy/">Compare</a>
-        </nav>
-        <nav class="lang-toggle" aria-label="Change language">
-          <a class="lang-link" href="/fr/fonctionnalites/badges/" lang="fr-CA">Français</a>
-          <a class="lang-link" href="/en/features/badges/" lang="en-CA" aria-current="page">English</a>
-        </nav>
-      </div>
-    </div>
-  </div>
-</header>
+    <a class="skip-link" href="#intro">Skip to main content</a>
 
-<main id="main">
-  <section class="section section-center">
-    <nav aria-label="Breadcrumb" class="breadcrumb-nav">
+    <div class="hero hero--page">
+      <header class="site-header">
+        <div class="shell topbar">
+          <a class="brand" href="/en/">
+            <img src="/images/defaultImage.webp" width="40" height="40" alt="" />
+            <span>Wampums</span>
+          </a>
+          <nav class="site-nav" aria-label="Main">
+            <a class="nav-pages" href="/en/#week">How it works</a>
+            <a class="nav-pages" href="/en/#roles">Features</a>
+            <a class="nav-pages" href="/en/#compare">Compare</a>
+            <a class="nav-pages" href="/en/faq/">FAQ</a>
+            <a class="nav-pages" href="/en/blog/">Blog</a>
+            <span class="lang-switch">
+              <a href="/fr/fonctionnalites/badges/" lang="fr-CA" hreflang="fr-CA">FR<span class="sr-only"> — Français</span></a>
+              <a href="/en/features/badges/" lang="en-CA" aria-current="page">EN<span class="sr-only"> — English</span></a>
+            </span>
+          </nav>
+        </div>
+      </header>
+
+      <div class="shell page-intro" id="intro">
+        <nav aria-label="Breadcrumb" class="breadcrumb-nav">
       <ol>
         <li><a href="/en/">Wampums</a></li>
         <li>Features</li>
         <li aria-current="page">Badge &amp; Honor Tracking</li>
       </ol>
     </nav>
-    <p class="pill">Feature</p>
-    <h1>Scout Badge &amp; Honor Tracking — Replace Binder Logs With a Living Digital Record</h1>
-    <p>Every binder has a story: pages that fall out, pencil marks that smudge, entries from three leaders ago that nobody can decipher. Wampums replaces the binder with a structured digital system where every badge, honor, and point is logged, approved, and visible to the right people at the right time.</p>
-    <div class="actions">
-      <a class="btn-primary" href="mailto:hello@wampums.app">Request a demo</a>
-      <a class="btn-secondary" href="/en/">See all features</a>
+        <p class="kicker">Feature</p>
+        <h1>Scout Badge &amp; Honor Tracking — Replace Binder Logs With a Living Digital Record</h1>
+          <p class="hero-lede">Every binder has a story: pages that fall out, pencil marks that smudge, entries from three leaders ago that nobody can decipher. Wampums replaces the binder with a structured digital system where every badge, honor, and point is logged, approved, and visible to the right people at the right time.</p>
+        <div class="hero-actions">
+          <button type="button" class="btn btn--ember" data-open-demo-modal>
+Request a demo
+<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-arrow" /></svg>
+</button>
+      <a class="btn btn--ghost-light" href="/en/">See all features</a>
+        </div>
+      </div>
     </div>
-  </section>
+
+<main id="main" class="page-body">
 
   <section class="section">
-    <div class="grid">
+    <div class="shell">
+    <div class="cards">
       <article class="card">
         <h2>Multi-Level Badge System</h2>
         <p>Wampums supports a configurable multi-level star and badge system that adapts to your organization's advancement program. Define badge categories (e.g., skill, service, adventure), assign prerequisites, and group badges by program year or section level.</p>
@@ -146,13 +159,18 @@
         <p>Groups that run bilingual programming can define badge names in both English and French. Each participant sees badge names in their preferred language.</p>
       </article>
     </div>
+    </div>
   </section>
 
-  <div class="screenshot-placeholder screenshot-placeholder--spaced" aria-label="Screenshot: Badge tracking dashboard">
-    <p class="meta">Screenshot: badge &amp; honor tracking dashboard — coming soon</p>
-  </div>
+  <figure class="app-shot">
+    <div class="app-shot__phone">
+      <img src="/images/screenshots/badges-en.webp" width="390" height="844" alt="Badge tracking: 22 participants, 37 stars earned, 6 requests to approve and 17 badges to hand out." loading="lazy" decoding="async" />
+    </div>
+    <figcaption>Every star goes through approval, then hand-out.</figcaption>
+  </figure>
 
   <section class="section" itemscope itemtype="https://schema.org/FAQPage">
+    <div class="shell">
     <h2>Questions about badge tracking</h2>
     <div class="faq-grid">
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
@@ -174,42 +192,146 @@
         </div>
       </div>
     </div>
+    </div>
   </section>
 
-  <section class="section">
-    <div class="cta-section">
-      <h2>Ready to replace the binder?</h2>
-      <p>Request a demo and see how Wampums makes badge tracking transparent, organized, and bilingual.</p>
-      <a class="btn-primary" href="mailto:hello@wampums.app">Request a demo</a>
+  <section class="final" aria-labelledby="final-title">
+    <div class="shell">
+      <div class="final-card">
+        <div class="bead-rule bead-rule--center" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <h2 id="final-title">Ready to replace the binder?</h2>
+        <p>Request a demo and see how Wampums makes badge tracking transparent, organized, and bilingual.</p>
+        <div class="hero-actions">
+          <button type="button" class="btn btn--ember" data-open-demo-modal>
+Request a demo
+<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-arrow" /></svg>
+</button>
+          <a class="btn btn--ghost-light" href="mailto:hello@wampums.app">hello@wampums.app</a>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="section">
+    <div class="shell">
     <h2>Related reading</h2>
-    <nav aria-label="Related pages">
-      <a class="lang-link" href="/en/features/attendance/">Attendance Tracking</a> ·
-      <a class="lang-link" href="/en/features/forms/">Permission Slips &amp; Forms</a> ·
-      <a class="lang-link" href="/en/modules/on-site/">On-Site Management</a> ·
-      <a class="lang-link" href="/en/compare/wampums-vs-spreadsheets/">Wampums vs Spreadsheets</a> ·
-      <a class="lang-link" href="/en/blog/guide-scout-group-management/">Scout Management Guide</a>
+    <nav class="compare-links" aria-label="Related pages">
+      <a href="/en/features/attendance/">Attendance Tracking</a>
+      <a href="/en/features/forms/">Permission Slips &amp; Forms</a>
+      <a href="/en/modules/on-site/">On-Site Management</a>
+      <a href="/en/compare/wampums-vs-spreadsheets/">Wampums vs Spreadsheets</a>
+      <a href="/en/blog/guide-scout-group-management/">Scout Management Guide</a>
     </nav>
+    </div>
   </section>
 </main>
 
-<footer>
-  <div class="shell">
-    <p>Built for scout units that meet every week — simple, bilingual, and ready to deploy.</p>
-    <nav aria-label="Feature links">
-      <a href="/en/features/attendance/">Attendance</a> ·
-      <a href="/en/features/badges/">Badges</a> ·
-      <a href="/en/features/communication/">Communication</a> ·
-      <a href="/en/features/finance/">Finance</a> ·
-      <a href="/en/features/forms/">Forms</a> ·
-      <a href="/en/features/logistics/">Logistics</a> ·
-      <a href="/en/blog/">Blog</a>
-    </nav>
-    <p><a href="mailto:hello@wampums.app">hello@wampums.app</a></p>
-  </div>
-</footer>
+    <footer class="site-footer">
+      <div class="shell">
+        <div class="footer-grid">
+          <div class="footer-brand">
+            <a class="brand" href="/en/">
+              <img src="/images/defaultImage.webp" width="40" height="40" alt="" />
+              <span>Wampums</span>
+            </a>
+            <p>Scouts at your fingertips. Built in Canada for units that meet every week: simple, bilingual and ready to use.</p>
+            <p class="contact"><a href="mailto:hello@wampums.app">hello@wampums.app</a></p>
+          </div>
+          <nav aria-labelledby="footer-features">
+            <h2 id="footer-features">Features</h2>
+            <ul>
+              <li><a href="/en/features/attendance/">Attendance</a></li>
+              <li><a href="/en/features/badges/">Badges</a></li>
+              <li><a href="/en/features/communication/">Communication</a></li>
+              <li><a href="/en/features/forms/">Forms</a></li>
+              <li><a href="/en/features/logistics/">Logistics</a></li>
+              <li><a href="/en/features/finance/">Finance</a></li>
+            </ul>
+          </nav>
+          <nav aria-labelledby="footer-modules">
+            <h2 id="footer-modules">Modules</h2>
+            <ul>
+              <li><a href="/en/modules/finance/">Finance</a></li>
+              <li><a href="/en/modules/fundraising/">Fundraising</a></li>
+              <li><a href="/en/modules/on-site/">On site</a></li>
+              <li><a href="/en/modules/offline/">Offline</a></li>
+              <li><a href="/en/modules/medications/">Medications</a></li>
+              <li><a href="/en/modules/carpool/">Carpools</a></li>
+            </ul>
+          </nav>
+          <nav aria-labelledby="footer-compare">
+            <h2 id="footer-compare">Compare</h2>
+            <ul>
+              <li><a href="/en/compare/wampums-vs-spreadsheets/">vs Spreadsheets</a></li>
+              <li><a href="/en/compare/wampums-vs-sporteasy/">vs SportEasy</a></li>
+              <li><a href="/en/compare/wampums-vs-trooptrack/">vs TroopTrack</a></li>
+              <li><a href="/en/compare/wampums-vs-scoutbook/">vs Scoutbook</a></li>
+              <li><a href="/en/compare/wampums-vs-scouts-digital/">vs Scouts Digital</a></li>
+            </ul>
+          </nav>
+          <nav aria-labelledby="footer-learn">
+            <h2 id="footer-learn">Learn</h2>
+            <ul>
+              <li><a href="/en/faq/">FAQ</a></li>
+              <li><a href="/en/blog/">Blog</a></li>
+              <li><a href="/fr/fonctionnalites/badges/" lang="fr-CA" hreflang="fr-CA">Version française</a></li>
+            </ul>
+          </nav>
+        </div>
+        <div class="footer-base">
+          <span>© Wampums</span>
+          <span>Made in Canada · English &amp; French</span>
+        </div>
+      </div>
+    </footer>
+
+    <div id="demoModal" class="modal" hidden>
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalIntro">
+        <div class="modal-header">
+          <h2 id="modalTitle">Request a demo</h2>
+          <button type="button" class="modal-close" aria-label="Close" data-close-modal>
+            <svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-x" /></svg>
+          </button>
+        </div>
+        <p class="modal-intro" id="modalIntro">Tell us a little about your unit. We'll write back, and you can try the demo right away.</p>
+
+        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the demo…</p>
+        <p class="form-status" id="formStatus" role="alert" hidden data-generic="Your request could not be sent. Check your connection and try again, or write to hello@wampums.app." data-busy="Too many requests from this connection. Wait a few minutes and try again."></p>
+
+        <form id="demoForm" novalidate>
+          <div class="form-group">
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" autocomplete="name" required aria-describedby="name-error" />
+            <span class="form-error" id="name-error">Enter your name.</span>
+          </div>
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" autocomplete="email" required aria-describedby="email-error" />
+            <span class="form-error" id="email-error">Enter an email address such as name@example.com.</span>
+          </div>
+          <div class="form-group">
+            <label for="organization">Unit or organization <span class="optional">(optional)</span></label>
+            <input type="text" id="organization" name="organization" autocomplete="organization" />
+          </div>
+          <div class="form-group">
+            <label for="phone">Phone <span class="optional">(optional)</span></label>
+            <input type="tel" id="phone" name="phone" autocomplete="tel" />
+          </div>
+          <div class="form-group">
+            <label for="message">Message</label>
+            <textarea id="message" name="message" required aria-describedby="message-hint message-error"></textarea>
+            <span class="form-hint" id="message-hint">How many youth and leaders, and what you'd like to fix first.</span>
+            <span class="form-error" id="message-error">Write a few words (at least 10 characters).</span>
+          </div>
+          <div class="honeypot" aria-hidden="true">
+            <label for="honeypot">Leave this field empty</label>
+            <input type="text" id="honeypot" name="honeypot" tabindex="-1" autocomplete="off" />
+          </div>
+          <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Sending…">Send request</button>
+        </form>
+      </div>
+    </div>
+
+    <script src="/landing.js" defer></script>
 </body>
 </html>

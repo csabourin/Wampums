@@ -12530,3 +12530,69 @@ body.modal-open {
   text-align: start;
   font-weight: var(--font-weight-semibold, 600);
 }
+
+/* Demo sign-in (demo.wampums.app): the parent view or the leader view, as two
+   large choices in place of the email and password. */
+.demo-sign-in__intro {
+  margin-bottom: var(--space-md);
+  color: var(--color-text-light);
+}
+
+.demo-choices {
+  display: grid;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  list-style: none;
+}
+
+.demo-sign-in .demo-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  width: 100%;
+  min-height: var(--touch-target-min);
+  padding: var(--space-md);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.demo-choice:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-base);
+}
+
+.demo-choice:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.demo-choice:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.demo-choice__title {
+  text-align: start;
+  color: var(--color-primary-dark);
+  font-size: 1.15rem;
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+.demo-choice__text {
+  color: var(--color-text-light);
+}
+
+@media (min-width: 640px) {
+  .demo-choices {
+    grid-template-columns: 1fr 1fr;
+  }
+}

@@ -1,31 +1,26 @@
-<header>
-  <div class="shell">
-    <div class="top-bar">
-      <a class="brand" href="/<%= lang %>/" aria-label="Wampums home">
-        <img src="/images/defaultImage.webp" width="90" alt="Wampums - Scout group management app logo" />
-        <span>Wampums</span>
-      </a>
-
-      <div class="nav-actions">
-        <nav class="lang-toggle" aria-label="<%= lang === 'fr' ? 'Pages de navigation' : 'Marketing pages' %>">
-          <% if (lang === 'en') { %>
-            <a class="lang-link" href="/en/blog/">Blog</a>
-            <a class="lang-link" href="/en/features/attendance/">Features</a>
-            <a class="lang-link" href="/en/modules/offline/">Modules</a>
-            <a class="lang-link" href="/en/compare/wampums-vs-sporteasy/">Compare</a>
-          <% } else { %>
-            <a class="lang-link" href="/fr/blogue/">Blogue</a>
-            <a class="lang-link" href="/fr/fonctionnalites/presences/">Fonctionnalités</a>
-            <a class="lang-link" href="/fr/modules/offline/">Modules</a>
-            <a class="lang-link" href="/fr/comparer/wampums-vs-sporteasy/">Comparer</a>
-          <% } %>
-        </nav>
-
-        <nav class="lang-toggle" aria-label="<%= lang === 'fr' ? 'Changer de langue' : 'Change language' %>">
-          <a class="lang-link" href="<%= frPath %>" lang="fr-CA" <%= lang === 'fr' ? 'aria-current="page"' : '' %>>Français</a>
-          <a class="lang-link" href="<%= enPath %>" lang="en-CA" <%= lang === 'en' ? 'aria-current="page"' : '' %>>English</a>
-        </nav>
-      </div>
-    </div>
-  </div>
-</header>
+<%# Site header, as on the home pages. It sits inside the page's dark band (.hero.hero--page). %>
+<% const fr = lang === 'fr'; %>
+      <header class="site-header">
+        <div class="shell topbar">
+          <a class="brand" href="/<%= lang %>/">
+            <img src="/images/defaultImage.webp" width="40" height="40" alt="" />
+            <span>Wampums</span>
+          </a>
+          <nav class="site-nav" aria-label="<%= fr ? 'Principale' : 'Main' %>">
+            <a class="nav-pages" href="/<%= lang %>/#week"><%= fr ? 'Comment ça marche' : 'How it works' %></a>
+            <a class="nav-pages" href="/<%= lang %>/#roles"><%= fr ? 'Fonctionnalités' : 'Features' %></a>
+            <a class="nav-pages" href="/<%= lang %>/#compare"><%= fr ? 'Comparer' : 'Compare' %></a>
+            <a class="nav-pages" href="/<%= lang %>/faq/">FAQ</a>
+            <a class="nav-pages" href="<%= fr ? '/fr/blogue/' : '/en/blog/' %>" aria-current="<%= isBlogIndex ? 'page' : 'true' %>"><%= fr ? 'Blogue' : 'Blog' %></a>
+            <span class="lang-switch">
+              <% if (fr) { %>
+              <a href="<%= frPath %>" lang="fr-CA" aria-current="page">FR<span class="sr-only"> — Français</span></a>
+              <a href="<%= enPath %>" lang="en-CA" hreflang="en-CA">EN<span class="sr-only"> — English</span></a>
+              <% } else { %>
+              <a href="<%= frPath %>" lang="fr-CA" hreflang="fr-CA">FR<span class="sr-only"> — Français</span></a>
+              <a href="<%= enPath %>" lang="en-CA" aria-current="page">EN<span class="sr-only"> — English</span></a>
+              <% } %>
+            </span>
+          </nav>
+        </div>
+      </header>

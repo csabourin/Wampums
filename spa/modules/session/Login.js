@@ -10,9 +10,28 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { nativeLanguageName } from '../../utils/InterfaceLanguageUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { startDemoSession } from '../../api/api-demo.js';
+
+/** The views a demo unit offers instead of a password. */
+const DEMO_VIEWS = ['parent', 'leader'];
+
+/** What the demo sign-in may answer, each a key the page can show. */
+const DEMO_REFUSALS = ['demo_sign_in_unavailable', 'demo_account_unavailable', 'too_many_login_attempts'];
+
 export class Login {
   constructor(app) {
     this.app = app;
+    // On a demo unit, the email and password form only shows when asked for.
+    this.showAccountForm = false;
+  }
+
+  /**
+   * Whether this unit is a demo that opens without a password (demo.wampums.app).
+   *
+   * @returns {boolean}
+   */
+  isDemoUnit() {
+    return this.app.organizationSettings?.demo_sign_in === true;
   }
 
   /**
@@ -100,6 +119,10 @@ export class Login {
 
   render() {
     debugLog('Login.render() called');
+    if (this.isDemoUnit() && !this.showAccountForm) {
+      this.renderDemoChoice();
+      return;
+    }
     // Get organization name with fallback
     const organizationName = this.app.organizationSettings?.organization_info?.name || 'Scouts';
     debugLog('Using organization name:', organizationName);
@@ -124,6 +147,8 @@ export class Login {
         <div id="login-recovery-cta"></div>
         <p><a href="/register">${translate('create_account')}</a></p>
         <p><a href="/reset-password">${translate('forgot_password')}</a></p>
+        ${this.isDemoUnit() ? `
+        <p><button type="button" class="button button--ghost" id="login-demo-views">${translate('demo_sign_in_back')}</button></p>` : ''}
       </div>
     `;
 
@@ -132,10 +157,85 @@ export class Login {
       setContent(appContainer, content);
       this.attachLoginFormListener();
       this.attachLanguagePickerListener();
+      document.getElementById('login-demo-views')?.addEventListener('click', () => {
+        this.showAccountForm = false;
+        this.render();
+        document.querySelector('[data-demo-view]')?.focus();
+      });
       debugLog('Login form rendered successfully');
     } else {
       debugError('Could not find app container element');
     }
+  }
+
+  /**
+   * A demo unit's sign-in: the parent view or the leader view, no password.
+   * The usual form stays one click away for the people who run the demo.
+   *
+   * @returns {void}
+   */
+  renderDemoChoice() {
+    const organizationName = this.app.organizationSettings?.organization_info?.name || 'Scouts';
+    const choices = DEMO_VIEWS.map((view) => `
+          <li>
+            <button type="button" class="demo-choice" data-demo-view="${view}" aria-describedby="demo-view-${view}-text">
+              <span class="demo-choice__title">${translate(`demo_view_${view}`)}</span>
+              <span class="demo-choice__text" id="demo-view-${view}-text">${translate(`demo_view_${view}_text`)}</span>
+            </button>
+          </li>`).join('');
+
+    setContent(document.getElementById('app'), `
+      <div class="login-container demo-sign-in">
+        <h1>${translate('demo_sign_in_title')}</h1>
+        <h2>${escapeHTML(organizationName)}</h2>
+        ${this.renderLanguagePicker()}
+        <p class="demo-sign-in__intro">${translate('demo_sign_in_intro')}</p>
+        <ul class="demo-choices">${choices}
+        </ul>
+        ${this.renderMessageRegions('login')}
+        <p><button type="button" class="button button--ghost" id="login-with-account">${translate('demo_sign_in_with_account')}</button></p>
+      </div>
+    `);
+
+    this.attachLanguagePickerListener();
+    document.querySelectorAll('[data-demo-view]').forEach((button) => {
+      button.addEventListener('click', () => this.openDemo(button.dataset.demoView));
+    });
+    document.getElementById('login-with-account')?.addEventListener('click', () => {
+      this.showAccountForm = true;
+      this.render();
+      document.getElementById('login-email')?.focus();
+    });
+  }
+
+  /**
+   * Sign in to the demo account for one view, then land where that account would.
+   *
+   * @param {string} view - 'parent' or 'leader'
+   * @returns {Promise<void>}
+   */
+  async openDemo(view) {
+    const buttons = Array.from(document.querySelectorAll('[data-demo-view]'));
+    buttons.forEach((button) => {
+      button.disabled = true;
+    });
+    this.showMessage('login', translate('demo_sign_in_opening'), 'info');
+
+    try {
+      const result = await startDemoSession(view);
+      if (result?.success) {
+        this.handleLoginSuccess(result);
+        return;
+      }
+      const refusal = DEMO_REFUSALS.includes(result?.message) ? result.message : 'demo_sign_in_failed';
+      this.showMessage('login', translate(refusal), 'error');
+    } catch (error) {
+      debugError('Demo sign-in error:', error);
+      this.showMessage('login', apiErrorMessage(error, 'demo_sign_in_failed'), 'error');
+    }
+    buttons.forEach((button) => {
+      button.disabled = false;
+    });
   }
 
   /**
