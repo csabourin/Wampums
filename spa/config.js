@@ -199,12 +199,6 @@ export const CONFIG = {
     // Service worker pending count message timeout (in milliseconds)
     SW_PENDING_TIMEOUT: 3000,
 
-    // Meeting agenda reordering waits for an intentional hold on touch devices.
-    MEETING_REORDER_LONG_PRESS_DELAY: 450,
-
-    // Cancel a pending touch reorder when the finger moves far enough to be a scroll.
-    MEETING_REORDER_MOVE_TOLERANCE: 10,
-
     // Quiet meeting-preparation autosave after the user pauses editing.
     MEETING_AUTOSAVE_DELAY: 1000,
 

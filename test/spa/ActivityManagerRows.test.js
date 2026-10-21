@@ -19,10 +19,6 @@ jest.mock('../../spa/app.js', () => ({
   translate: (key) => key,
 }));
 
-jest.mock('../../spa/config.js', () => ({
-  CONFIG: { UI: { MEETING_REORDER_LONG_PRESS_DELAY: 450, MEETING_REORDER_MOVE_TOLERANCE: 10 } },
-}));
-
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(),
   debugWarn: jest.fn(),

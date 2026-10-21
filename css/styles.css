@@ -5383,13 +5383,24 @@ body.online .pending-update {
 }
 
 .activity-drag-handle__dots {
+  --grip-dot-size: 6px;
+  --grip-dot-pitch: 10px;
+  --grip-bevel-offset: 1px;
+
   display: block;
-  inline-size: 24px;
-  block-size: 32px;
+  /* Whole tiles keep all six dots and their bevels inside the icon. */
+  inline-size: calc(2 * var(--grip-dot-pitch));
+  block-size: calc(3 * var(--grip-dot-pitch));
   margin: auto;
-  background-image: radial-gradient(circle, currentColor 0 4px, transparent 4.5px);
-  background-position: 0 0;
-  background-size: 12px 12px;
+  background-image: radial-gradient(
+    circle,
+    currentColor 0 calc(var(--grip-dot-size) / 2 - var(--grip-bevel-offset)),
+    transparent calc(var(--grip-dot-size) / 2)
+  );
+  background-size: var(--grip-dot-pitch) var(--grip-dot-pitch);
+  filter:
+    drop-shadow(calc(-1 * var(--grip-bevel-offset)) calc(-1 * var(--grip-bevel-offset)) 0 var(--color-surface))
+    drop-shadow(var(--grip-bevel-offset) var(--grip-bevel-offset) 0 var(--color-border));
 }
 
 .activity-row__drag-title {

@@ -9,15 +9,6 @@ jest.mock('../../spa/app.js', () => ({
   translate: (key) => key
 }));
 
-jest.mock('../../spa/config.js', () => ({
-  CONFIG: {
-    UI: {
-      MEETING_REORDER_LONG_PRESS_DELAY: 450,
-      MEETING_REORDER_MOVE_TOLERANCE: 10
-    }
-  }
-}));
-
 jest.mock('../../spa/utils/SecurityUtils.js', () => {
   const escape = (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -165,24 +156,64 @@ describe('ActivityManager agenda reordering', () => {
     ]);
   });
 
-  test('touch waits for a long press before activating reorder mode', () => {
-    jest.useFakeTimers();
-    const firstHandle = document.querySelector('.activity-drag-handle');
-    document.querySelector('.activity-select').value = 'Game';
-
-    dispatchPointer(firstHandle, 'pointerdown', {
-      pointerId: 9,
-      pointerType: 'touch',
-      clientY: 10
+  test.each(['touch', 'pen'])('%s drag starts immediately and commits movement without a hold', (pointerType) => {
+    const containers = document.querySelectorAll('.activity-row-container');
+    containers.forEach((container, index) => {
+      container.getBoundingClientRect = () => ({ top: index * 50, height: 50 });
     });
+    const firstHandle = document.querySelector('.activity-drag-handle');
+    document.querySelector('.activity-materiel').value = 'Unsaved rope';
 
-    expect(document.getElementById('activities-list').classList.contains('is-reordering')).toBe(false);
-    jest.advanceTimersByTime(449);
-    expect(document.getElementById('activities-list').classList.contains('is-reordering')).toBe(false);
-    jest.advanceTimersByTime(1);
+    dispatchPointer(firstHandle, 'pointerdown', { pointerType, clientY: 10 });
+
     expect(document.getElementById('activities-list').classList.contains('is-reordering')).toBe(true);
     expect(document.getElementById('activities-list').classList.contains('is-touch-reordering')).toBe(true);
-    expect(document.querySelector('.activity-row__drag-title').textContent).toBe('Game');
+    expect(document.querySelector('.activity-row__drag-title').textContent).toBe('Opening');
+    expect(firstHandle.getAttribute('aria-grabbed')).toBe('true');
+
+    dispatchPointer(window, 'pointermove', { pointerType, clientY: 140 });
+    expect(document.querySelector('.insert-here-divider[data-position="3"]')
+      .classList.contains('is-drop-target')).toBe(true);
+    dispatchPointer(window, 'pointerup', { pointerType, clientY: 140 });
+
+    expect(manager.getSelectedActivities().map((activity) => activity.activity)).toEqual([
+      'Game', 'Closing', 'Opening'
+    ]);
+    expect(manager.getSelectedActivities()[2].materiel).toBe('Unsaved rope');
+    expect(document.body.classList.contains('activity-reorder-active')).toBe(false);
+  });
+
+  test('touch dragging upward moves the last activity to the beginning', () => {
+    document.querySelectorAll('.activity-row-container').forEach((container, index) => {
+      container.getBoundingClientRect = () => ({ top: index * 50, height: 50 });
+    });
+    const lastHandle = document.querySelectorAll('.activity-drag-handle')[2];
+
+    dispatchPointer(lastHandle, 'pointerdown', { pointerType: 'touch', clientY: 140 });
+    dispatchPointer(window, 'pointermove', { pointerType: 'touch', clientY: 1 });
+    dispatchPointer(window, 'pointerup', { pointerType: 'touch', clientY: 1 });
+
+    expect(manager.getSelectedActivities().map((activity) => activity.activity)).toEqual([
+      'Closing', 'Opening', 'Game'
+    ]);
+  });
+
+  test('touch cancellation clears drag feedback without moving activities', () => {
+    const firstHandle = document.querySelector('.activity-drag-handle');
+    const changed = jest.fn();
+    document.getElementById('activities-list').addEventListener('activitieschange', changed);
+
+    dispatchPointer(firstHandle, 'pointerdown', { pointerType: 'touch', clientY: 10 });
+    dispatchPointer(window, 'pointermove', { pointerType: 'touch', clientY: 140 });
+    dispatchPointer(window, 'pointercancel', { pointerType: 'touch', clientY: 140 });
+
+    expect(manager.getSelectedActivities().map((activity) => activity.activity)).toEqual([
+      'Opening', 'Game', 'Closing'
+    ]);
+    expect(changed).not.toHaveBeenCalled();
+    expect(firstHandle.getAttribute('aria-grabbed')).toBe('false');
+    expect(document.body.classList.contains('activity-reorder-active')).toBe(false);
+    expect(document.querySelector('.is-drop-target')).toBeNull();
   });
 
   test('destroy closes an open achievement modal and removes its Escape listener', () => {
