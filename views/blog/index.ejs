@@ -28,45 +28,51 @@
 </script>
 </head>
 <body>
-<a class="skip-link" href="#main"><%= lang === 'fr' ? 'Aller au contenu principal' : 'Skip to main content' %></a>
-<%- include('../partials/nav', { lang, enPath, frPath }) %>
+<% const fr = lang === 'fr'; const blogBase = fr ? '/fr/blogue/' : '/en/blog/'; %>
+    <a class="skip-link" href="#intro"><%= fr ? 'Passer au contenu principal' : 'Skip to main content' %></a>
 
-<main id="main">
-  <section class="section section-center">
-    <h1><%= lang === 'fr' ? 'Blogue Wampums' : 'Wampums Blog' %></h1>
-    <p class="meta"><%= lang === 'fr' ? 'Guides, conseils et ressources pour les chefs scouts, parents et administrateurs.' : 'Guides, tips, and resources for scout leaders, parents, and administrators.' %></p>
+    <div class="hero hero--page">
+<%- include('../partials/nav', { lang, enPath, frPath, isBlogIndex: true }) %>
 
-    <% if (posts.length === 0) { %>
-      <p><%= lang === 'fr' ? 'Aucun article pour l\'instant. Revenez bientôt !' : 'No articles yet. Check back soon!' %></p>
-    <% } else { %>
-      <div class="grid" role="list">
-        <% posts.forEach(post => { %>
-        <article class="card" role="listitem">
-          <p class="meta"><%= post.date %> · <%= post.readingTime %> min read</p>
-          <h2><a href="/<%= lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/<%= post.slug %>/"><%- post.title %></a></h2>
-          <p><%= post.description %></p>
-          <a class="btn-secondary btn-sm" href="/<%= lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/<%= post.slug %>/">
-            <%= lang === 'fr' ? 'Lire l\'article →' : 'Read more →' %>
-          </a>
-        </article>
-        <% }) %>
+      <div class="shell page-intro" id="intro">
+        <p class="kicker"><%= fr ? 'Ressources' : 'Resources' %></p>
+        <h1><%= fr ? 'Blogue Wampums' : 'Wampums Blog' %></h1>
+        <p class="hero-lede"><%= fr ? 'Guides, conseils et ressources pour les chefs scouts, parents et administrateurs.' : 'Guides, tips, and resources for scout leaders, parents, and administrators.' %></p>
       </div>
+    </div>
+
+<main id="main" class="page-body">
+  <section class="section">
+    <div class="shell">
+    <% if (posts.length === 0) { %>
+      <p><%= fr ? 'Aucun article pour l\'instant. Revenez bientôt!' : 'No articles yet. Check back soon!' %></p>
+    <% } else { %>
+      <ul class="post-list cards">
+        <% posts.forEach(post => { %>
+        <li class="card">
+          <p class="meta"><time datetime="<%= post.date %>"><%= post.date %></time> · <%= post.readingTime %> <%= fr ? 'min de lecture' : 'min read' %></p>
+          <h2><a href="<%= blogBase %><%= post.slug %>/"><%- post.title %></a></h2>
+          <p><%= post.description %></p>
+        </li>
+        <% }) %>
+      </ul>
 
       <% if (pages > 1) { %>
-      <nav class="pagination" aria-label="<%= lang === 'fr' ? 'Pagination' : 'Pagination' %>">
+      <nav class="pagination compare-links" aria-label="Pagination">
         <% if (page > 1) { %>
-          <a href="/<%= lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/?page=<%= page - 1 %>">&laquo; <%= lang === 'fr' ? 'Précédent' : 'Previous' %></a>
+          <a href="<%= blogBase %>?page=<%= page - 1 %>">&larr; <%= fr ? 'Précédent' : 'Previous' %></a>
         <% } %>
         <span><%= page %> / <%= pages %></span>
         <% if (page < pages) { %>
-          <a href="/<%= lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/?page=<%= page + 1 %>"><%= lang === 'fr' ? 'Suivant' : 'Next' %> &raquo;</a>
+          <a href="<%= blogBase %>?page=<%= page + 1 %>"><%= fr ? 'Suivant' : 'Next' %> &rarr;</a>
         <% } %>
       </nav>
       <% } %>
     <% } %>
+    </div>
   </section>
 </main>
 
-<%- include('../partials/footer', { lang }) %>
+<%- include('../partials/footer', { lang, enPath, frPath }) %>
 </body>
 </html>

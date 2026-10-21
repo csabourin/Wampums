@@ -1,7 +1,7 @@
 /*
- * Wampums home page (/en/, /fr/): feature tabs and the demo request dialog.
- * Each language has its own static page, so every visible string is already
- * in the HTML; this script only reads it from there.
+ * Wampums public site (wampums.app): feature tabs on the home page, and the
+ * demo request dialog on every page. Each language has its own static page, so
+ * every visible string is already in the HTML; this script only reads it from there.
  */
 
 const MIN_NAME_LENGTH = 2;

@@ -91,7 +91,8 @@ function parseFile(filepath, lang) {
       return null;
     }
 
-    const html = marked(content);
+    // The page shows the title as its <h1>; an article opening with its own `# title` would repeat it.
+    const html = marked(content.replace(/^\s*# [^\n]*\n/, ''));
     const toc = extractToc(html);
     const rt = readingTime(content);
 
