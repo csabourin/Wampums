@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: ci-integrity-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   web-quality:
@@ -174,3 +174,62 @@ jobs:
             playwright-report/
             test-results/
             ~/.cache/wampums-run/logs/
+
+  deploy-ovh:
+    name: Deploy tested main commit to OVH
+    needs: [web-quality, database-integration, accessibility]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.OVH_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: ovh-production
+    # Never interrupt a server migration or deployment already in progress.
+    concurrency:
+      group: ovh-production
+      cancel-in-progress: false
+    env:
+      OVH_HOST: ${{ vars.OVH_HOST }}
+      OVH_USER: ${{ vars.OVH_USER }}
+      OVH_SSH_PORT: ${{ vars.OVH_SSH_PORT || '22' }}
+    steps:
+      - name: Checkout the tested commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Build the production image
+        env:
+          VITE_STRIPE_PUBLISHABLE_KEY: ${{ vars.VITE_STRIPE_PUBLISHABLE_KEY }}
+          VITE_VAPID_PUBLIC: ${{ vars.VITE_VAPID_PUBLIC }}
+        run: |
+          docker build -f Dockerfile.ovh --build-arg VITE_STRIPE_PUBLISHABLE_KEY --build-arg VITE_VAPID_PUBLIC -t "wampums:$GITHUB_SHA" .
+          docker save "wampums:$GITHUB_SHA" | gzip > deploy/ovh/image.tar.gz
+
+      - name: Configure authenticated SSH
+        env:
+          OVH_SSH_PRIVATE_KEY: ${{ secrets.OVH_SSH_PRIVATE_KEY }}
+          OVH_SSH_KNOWN_HOSTS: ${{ secrets.OVH_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ "$OVH_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$OVH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$OVH_SSH_PORT" =~ ^[0-9]+$ ]]
+          test -n "$OVH_SSH_PRIVATE_KEY"
+          test -n "$OVH_SSH_KNOWN_HOSTS"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$OVH_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$OVH_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Upload and activate the release
+        run: |
+          set -euo pipefail
+          ssh_options=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15)
+          target="$OVH_USER@$OVH_HOST"
+          release="/opt/wampums/releases/$GITHUB_SHA"
+          ssh "${ssh_options[@]}" -p "$OVH_SSH_PORT" "$target" "mkdir -p '$release'"
+          scp "${ssh_options[@]}" -P "$OVH_SSH_PORT" deploy/ovh/{compose.yml,Caddyfile,deploy.sh,image.tar.gz} "$target:$release/"
+          ssh "${ssh_options[@]}" -p "$OVH_SSH_PORT" "$target" "bash '$release/deploy.sh' '$GITHUB_SHA'"
+
+      - name: Remove the SSH private key
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519
