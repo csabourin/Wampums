@@ -90,6 +90,8 @@ organization routing; outbound integrations stay blocked during this stage.
    accepts, including `JWT_SECRET_KEY` (legacy deployments may use `JWT_SECRET`).
    Set `DATABASE_URL` to an endpoint reachable from OVH; Railway private names
    cannot be used there. Set `APP_URL` to the intended public HTTPS URL.
+   Set `INDEXNOW_ENABLED=true` so each deploy announces changed wampums.app
+   pages to search engines (`landing/README.md`, IndexNow); development leaves it unset.
 5. Choose the build-time public values `VITE_STRIPE_PUBLISHABLE_KEY` and
    `VITE_VAPID_PUBLIC` to match production. `VITE_API_URL` is intentionally absent
    so the browser uses its own origin. Never supply private keys as build args.

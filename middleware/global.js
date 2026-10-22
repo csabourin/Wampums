@@ -10,6 +10,7 @@ const { sanitizeServerErrorResponses } = require('./response');
 const { getStorageImageOrigins } = require('../utils/railway-storage');
 const { isAllowedOrigin } = require('../config/cors');
 const { setStaticHeaders } = require('../utils/static-cache');
+const { LANDING_BASE_URL, LANDING_STATIC_PAGES } = require('../config/landing-pages');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const REQUEST_BODY_LIMIT = '20mb';
@@ -62,7 +63,7 @@ function getPreferredLandingPath(req) {
 }
 
 /** Base URL for all canonical links */
-const BASE_URL = 'https://wampums.app';
+const BASE_URL = LANDING_BASE_URL;
 
 /** Views directory for EJS templates */
 const VIEWS_DIR = path.join(process.cwd(), 'views');
@@ -260,30 +261,7 @@ module.exports = (app) => {
     const blog = getBlogService();
     const blogPosts = blog ? blog.getAllPosts() : [];
 
-    const staticPages = [
-      { en: '/en/', fr: '/fr/', freq: 'weekly', pri: '1.0' },
-      { en: '/en/features/attendance/', fr: '/fr/fonctionnalites/presences/', freq: 'monthly', pri: '0.8' },
-      { en: '/en/features/badges/', fr: '/fr/fonctionnalites/badges/', freq: 'monthly', pri: '0.8' },
-      { en: '/en/features/communication/', fr: '/fr/fonctionnalites/communication/', freq: 'monthly', pri: '0.8' },
-      { en: '/en/features/finance/', fr: '/fr/fonctionnalites/finances/', freq: 'monthly', pri: '0.8' },
-      { en: '/en/features/forms/', fr: '/fr/fonctionnalites/formulaires/', freq: 'monthly', pri: '0.8' },
-      { en: '/en/features/logistics/', fr: '/fr/fonctionnalites/logistique/', freq: 'monthly', pri: '0.8' },
-      { en: '/en/modules/finance/', fr: '/fr/modules/finance/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/modules/carpool/', fr: '/fr/modules/carpool/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/modules/on-site/', fr: '/fr/modules/on-site/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/modules/offline/', fr: '/fr/modules/offline/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/modules/medications/', fr: '/fr/modules/medications/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/modules/fundraising/', fr: '/fr/modules/fundraising/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/compare/wampums-vs-sporteasy/', fr: '/fr/comparer/wampums-vs-sporteasy/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/compare/wampums-vs-trooptrack/', fr: '/fr/comparer/wampums-vs-trooptrack/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/compare/wampums-vs-spreadsheets/', fr: '/fr/comparer/wampums-vs-tableurs/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/compare/wampums-vs-scoutbook/', fr: '/fr/comparer/wampums-vs-scoutbook/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/compare/wampums-vs-scouts-digital/', fr: '/fr/comparer/wampums-vs-scouts-digital/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/blog/', fr: '/fr/blogue/', freq: 'weekly', pri: '0.8' },
-      { en: '/en/faq/', fr: '/fr/faq/', freq: 'monthly', pri: '0.6' },
-    ];
-
-    const urlEntries = staticPages.map(p =>
+    const urlEntries = LANDING_STATIC_PAGES.map(p =>
       sitemapUrl({ loc: p.en, enPath: p.en, frPath: p.fr, lastmod: today, changefreq: p.freq, priority: p.pri })
     );
 
@@ -318,6 +296,10 @@ module.exports = (app) => {
       return res.status(503).json({ success: false, message: 'blog_service_unavailable' });
     }
     blog.rebuild();
+    const indexNow = require('../services/indexNow');
+    if (indexNow.isIndexNowEnabled()) {
+      indexNow.scheduleIndexNowSync(require('../config/database').pool);
+    }
     return res.json({ success: true, message: 'blog_index_refreshed' });
   });
 
