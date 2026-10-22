@@ -1,0 +1,51 @@
+name: Dismissed advisories
+
+# Dependabot never reopens an alert dismissed by hand, even once a fix ships.
+# The alerts listed in .github/dependabot-dismissed.json were dismissed because
+# no fix could be installed; this job opens (or refreshes) one issue when any of
+# them can be fixed, so they come back only then.
+on:
+  schedule:
+    - cron: '17 11 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Check dismissed advisories for a fix
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Look for fixes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/security/check-dismissed-advisories.js > report.md
+
+      - name: Open or refresh the issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: Dismissed Dependabot alerts can now be fixed
+        run: |
+          if [ ! -s report.md ]; then
+            echo "No dismissed alert has an installable fix yet."
+            exit 0
+          fi
+          printf '\n\nAfter fixing, remove the entry from `.github/dependabot-dismissed.json`.\n' >> report.md
+          existing=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file report.md
+          else
+            gh issue create --title "$TITLE" --body-file report.md
+          fi

@@ -1,0 +1,11 @@
+{
+  "description": "Dependabot alerts dismissed because no installable fix exists yet. .github/workflows/dismissed-advisories.yml checks them weekly and opens an issue once one can be fixed; reopen the alert then, and remove its entry here once it is fixed.",
+  "alerts": [
+    { "alert": 487, "ghsa": "GHSA-hp3w-g68c-fv3c", "package": "sprintf-js", "manifest": "package-lock.json" },
+    { "alert": 463, "ghsa": "GHSA-vfj7-8cjw-p6xm", "package": "braces", "manifest": "mobile/package-lock.json" },
+    { "alert": 462, "ghsa": "GHSA-86w9-cpqp-85rv", "package": "node-forge", "manifest": "mobile/package-lock.json" },
+    { "alert": 467, "ghsa": "GHSA-hp3w-g68c-fv3c", "package": "sprintf-js", "manifest": "mobile/package-lock.json" },
+    { "alert": 407, "ghsa": "GHSA-w3rx-r6r6-pgpr", "package": "image-size", "manifest": "mobile/package-lock.json" },
+    { "alert": 408, "ghsa": "GHSA-5p2g-fcmc-qvqq", "package": "image-size", "manifest": "mobile/package-lock.json" }
+  ]
+}
