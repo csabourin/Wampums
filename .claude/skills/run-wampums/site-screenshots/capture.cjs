@@ -8,9 +8,10 @@ const path = require('path');
 const { chromium } = require(path.join(process.env.HOME, '.cache/wampums-run/node_modules/playwright-core'));
 
 const BASE = 'http://127.0.0.1:5173';
-const PASSWORD = 'Wampums2026!';
 const [out, seedFile, ...only] = process.argv.slice(2);
 const seed = JSON.parse(fs.readFileSync(seedFile, 'utf8'));
+// seed.mjs records the disposable accounts' password; it is never a real one.
+const PASSWORD = seed.password;
 
 const SHOTS = [
   { name: 'dashboard', as: 'admin@run.test', route: '/dashboard' },
