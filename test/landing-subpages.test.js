@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const ejs = require('ejs');
 const axe = require('axe-core');
+const vm = require('vm');
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
@@ -52,6 +53,21 @@ function load(html) {
 
 const PAGES = innerPages();
 
+/** Check that a page queues one page view configuration before Google loads. */
+function expectAnalytics(html) {
+  const head = new DOMParser().parseFromString(html, 'text/html').head;
+  expect(head.querySelectorAll('script[async][src="https://www.googletagmanager.com/gtag/js?id=G-T3TDD2WS36"]')).toHaveLength(1);
+  const bootstrap = Array.from(head.querySelectorAll('script:not([src])'))
+    .find((script) => script.textContent.includes("gtag('config'")).textContent;
+  const context = { dataLayer: [] };
+  context.window = context;
+  vm.runInNewContext(bootstrap, context);
+  expect(context.dataLayer.map((args) => Array.from(args))).toEqual([
+    ['js', expect.anything()],
+    ['config', 'G-T3TDD2WS36'],
+  ]);
+}
+
 const BLOG_POST = {
   lang: 'fr',
   slug: 'premier-article',
@@ -71,6 +87,10 @@ function renderBlog(template, locals) {
 }
 
 describe('inner pages of the public site', () => {
+  test.each(['/en/', '/fr/', ...PAGES])('%s initializes the landing Google Analytics property once', (pagePath) => {
+    expectAnalytics(read(pagePath));
+  });
+
   test('every feature, module, comparison and FAQ page is found', () => {
     expect(PAGES).toEqual(expect.arrayContaining([
       '/en/faq/', '/fr/faq/', '/fr/modules/finance/', '/en/features/attendance/', '/fr/comparer/wampums-vs-tableurs/',
@@ -154,6 +174,7 @@ describe('blog pages', () => {
     const html = await renderBlog('post.ejs', {
       post: BLOG_POST, prev: null, next: null, alternatePost: null, canonicalPath: paths.frPath, ...paths,
     });
+    expectAnalytics(html);
     expect(html).toContain('href="/site.css"');
     expect(html).toContain('<footer class="site-footer">');
     expect(html).toContain('id="demoModal"');
@@ -170,6 +191,7 @@ describe('blog pages', () => {
       canonicalPath: '/en/blog/', enPath: '/en/blog/', frPath: '/fr/blogue/',
       pageTitle: 'Wampums Blog', pageDescription: 'Guides.', ogImage: null,
     });
+    expectAnalytics(html);
     expect(html).toContain('href="/site.css"');
     expect(html).toContain('<a class="nav-pages" href="/en/blog/" aria-current="page">Blog</a>');
 
