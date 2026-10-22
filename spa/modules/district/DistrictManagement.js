@@ -824,19 +824,15 @@ export class DistrictManagement {
     const childrenLine = children
       ? `<p class="dm-user-children">${escapeHTML(translate('district_management_children').replace('{names}', children))}</p>`
       : '';
-    const cardName = [
-      user.full_name || user.email,
-      inactive ? translate('member_access_inactive_badge') : '',
-      children ? translate('district_management_children').replace('{names}', children) : '',
-    ].filter(Boolean).join(', ');
-
     const queued = this.queuedChanges.find((item) => item.userId === user.id);
     const queuedLabel = queued
       ? `<span class="status-pill status-pill--pending">${translate('district_management_pending_sync')}</span>`
       : '';
 
+    // No aria-label: the card is named by what it shows, so speech input can
+    // use the visible name (WCAG 2.5.3).
     return `
-      <button class="dm-user-card${inactive ? ' dm-user-card--inactive' : ''}" data-user-id="${escapeAttribute(user.id)}" aria-label="${escapeAttribute(cardName)}">
+      <button class="dm-user-card${inactive ? ' dm-user-card--inactive' : ''}" data-user-id="${escapeAttribute(user.id)}">
         <div class="dm-card-header">
           <div>
             <p class="dm-user-name">${escapeHTML(user.full_name || user.email)}</p>
