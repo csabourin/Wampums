@@ -24,6 +24,7 @@ const path = require('path');
 const logger = require('../config/logger');
 const { INDEXNOW } = require('../config/constants');
 const { LANDING_BASE_URL, BLOG_INDEX_PATHS, LANDING_STATIC_PAGES } = require('../config/landing-pages');
+const { renderBlogIndex, renderBlogPost } = require('./blogPages');
 
 const LANDING_DIR = path.join(process.cwd(), 'landing');
 const ACCEPTED_STATUSES = new Set(INDEXNOW.ACCEPTED_STATUSES);
@@ -37,6 +38,24 @@ function isIndexNowEnabled(env = process.env) {
 }
 
 /**
+ * Attributes of every `<tag …>` in the markup, each value read up to its own
+ * closing quote (a double-quoted value may hold an apostrophe, as in "L'unité").
+ * @param {string} html
+ * @param {string} tag - Element name
+ * @returns {Array<Object<string, string>>} Lower-cased attribute name → value
+ */
+function tagAttributes(html, tag) {
+  const tags = html.match(new RegExp(`<${tag}\\b(?:"[^"]*"|'[^']*'|[^'">])*>`, 'gi')) || [];
+  return tags.map((markup) => {
+    const attributes = {};
+    for (const [, name, doubleQuoted, singleQuoted, bare] of markup.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g)) {
+      attributes[name.toLowerCase()] = doubleQuoted ?? singleQuoted ?? bare;
+    }
+    return attributes;
+  });
+}
+
+/**
  * Text a reader sees on a page, without the markup that lays it out.
  * @param {string} html - Page or article HTML
  * @returns {string} Whitespace-normalised text
@@ -44,14 +63,16 @@ function isIndexNowEnabled(env = process.env) {
 function meaningfulText(html) {
   const source = String(html || '');
   const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(source)?.[1] || '';
-  const description = /<meta\s+[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i.exec(source)?.[1] || '';
-  const alts = [...source.matchAll(/<img\b[^>]*\balt=["']([^"']*)["']/gi)].map((match) => match[1]);
+  const description = tagAttributes(source, 'meta')
+    .filter((meta) => (meta.name || '').toLowerCase() === 'description')
+    .map((meta) => meta.content || '');
+  const alts = tagAttributes(source, 'img').map((img) => img.alt).filter(Boolean);
   const body = source
     .replace(/<head\b[\s\S]*?<\/head>/gi, ' ')
     .replace(/<(script|style|noscript|template)\b[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/<[^>]+>/g, ' ');
-  return [title, description, ...alts, body].join(' ').replace(/\s+/g, ' ').trim();
+  return [title, ...description, ...alts, body].join(' ').replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -63,13 +84,14 @@ function fingerprint(content) {
 }
 
 /**
- * Fingerprint every public page the site serves right now.
+ * Fingerprint every public page the site serves right now. Blog pages are
+ * rendered through the same templates readers receive.
  * @param {Object} [options]
  * @param {string} [options.landingDir] - Directory of the static pages
- * @param {{ getAllPosts: Function }|null} [options.blog] - Blog index (services/blog.js)
- * @returns {Map<string, string>} Absolute URL → fingerprint
+ * @param {Object|null} [options.blog] - Blog index (services/blog.js)
+ * @returns {Promise<Map<string, string>>} Absolute URL → fingerprint
  */
-function collectPages({ landingDir = LANDING_DIR, blog = null } = {}) {
+async function collectPages({ landingDir = LANDING_DIR, blog = null } = {}) {
   const pages = new Map();
   const blogIndexes = new Set(Object.values(BLOG_INDEX_PATHS));
 
@@ -88,25 +110,18 @@ function collectPages({ landingDir = LANDING_DIR, blog = null } = {}) {
   if (!blog) {
     return pages;
   }
-  const posts = blog.getAllPosts();
-  for (const [lang, indexPath] of Object.entries(BLOG_INDEX_PATHS)) {
-    const listed = posts
-      .filter((post) => post.lang === lang)
-      .map((post) => [post.slug, post.title, post.description, post.date]);
-    pages.set(`${LANDING_BASE_URL}${indexPath}`, fingerprint(listed));
-  }
-  for (const post of posts) {
-    const indexPath = BLOG_INDEX_PATHS[post.lang];
-    if (!indexPath) {
-      continue;
+  const rendered = [
+    ...Object.entries(BLOG_INDEX_PATHS).map(([lang, indexPath]) => [indexPath, renderBlogIndex(blog, lang)]),
+    ...blog.getAllPosts()
+      .filter((post) => BLOG_INDEX_PATHS[post.lang])
+      .map((post) => [`${BLOG_INDEX_PATHS[post.lang]}${post.slug}/`, renderBlogPost(blog, post.lang, post.slug)]),
+  ];
+  const html = await Promise.all(rendered.map(([, render]) => render));
+  rendered.forEach(([pagePath], i) => {
+    if (html[i]) {
+      pages.set(`${LANDING_BASE_URL}${pagePath}`, fingerprint(meaningfulText(html[i])));
     }
-    pages.set(`${LANDING_BASE_URL}${indexPath}${post.slug}/`, fingerprint([
-      post.title,
-      post.description,
-      post.updated || post.date,
-      meaningfulText(post.content),
-    ]));
-  }
+  });
   return pages;
 }
 
@@ -184,7 +199,7 @@ async function postUrls(urls, fetchImpl) {
  *   or IndexNow could not take them yet.
  */
 async function syncIndexNow({ pool, fetchImpl = fetch, now = Date.now(), landingDir, blog = null }) {
-  const current = collectPages({ landingDir, blog });
+  const current = await collectPages({ landingDir, blog });
   const client = await pool.connect();
   try {
     await client.query('BEGIN');

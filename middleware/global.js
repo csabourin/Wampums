@@ -5,12 +5,12 @@ const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('../config/swagger');
 const logger = require('../config/logger');
-const ejs = require('ejs');
 const { sanitizeServerErrorResponses } = require('./response');
 const { getStorageImageOrigins } = require('../utils/railway-storage');
 const { isAllowedOrigin } = require('../config/cors');
 const { setStaticHeaders } = require('../utils/static-cache');
 const { LANDING_BASE_URL, LANDING_STATIC_PAGES } = require('../config/landing-pages');
+const { renderBlogIndex, renderBlogPost } = require('../services/blogPages');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const REQUEST_BODY_LIMIT = '20mb';
@@ -65,9 +65,6 @@ function getPreferredLandingPath(req) {
 /** Base URL for all canonical links */
 const BASE_URL = LANDING_BASE_URL;
 
-/** Views directory for EJS templates */
-const VIEWS_DIR = path.join(process.cwd(), 'views');
-
 /**
  * Build the image CSP from fixed application sources and the exact configured
  * Railway bucket origin. Avoid allowing every tenant on storageapi.dev.
@@ -81,21 +78,6 @@ function getContentSecurityImageSources() {
     ...getStorageImageOrigins(),
     'https://www.gravatar.com',
   ];
-}
-
-/**
- * Render an EJS template file with provided locals.
- * @param {string} template - relative path under views/ (e.g. 'blog/index.ejs')
- * @param {Object} locals
- * @returns {Promise<string>}
- */
-function renderView(template, locals) {
-  return new Promise((resolve, reject) => {
-    ejs.renderFile(path.join(VIEWS_DIR, template), locals, { rmWhitespace: false }, (err, html) => {
-      if (err) {reject(err);}
-      else {resolve(html);}
-    });
-  });
 }
 
 /**
@@ -359,52 +341,16 @@ module.exports = (app) => {
 
       try {
         const lang = (enBlogIndex || enBlogPost) ? 'en' : 'fr';
-        const blogBase = lang === 'en' ? '/en/blog/' : '/fr/blogue/';
-        const altBase = lang === 'en' ? '/fr/blogue/' : '/en/blog/';
 
         if (enBlogIndex || frBlogIndex) {
           const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-          const { posts, total, pages } = blog.getPosts(lang, page, 10);
-          const html = await renderView('blog/index.ejs', {
-            lang,
-            posts,
-            page,
-            pages,
-            total,
-            canonicalPath: blogBase,
-            enPath: '/en/blog/',
-            frPath: '/fr/blogue/',
-            pageTitle: lang === 'fr' ? 'Blogue Wampums — Ressources pour chefs scouts' : 'Wampums Blog — Resources for Scout Leaders',
-            pageDescription: lang === 'fr'
-              ? 'Guides, conseils et ressources pour les chefs scouts, parents et administrateurs de groupes jeunesse bilingues au Canada.'
-              : 'Guides, tips, and resources for scout leaders, parents, and administrators of bilingual youth groups in Canada.',
-            ogImage: null,
-          });
-          return res.send(html);
+          return res.send(await renderBlogIndex(blog, lang, page));
         }
 
-        const slug = (enBlogPost || frBlogPost)[1];
-        const post = blog.getPost(lang, slug);
-
-        if (!post) {
+        const html = await renderBlogPost(blog, lang, (enBlogPost || frBlogPost)[1]);
+        if (!html) {
           return next();
         }
-
-        const { prev, next: nextPost } = blog.getAdjacentPosts(post);
-        const alternatePost = post.alternate ? blog.getPost(lang === 'en' ? 'fr' : 'en', post.alternate) : null;
-
-        const enPath = lang === 'en' ? req.path.endsWith('/') ? req.path : `${req.path}/` : (alternatePost ? `/en/blog/${alternatePost.slug}/` : '/en/blog/');
-        const frPath = lang === 'fr' ? req.path.endsWith('/') ? req.path : `${req.path}/` : (alternatePost ? `/fr/blogue/${alternatePost.slug}/` : '/fr/blogue/');
-
-        const html = await renderView('blog/post.ejs', {
-          post,
-          prev,
-          next: nextPost,
-          alternatePost,
-          canonicalPath: req.path.endsWith('/') ? req.path : `${req.path}/`,
-          enPath,
-          frPath,
-        });
         return res.send(html);
       } catch (err) {
         logger.error('[Blog] Render error:', err);

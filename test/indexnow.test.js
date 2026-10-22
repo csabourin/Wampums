@@ -64,12 +64,25 @@ const writePage = (urlPath, html) => {
   fs.writeFileSync(path.join(landingDir, urlPath, 'index.html'), html);
 };
 
+const article = (fields) => ({
+  date: '2026-02-01', updated: '', author: 'Wampums', category: 'guides', image: '', imageAlt: '',
+  keywords: [], featured: false, readingTime: 1, toc: [], alternate: '', ...fields,
+});
+const HELLO = article({ lang: 'en', slug: 'hello', title: 'Hello', description: 'First post', content: '<p>Hi</p>' });
+
+/** Enough of services/blog.js for the real templates to render. */
 const blog = {
   posts: [
-    { lang: 'en', slug: 'hello', title: 'Hello', description: 'First post', date: '2026-02-01', content: '<p>Hi</p>' },
-    { lang: 'fr', slug: 'bonjour', title: 'Bonjour', description: 'Premier', date: '2026-02-01', content: '<p>Salut</p>' },
+    HELLO,
+    article({ lang: 'fr', slug: 'bonjour', title: 'Bonjour', description: 'Premier', content: '<p>Salut</p>' }),
   ],
   getAllPosts() { return this.posts; },
+  getPosts(lang) {
+    const posts = this.posts.filter((post) => post.lang === lang);
+    return { posts, total: posts.length, pages: 1 };
+  },
+  getPost(lang, slug) { return this.posts.find((post) => post.lang === lang && post.slug === slug) || null; },
+  getAdjacentPosts() { return { prev: null, next: null }; },
 };
 
 beforeEach(() => {
@@ -119,8 +132,16 @@ describe('what counts as a change', () => {
     }
   });
 
-  test('blog articles and both blog listings are tracked alongside the static pages', () => {
-    const urls = [...collectPages({ landingDir, blog }).keys()];
+  test('an edit after an apostrophe in a description or image description is a change', () => {
+    const base = page('Wampums', 'Run your scout unit.')
+      .replace('About Wampums', "L'application avant")
+      .replace('Leaders at camp', "L'unité au camp");
+    expect(meaningfulText(base.replace('avant', 'après'))).not.toBe(meaningfulText(base));
+    expect(meaningfulText(base.replace('au camp', 'en forêt'))).not.toBe(meaningfulText(base));
+  });
+
+  test('blog articles and both blog listings are tracked alongside the static pages', async () => {
+    const urls = [...(await collectPages({ landingDir, blog })).keys()];
     expect(urls).toEqual(expect.arrayContaining([
       'https://wampums.app/en/',
       'https://wampums.app/fr/',
@@ -203,9 +224,22 @@ describe('submitting', () => {
       await syncIndexNow({ pool, fetchImpl: again, now: T0 + 20 * MINUTE, landingDir, blog });
       expect(again).not.toHaveBeenCalled();
     } finally {
-      blog.posts.unshift({ lang: 'en', slug: 'hello', title: 'Hello', description: 'First post', date: '2026-02-01', content: '<p>Hi</p>' });
+      blog.posts.unshift(HELLO);
     }
   });
+});
+
+test('changing what an article page displays beyond its text, such as its category, resubmits it', async () => {
+  const pool = fakePool();
+  await syncIndexNow({ pool, fetchImpl: okFetch(), now: T0, landingDir, blog });
+  HELLO.category = 'news';
+  try {
+    const fetchImpl = okFetch();
+    await syncIndexNow({ pool, fetchImpl, now: T0 + 10 * MINUTE, landingDir, blog });
+    expect(submittedUrls(fetchImpl)).toEqual(['https://wampums.app/en/blog/hello/']);
+  } finally {
+    HELLO.category = 'guides';
+  }
 });
 
 describe('when IndexNow does not take the pages', () => {
