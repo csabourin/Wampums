@@ -211,6 +211,28 @@ are not backups. Retain previous release directories/images for recovery and
 monitor disk usage; image pruning and backup deletion are intentionally manual.
 Never run `docker compose down -v` on this stack.
 
+## Changing app.env
+
+The app reads `/opt/wampums/app.env` only when its container is created; a
+`docker restart` keeps the old values. After editing it (`sudo nano
+/opt/wampums/app.env`), apply it with:
+
+```bash
+sudo wampums-restart
+```
+
+It recreates only the app container from the active release (`current`,
+`current-image`), waits for its health check, and refuses to run during a
+deployment (`deploy.lock`). Expect a few seconds of downtime. Install or update
+the command from a checkout of this repository:
+
+```bash
+scp deploy/ovh/restart.sh <admin>@<vps>:/tmp/wampums-restart
+ssh <admin>@<vps> 'sudo install -o root -g root -m 755 /tmp/wampums-restart /usr/local/bin/wampums-restart && rm /tmp/wampums-restart'
+```
+
+The next deployment also applies `app.env` changes.
+
 Disable future automated deployments by setting `OVH_DEPLOY_ENABLED=false`;
 this leaves the running application up. The source Railway deployment trigger
 also needs disabling at cutover to prevent it restoring duplicate workers.
