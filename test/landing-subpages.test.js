@@ -55,10 +55,10 @@ const PAGES = innerPages();
 
 /** Check that a page queues one page view configuration before Google loads. */
 function expectAnalytics(html) {
-  const head = /<head>([\s\S]*?)<\/head>/.exec(html)[1];
-  expect(head.match(/<script async src="https:\/\/www.googletagmanager.com\/gtag\/js\?id=G-T3TDD2WS36"><\/script>/g)).toHaveLength(1);
-  const bootstrap = [...head.matchAll(/<script>([\s\S]*?)<\/script>/g)]
-    .find((match) => match[1].includes("gtag('config'"))[1];
+  const head = new DOMParser().parseFromString(html, 'text/html').head;
+  expect(head.querySelectorAll('script[async][src="https://www.googletagmanager.com/gtag/js?id=G-T3TDD2WS36"]')).toHaveLength(1);
+  const bootstrap = Array.from(head.querySelectorAll('script:not([src])'))
+    .find((script) => script.textContent.includes("gtag('config'")).textContent;
   const context = { dataLayer: [] };
   context.window = context;
   vm.runInNewContext(bootstrap, context);
