@@ -48,6 +48,15 @@ const RATE_LIMITS = {
   EMAIL_CHANGE_MAX_DEV: parseEnvInt(process.env.RATE_LIMIT_EMAIL_CHANGE_MAX_DEV, 100),                  // Development limit
 };
 
+/** Limits for one synchronous SISC import, including its header row. */
+const SISC_IMPORT_LIMITS = Object.freeze({
+  MAX_BYTES: 5 * 1024 * 1024,
+  MAX_DATA_ROWS: 1000,
+  MAX_LINE_LENGTH: 64 * 1024,
+  MAX_FIELD_LENGTH: 16 * 1024,
+  MAX_COLUMNS: 128,
+});
+
 /**
  * File Upload Limits
  */
@@ -134,6 +143,7 @@ const UNIT_FINANCE_PERMISSIONS = Object.freeze([
 module.exports = {
   RATE_LIMITS,
   FILE_LIMITS,
+  SISC_IMPORT_LIMITS,
   AI_LIMITS,
   DATE_LIMITS,
   PAGINATION,

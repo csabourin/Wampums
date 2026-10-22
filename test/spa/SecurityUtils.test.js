@@ -17,27 +17,6 @@
  * @module test/spa/SecurityUtils
  */
 
-// Mock DOMPurify since SecurityUtils depends on it
-jest.mock('dompurify', () => {
-  return {
-    __esModule: true,
-    default: {
-      sanitize: jest.fn((html, config = {}) => {
-        // Handle stripAll (ALLOWED_TAGS: [])
-        if (config.ALLOWED_TAGS && config.ALLOWED_TAGS.length === 0) {
-          // Remove all HTML tags
-          return html.replace(/<[^>]*>/g, '');
-        }
-        // Default: block script tags and event handlers
-        return html
-          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-          .replace(/on\w+="[^"]*"/gi, '');
-      }),
-      removeAllRanges: jest.fn()
-    }
-  };
-}, { virtual: true });
-
 // Mock DebugUtils
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(),
@@ -135,6 +114,27 @@ describe('SecurityUtils - XSS Prevention', () => {
       const result = sanitizeHTML(input);
       
       expect(result).not.toContain('onerror');
+    });
+
+    test.each([
+      '<p>Safe</p><script>alert(1)</script >',
+      '<scr<script>ipt>alert(1)</scr<script>ipt>',
+      '<img src=x onerror=alert(1)>',
+      '<svg><g onload=alert(1)></g><a xlink:href="javascript:alert(1)">link</a></svg>',
+      '<a href="java&#x09;script:alert(1)">link</a>',
+      '<iframe srcdoc="<script>alert(1)</script>"></iframe>',
+    ])('removes executable markup using the production sanitizer: %s', (input) => {
+      const container = document.createElement('div');
+      container.innerHTML = sanitizeHTML(input);
+      expect(container.querySelector('script, iframe')).toBeNull();
+      for (const element of container.querySelectorAll('*')) {
+        for (const attribute of element.attributes) {
+          expect(attribute.name).not.toMatch(/^on/i);
+          if (['href', 'src', 'xlink:href'].includes(attribute.name)) {
+            expect(attribute.value.replace(/\s/g, '')).not.toMatch(/^(javascript|vbscript|data):/i);
+          }
+        }
+      }
     });
 
     test('preserves safe HTML tags', () => {
@@ -335,7 +335,7 @@ describe('SecurityUtils - XSS Prevention', () => {
       const result = sanitizeHTML(mixed);
       
       expect(result).toContain('Safe');
-      // Script should be removed by DOMPurify mock
+      // Script is removed by the production DOMPurify configuration.
       expect(result).not.toContain('<script>');
     });
 
@@ -343,9 +343,10 @@ describe('SecurityUtils - XSS Prevention', () => {
       const input = '<div style="background: url(javascript:alert(\'xss\'))">Content</div>';
       const result = sanitizeHTML(input);
       
-      // DOMPurify should remove dangerous style content
-      // Just verify Content is preserved
-      expect(result).toContain('Content');
+      const container = document.createElement('div');
+      container.innerHTML = result;
+      expect(container.querySelector('div').hasAttribute('style')).toBe(false);
+      expect(container.textContent).toBe('Content');
     });
 
     test('handles unicode and special characters', () => {

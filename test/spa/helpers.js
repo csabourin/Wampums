@@ -159,21 +159,6 @@ export function cleanupFormDOM(domSetup) {
 }
 
 /**
- * Mock DOMPurify for security tests (since DOMPurify requires DOM)
- * @returns {Object} Mock DOMPurify object
- */
-export function createMockDOMPurify() {
-  return {
-    sanitize: jest.fn((html) => {
-      // Simple mock: just strip script tags
-      return html.replace(/<script[^>]*>.*?<\/script>/gi, '');
-    }),
-    removeAllRanges: jest.fn(),
-    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'u', 'br', 'p', 'div', 'span', 'a', 'img']
-  };
-}
-
-/**
  * Test data generators for common scenarios
  */
 export const TestDataGenerators = {

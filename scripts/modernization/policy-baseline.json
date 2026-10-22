@@ -32,7 +32,7 @@
     "routes/groups.js": 7,
     "routes/guardians.js": 53,
     "routes/honors.js": 28,
-    "routes/import.js": 35,
+    "routes/import.js": 32,
     "routes/incidents.js": 57,
     "routes/index.js": 1,
     "routes/localGroups.js": 6,

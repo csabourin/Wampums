@@ -719,12 +719,28 @@ file in `scripts/modernization/policy-baseline.json`:
 - When you remove violations, run `npm run lint:policy -- --update-baseline` and commit the lower counts;
   CI fails while the baseline overstates them. The script refuses to raise a count.
 
+### SISC import limits
+
+`POST /api/v1/import/sisc` validates the complete CSV before acquiring its import database connection.
+`SISC_IMPORT_LIMITS` in `config/constants.js` caps one synchronous import at 5 MiB of UTF-8,
+1,000 nonblank data rows (plus the header), 128 columns, 64 Ki characters per physical line,
+and 16 Ki characters per field. These bounds limit parsing memory and transaction work for a
+unit-sized import. Split larger imports into batches. Non-string content, missing data rows
+and unclosed quotes return 400; exceeded limits return 413 through the standard error helper.
+The format remains semicolon-delimited, with quoted separators and blank lines supported.
+
+SPA link navigation parses URLs before checking new-tab, download or modifier gestures.
+Only HTTP, HTTPS, mailto, tel and blob links may reach browser navigation; other protocols are
+cancelled. Only same-origin HTTP(S) links are routed inside the SPA.
+
 ### 12) Tests
 
 **Tests are the most current statement of how the app behaves.** When this document and a test
 disagree, the test wins. Fix the document in the same change. Read the tests of the area you touch
 before changing it.
 
+- ✅ Sanitization security tests use real DOMPurify under jsdom, including the production hooks;
+  regex substitutes cannot establish that hostile markup is safe.
 - ✅ Every behaviour change comes with a test. Name tests as plain statements of behaviour, from the
   person's side: `'a parent cannot read another family\'s health form'`, not `'test GET /forms 403'`.
 - ✅ **SPA tests** live in `test/spa/<Screen>.test.js`, under `/** @jest-environment jsdom */`. They mock

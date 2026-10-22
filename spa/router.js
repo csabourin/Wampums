@@ -54,6 +54,9 @@ import {
   holdsFamilyRole
 } from './utils/PermissionUtils.js';
 
+// Only these link protocols may reach browser navigation.
+const ALLOWED_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:', 'blob:']);
+
 function canAccessFinanceWorkspace() {
   return canViewFinance() || canManageFinance() || canViewBudget() || canManageBudget();
 }
@@ -1443,15 +1446,28 @@ export function initRouter(app) {
     const target = anchor.getAttribute('target');
     const isDownload = anchor.hasAttribute('download');
 
-    // Allow browser default behavior for non-router links
+    if (!href) {return;}
+
+    let resolvedUrl;
+    try {
+      resolvedUrl = new URL(href, window.location.href);
+    } catch (error) {
+      e.preventDefault();
+      debugWarn('Ignoring invalid navigation URL:', href, error);
+      return;
+    }
+
+    // Validate before checking target, download or modifiers: none should let
+    // an executable URL fall through to the browser's default navigation.
+    if (!ALLOWED_LINK_PROTOCOLS.has(resolvedUrl.protocol)) {
+      e.preventDefault();
+      return;
+    }
+
+    // Leave supported external protocols and ordinary browser gestures alone.
     if (
-      !href ||
+      !['http:', 'https:'].includes(resolvedUrl.protocol) ||
       href.startsWith('#') ||
-      // eslint-disable-next-line no-script-url -- leaves javascript: links to the browser instead of routing them
-      href.startsWith('javascript:') ||
-      href.startsWith('blob:') ||
-      href.startsWith('mailto:') ||
-      href.startsWith('tel:') ||
       isDownload ||
       target === '_blank' ||
       e.defaultPrevented ||
@@ -1459,20 +1475,9 @@ export function initRouter(app) {
       e.ctrlKey ||
       e.shiftKey ||
       e.altKey ||
-      e.button !== 0
+      e.button !== 0 ||
+      resolvedUrl.origin !== window.location.origin
     ) {
-      return;
-    }
-
-    let resolvedUrl;
-    try {
-      resolvedUrl = new URL(href, window.location.origin);
-    } catch (error) {
-      debugWarn('Ignoring invalid navigation URL:', href, error);
-      return;
-    }
-
-    if (resolvedUrl.origin !== window.location.origin) {
       return;
     }
 

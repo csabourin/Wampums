@@ -1,3 +1,4 @@
+const { parseSiscCsv, SiscCsvError } = require('../utils/siscCsv');
 const { authenticate, blockDemoRoles, requirePermission, getOrganizationId } = require('../middleware/auth');
 const express = require('express');
 const { checkRolesGrantable } = require('../services/roleAssignment');
@@ -31,27 +32,15 @@ module.exports = function (pool, logger) {
     return phone.replace(/[^0-9]/g, '');
   }
 
-  function parseCSVLine(line) {
-    const result = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === ';' && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    result.push(current.trim());
-    return result;
-  }
-
   router.post('/sisc', authenticate, blockDemoRoles, requirePermission(['org.edit']), asyncHandler(async (req, res) => {
+    let rows;
+    try {
+      rows = parseSiscCsv(req.body?.csvContent);
+    } catch (validationError) {
+      if (!(validationError instanceof SiscCsvError)) {throw validationError;}
+      return errorResponse(res, validationError.message, validationError.status);
+    }
+
     logger.info('Starting SISC import...');
     logger.info('Database pool config:', {
       host: pool.options?.host || 'default',
@@ -66,17 +55,7 @@ module.exports = function (pool, logger) {
 
       const organizationId = await getOrganizationId(req, pool);
 
-      const { csvContent } = req.body;
-      if (!csvContent) {
-        return res.status(400).json({ success: false, message: 'CSV content is required' });
-      }
-
-      const lines = csvContent.split('\n').filter(line => line.trim());
-      if (lines.length < 2) {
-        return res.status(400).json({ success: false, message: 'CSV must have header and at least one data row' });
-      }
-
-      const headers = parseCSVLine(lines[0]);
+      const headers = rows[0];
       const headerMap = {};
       headers.forEach((h, i) => { headerMap[h.replace(/"/g, '')] = i; });
 
@@ -185,9 +164,9 @@ module.exports = function (pool, logger) {
         `You cannot grant the ${roleName} role: it carries ${grant.missing.join(', ')}, which you do not hold`
       );
 
-      for (let i = 1; i < lines.length; i++) {
+      for (let i = 1; i < rows.length; i++) {
         try {
-          const values = parseCSVLine(lines[i]);
+          const values = rows[i];
           const get = (field) => {
             const idx = headerMap[field];
             return idx !== undefined ? values[idx]?.replace(/"/g, '') : null;

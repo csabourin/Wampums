@@ -29,10 +29,9 @@ jest.mock('../../spa/utils/DateUtils.js', () => ({
   })
 }));
 
-// Mock SecurityUtils
-jest.mock('../../spa/utils/SecurityUtils.js', () => ({
-  sanitizeHTML: jest.fn((html) => html.replace(/<[^>]*>/g, '')),
-  sanitizeInput: jest.fn((input) => String(input).trim())
+jest.mock('../../spa/utils/DebugUtils.js', () => ({
+  debugLog: jest.fn(),
+  debugError: jest.fn(),
 }));
 
 import {
