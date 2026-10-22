@@ -531,7 +531,7 @@ module.exports = (pool) => {
    *       404:
    *         description: Participant not found
    */
-  router.patch('/:id/group-membership', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+  router.patch('/:id/group-membership', authenticate, blockDemoRoles, requirePermission('participants.edit'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     if (!isPlainBodyObject(req.body)) {
       return error(res, 'Invalid request body. Expected JSON object payload.', 400);
     }
@@ -1462,7 +1462,7 @@ module.exports = (pool) => {
    * Remove participant from their group
    * Requires admin or animation role
    */
-  router.delete('/groups/:participantId', authenticate, blockDemoRoles, requirePermission('participants.delete'), asyncHandler(async (req, res) => {
+  router.delete('/groups/:participantId', authenticate, blockDemoRoles, requirePermission('participants.delete'), validateIdParam('participantId'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { participantId } = req.params;
@@ -1717,7 +1717,7 @@ module.exports = (pool) => {
     })
   );
 
-  router.put('/:id', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+  router.put('/:id', authenticate, blockDemoRoles, requirePermission('participants.edit'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     if (!isPlainBodyObject(req.body)) {
       return error(res, 'Invalid request body. Expected JSON object payload.', 400);
     }
@@ -1813,7 +1813,7 @@ module.exports = (pool) => {
    *       200:
    *         description: Enrollment closed for the active scout year
    */
-  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('participants.delete'), asyncHandler(async (req, res) => {
+  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('participants.delete'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { exit_reason: exitReason } = req.body || {};
     const organizationId = await getOrganizationId(req, pool);

@@ -4,6 +4,7 @@ const router = express.Router();
 const winston = require('winston');
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 // Configure logger for non-v1 endpoints
 const logger = winston.createLogger({
   level: 'info',
@@ -90,7 +91,7 @@ module.exports = (pool) => {
    *       200:
    *         description: Group details with members
    */
-  router.get('/:id', authenticate, requirePermission('groups.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/:id', authenticate, requirePermission('groups.view'), withScoutYear(pool), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 
@@ -195,7 +196,7 @@ module.exports = (pool) => {
    *       200:
    *         description: Group updated
    */
-  router.put('/:id', authenticate, blockDemoRoles, requirePermission('groups.edit'), asyncHandler(async (req, res) => {
+  router.put('/:id', authenticate, blockDemoRoles, requirePermission('groups.edit'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { name } = req.body;
     const organizationId = await getOrganizationId(req, pool);
@@ -243,7 +244,7 @@ module.exports = (pool) => {
    *       200:
    *         description: Group deleted
    */
-  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('groups.delete'), asyncHandler(async (req, res) => {
+  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('groups.delete'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 

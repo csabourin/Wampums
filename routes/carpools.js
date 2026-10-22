@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 const { carpoolRosterRestriction } = require('../services/carpoolAccess');
 const { findUninvitedParticipants } = require('../services/activityInvitations');
 
@@ -13,7 +14,7 @@ module.exports = (pool) => {
    * Get all carpool offers for an activity
    * Accessible by: animation, admin, parent
    */
-  router.get('/activity/:activityId', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
+  router.get('/activity/:activityId', authenticate, requirePermission('carpools.view'), validateIdParam('activityId'), checkValidation, asyncHandler(async (req, res) => {
     const { activityId } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     // Every family of the unit sees who rides in each car (children want to
@@ -164,7 +165,7 @@ module.exports = (pool) => {
    * Update a carpool offer
    * Accessible by: owner of offer (carpools.view), or animation/admin (carpools.manage)
    */
-  router.put('/offers/:id', authenticate, blockDemoRoles, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
+  router.put('/offers/:id', authenticate, blockDemoRoles, requirePermission('carpools.view'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
@@ -240,7 +241,7 @@ module.exports = (pool) => {
    * Cancel/deactivate a carpool offer
    * Accessible by: owner of offer (carpools.view), or animation/admin (carpools.manage)
    */
-  router.delete('/offers/:id', authenticate, blockDemoRoles, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
+  router.delete('/offers/:id', authenticate, blockDemoRoles, requirePermission('carpools.view'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
@@ -438,7 +439,7 @@ module.exports = (pool) => {
    * Remove a participant from a carpool assignment
    * Accessible by: parent (own children), animation/admin (any child)
    */
-  router.delete('/assignments/:id', authenticate, blockDemoRoles, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
+  router.delete('/assignments/:id', authenticate, blockDemoRoles, requirePermission('carpools.view'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
@@ -552,7 +553,7 @@ module.exports = (pool) => {
    * Get unassigned participants for an activity
    * Accessible by: animation, admin
    */
-  router.get('/activity/:activityId/unassigned', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
+  router.get('/activity/:activityId/unassigned', authenticate, requirePermission('carpools.view'), validateIdParam('activityId'), checkValidation, asyncHandler(async (req, res) => {
     const { activityId } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     // A family sees its own children, not the unit's roster and contacts.

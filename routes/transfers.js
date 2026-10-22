@@ -21,6 +21,7 @@ const {
   getOrganizationId
 } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
+const { validateIdBody, checkValidation } = require('../middleware/validation');
 const {
   listSiblingOrganizations,
   areSiblings,
@@ -69,9 +70,11 @@ module.exports = (pool, logger) => {
   router.post('/preview',
     authenticate,
     requirePermission('participants.transfer'),
+    validateIdBody('participant_id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const participantId = parseInt(req.body?.participant_id, 10);
+      const participantId = Number(req.body?.participant_id);
       const targetOrganizationId = readTargetOrganizationId(req.body);
 
       if (!Number.isInteger(participantId) || targetOrganizationId === null) {
@@ -99,9 +102,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('participants.transfer'),
+    validateIdBody('participant_id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const participantId = parseInt(req.body?.participant_id, 10);
+      const participantId = Number(req.body?.participant_id);
       const targetOrganizationId = readTargetOrganizationId(req.body);
       const note = typeof req.body?.note === 'string' ? req.body.note.slice(0, 500) : null;
 

@@ -12,6 +12,7 @@ const express = require('express');
 // Import auth middleware
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { asyncHandler, success, error } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 const {
   CAMPAIGN_TYPE_KEYS,
   DEFAULT_CAMPAIGN_TYPE,
@@ -252,7 +253,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Fundraiser not found
    */
-  router.get('/:id', authenticate, requirePermission('fundraisers.view'), asyncHandler(async (req, res) => {
+  router.get('/:id', authenticate, requirePermission('fundraisers.view'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { id } = req.params;
     const extended = await hasCampaignModelColumns(pool);
@@ -476,7 +477,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Fundraiser not found
    */
-  router.put('/:id', authenticate, blockDemoRoles, requirePermission('fundraisers.edit'), asyncHandler(async (req, res) => {
+  router.put('/:id', authenticate, blockDemoRoles, requirePermission('fundraisers.edit'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -602,7 +603,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Fundraiser not found
    */
-  router.put('/:id/archive', authenticate, blockDemoRoles, requirePermission('fundraisers.edit'), asyncHandler(async (req, res) => {
+  router.put('/:id/archive', authenticate, blockDemoRoles, requirePermission('fundraisers.edit'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -654,7 +655,7 @@ module.exports = (pool, logger) => {
    *       409:
    *         description: Campaign has recorded results
    */
-  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('fundraisers.delete'), asyncHandler(async (req, res) => {
+  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('fundraisers.delete'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { id } = req.params;
     const extended = await hasCampaignModelColumns(pool);

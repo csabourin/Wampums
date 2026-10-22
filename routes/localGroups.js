@@ -12,6 +12,8 @@ const router = express.Router();
 const { authenticate, blockDemoRoles, getOrganizationId, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 
+const MAX_INTEGER_ID = 2147483647;
+
 /**
  * Validate and normalize a local group identifier.
  *
@@ -20,7 +22,7 @@ const { success, error, asyncHandler } = require('../middleware/response');
  */
 function parseLocalGroupId(value) {
   const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > MAX_INTEGER_ID) {
     return null;
   }
   return parsed;

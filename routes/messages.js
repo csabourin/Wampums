@@ -13,7 +13,7 @@ const express = require('express');
 const { check } = require('express-validator');
 const { authenticate, getOrganizationId, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { checkValidation } = require('../middleware/validation');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 
 const HTTP_NOT_FOUND = 404;
 const LIST_LIMIT = 50;
@@ -48,7 +48,7 @@ module.exports = (pool) => {
    */
   router.get('/:id', authenticate, requirePermission(),
     check('id').isInt({ min: 1 }).withMessage('id must be a positive integer'),
-    checkValidation,
+    validateIdParam('id'), checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const result = await pool.query(
@@ -57,7 +57,7 @@ module.exports = (pool) => {
            FROM user_messages m
            LEFT JOIN users u ON u.id = m.sent_by
           WHERE m.id = $1 AND m.organization_id = $2 AND m.user_id = $3`,
-        [parseInt(req.params.id, 10), organizationId, req.user.id]
+        [Number(req.params.id), organizationId, req.user.id]
       );
       // Someone else's message reads as missing, not as forbidden: its id says
       // nothing about whether it exists.

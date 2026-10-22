@@ -1,8 +1,7 @@
 /**
  * Malformed ids in the URL are refused before anything reaches the database.
  *
- * Finance, inventory, permission slips, honors, the yearly planner, incidents,
- * the form builder, forms, medication and participants read their ids with parseInt, which takes "12abc" for 12 and acts on record 12, or pass
+ * Routes across the API read their ids with parseInt, which takes "12abc" for 12 and acts on record 12, or pass
  * them to PostgreSQL as typed, where "abc" fails with a 500. Each id must be an
  * integer from 1 to 2147483647 (validateIdParam), or the request answers 400.
  *
@@ -33,7 +32,12 @@ const PERMISSIONS = [
   'inventory.reserve', 'activities.edit', 'honors.create', 'honors.manage', 'meetings.manage',
   'meetings.view', 'meetings.delete', 'activities.manage',
   'incidents.view', 'incidents.manage', 'forms.view', 'forms.manage', 'forms.submit',
-  'medication.view', 'medication.manage', 'participants.view', 'participants.edit', 'participants.erase'
+  'medication.view', 'medication.manage', 'participants.view', 'participants.edit', 'participants.erase',
+  'activities.view', 'activities.delete', 'carpools.view', 'badges.view', 'badges.manage', 'budget.manage',
+  'fundraisers.view', 'fundraisers.edit', 'fundraisers.delete', 'groups.view', 'groups.edit', 'groups.delete',
+  'participants.delete', 'participants.transfer', 'participants.create_own', 'participants.walk_in',
+  'users.invite', 'scout_year.manage', 'communications.send', 'activities.edit', 'roles.manage', 'roles.view',
+  'org.edit'
 ];
 const MALFORMED_IDS = ['abc', '12abc', '0', '-3', '3000000000'];
 
@@ -96,7 +100,67 @@ const ROUTES = [
   ['post', '/api/v1/forms/:id/submit'],
   ['get', '/api/v1/forms/:id/submissions'],
   ['put', '/api/v1/forms/:id/submissions/1/approve'],
-  ['put', '/api/v1/forms/1/submissions/:id/approve']
+  ['put', '/api/v1/forms/1/submissions/:id/approve'],
+  ['get', '/api/v1/activities/:id'],
+  ['get', '/api/v1/activities/:id/participants'],
+  ['delete', '/api/v1/activities/:id'],
+  ['put', '/api/v1/badges/badge-progress/:id'],
+  ['get', '/api/v1/badges/stars?participant_id=:id'],
+  ['get', '/api/v1/badges/stars?participant_id=1&badge_template_id=:id'],
+  ['put', '/api/v1/budget/categories/:id'],
+  ['delete', '/api/v1/budget/categories/:id'],
+  ['put', '/api/v1/budget/items/:id'],
+  ['delete', '/api/v1/budget/items/:id'],
+  ['put', '/api/v1/budget/expenses/:id'],
+  ['delete', '/api/v1/budget/expenses/:id'],
+  ['put', '/api/v1/budget/plans/:id'],
+  ['delete', '/api/v1/budget/plans/:id'],
+  ['put', '/api/v1/calendars/:id'],
+  ['put', '/api/v1/calendars/:id/payment'],
+  ['get', '/api/v1/carpools/activity/:id'],
+  ['get', '/api/v1/carpools/activity/:id/unassigned'],
+  ['put', '/api/v1/carpools/offers/:id'],
+  ['delete', '/api/v1/carpools/offers/:id'],
+  ['delete', '/api/v1/carpools/assignments/:id'],
+  ['put', '/api/v1/revenue/external/:id'],
+  ['delete', '/api/v1/revenue/external/:id'],
+  ['delete', '/api/v1/family-links/:id'],
+  ['get', '/api/v1/fundraisers/:id'],
+  ['put', '/api/v1/fundraisers/:id'],
+  ['put', '/api/v1/fundraisers/:id/archive'],
+  ['delete', '/api/v1/fundraisers/:id'],
+  ['get', '/api/v1/groups/:id'],
+  ['put', '/api/v1/groups/:id'],
+  ['delete', '/api/v1/groups/:id'],
+  ['get', '/api/v1/messages/:id'],
+  ['post', '/api/v1/participant-duplicates/:id/resolve'],
+  ['patch', '/api/v1/participants/:id/group-membership'],
+  ['delete', '/api/v1/participants/groups/:id'],
+  ['put', '/api/v1/participants/:id'],
+  ['delete', '/api/v1/participants/:id'],
+  ['post', '/api/v1/scout-years/transitions/:id/rollback'],
+  ['patch', '/api/v1/scout-years/memberships/:id/status'],
+  ['post', '/api/v1/walk-in-children/:id/invite'],
+  ['post', '/api/v1/walk-in-children/:id/invite-another-parent'],
+  ['get', '/api/v1/google-chat/messages?limit=:id'],
+  ['get', '/api/v1/program-progress/stream?participant_id=:id'],
+  ['get', '/api/v1/program-progress/stream?limit=:id'],
+  ['get', '/api/v1/resources/equipment/reservations?activity_id=:id'],
+  ['get', '/api/v1/resources/permission-slips?participant_id=:id'],
+  ['get', '/api/v1/resources/permission-slips?activity_id=:id'],
+  ['put', '/api/v1/activities/:id'],
+  ['patch', '/api/v1/roles/:id'],
+  ['get', '/api/v1/roles/:id/permissions'],
+  ['delete', '/api/v1/roles/:id'],
+  ['delete', '/api/v1/roles/1/permissions/:id']
+];
+
+const BODY_ROUTES = [
+  ['post', '/api/v1/program-progress/award', 'participant_id'],
+  ['post', '/api/v1/transfers/preview', 'participant_id'],
+  ['post', '/api/v1/transfers', 'participant_id'],
+  ['post', '/api/v1/organizations/switch', 'organization_id'],
+  ['post', '/api/v1/roles/1/permissions', 'permissionId']
 ];
 
 beforeAll(() => {
@@ -136,7 +200,20 @@ describe('malformed ids in the URL', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(Array.isArray(res.body.errors)).toBe(true);
+      expect(res.body.errors.some((e) => ['params', 'query'].includes(e.location))).toBe(true);
+      expect(businessQueries).toEqual([]);
+    });
+  });
+
+  describe.each(BODY_ROUTES)('%s %s', (method, path, field) => {
+    it.each(MALFORMED_IDS)(`refuses %s as ${field} with a 400, without querying it`, async (badId) => {
+      const res = await request(app)[method](path)
+        .set('Authorization', `Bearer ${staffToken()}`)
+        .send({ [field]: badId });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errors.some((e) => e.location === 'body' && e.path === field)).toBe(true);
       expect(businessQueries).toEqual([]);
     });
   });

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 const { toNumeric, validateMoney, validateDate } = require('../utils/validation-helpers');
 
 // Configuration constants
@@ -68,7 +69,7 @@ module.exports = (pool, logger) => {
    * PUT /v1/budget/categories/:id
    * Update a budget category (admin only)
    */
-  router.put('/v1/budget/categories/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
+  router.put('/v1/budget/categories/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -99,7 +100,7 @@ module.exports = (pool, logger) => {
    * DELETE /v1/budget/categories/:id
    * Soft delete a budget category (admin only)
    */
-  router.delete('/v1/budget/categories/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
+  router.delete('/v1/budget/categories/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -207,7 +208,7 @@ module.exports = (pool, logger) => {
    * PUT /v1/budget/items/:id
    * Update a budget item (admin/animation)
    */
-  router.put('/v1/budget/items/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
+  router.put('/v1/budget/items/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -256,7 +257,7 @@ module.exports = (pool, logger) => {
    * DELETE /v1/budget/items/:id
    * Soft delete a budget item (admin/animation)
    */
-  router.delete('/v1/budget/items/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
+  router.delete('/v1/budget/items/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -405,7 +406,7 @@ module.exports = (pool, logger) => {
    * PUT /v1/budget/expenses/:id
    * Update an expense (admin/animation)
    */
-  router.put('/v1/budget/expenses/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
+  router.put('/v1/budget/expenses/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -484,7 +485,7 @@ module.exports = (pool, logger) => {
    * DELETE /v1/budget/expenses/:id
    * Delete an expense (admin only)
    */
-  router.delete('/v1/budget/expenses/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
+  router.delete('/v1/budget/expenses/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -823,7 +824,7 @@ module.exports = (pool, logger) => {
    * PUT /v1/budget/plans/:id
    * Update an existing budget plan (admin/animation)
    */
-  router.put('/v1/budget/plans/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
+  router.put('/v1/budget/plans/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -908,7 +909,7 @@ module.exports = (pool, logger) => {
    * DELETE /v1/budget/plans/:id
    * Delete a budget plan (admin only)
    */
-  router.delete('/v1/budget/plans/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
+  router.delete('/v1/budget/plans/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;

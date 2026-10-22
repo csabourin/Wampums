@@ -19,6 +19,7 @@ const {
   getOrganizationId
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 const {
   computeYearBounds,
   ensureActiveScoutYear,
@@ -512,13 +513,9 @@ module.exports = (pool, logger) => {
    *       409:
    *         description: The transition can no longer be undone
    */
-  router.post('/transitions/:id/rollback', authenticate, blockDemoRoles, requirePermission('scout_year.manage'), asyncHandler(async (req, res) => {
+  router.post('/transitions/:id/rollback', authenticate, blockDemoRoles, requirePermission('scout_year.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const transitionId = parseInt(req.params.id, 10);
-
-    if (Number.isNaN(transitionId)) {
-      return error(res, 'Invalid transition identifier', 400);
-    }
+    const transitionId = Number(req.params.id);
 
     const transitions = await listTransitions(pool, organizationId);
     const transition = transitions.find(row => row.id === transitionId);
@@ -720,14 +717,10 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Membership not found
    */
-  router.patch('/memberships/:membershipId/status', authenticate, blockDemoRoles, requirePermission('scout_year.manage'), asyncHandler(async (req, res) => {
+  router.patch('/memberships/:membershipId/status', authenticate, blockDemoRoles, requirePermission('scout_year.manage'), validateIdParam('membershipId'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const membershipId = parseInt(req.params.membershipId, 10);
+    const membershipId = Number(req.params.membershipId);
     const { status, reason } = req.body || {};
-
-    if (Number.isNaN(membershipId)) {
-      return error(res, 'Invalid membership identifier', 400);
-    }
 
     const allowedStatuses = ['active', 'inactive', 'alumni'];
     if (!allowedStatuses.includes(status)) {

@@ -12,7 +12,7 @@
  */
 
 const express = require('express');
-const { body, param, query } = require('express-validator');
+const { body, query } = require('express-validator');
 
 const {
   authenticate,
@@ -21,7 +21,7 @@ const {
   getOrganizationId,
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { checkValidation } = require('../middleware/validation');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 const {
   DUPLICATE_DECISION,
   listDuplicateCandidates,
@@ -58,7 +58,7 @@ module.exports = (pool) => {
     authenticate,
     blockDemoRoles,
     requirePermission('participants.edit'),
-    param('id').isInt({ min: 1 }),
+    validateIdParam('id'),
     body('decision').isIn(Object.values(DUPLICATE_DECISION)),
     body('note').optional({ nullable: true }).isString().trim().isLength({ max: MAX_NOTE_LENGTH }),
     checkValidation,
@@ -66,7 +66,7 @@ module.exports = (pool) => {
       const organizationId = await getOrganizationId(req, pool);
       const resolved = await resolveDuplicateCandidate(pool, {
         organizationId,
-        candidateId: parseInt(req.params.id, 10),
+        candidateId: Number(req.params.id),
         decision: req.body.decision,
         note: req.body.note || null,
         resolvedBy: req.user.id,

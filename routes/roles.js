@@ -12,8 +12,8 @@ const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = r
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { findRolesInUnit, pairedViewKey, checkPermissionChange, checkRolesGrantable, permissionLockReason, recordRoleChange, recordRoleDefinitionChange } = require('../services/roleAssignment');
 const { hideRefusal, setRoleHidden, releaseUnreplacedHiddenRoles } = require('../services/roleVisibility');
-const { query, body, param } = require('express-validator');
-const { checkValidation } = require('../middleware/validation');
+const { query, body } = require('express-validator');
+const { validateIdParam, validateIdBody, checkValidation } = require('../middleware/validation');
 
 /** Entries returned by the role history when no limit is given. */
 const ROLE_AUDIT_DEFAULT_LIMIT = 15;
@@ -25,7 +25,7 @@ const ROLE_NAME_MAX_LENGTH = 50;
 const HTTP = { BAD_REQUEST: 400, FORBIDDEN: 403, NOT_FOUND: 404, CONFLICT: 409, CREATED: 201, INTERNAL: 500 };
 const ROLE_DISPLAY_MAX_LENGTH = 100;
 const ROLE_DESCRIPTION_MAX_LENGTH = 2000;
-const validateRoleId = () => [param('roleId').isInt({ min: 1 }).toInt(), checkValidation];
+const validateRoleId = () => [validateIdParam('roleId').toInt(), checkValidation];
 const validateDefinition = () => [
   body('display_name').optional().isString().trim().isLength({ min: 1, max: ROLE_DISPLAY_MAX_LENGTH }),
   body('description').optional({ nullable: true }).isString().isLength({ max: ROLE_DESCRIPTION_MAX_LENGTH }),
@@ -49,15 +49,6 @@ function policyResponse(res, refusal) {
 /** Consistent role history snapshot, independent of catalog ordering. */
 function definitionSnapshot(role, keys) {
   return { display_name: role.display_name, description: role.description, data_scope: role.data_scope, permissions: [...keys].sort() };
-}
-
-/**
- * @param {string|number} value - Route parameter or body field
- * @returns {number|null} The ID, or null when it is not a positive integer
- */
-function parsePositiveId(value) {
-  const id = Number(value);
-  return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
 /**
@@ -346,11 +337,12 @@ module.exports = (pool, logger) => {
   router.get('/api/v1/roles/:roleId/permissions',
     authenticate,
     requirePermission('roles.view'),
+    ...validateRoleId(),
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const roleId = parsePositiveId(req.params.roleId);
-        if (!roleId || (await findRolesInUnit(pool, [roleId], organizationId)).length === 0) {
+        const { roleId } = req.params;
+        if ((await findRolesInUnit(pool, [roleId], organizationId)).length === 0) {
           return error(res, 'Role not found', HTTP.NOT_FOUND);
         }
 
@@ -413,7 +405,7 @@ module.exports = (pool, logger) => {
    * Available to: holders of roles.manage
    */
   router.post('/api/v1/roles/:roleId/permissions', authenticate, blockDemoRoles, requirePermission('roles.manage'),
-    ...validateRoleId(), body('permissionId').isInt({ min: 1 }).toInt(), checkValidation,
+    ...validateRoleId(), validateIdBody('permissionId').toInt(), checkValidation,
     asyncHandler((req, res) => changeRole(req, res, (state) => {
       const permission = state.catalog.find((p) => Number(p.id) === req.body.permissionId);
       if (!permission) { return { refusal: { status: HTTP.NOT_FOUND, message: 'Permission not found' } }; }
@@ -429,7 +421,7 @@ module.exports = (pool, logger) => {
    * Available to: holders of roles.manage
    */
   router.delete('/api/v1/roles/:roleId/permissions/:permissionId', authenticate, blockDemoRoles, requirePermission('roles.manage'),
-    ...validateRoleId(), param('permissionId').isInt({ min: 1 }).toInt(), checkValidation,
+    ...validateRoleId(), validateIdParam('permissionId').toInt(), checkValidation,
     asyncHandler((req, res) => changeRole(req, res, (state) => {
       if (!state.catalog.some((p) => Number(p.id) === req.params.permissionId)) {
         return { refusal: { status: HTTP.NOT_FOUND, message: 'Permission not found' } };

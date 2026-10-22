@@ -772,7 +772,7 @@ describe('PUT /api/v1/activities/:id', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ name: 'Wrong target' });
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(400);
     expect(captured.activityUpdate).toBeNull();
   });
 
