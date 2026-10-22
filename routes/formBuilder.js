@@ -128,10 +128,10 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form format not found
    */
-  router.get('/form-formats/:id', authenticate, requirePermission('forms.view'), asyncHandler(async (req, res) => {
+  router.get('/form-formats/:id', authenticate, requirePermission('forms.view'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
-      const formFormatId = parseInt(req.params.id, 10);
+      const formFormatId = Number(req.params.id);
 
       const result = await pool.query(
         `SELECT id, form_type, form_structure, display_type, created_at, updated_at
@@ -260,10 +260,10 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form format not found
    */
-  router.put('/form-formats/:id', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
+  router.put('/form-formats/:id', authenticate, blockDemoRoles, requirePermission('forms.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
-      const formFormatId = parseInt(req.params.id, 10);
+      const formFormatId = Number(req.params.id);
       const { form_structure, display_type } = req.body;
 
       // Validate form_structure if provided
@@ -332,10 +332,10 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form format not found
    */
-  router.delete('/form-formats/:id', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
+  router.delete('/form-formats/:id', authenticate, blockDemoRoles, requirePermission('forms.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
-      const formFormatId = parseInt(req.params.id, 10);
+      const formFormatId = Number(req.params.id);
 
       const result = await pool.query(
         `DELETE FROM organization_form_formats
@@ -576,12 +576,12 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form format not found
    */
-  router.post('/form-formats/:id/versions', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
+  router.post('/form-formats/:id/versions', authenticate, blockDemoRoles, requirePermission('forms.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const client = await pool.connect();
     try {
       const organizationId = req.user.organizationId;
       const userId = req.user.id;
-      const formFormatId = parseInt(req.params.id, 10);
+      const formFormatId = Number(req.params.id);
       const { form_structure, display_name, change_description } = req.body;
 
       // Validate form_structure
@@ -660,11 +660,11 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Version not found
    */
-  router.post('/form-versions/:versionId/publish', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
+  router.post('/form-versions/:versionId/publish', authenticate, blockDemoRoles, requirePermission('forms.manage'), validateIdParam('versionId'), checkValidation, asyncHandler(async (req, res) => {
     const client = await pool.connect();
     try {
       const organizationId = req.user.organizationId;
-      const versionId = parseInt(req.params.versionId, 10);
+      const versionId = Number(req.params.versionId);
 
       await client.query('BEGIN');
 
@@ -722,10 +722,10 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form format not found
    */
-  router.post('/form-formats/:id/archive', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
+  router.post('/form-formats/:id/archive', authenticate, blockDemoRoles, requirePermission('forms.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
-      const formFormatId = parseInt(req.params.id, 10);
+      const formFormatId = Number(req.params.id);
 
       const result = await pool.query(
         `UPDATE organization_form_formats
@@ -770,10 +770,10 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form format not found
    */
-  router.get('/form-formats/:id/versions', authenticate, requirePermission('forms.view'), asyncHandler(async (req, res) => {
+  router.get('/form-formats/:id/versions', authenticate, requirePermission('forms.view'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
-      const formFormatId = parseInt(req.params.id, 10);
+      const formFormatId = Number(req.params.id);
 
       // Verify form exists and belongs to organization
       const formCheck = await pool.query(

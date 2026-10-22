@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, getUserDataScope, withScoutYear } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
-const { validateIdParam, validateNickname, checkValidation } = require('../middleware/validation');
+const { validateIdParam, validateIdQuery, validateNickname, checkValidation } = require('../middleware/validation');
 const { ensureActiveScoutYear, flagRequiredFormsForReview } = require('../services/scoutYear');
 const {
   ACCESS_SOURCE,
@@ -18,6 +18,15 @@ const { declaresMedication } = require('../utils/health-form');
 const MEDICATION_FLAGS_INCLUDE = 'medication';
 const BAD_REQUEST_STATUS = 400;
 const NOT_FOUND_STATUS = 404;
+const DEFAULT_PAGE_SIZE = 50;
+// page and limit are positive integers in the same range as ids. limit has no
+// ceiling: the SPA asks for the whole roster at once.
+const validateListQuery = [
+  validateIdQuery('page'),
+  validateIdQuery('limit'),
+  validateIdQuery('group_id'),
+  checkValidation
+];
 const { eraseParticipant } = require('../services/erasure');
 
 /**
@@ -193,10 +202,10 @@ module.exports = (pool) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/', authenticate, requirePermission('participants.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/', authenticate, requirePermission('participants.view'), withScoutYear(pool), validateListQuery, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || DEFAULT_PAGE_SIZE;
     const offset = (page - 1) * limit;
     const groupId = req.query.group_id;
     const userId = req.user.id;
@@ -1339,15 +1348,11 @@ module.exports = (pool) => {
    * rewrites them from the request. An admin who picked the wrong parent from
    * the list had nothing to click.
    */
-  router.delete('/:id/users/:userId', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+  router.delete('/:id/users/:userId', authenticate, blockDemoRoles, requirePermission('participants.edit'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const participantId = parseInt(req.params.id, 10);
+    const participantId = Number(req.params.id);
     // User ids are UUIDs; never parse them as integers.
     const userId = req.params.userId;
-
-    if (!Number.isInteger(participantId)) {
-      return error(res, 'Invalid participant ID', 400);
-    }
 
     // user_participants carries no organization of its own, and a youth can be
     // enrolled in more than one. Both ends must therefore be checked against the
@@ -1501,13 +1506,9 @@ module.exports = (pool) => {
    *       404:
    *         description: Participant not found in this organization
    */
-  router.delete('/:id/erasure', authenticate, blockDemoRoles, requirePermission('participants.erase'), asyncHandler(async (req, res) => {
+  router.delete('/:id/erasure', authenticate, blockDemoRoles, requirePermission('participants.erase'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const participantId = parseInt(req.params.id, 10);
-
-    if (Number.isNaN(participantId)) {
-      return error(res, 'Invalid participant identifier', 400);
-    }
+    const participantId = Number(req.params.id);
 
     // Checked again against the database rather than trusting the token, and
     // with the permission spelled out: this is the one action nobody should
@@ -1595,12 +1596,9 @@ module.exports = (pool) => {
    *       404:
    *         description: Participant not found
    */
-  router.get('/:id', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
-    const id = parseInt(req.params.id, 10);
+  router.get('/:id', authenticate, requirePermission('participants.view'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
 
-    if (Number.isNaN(id)) {
-      return error(res, 'Invalid participant id', 400);
-    }
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
 

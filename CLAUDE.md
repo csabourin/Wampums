@@ -611,7 +611,9 @@ router.get('/data', authenticate, asyncHandler(async (req, res) => {
 - ✅ Bad input is a 400, never a 500: a malformed id, a non-array where an array is expected, an id
   beyond the integer range. Validate ids strictly with `validateIdParam()` / `validateIdBody()` /
   `validateIdQuery()` + `checkValidation`, which accept only 1 to 2147483647 (a PostgreSQL `integer`),
-  not with `parseInt()`, which reads `12abc` as 12.
+  not with `parseInt()`, which reads `12abc` as 12. As a safety net, the global error handler
+  (`config/app.js`) answers PostgreSQL's `22P02` (value unreadable as its type) and `22003` (out of
+  range) with 400 `invalid_request`. It only reaches errors a route lets propagate, so validate anyway.
 - ✅ A message the SPA may show is a translation key (`invalid_or_expired_token`); the SPA displays a
   server message only when it is a key it knows (§1).
 

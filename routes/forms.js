@@ -10,6 +10,7 @@
 const express = require('express');
 const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requireAnyPermission, requirePermission } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 const { findRolesInUnit } = require('../services/roleAssignment');
 
 // Import utilities
@@ -1562,14 +1563,10 @@ module.exports = (pool, logger) => {
 
   // ---- Parameterized /:id routes MUST be last to avoid shadowing literal paths ----
 
-  router.get('/:id', authenticate, requireAnyPermission('forms.view', 'forms.manage'), asyncHandler(async (req, res) => {
+  router.get('/:id', authenticate, requireAnyPermission('forms.view', 'forms.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     try {
       const organizationId = await getOrganizationId(req, pool);
-      const formId = Number.parseInt(req.params.id, 10);
-
-      if (!Number.isInteger(formId) || !/^\d+$/.test(req.params.id)) {
-        return error(res, 'Form not found', 404);
-      }
+      const formId = Number(req.params.id);
 
       const result = await pool.query(
         `SELECT id, name, type, version, organization_id, schema, is_active, created_at, updated_at
@@ -1592,10 +1589,10 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  router.post('/:id/submit', authenticate, blockDemoRoles, requireAnyPermission('forms.submit', 'forms.manage'), asyncHandler(async (req, res) => {
+  router.post('/:id/submit', authenticate, blockDemoRoles, requireAnyPermission('forms.submit', 'forms.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     try {
       const organizationId = await getOrganizationId(req, pool);
-      const formId = Number.parseInt(req.params.id, 10);
+      const formId = Number(req.params.id);
       const { participant_id, data } = req.body || {};
 
       if (!participant_id || !data || typeof data !== 'object' || Array.isArray(data)) {
@@ -1644,10 +1641,10 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  router.get('/:id/submissions', authenticate, requireAnyPermission('forms.view', 'forms.manage'), asyncHandler(async (req, res) => {
+  router.get('/:id/submissions', authenticate, requireAnyPermission('forms.view', 'forms.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     try {
       const organizationId = await getOrganizationId(req, pool);
-      const formId = Number.parseInt(req.params.id, 10);
+      const formId = Number(req.params.id);
       const { status } = req.query;
       const params = [formId, organizationId];
       let whereClause = 'WHERE form_id = $1 AND organization_id = $2';
@@ -1675,11 +1672,11 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  router.put('/:id/submissions/:submissionId/approve', authenticate, blockDemoRoles, requirePermission('forms.manage'), asyncHandler(async (req, res) => {
+  router.put('/:id/submissions/:submissionId/approve', authenticate, blockDemoRoles, requirePermission('forms.manage'), validateIdParam('id'), validateIdParam('submissionId'), checkValidation, asyncHandler(async (req, res) => {
     try {
       const organizationId = await getOrganizationId(req, pool);
-      const formId = Number.parseInt(req.params.id, 10);
-      const submissionId = Number.parseInt(req.params.submissionId, 10);
+      const formId = Number(req.params.id);
+      const submissionId = Number(req.params.submissionId);
       const { approved_notes } = req.body || {};
 
       const result = await pool.query(

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requirePermission, withScoutYear } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { validateIdParam, validateIdQuery, checkValidation } = require('../middleware/validation');
 const {
   medicationParticipantInUnit,
   familyMedicationAccess,
@@ -257,13 +258,10 @@ module.exports = (pool, logger) => {
    * Update a medication requirement and participant assignments
    * Permission: medication.manage for the unit; a parent, for a linked child
    */
-  router.put('/v1/medication/requirements/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_REQUIREMENT_WRITE_POLICY), asyncHandler(async (req, res) => {
+  router.put('/v1/medication/requirements/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_REQUIREMENT_WRITE_POLICY), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
-    const requirementId = Number.parseInt(req.params.id, 10);
-    if (!Number.isInteger(requirementId) || requirementId <= 0) {
-      return error(res, 'Invalid requirement ID', 400);
-    }
+    const requirementId = Number(req.params.id);
 
     const {
       medication_name,
@@ -596,13 +594,10 @@ module.exports = (pool, logger) => {
    * Update the status of a medication distribution entry
    * Permission: participants.edit
    */
-  router.patch('/v1/medication/distributions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
+  router.patch('/v1/medication/distributions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
-    const distributionId = Number.parseInt(req.params.id, 10);
-    if (!Number.isInteger(distributionId) || distributionId <= 0) {
-      return error(res, 'Invalid distribution ID', 400);
-    }
+    const distributionId = Number(req.params.id);
 
     const { status, administered_at, witness_name } = req.body || {};
     const normalizedStatus = status ? String(status).toLowerCase() : 'scheduled';
@@ -669,10 +664,10 @@ module.exports = (pool, logger) => {
    * children invited and not declined bring medication to that activity.
    * Permission: participants.view
    */
-  router.get('/v1/medication/receptions', authenticate, requirePermission(MEDICATION_LIST_READ_POLICY), asyncHandler(async (req, res) => {
+  router.get('/v1/medication/receptions', authenticate, requirePermission(MEDICATION_LIST_READ_POLICY), validateIdQuery('activity_id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
-    const activityId = req.query.activity_id ? Number.parseInt(req.query.activity_id, 10) : null;
+    const activityId = req.query.activity_id ? Number(req.query.activity_id) : null;
 
     let query = `
       SELECT
@@ -821,13 +816,10 @@ module.exports = (pool, logger) => {
    * Update medication reception record
    * Permission: participants.edit
    */
-  router.patch('/v1/medication/receptions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
+  router.patch('/v1/medication/receptions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
-    const receptionId = Number.parseInt(req.params.id, 10);
-    if (!Number.isInteger(receptionId)) {
-      return error(res, 'Invalid reception ID', 400);
-    }
+    const receptionId = Number(req.params.id);
 
     const {
       status,
@@ -876,13 +868,10 @@ module.exports = (pool, logger) => {
    * Delete medication reception record
    * Permission: participants.edit
    */
-  router.delete('/v1/medication/receptions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
+  router.delete('/v1/medication/receptions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
-    const receptionId = Number.parseInt(req.params.id, 10);
-    if (!Number.isInteger(receptionId)) {
-      return error(res, 'Invalid reception ID', 400);
-    }
+    const receptionId = Number(req.params.id);
 
     const result = await pool.query(
       'DELETE FROM medication_receptions WHERE id = $1 AND organization_id = $2 RETURNING id',
@@ -975,16 +964,13 @@ module.exports = (pool, logger) => {
 
   // Declared before /:participantId: Express matches in order, so a literal
   // path placed after a parameterised one is never reached.
-  router.get('/v1/medication/authorizations/:participantId', authenticate, requirePermission({
+  // The id is checked before the policy, which would answer a malformed one with 404.
+  router.get('/v1/medication/authorizations/:participantId', authenticate, validateIdParam('participantId'), checkValidation, requirePermission({
     permissions: MEDICATION_READ_PERMISSIONS, organizationScope: true,
     resourceScope: medicationParticipantInUnit, resourceAccess: familyMedicationAccess,
   }), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const participantId = Number.parseInt(req.params.participantId, 10);
-
-    if (!Number.isInteger(participantId)) {
-      return error(res, 'Invalid participant ID', 400);
-    }
+    const participantId = Number(req.params.participantId);
 
     // PDF A (Treatment) latest
     const treatmentRes = await pool.query(

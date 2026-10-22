@@ -25,6 +25,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 const { sendEmail } = require('../utils/index');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { escapeHtml } = require('../utils/api-helpers');
@@ -237,13 +238,10 @@ module.exports = (pool, logger) => {
   router.get('/prefill/participant/:participantId',
     authenticate,
     requirePermission('incidents.view'),
+    validateIdParam('participantId'), checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const participantId = parseInt(req.params.participantId);
-
-      if (isNaN(participantId)) {
-        return error(res, 'Invalid participant ID', 400);
-      }
+      const participantId = Number(req.params.participantId);
 
       // Get participant with age calculation
       const participant = await pool.query(
@@ -344,13 +342,10 @@ module.exports = (pool, logger) => {
   router.get('/prefill/activity/:activityId',
     authenticate,
     requirePermission('incidents.view'),
+    validateIdParam('activityId'), checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const activityId = parseInt(req.params.activityId);
-
-      if (isNaN(activityId)) {
-        return error(res, 'Invalid activity ID', 400);
-      }
+      const activityId = Number(req.params.activityId);
 
       const activity = await pool.query(
         `SELECT id, name, activity_date, activity_start_time,
@@ -442,14 +437,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('incidents.manage'),
+    validateIdParam('id'), checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const contactId = parseInt(req.params.id);
+      const contactId = Number(req.params.id);
       const { email, name, role_description, is_active } = req.body;
-
-      if (isNaN(contactId)) {
-        return error(res, 'Invalid contact ID', 400);
-      }
 
       const result = await pool.query(
         `UPDATE incident_escalation_contacts
@@ -479,13 +471,10 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('incidents.manage'),
+    validateIdParam('id'), checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const contactId = parseInt(req.params.id);
-
-      if (isNaN(contactId)) {
-        return error(res, 'Invalid contact ID', 400);
-      }
+      const contactId = Number(req.params.id);
 
       const result = await pool.query(
         `DELETE FROM incident_escalation_contacts
@@ -558,13 +547,10 @@ module.exports = (pool, logger) => {
   router.get('/:id',
     authenticate,
     requirePermission('incidents.view'),
+    validateIdParam('id'), checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const incidentId = parseInt(req.params.id);
-
-      if (isNaN(incidentId)) {
-        return error(res, 'Invalid incident ID', 400);
-      }
+      const incidentId = Number(req.params.id);
 
       const result = await pool.query(
         `SELECT ir.*,
@@ -678,13 +664,10 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('incidents.manage'),
+    validateIdParam('id'), checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const incidentId = parseInt(req.params.id);
-
-      if (isNaN(incidentId)) {
-        return error(res, 'Invalid incident ID', 400);
-      }
+      const incidentId = Number(req.params.id);
 
       const {
         victim_type,
@@ -779,13 +762,10 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('incidents.manage'),
+    validateIdParam('id'), checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const incidentId = parseInt(req.params.id);
-
-      if (isNaN(incidentId)) {
-        return error(res, 'Invalid incident ID', 400);
-      }
+      const incidentId = Number(req.params.id);
 
       // Check status first
       const existing = await pool.query(
@@ -839,14 +819,11 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('incidents.manage'),
+    validateIdParam('id'), checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const incidentId = parseInt(req.params.id);
+      const incidentId = Number(req.params.id);
       const userId = req.user.id;
-
-      if (isNaN(incidentId)) {
-        return error(res, 'Invalid incident ID', 400);
-      }
 
       const client = await pool.connect();
       try {

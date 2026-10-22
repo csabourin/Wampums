@@ -8,6 +8,8 @@ const initRoutes = require('../routes/index');
 const socketService = require('../services/socket');
 const { liveSyncBroadcaster } = require('../middleware/live-sync');
 
+const INVALID_INPUT_SQLSTATES = new Set(['22P02', '22003']);
+
 /**
  * Create and configure the Express application
  * 
@@ -61,6 +63,17 @@ function createApp() {
       return res.status(400).json({
         success: false,
         message: 'invalid_url_encoding',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // PostgreSQL refusing a value as typed (22P02) or out of range (22003) means
+    // input slipped past validation: the request is at fault, not the server.
+    if (INVALID_INPUT_SQLSTATES.has(err?.code)) {
+      logger.warn(`Input refused by the database (${err.code}) on ${req.method} ${req.path}`);
+      return res.status(400).json({
+        success: false,
+        message: 'invalid_request',
         timestamp: new Date().toISOString()
       });
     }
