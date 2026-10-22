@@ -103,7 +103,6 @@ export class ActivityManager {
 
     return templates;
   }
-  }
 
   /**
    * Get activity template by ID
