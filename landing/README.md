@@ -42,3 +42,28 @@ covering page controls. Without JavaScript, Google Analytics does not execute.
 Behavior and jsdom accessibility checks live in `test/landing-consent.test.js`.
 `e2e/landing-consent.spec.mjs` checks phone/desktop keyboard access, contrast,
 navigation, persistence and withdrawal against the local run-wampums server.
+
+## IndexNow
+
+`services/indexNow.js` tells Bing, Yandex and the other IndexNow engines which
+pages changed. Search engines verify the key by fetching
+`/16bc5aa95cae4d73b2c325ef6dc31f8b.txt`, which must contain `INDEXNOW.KEY` from
+`config/constants.js`.
+
+It runs two minutes after the server starts, which is after each deploy, and
+after `POST /api/blog/refresh`. It runs only where `INDEXNOW_ENABLED=true`: set
+it in production's `/opt/wampums/app.env` on the OVH VPS, never in development.
+
+Each page in `config/landing-pages.js` (the list the sitemap also reads) and each
+blog article is fingerprinted from its title, meta description, image `alt` text
+and visible text. Markup, classes, styles and scripts do not count, so a
+layout-only or tracking change submits nothing. Submitted are new pages, pages
+whose fingerprint changed, and pages that left the site. A page sent less than
+five minutes ago waits for the window, then goes out on an automatic retry.
+
+What was sent lives in `indexnow_submissions` (migration 040). A rate limit (429)
+or network failure records nothing and retries up to three times; so does a
+sync that finds another one running, 30 seconds later, with the newer content. Any other
+refusal is logged as an error and waits for the next deploy. Each submission is
+logged with its HTTP status and URLs under `[IndexNow]`. Coverage lives in
+`test/indexnow.test.js`.

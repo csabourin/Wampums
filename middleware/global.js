@@ -5,11 +5,12 @@ const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('../config/swagger');
 const logger = require('../config/logger');
-const ejs = require('ejs');
 const { sanitizeServerErrorResponses } = require('./response');
 const { getStorageImageOrigins } = require('../utils/railway-storage');
 const { isAllowedOrigin } = require('../config/cors');
 const { setStaticHeaders } = require('../utils/static-cache');
+const { LANDING_BASE_URL, LANDING_STATIC_PAGES } = require('../config/landing-pages');
+const { renderBlogIndex, renderBlogPost } = require('../services/blogPages');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const REQUEST_BODY_LIMIT = '20mb';
@@ -62,10 +63,7 @@ function getPreferredLandingPath(req) {
 }
 
 /** Base URL for all canonical links */
-const BASE_URL = 'https://wampums.app';
-
-/** Views directory for EJS templates */
-const VIEWS_DIR = path.join(process.cwd(), 'views');
+const BASE_URL = LANDING_BASE_URL;
 
 /**
  * Build the image CSP from fixed application sources and the exact configured
@@ -80,21 +78,6 @@ function getContentSecurityImageSources() {
     ...getStorageImageOrigins(),
     'https://www.gravatar.com',
   ];
-}
-
-/**
- * Render an EJS template file with provided locals.
- * @param {string} template - relative path under views/ (e.g. 'blog/index.ejs')
- * @param {Object} locals
- * @returns {Promise<string>}
- */
-function renderView(template, locals) {
-  return new Promise((resolve, reject) => {
-    ejs.renderFile(path.join(VIEWS_DIR, template), locals, { rmWhitespace: false }, (err, html) => {
-      if (err) {reject(err);}
-      else {resolve(html);}
-    });
-  });
 }
 
 /**
@@ -260,30 +243,7 @@ module.exports = (app) => {
     const blog = getBlogService();
     const blogPosts = blog ? blog.getAllPosts() : [];
 
-    const staticPages = [
-      { en: '/en/', fr: '/fr/', freq: 'weekly', pri: '1.0' },
-      { en: '/en/features/attendance/', fr: '/fr/fonctionnalites/presences/', freq: 'monthly', pri: '0.8' },
-      { en: '/en/features/badges/', fr: '/fr/fonctionnalites/badges/', freq: 'monthly', pri: '0.8' },
-      { en: '/en/features/communication/', fr: '/fr/fonctionnalites/communication/', freq: 'monthly', pri: '0.8' },
-      { en: '/en/features/finance/', fr: '/fr/fonctionnalites/finances/', freq: 'monthly', pri: '0.8' },
-      { en: '/en/features/forms/', fr: '/fr/fonctionnalites/formulaires/', freq: 'monthly', pri: '0.8' },
-      { en: '/en/features/logistics/', fr: '/fr/fonctionnalites/logistique/', freq: 'monthly', pri: '0.8' },
-      { en: '/en/modules/finance/', fr: '/fr/modules/finance/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/modules/carpool/', fr: '/fr/modules/carpool/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/modules/on-site/', fr: '/fr/modules/on-site/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/modules/offline/', fr: '/fr/modules/offline/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/modules/medications/', fr: '/fr/modules/medications/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/modules/fundraising/', fr: '/fr/modules/fundraising/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/compare/wampums-vs-sporteasy/', fr: '/fr/comparer/wampums-vs-sporteasy/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/compare/wampums-vs-trooptrack/', fr: '/fr/comparer/wampums-vs-trooptrack/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/compare/wampums-vs-spreadsheets/', fr: '/fr/comparer/wampums-vs-tableurs/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/compare/wampums-vs-scoutbook/', fr: '/fr/comparer/wampums-vs-scoutbook/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/compare/wampums-vs-scouts-digital/', fr: '/fr/comparer/wampums-vs-scouts-digital/', freq: 'monthly', pri: '0.7' },
-      { en: '/en/blog/', fr: '/fr/blogue/', freq: 'weekly', pri: '0.8' },
-      { en: '/en/faq/', fr: '/fr/faq/', freq: 'monthly', pri: '0.6' },
-    ];
-
-    const urlEntries = staticPages.map(p =>
+    const urlEntries = LANDING_STATIC_PAGES.map(p =>
       sitemapUrl({ loc: p.en, enPath: p.en, frPath: p.fr, lastmod: today, changefreq: p.freq, priority: p.pri })
     );
 
@@ -318,6 +278,10 @@ module.exports = (app) => {
       return res.status(503).json({ success: false, message: 'blog_service_unavailable' });
     }
     blog.rebuild();
+    const indexNow = require('../services/indexNow');
+    if (indexNow.isIndexNowEnabled()) {
+      indexNow.scheduleIndexNowSync(require('../config/database').pool);
+    }
     return res.json({ success: true, message: 'blog_index_refreshed' });
   });
 
@@ -377,52 +341,16 @@ module.exports = (app) => {
 
       try {
         const lang = (enBlogIndex || enBlogPost) ? 'en' : 'fr';
-        const blogBase = lang === 'en' ? '/en/blog/' : '/fr/blogue/';
-        const altBase = lang === 'en' ? '/fr/blogue/' : '/en/blog/';
 
         if (enBlogIndex || frBlogIndex) {
           const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-          const { posts, total, pages } = blog.getPosts(lang, page, 10);
-          const html = await renderView('blog/index.ejs', {
-            lang,
-            posts,
-            page,
-            pages,
-            total,
-            canonicalPath: blogBase,
-            enPath: '/en/blog/',
-            frPath: '/fr/blogue/',
-            pageTitle: lang === 'fr' ? 'Blogue Wampums — Ressources pour chefs scouts' : 'Wampums Blog — Resources for Scout Leaders',
-            pageDescription: lang === 'fr'
-              ? 'Guides, conseils et ressources pour les chefs scouts, parents et administrateurs de groupes jeunesse bilingues au Canada.'
-              : 'Guides, tips, and resources for scout leaders, parents, and administrators of bilingual youth groups in Canada.',
-            ogImage: null,
-          });
-          return res.send(html);
+          return res.send(await renderBlogIndex(blog, lang, page));
         }
 
-        const slug = (enBlogPost || frBlogPost)[1];
-        const post = blog.getPost(lang, slug);
-
-        if (!post) {
+        const html = await renderBlogPost(blog, lang, (enBlogPost || frBlogPost)[1]);
+        if (!html) {
           return next();
         }
-
-        const { prev, next: nextPost } = blog.getAdjacentPosts(post);
-        const alternatePost = post.alternate ? blog.getPost(lang === 'en' ? 'fr' : 'en', post.alternate) : null;
-
-        const enPath = lang === 'en' ? req.path.endsWith('/') ? req.path : `${req.path}/` : (alternatePost ? `/en/blog/${alternatePost.slug}/` : '/en/blog/');
-        const frPath = lang === 'fr' ? req.path.endsWith('/') ? req.path : `${req.path}/` : (alternatePost ? `/fr/blogue/${alternatePost.slug}/` : '/fr/blogue/');
-
-        const html = await renderView('blog/post.ejs', {
-          post,
-          prev,
-          next: nextPost,
-          alternatePost,
-          canonicalPath: req.path.endsWith('/') ? req.path : `${req.path}/`,
-          enPath,
-          frPath,
-        });
         return res.send(html);
       } catch (err) {
         logger.error('[Blog] Render error:', err);

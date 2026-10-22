@@ -63,6 +63,11 @@ if (require.main === module) {
       }
     }, 60000);
 
+    // Announce the marketing pages this deploy changed (INDEXNOW_ENABLED only)
+    const { scheduleIndexNowSync } = require('./services/indexNow');
+    const { INDEXNOW } = require('./config/constants');
+    scheduleIndexNowSync(pool, { delayMs: INDEXNOW.STARTUP_DELAY_MS });
+
     // Register shutdown handlers
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));

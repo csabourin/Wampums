@@ -140,6 +140,29 @@ const UNIT_FINANCE_PERMISSIONS = Object.freeze([
   'budget.manage',
 ]);
 
+/**
+ * IndexNow submissions for the wampums.app marketing site (services/indexNow.js).
+ *
+ * The key is public by design: search engines verify it by fetching
+ * `landing/<KEY>.txt`, whose content must equal it.
+ */
+const INDEXNOW = Object.freeze({
+  ENDPOINT: 'https://api.indexnow.org/indexnow',
+  KEY: '16bc5aa95cae4d73b2c325ef6dc31f8b',
+  // A page submitted less than this long ago waits before it is sent again.
+  DEBOUNCE_MS: parseEnvInt(process.env.INDEXNOW_DEBOUNCE_MS, 5 * 60 * 1000),          // 5 minutes
+  // After a deploy, wait until the new release is the one answering before announcing it.
+  STARTUP_DELAY_MS: parseEnvInt(process.env.INDEXNOW_STARTUP_DELAY_MS, 2 * 60 * 1000), // 2 minutes
+  REQUEST_TIMEOUT_MS: 15 * 1000,
+  MAX_URLS_PER_REQUEST: 10000,   // protocol limit
+  MAX_RETRIES: 3,                // after a rate limit or a network failure
+  ADVISORY_LOCK_KEY: 7246630,    // one instance submits at a time
+  // Another sync holds the lock for at most one request: try again after it, with the newer content.
+  LOCK_RETRY_MS: 30 * 1000,
+  ACCEPTED_STATUSES: Object.freeze([200, 202]), // 202: accepted, key check pending
+  RATE_LIMITED_STATUS: 429,
+});
+
 module.exports = {
   RATE_LIMITS,
   FILE_LIMITS,
@@ -150,4 +173,5 @@ module.exports = {
   SESSION,
   CACHE,
   UNIT_FINANCE_PERMISSIONS,
+  INDEXNOW,
 };
