@@ -10,6 +10,9 @@
  * @module config/landing-pages
  */
 
+/** Hostnames that serve the marketing site rather than a unit's app */
+const LANDING_HOSTS = new Set(['wampums.app', 'www.wampums.app']);
+
 /** Base URL for all canonical links */
 const LANDING_BASE_URL = 'https://wampums.app';
 
@@ -39,4 +42,4 @@ const LANDING_STATIC_PAGES = [
   { en: '/en/faq/', fr: '/fr/faq/', freq: 'monthly', pri: '0.6' },
 ];
 
-module.exports = { LANDING_BASE_URL, BLOG_INDEX_PATHS, LANDING_STATIC_PAGES };
+module.exports = { LANDING_HOSTS, LANDING_BASE_URL, BLOG_INDEX_PATHS, LANDING_STATIC_PAGES };
