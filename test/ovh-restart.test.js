@@ -51,11 +51,21 @@ printf '%s %s %s\\n' "$WAMPUMS_ROOT" "$WAMPUMS_IMAGE" "$*" >> "$COMMAND_LOG"
     fs.rmSync(path.join(root, 'current-image'));
     const result = restart();
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('No active release');
+    expect(result.stderr).toBe(`No active release under ${root}\n`);
     expect(fs.existsSync(commandLog)).toBe(false);
   });
 
-  test('during a deployment, the restart waits its turn instead of interrupting it', () => {
+  // root opens any file, so this case only exists for other accounts.
+  (process.getuid?.() === 0 ? test.skip : test)('run without sudo, it says so instead of failing on a file it cannot open', () => {
+    fs.writeFileSync(path.join(root, 'deploy.lock'), '', { mode: 0o000 });
+    const result = restart();
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toBe(`Cannot open ${root}/deploy.lock (run with sudo?)\n`);
+    expect(fs.existsSync(commandLog)).toBe(false);
+  });
+
+  test('during a deployment, the restart refuses before reading a release the deployment may be replacing', () => {
+    fs.rmSync(path.join(root, 'current-image'));
     const lock = path.join(root, 'deploy.lock');
     fs.writeFileSync(lock, '');
     const holder = spawnSync('bash', ['-c', `exec 9>"${lock}"; flock -n 9 && bash "${SCRIPT}"`], {
@@ -64,6 +74,7 @@ printf '%s %s %s\\n' "$WAMPUMS_ROOT" "$WAMPUMS_IMAGE" "$*" >> "$COMMAND_LOG"
     });
     expect(holder.status).not.toBe(0);
     expect(holder.stderr).toContain('A deployment is running');
+    expect(holder.stderr).not.toContain('No active release');
     expect(fs.existsSync(commandLog)).toBe(false);
   });
 });
