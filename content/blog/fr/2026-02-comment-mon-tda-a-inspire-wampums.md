@@ -1,11 +1,11 @@
 ---
-title: "Comment mon TDA a inspiré la création d'une application scoute"
+title: "Comment mon TDA a inspiré Wampums, une application scoute"
 slug: "comment-mon-tda-a-inspire-wampums"
 date: "2026-02-17"
 updated: "2026-02-17"
 lang: "fr"
 alternate: "how-my-adhd-inspired-a-scout-app"
-description: "Récit d'un animateur scout et programmeur vivant avec un TDA, qui a transformé ses frustrations administratives en une application conçue pour redonner du temps de qualité aux animateurs."
+description: "Comment un animateur scout et programmeur avec un TDA a créé Wampums pour alléger les tâches administratives et redonner du temps aux animateurs."
 keywords:
   - application scoute TDA TDAH
   - gestion groupe scout bénévole

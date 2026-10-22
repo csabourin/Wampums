@@ -1,5 +1,5 @@
 ---
-title: "Scout App vs Spreadsheets: Why Leaders Are Making the Switch"
+title: "Scout App vs Spreadsheets: A Guide for Scout Leaders"
 slug: "scout-app-vs-spreadsheets"
 date: "2026-02-16"
 updated: "2026-02-16"

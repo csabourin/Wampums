@@ -5,7 +5,7 @@ date: "2026-02-16"
 updated: "2026-02-16"
 lang: "en"
 alternate: "guide-gestion-groupe-scout"
-description: "Everything scout leaders need to know about managing attendance, badges, communications, and finances for their group — with practical tips and tool comparisons."
+description: "A practical guide to scout group management: attendance, badges, communication, finances and tools that help leaders spend more time with youth."
 keywords:
   - scout group management
   - scout leader tips
