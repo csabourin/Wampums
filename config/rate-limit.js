@@ -1,6 +1,7 @@
 const rateLimit = require('express-rate-limit');
 const logger = require('./logger');
 const { RATE_LIMITS, CACHE } = require('./constants');
+const { LANDING_HOSTS } = require('./landing-pages');
 
 const RATE_LIMITER_CLEANUP_INTERVAL_MS = CACHE.CLEANUP_INTERVAL_MS;
 
@@ -110,6 +111,8 @@ class CleanableMemoryStore {
 const generalStore = new CleanableMemoryStore(RATE_LIMITS.GENERAL_WINDOW_MS);
 const authStore = new CleanableMemoryStore(RATE_LIMITS.AUTH_WINDOW_MS);
 const passwordResetStore = new CleanableMemoryStore(RATE_LIMITS.PASSWORD_RESET_WINDOW_MS);
+const landingStore = new CleanableMemoryStore(RATE_LIMITS.GENERAL_WINDOW_MS);
+const blogRefreshStore = new CleanableMemoryStore(RATE_LIMITS.BLOG_REFRESH_WINDOW_MS);
 
 const generalLimiter = rateLimit({
   windowMs: RATE_LIMITS.GENERAL_WINDOW_MS,
@@ -138,23 +141,50 @@ const passwordResetLimiter = rateLimit({
   store: passwordResetStore,
 });
 
+// The marketing site and blog are served ahead of generalLimiter, so they get
+// the same budget here; other hosts are left to generalLimiter.
+const landingLimiter = rateLimit({
+  windowMs: RATE_LIMITS.GENERAL_WINDOW_MS,
+  max: RATE_LIMITS.GENERAL_MAX_REQUESTS,
+  message: `Too many requests from this IP, please try again after ${formatDuration(RATE_LIMITS.GENERAL_WINDOW_MS)}`,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: landingStore,
+  skip: (req) => !LANDING_HOSTS.has(req.hostname),
+});
+
+const blogRefreshLimiter = rateLimit({
+  windowMs: RATE_LIMITS.BLOG_REFRESH_WINDOW_MS,
+  max: RATE_LIMITS.BLOG_REFRESH_MAX_REQUESTS,
+  message: `Too many blog refresh requests from this IP, please try again after ${formatDuration(RATE_LIMITS.BLOG_REFRESH_WINDOW_MS)}`,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: blogRefreshStore,
+});
+
 // Periodic cleanup of rate limiter stores (every 5 minutes)
 const rateLimiterCleanupInterval = setInterval(() => {
   const generalCleaned = generalStore.cleanup();
   const authCleaned = authStore.cleanup();
   const passwordResetCleaned = passwordResetStore.cleanup();
+  const landingCleaned = landingStore.cleanup();
+  const blogRefreshCleaned = blogRefreshStore.cleanup();
 
-  if (generalCleaned > 0 || authCleaned > 0 || passwordResetCleaned > 0) {
+  if (generalCleaned > 0 || authCleaned > 0 || passwordResetCleaned > 0 || landingCleaned > 0 || blogRefreshCleaned > 0) {
     logger.info('Rate limiter stores cleaned up', {
       cleaned: {
         general: generalCleaned,
         auth: authCleaned,
         passwordReset: passwordResetCleaned,
+        landing: landingCleaned,
+        blogRefresh: blogRefreshCleaned,
       },
       remaining: {
         general: generalStore.size(),
         auth: authStore.size(),
         passwordReset: passwordResetStore.size(),
+        landing: landingStore.size(),
+        blogRefresh: blogRefreshStore.size(),
       },
     });
   }
@@ -166,5 +196,7 @@ module.exports = {
   generalLimiter,
   authLimiter,
   passwordResetLimiter,
+  landingLimiter,
+  blogRefreshLimiter,
   CleanableMemoryStore,
 };

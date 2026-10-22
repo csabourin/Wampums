@@ -9,12 +9,12 @@ const { sanitizeServerErrorResponses } = require('./response');
 const { getStorageImageOrigins } = require('../utils/railway-storage');
 const { isAllowedOrigin } = require('../config/cors');
 const { setStaticHeaders } = require('../utils/static-cache');
-const { LANDING_BASE_URL, LANDING_STATIC_PAGES } = require('../config/landing-pages');
+const { LANDING_HOSTS, LANDING_BASE_URL, LANDING_STATIC_PAGES } = require('../config/landing-pages');
 const { renderBlogIndex, renderBlogPost } = require('../services/blogPages');
+const { landingLimiter, blogRefreshLimiter } = require('../config/rate-limit');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const REQUEST_BODY_LIMIT = '20mb';
-const LANDING_HOSTS = new Set(['wampums.app', 'www.wampums.app']);
 
 /**
  * Allow an analytics CSP source only on the public marketing hosts.
@@ -267,7 +267,7 @@ module.exports = (app) => {
   });
 
   // Blog refresh endpoint (protected by secret)
-  app.post('/api/blog/refresh', (req, res) => {
+  app.post('/api/blog/refresh', blogRefreshLimiter, (req, res) => {
     const secret = process.env.BLOG_REFRESH_SECRET;
     const provided = req.headers['x-refresh-secret'];
     if (secret && provided !== secret) {
@@ -288,7 +288,7 @@ module.exports = (app) => {
   const landingStatic = express.static(landingDir);
 
   // Middleware for wampums.app hostname: blog (SSR) + static landing pages
-  app.use(async (req, res, next) => {
+  app.use(landingLimiter, async (req, res, next) => {
     if (!LANDING_HOSTS.has(req.hostname)) {
       return next();
     }

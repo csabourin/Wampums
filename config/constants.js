@@ -36,6 +36,10 @@ const RATE_LIMITS = {
   // Password reset rate limiting
   PASSWORD_RESET_WINDOW_MS: parseEnvInt(process.env.RATE_LIMIT_PASSWORD_RESET_WINDOW_MS, 60 * 60 * 1000), // 1 hour
   PASSWORD_RESET_MAX_REQUESTS: parseEnvInt(process.env.RATE_LIMIT_PASSWORD_RESET_MAX_REQUESTS, 5),            // Max reset requests per hour
+
+  // Blog index refresh (re-reads every article and starts an IndexNow sync)
+  BLOG_REFRESH_WINDOW_MS: parseEnvInt(process.env.RATE_LIMIT_BLOG_REFRESH_WINDOW_MS, 15 * 60 * 1000), // 15 minutes
+  BLOG_REFRESH_MAX_REQUESTS: parseEnvInt(process.env.RATE_LIMIT_BLOG_REFRESH_MAX_REQUESTS, 10),            // Max refreshes per window
   
   // User profile updates
   PROFILE_UPDATE_WINDOW_MS: parseEnvInt(process.env.RATE_LIMIT_PROFILE_UPDATE_WINDOW_MS, 15 * 60 * 1000),  // 15 minutes
