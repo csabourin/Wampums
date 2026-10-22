@@ -17,6 +17,7 @@ const {
   withScoutYear
 } = require('../middleware/auth');
 const { asyncHandler, success, error: errorResponse } = require('../middleware/response');
+const { validateIdBody, validateIdQuery, checkValidation } = require('../middleware/validation');
 const { recordProgression, PROGRAM_TABLE_CONFIG } = require('../services/programProgress');
 
 const STREAM_SOURCES = [
@@ -162,18 +163,14 @@ module.exports = (pool, logger) => {
    * active year unless `x-scout-year-id` or `scout_year_id` selects another).
    * Their progression is cumulative, so it is not bounded by date.
    */
-  router.get('/stream', authenticate, requirePermission('participants.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/stream', authenticate, requirePermission('participants.view'), withScoutYear(pool), validateIdQuery('participant_id'), validateIdQuery('limit'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { id: scoutYearId } = req.scoutYear;
     const { rosterStatuses } = req;
     const dataScope = await getUserDataScope(req, pool);
     const userId = req.user?.id;
-    const participantId = req.query.participant_id ? parseInt(req.query.participant_id, 10) : null;
-    const limit = Math.min(parseInt(req.query.limit, 10) || 250, 500);
-
-    if (req.query.participant_id && (!participantId || participantId <= 0)) {
-      return errorResponse(res, 'participant_id must be a positive integer', 400);
-    }
+    const participantId = req.query.participant_id ? Number(req.query.participant_id) : null;
+    const limit = Math.min(Number(req.query.limit) || 250, 500);
 
     const client = await pool.connect();
     try {
@@ -244,19 +241,15 @@ module.exports = (pool, logger) => {
    * - program_data (required): table-specific payload
    * - badge_data (optional): mirrored insert into badge_progress
    */
-  router.post('/award', authenticate, blockDemoRoles, requirePermission('badges.manage'), asyncHandler(async (req, res) => {
+  router.post('/award', authenticate, blockDemoRoles, requirePermission('badges.manage'), validateIdBody('participant_id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const programType = req.body.program_type;
-    const participantId = parseInt(req.body.participant_id, 10);
+    const participantId = Number(req.body.participant_id);
     const programData = req.body.program_data || {};
     const badgeData = req.body.badge_data || null;
 
     if (!programType || !PROGRAM_TABLE_CONFIG[programType]) {
       return errorResponse(res, 'program_type is required and must be supported', 400);
-    }
-
-    if (!Number.isInteger(participantId) || participantId <= 0) {
-      return errorResponse(res, 'participant_id must be a valid integer', 400);
     }
 
     if (!programData || typeof programData !== 'object' || Array.isArray(programData)) {

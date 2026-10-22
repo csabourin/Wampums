@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, blockDemoRoles, getOrganizationId, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 const {
   toNumeric,
   validateMoney,
@@ -186,7 +187,7 @@ module.exports = (pool, logger) => {
    * Update an external revenue entry
    * Permission: finance.manage
    */
-  router.put('/v1/revenue/external/:id', authenticate, blockDemoRoles, requirePermission(['finance.manage']), asyncHandler(async (req, res) => {
+  router.put('/v1/revenue/external/:id', authenticate, blockDemoRoles, requirePermission(['finance.manage']), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
@@ -275,7 +276,7 @@ module.exports = (pool, logger) => {
    * Delete an external revenue entry
    * Permission: finance.manage
    */
-  router.delete('/v1/revenue/external/:id', authenticate, blockDemoRoles, requirePermission(['finance.manage']), asyncHandler(async (req, res) => {
+  router.delete('/v1/revenue/external/:id', authenticate, blockDemoRoles, requirePermission(['finance.manage']), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;

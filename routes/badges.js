@@ -14,7 +14,7 @@ const router = express.Router();
 const { getPointSystemRules } = require('../utils/api-helpers');
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
 const { asyncHandler, success, error: errorResponse } = require('../middleware/response');
-const { validateIdBody, checkValidation } = require('../middleware/validation');
+const { validateIdBody, validateIdParam, validateIdQuery, checkValidation } = require('../middleware/validation');
 
 const DEFAULT_LEVELS = [
   { level: 1, label_key: 'badge_level_1' },
@@ -766,10 +766,10 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/stars', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
+  router.get('/stars', authenticate, requirePermission('badges.view'), validateIdQuery('participant_id'), validateIdQuery('badge_template_id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const participantId = req.query.participant_id;
-    const templateId = req.query.badge_template_id ? parseInt(req.query.badge_template_id, 10) : null;
+    const templateId = req.query.badge_template_id ? Number(req.query.badge_template_id) : null;
     const territoireName = req.query.territoire;
 
     if (!participantId) {
@@ -936,10 +936,10 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Badge progress not found
    */
-  router.put('/badge-progress/:id', authenticate, blockDemoRoles, requirePermission('badges.manage'), asyncHandler(async (req, res) => {
+  router.put('/badge-progress/:id', authenticate, blockDemoRoles, requirePermission('badges.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const userId = req.user.id; // Set by authenticate middleware
     const organizationId = await getOrganizationId(req, pool);
-    const badgeId = parseInt(req.params.id);
+    const badgeId = Number(req.params.id);
     const {
       status,
       reviewer_comments,

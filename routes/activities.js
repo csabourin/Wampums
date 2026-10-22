@@ -3,6 +3,7 @@ const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { toBool } = require('../utils');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 const logger = require('../config/logger');
 const { sendActivityUpdateNotifications } = require('../utils/carpool-notifications');
 const { carpoolRosterRestriction } = require('../services/carpoolAccess');
@@ -14,8 +15,6 @@ module.exports = (pool) => {
   const AUTHORIZATION_TEXT_MAX_LENGTH = 10000;
   const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
   const TIME_PATTERN = /^(\d{2}):(\d{2})(?::(\d{2}))?$/;
-  const ACTIVITY_ID_PATTERN = /^[1-9]\d{0,9}$/;
-  const HTTP_NOT_FOUND = 404;
   const HTTP_BAD_REQUEST = 400;
   const HTTP_CREATED = 201;
   const HOURS_PER_DAY = 24;
@@ -102,11 +101,8 @@ module.exports = (pool) => {
    * Returns the invited participants with their carpool assignment status
    * Accessible by: animation, admin, parent
    */
-  router.get('/:id/participants', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
+  router.get('/:id/participants', authenticate, requirePermission('carpools.view'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const { id } = req.params;
-    if (!ACTIVITY_ID_PATTERN.test(id)) {
-      return error(res, 'Activity not found', HTTP_NOT_FOUND);
-    }
     const organizationId = await getOrganizationId(req, pool);
 
     // Verify activity exists and belongs to organization
@@ -178,11 +174,8 @@ module.exports = (pool) => {
    * Get a specific activity by ID
    * Accessible by: animation, admin, parent
    */
-  router.get('/:id', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
+  router.get('/:id', authenticate, requirePermission('activities.view'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const { id } = req.params;
-    if (!ACTIVITY_ID_PATTERN.test(id)) {
-      return error(res, 'Activity not found', HTTP_NOT_FOUND);
-    }
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -500,10 +493,7 @@ module.exports = (pool) => {
    *
    * Accessible by: animation, admin only
    */
-  router.put('/:id', authenticate, blockDemoRoles, requirePermission('activities.edit'), asyncHandler(async (req, res) => {
-    if (!ACTIVITY_ID_PATTERN.test(req.params.id)) {
-      return error(res, 'Activity not found', HTTP_NOT_FOUND);
-    }
+  router.put('/:id', authenticate, blockDemoRoles, requirePermission('activities.edit'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const activityId = Number(req.params.id);
     const organizationId = await getOrganizationId(req, pool);
     const body = req.body || {};
@@ -743,11 +733,8 @@ module.exports = (pool) => {
    * archived, so guardians can no longer sign for an activity that is gone.
    * Accessible by: animation, admin only
    */
-  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('activities.delete'), asyncHandler(async (req, res) => {
+  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('activities.delete'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const { id } = req.params;
-    if (!ACTIVITY_ID_PATTERN.test(id)) {
-      return error(res, 'Activity not found', HTTP_NOT_FOUND);
-    }
     const organizationId = await getOrganizationId(req, pool);
 
     // First verify activity exists and belongs to organization

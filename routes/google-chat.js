@@ -25,8 +25,10 @@ const {
   requirePermission,
   getOrganizationId,
 } = require('../middleware/auth');
-const { checkValidation } = require('../middleware/validation');
+const { validateIdQuery, checkValidation } = require('../middleware/validation');
 const GoogleChatService = require('../services/google-chat');
+
+const DEFAULT_HISTORY_LIMIT = 50;
 
 /**
  * Export route factory function
@@ -463,11 +465,11 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Message history retrieved
    */
-  router.get('/messages', authenticate, requirePermission('communications.send'), asyncHandler(async (req, res) => {
+  router.get('/messages', authenticate, requirePermission('communications.send'), validateIdQuery('limit'), checkValidation, asyncHandler(async (req, res) => {
     try {
       const organizationId = await getOrganizationId(req, pool);
 
-      const limit = parseInt(req.query.limit) || 50;
+      const limit = Number(req.query.limit) || DEFAULT_HISTORY_LIMIT;
 
       const result = await pool.query(
         `SELECT m.id, m.space_id, m.message_id, m.subject, m.message_text,

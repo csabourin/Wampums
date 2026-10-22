@@ -25,7 +25,7 @@ const {
   getOrganizationId,
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { checkValidation, normalizeEmailValue } = require('../middleware/validation');
+const { validateIdParam, checkValidation, normalizeEmailValue } = require('../middleware/validation');
 const { registerFamilyChildManagement } = require('./familyChildManagement');
 const { familyInvitationLimiter } = require('../middleware/familyInvitationLimiter');
 const { deliverParentInvitation } = require('../services/familyDelivery');
@@ -219,7 +219,7 @@ module.exports = (pool, logger) => {
     blockDemoRoles,
     requirePermission('participants.walk_in'),
     familyInvitationLimiter,
-    param('id').isInt({ min: 1 }),
+    validateIdParam('id'),
     ...parentFields,
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -229,7 +229,7 @@ module.exports = (pool, logger) => {
       const outcome = await inviteParentForChild(pool, {
         organizationId,
         adminId: req.user.id,
-        participantId: parseInt(req.params.id, 10),
+        participantId: Number(req.params.id),
         parentEmail: normalizeEmailValue(req.body.parent_email),
         language: context.language,
         deactivationOverrideReason: context.deactivationOverrideReason,
@@ -264,7 +264,7 @@ module.exports = (pool, logger) => {
     blockDemoRoles,
     requirePermission('participants.edit', 'users.invite'),
     familyInvitationLimiter,
-    param('id').isInt({ min: 1, max: 2147483647 }),
+    validateIdParam('id'),
     ...parentFields,
     checkValidation,
     asyncHandler(async (req, res) => {

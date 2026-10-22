@@ -26,7 +26,7 @@ const {
   getOrganizationId,
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { validateEmail, checkValidation, normalizeEmailValue } = require('../middleware/validation');
+const { validateEmail, validateIdParam, checkValidation, normalizeEmailValue } = require('../middleware/validation');
 const { deliverFamilyRequest } = require('../services/familyDelivery');
 const {
   createFamilyLinkRequest,
@@ -203,13 +203,13 @@ module.exports = (pool, logger) => {
     blockDemoRoles,
     requirePermission('participants.create_own'),
     param('id').isInt({ min: 1 }),
-    checkValidation,
+    validateIdParam('id'), checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const ended = await endFamilyLink(pool, {
         userId: req.user.id,
         organizationId,
-        linkId: parseInt(req.params.id, 10),
+        linkId: Number(req.params.id),
       });
 
       if (!ended.ok) {

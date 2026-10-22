@@ -1515,7 +1515,7 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const meetingId = Number(req.params.id);
-      const dayOffset = parseInt(req.params.dayOffset, 10);
+      const dayOffset = Number(req.params.dayOffset);
       const context = await getScheduleContext(pool, meetingId, organizationId);
 
       if (!context) {
@@ -1737,7 +1737,7 @@ module.exports = (pool, logger) => {
 
       if (Object.prototype.hasOwnProperty.call(req.body, 'day_offset')) {
         const context = await getScheduleContext(pool, existing.rows[0].meeting_id, organizationId);
-        if (!context || !isDayInSpan(parseInt(req.body.day_offset, 10), context)) {
+        if (!context || !isDayInSpan(Number(req.body.day_offset), context)) {
           return error(res, 'day_offset is outside the meeting span', 400);
         }
       }

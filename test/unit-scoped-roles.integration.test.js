@@ -162,7 +162,7 @@ describe.skipIf(!DATABASE_URL)('Unit-scoped roles', () => {
   test('another unit\'s role cannot be read', async () => {
     expect((await request(app).get(`/api/v1/roles/${ids.customB}/permissions`)).status).toBe(404);
     expect((await request(app).get(`/api/v1/roles/${ids.customA}/permissions`)).status).toBe(200);
-    expect((await request(app).get('/api/v1/roles/not-a-number/permissions')).status).toBe(404);
+    expect((await request(app).get('/api/v1/roles/not-a-number/permissions')).status).toBe(400);
   });
 
   test('a created role belongs to its unit, and two units may use the same name', async () => {

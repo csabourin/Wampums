@@ -16,6 +16,7 @@ const {
   getOrganizationId,
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { validateIdParam, checkValidation } = require('../middleware/validation');
 const {
   campaignModelColumnsSql,
   entryAmountSql,
@@ -141,6 +142,7 @@ module.exports = (pool, _logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('finance.manage'),
+    validateIdParam('id'), checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const { id } = req.params;
@@ -264,6 +266,7 @@ module.exports = (pool, _logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('finance.manage'),
+    validateIdParam('id'), checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const { id } = req.params;

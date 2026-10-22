@@ -13,7 +13,7 @@ const {
   getUserDataScope,
 } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
-const { checkValidation, validateIdParam } = require('../middleware/validation');
+const { checkValidation, validateIdParam, validateIdQuery } = require('../middleware/validation');
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { sendEmail, getUserEmailLanguage, getTranslationsByCode } = require('../utils/index');
 const {
@@ -1226,7 +1226,7 @@ module.exports = (pool, logger) => {
     authenticate,
     requirePermission('inventory.view'),
     [
-      query('activity_id').optional().isInt({ min: 1 }),
+      validateIdQuery('activity_id'),
       query('meeting_date').optional().isISO8601(),
       query('date_from').optional().isISO8601(),
       query('date_to').optional().isISO8601(),
@@ -1238,7 +1238,7 @@ module.exports = (pool, logger) => {
         // Settle lapsed reservations before reporting them, so the list never
         // shows equipment as spoken for by a date that has already gone by.
         await expireLapsedReservations(pool, organizationId, req.log || null);
-        const activityId = req.query.activity_id ? parseInt(req.query.activity_id, 10) : null;
+        const activityId = req.query.activity_id ? Number(req.query.activity_id) : null;
         const meetingDate = req.query.meeting_date
           ? parseDate(req.query.meeting_date)
           : null;
@@ -1825,8 +1825,8 @@ module.exports = (pool, logger) => {
     requirePermission('participants.view'),
     [
       query('meeting_date').optional().isISO8601(),
-      query('participant_id').optional().isInt({ min: 1 }),
-      query('activity_id').optional().isInt({ min: 1 }),
+      validateIdQuery('participant_id'),
+      validateIdQuery('activity_id'),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -1836,10 +1836,10 @@ module.exports = (pool, logger) => {
           ? parseDate(req.query.meeting_date)
           : null;
         const participantId = req.query.participant_id
-          ? parseInt(req.query.participant_id, 10)
+          ? Number(req.query.participant_id)
           : null;
         const activityId = req.query.activity_id
-          ? parseInt(req.query.activity_id, 10)
+          ? Number(req.query.activity_id)
           : null;
         const params = [organizationId];
         let filter = '';

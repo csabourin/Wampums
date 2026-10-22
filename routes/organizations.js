@@ -14,6 +14,7 @@ const meetingSectionDefaults = require('../config/meeting_sections.json');
 // Import auth middleware
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { asyncHandler, success, error: errorResponse } = require('../middleware/response');
+const { validateIdBody, checkValidation } = require('../middleware/validation');
 const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 const {
   validateUnitVocabulary,
@@ -1024,9 +1025,9 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: User not a member of organization
    */
-  router.post('/switch', authenticate, asyncHandler(async (req, res) => {
+  router.post('/switch', authenticate, validateIdBody('organization_id'), checkValidation, asyncHandler(async (req, res) => {
     // policy-allow client-org-id: the switch endpoint itself; membership is verified below
-    const organizationId = Number.parseInt(req.body?.organization_id, 10);
+    const organizationId = Number(req.body?.organization_id);
 
     if (!Number.isInteger(organizationId) || organizationId <= 0) {
       return res.status(400).json({ success: false, message: 'Organization ID is required' });
