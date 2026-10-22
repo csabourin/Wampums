@@ -198,7 +198,9 @@ describe('a parent', () => {
     const line = card.querySelector('.dm-user-children');
     expect(line.textContent).toBe('Enfants : Léa Tremblay, <img src=x onerror=alert(1)> Tremblay');
     expect(card.querySelector('img')).toBeNull();
-    expect(card.getAttribute('aria-label')).toContain('Enfants : Léa Tremblay');
+    // Without an aria-label, the card's accessible name is its visible text.
+    expect(card.hasAttribute('aria-label')).toBe(false);
+    expect(card.textContent).toContain('Enfants : Léa Tremblay');
     expect(app().querySelector('[data-user-id="u-leader"] .dm-user-children')).toBeNull();
     view.destroy();
   });

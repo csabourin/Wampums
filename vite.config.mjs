@@ -147,6 +147,64 @@ function preloadIconFontPlugin() {
   };
 }
 
+/**
+ * The SPA's own chunks: modules that load together share one file. Vite 8
+ * bundles with Rolldown, which takes manualChunks only as a function, so each
+ * module is looked up by its absolute path.
+ */
+const CHUNK_GROUPS = {
+  // Core application
+  core: ['./spa/app.js', './spa/router.js', './spa/functions.js'],
+
+  // API and data management
+  api: ['./spa/ajax-functions.js', './spa/indexedDB.js'],
+
+  // Admin pages - lazy loaded
+  admin: [
+    './spa/modules/admin/Admin.js',
+    './spa/modules/participants/ManageParticipants.js',
+    './spa/modules/groups/ManageGroups.js',
+    './spa/modules/participants/ManageUsersParticipants.js',
+  ],
+
+  // Staff functionality - lazy loaded
+  staff: [
+    './spa/modules/attendance/Attendance.js',
+    './spa/modules/points/ManagePoints.js',
+    './spa/modules/honors/ManageHonors.js',
+    './spa/modules/meetings/MeetingPrep.js',
+  ],
+
+  // Reports - lazy loaded
+  reports: [
+    './spa/modules/reports/Reports.js',
+    './spa/modules/mailing-list/MailingList.js',
+    './spa/modules/fundraising/Calendars.js',
+  ],
+
+  // Forms - lazy loaded
+  forms: [
+    './spa/modules/participants/FormulaireInscription.js',
+    './spa/modules/badges/BadgeForm.js',
+    './spa/dynamicFormHandler.js',
+  ],
+
+  // Parent portal - lazy loaded
+  parent: ['./spa/modules/dashboard/ParentDashboard.js', './spa/modules/participants/ParentContactList.js'],
+
+  // Authentication
+  auth: [
+    './spa/modules/session/Login.js',
+    './spa/modules/session/Register.js',
+    './spa/modules/session/ResetPassword.js',
+  ],
+};
+
+const CHUNK_OF_MODULE = new Map(
+  Object.entries(CHUNK_GROUPS).flatMap(([chunk, files]) =>
+    files.map((file) => [path.resolve(process.cwd(), file), chunk])),
+);
+
 export default defineConfig({
   root: '.',
   publicDir: 'assets',
@@ -160,53 +218,7 @@ export default defineConfig({
         main: './index.html',
       },
       output: {
-        manualChunks: {
-          // Core application
-          core: ['./spa/app.js', './spa/router.js', './spa/functions.js'],
-
-          // API and data management
-          api: ['./spa/ajax-functions.js', './spa/indexedDB.js'],
-
-          // Admin pages - lazy loaded
-          admin: [
-            './spa/modules/admin/Admin.js',
-            './spa/modules/participants/ManageParticipants.js',
-            './spa/modules/groups/ManageGroups.js',
-            './spa/modules/participants/ManageUsersParticipants.js',
-          ],
-
-          // Staff functionality - lazy loaded
-          staff: [
-            './spa/modules/attendance/Attendance.js',
-            './spa/modules/points/ManagePoints.js',
-            './spa/modules/honors/ManageHonors.js',
-            './spa/modules/meetings/MeetingPrep.js',
-          ],
-
-          // Reports - lazy loaded
-          reports: [
-            './spa/modules/reports/Reports.js',
-            './spa/modules/mailing-list/MailingList.js',
-            './spa/modules/fundraising/Calendars.js',
-          ],
-
-          // Forms - lazy loaded
-          forms: [
-            './spa/modules/participants/FormulaireInscription.js',
-            './spa/modules/badges/BadgeForm.js',
-            './spa/dynamicFormHandler.js',
-          ],
-
-          // Parent portal - lazy loaded
-          parent: ['./spa/modules/dashboard/ParentDashboard.js', './spa/modules/participants/ParentContactList.js'],
-
-          // Authentication
-          auth: [
-            './spa/modules/session/Login.js',
-            './spa/modules/session/Register.js',
-            './spa/modules/session/ResetPassword.js',
-          ],
-        },
+        manualChunks: (id) => CHUNK_OF_MODULE.get(id.split('?')[0]),
 
         // Optimize chunk sizes
         chunkFileNames: 'assets/[name]-[hash].js',
