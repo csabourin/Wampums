@@ -5,7 +5,7 @@ date: "2026-02-17"
 updated: "2026-02-17"
 lang: "en"
 alternate: "comment-mon-tda-a-inspire-wampums"
-description: "The story of a scout leader and programmer living with ADHD who turned years of administrative frustrations into a purpose-built app designed to give leaders their time back."
+description: "How a scout leader and programmer with ADHD turned administrative frustrations into Wampums, an app built to give leaders their time back."
 keywords:
   - scout app ADHD story
   - scout group volunteer management

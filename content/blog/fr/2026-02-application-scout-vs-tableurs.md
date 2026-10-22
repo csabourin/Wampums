@@ -1,11 +1,11 @@
 ---
-title: "Application scout vs tableurs : pourquoi les chefs font le changement"
+title: "Application scoute vs tableurs : guide pour les chefs"
 slug: "application-scout-vs-tableurs"
 date: "2026-02-16"
 updated: "2026-02-16"
 lang: "fr"
 alternate: "scout-app-vs-spreadsheets"
-description: "Les groupes scouts au Canada abandonnent les tableurs pour des applications spécialisées. Voici pourquoi — avec des exemples concrets de ce qui brise et ce qui s'améliore."
+description: "Pourquoi les groupes scouts canadiens remplacent les tableurs par des applications spécialisées : exemples concrets et avantages au quotidien."
 keywords:
   - logiciel gestion scout vs tableurs
   - application scout remplacer tableur

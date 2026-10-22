@@ -5,7 +5,7 @@ date: "2026-02-16"
 updated: "2026-02-16"
 lang: "fr"
 alternate: "bilingual-scout-group-challenges-canada"
-description: "Les groupes scouts bilingues au Canada font face à des défis uniques que les outils unilingues ne peuvent pas résoudre. Voici cinq problèmes concrets et comment les outils modernes y répondent."
+description: "Découvrez cinq défis des groupes scouts bilingues au Canada et comment des outils modernes facilitent la communication et la gestion au quotidien."
 keywords:
   - groupe scout bilingue Canada
   - gestion groupe scout français anglais

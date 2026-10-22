@@ -5,7 +5,7 @@ date: "2026-02-16"
 updated: "2026-02-16"
 lang: "fr"
 alternate: "guide-scout-group-management"
-description: "Tout ce que les chefs scouts doivent savoir pour gérer les présences, les badges, les communications et les finances de leur groupe — avec des conseils pratiques et des comparaisons d'outils."
+description: "Un guide pratique pour gérer les présences, badges, communications et finances de votre groupe scout, avec des conseils et comparaisons."
 keywords:
   - gestion groupe scout
   - chef scout conseils

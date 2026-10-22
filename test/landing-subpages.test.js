@@ -56,13 +56,26 @@ const PAGES = innerPages();
 /** Check that a page queues one page view configuration before Google loads. */
 function expectAnalytics(html) {
   const head = new DOMParser().parseFromString(html, 'text/html').head;
+  const consent = head.querySelector('script[src="/consent.js"]');
+  expect(consent).not.toBeNull();
+  expect(consent.hasAttribute('async')).toBe(false);
+  expect(consent.hasAttribute('defer')).toBe(false);
   expect(head.querySelectorAll('script[async][src="https://www.googletagmanager.com/gtag/js?id=G-T3TDD2WS36"]')).toHaveLength(1);
+  const scripts = Array.from(head.querySelectorAll('script'));
+  expect(scripts.indexOf(consent)).toBeLessThan(scripts.findIndex((script) => script.src.includes('googletagmanager.com')));
   const bootstrap = Array.from(head.querySelectorAll('script:not([src])'))
     .find((script) => script.textContent.includes("gtag('config'")).textContent;
   const context = { dataLayer: [] };
   context.window = context;
+  context.document = { readyState: 'loading', cookie: '', addEventListener: () => {} };
+  context.location = { hostname: 'wampums.app' };
+  context.localStorage = { getItem: () => null };
+  vm.runInNewContext(fs.readFileSync(path.join(LANDING, 'consent.js'), 'utf8'), context);
   vm.runInNewContext(bootstrap, context);
   expect(context.dataLayer.map((args) => Array.from(args))).toEqual([
+    ['consent', 'default', {
+      analytics_storage: 'denied', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+    }],
     ['js', expect.anything()],
     ['config', 'G-T3TDD2WS36'],
   ]);
@@ -87,6 +100,31 @@ function renderBlog(template, locals) {
 }
 
 describe('inner pages of the public site', () => {
+  test('the language redirect also loads the shared consent controls', () => {
+    expect(read('/')).toContain('<script src="/consent.js"></script>');
+  });
+  test.each(['/', '/en/', '/fr/', ...PAGES])('%s has a descriptive title shorter than 70 characters', (pagePath) => {
+    const page = new DOMParser().parseFromString(read(pagePath), 'text/html');
+    expect(page.head.querySelectorAll('title')).toHaveLength(1);
+    expect(page.title.trim().length).toBeGreaterThan(0);
+    expect(page.title.trim().length).toBeLessThan(70);
+  });
+
+  test('every static landing page has a unique title', () => {
+    const titles = ['/', '/en/', '/fr/', ...PAGES].map((pagePath) =>
+      new DOMParser().parseFromString(read(pagePath), 'text/html').title.trim());
+    expect(new Set(titles).size).toBe(titles.length);
+  });
+
+  test.each(['/', '/en/', '/fr/', ...PAGES])('%s has a meta description between 25 and 160 characters', (pagePath) => {
+    const page = new DOMParser().parseFromString(read(pagePath), 'text/html');
+    const descriptions = page.head.querySelectorAll('meta[name="description"]');
+    expect(descriptions).toHaveLength(1);
+    const description = descriptions[0].getAttribute('content').trim();
+    expect(description.length).toBeGreaterThanOrEqual(25);
+    expect(description.length).toBeLessThanOrEqual(160);
+  });
+
   test.each(['/en/', '/fr/', ...PAGES])('%s initializes the landing Google Analytics property once', (pagePath) => {
     expectAnalytics(read(pagePath));
   });
