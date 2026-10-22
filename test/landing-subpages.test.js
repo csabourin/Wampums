@@ -60,9 +60,10 @@ function expectAnalytics(html) {
   expect(consent).not.toBeNull();
   expect(consent.hasAttribute('async')).toBe(false);
   expect(consent.hasAttribute('defer')).toBe(false);
-  expect(head.querySelectorAll('script[async][src="https://www.googletagmanager.com/gtag/js?id=G-T3TDD2WS36"]')).toHaveLength(1);
+  const googleTags = head.querySelectorAll('script[async][src="https://www.googletagmanager.com/gtag/js?id=G-T3TDD2WS36"]');
+  expect(googleTags).toHaveLength(1);
   const scripts = Array.from(head.querySelectorAll('script'));
-  expect(scripts.indexOf(consent)).toBeLessThan(scripts.findIndex((script) => script.src.includes('googletagmanager.com')));
+  expect(scripts.indexOf(consent)).toBeLessThan(scripts.indexOf(googleTags[0]));
   const bootstrap = Array.from(head.querySelectorAll('script:not([src])'))
     .find((script) => script.textContent.includes("gtag('config'")).textContent;
   const context = { dataLayer: [] };
