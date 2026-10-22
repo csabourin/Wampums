@@ -62,7 +62,8 @@ whose fingerprint changed, and pages that left the site. A page sent less than
 five minutes ago waits for the window, then goes out on an automatic retry.
 
 What was sent lives in `indexnow_submissions` (migration 040). A rate limit (429)
-or network failure records nothing and retries up to three times. Any other
+or network failure records nothing and retries up to three times; so does a
+sync that finds another one running, 30 seconds later, with the newer content. Any other
 refusal is logged as an error and waits for the next deploy. Each submission is
 logged with its HTTP status and URLs under `[IndexNow]`. Coverage lives in
 `test/indexnow.test.js`.

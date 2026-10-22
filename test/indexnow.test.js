@@ -267,10 +267,11 @@ describe('when IndexNow does not take the pages', () => {
     expect(pool.rows().size).toBe(0);
   });
 
-  test('while another instance is submitting, this one sends nothing', async () => {
+  test('while another sync is submitting, this one sends nothing and tries again after it', async () => {
     const fetchImpl = okFetch();
     const result = await syncIndexNow({ pool: fakePool({ locked: true }), fetchImpl, now: T0, landingDir, blog });
     expect(result.skipped).toBe('locked');
+    expect(result.retryInMs).toBe(INDEXNOW.LOCK_RETRY_MS);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

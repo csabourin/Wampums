@@ -196,7 +196,8 @@ async function postUrls(urls, fetchImpl) {
  * @param {{ getAllPosts: Function }|null} [options.blog]
  * @returns {Promise<{ submitted: string[], deferred: string[], retryInMs: number|null, status: number|null, skipped?: string }>}
  *   `retryInMs` asks the caller to run again: pages are waiting out their window,
- *   or IndexNow could not take them yet.
+ *   another sync was running (it may have collected older content), or IndexNow
+ *   could not take them yet.
  */
 async function syncIndexNow({ pool, fetchImpl = fetch, now = Date.now(), landingDir, blog = null }) {
   const current = await collectPages({ landingDir, blog });
@@ -206,7 +207,7 @@ async function syncIndexNow({ pool, fetchImpl = fetch, now = Date.now(), landing
     const lock = await client.query('SELECT pg_try_advisory_xact_lock($1) AS locked', [INDEXNOW.ADVISORY_LOCK_KEY]);
     if (!lock.rows[0]?.locked) {
       await client.query('ROLLBACK');
-      return { submitted: [], deferred: [], retryInMs: null, status: null, skipped: 'locked' };
+      return { submitted: [], deferred: [], retryInMs: INDEXNOW.LOCK_RETRY_MS, status: null, skipped: 'locked' };
     }
 
     const previous = await client.query(

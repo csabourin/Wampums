@@ -157,6 +157,8 @@ const INDEXNOW = Object.freeze({
   MAX_URLS_PER_REQUEST: 10000,   // protocol limit
   MAX_RETRIES: 3,                // after a rate limit or a network failure
   ADVISORY_LOCK_KEY: 7246630,    // one instance submits at a time
+  // Another sync holds the lock for at most one request: try again after it, with the newer content.
+  LOCK_RETRY_MS: 30 * 1000,
   ACCEPTED_STATUSES: Object.freeze([200, 202]), // 202: accepted, key check pending
   RATE_LIMITED_STATUS: 429,
 });
