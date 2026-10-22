@@ -13,6 +13,16 @@ const { setStaticHeaders } = require('../utils/static-cache');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const REQUEST_BODY_LIMIT = '20mb';
+const LANDING_HOSTS = new Set(['wampums.app', 'www.wampums.app']);
+
+/**
+ * Allow an analytics CSP source only on the public marketing hosts.
+ * @param {string} origin - Google Analytics source expression.
+ * @returns {function(import('express').Request): string} Helmet directive callback.
+ */
+function landingAnalyticsSource(origin) {
+  return (req) => LANDING_HOSTS.has(req.hostname) ? origin : '';
+}
 // Stripe signs the exact bytes it sends; its route reads them with express.raw(),
 // which finds nothing left once the JSON parser has consumed the body.
 const RAW_BODY_PATHS = new Set(['/api/v1/stripe/webhook']);
@@ -150,10 +160,18 @@ module.exports = (app) => {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://js.stripe.com'],
+          scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://js.stripe.com', landingAnalyticsSource('https://*.googletagmanager.com')],
           styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
-          imgSrc: getContentSecurityImageSources(),
-          connectSrc: connectSrc.concat(['https://api.stripe.com']),
+          imgSrc: getContentSecurityImageSources().concat([
+            landingAnalyticsSource('https://*.google-analytics.com'),
+            landingAnalyticsSource('https://*.googletagmanager.com'),
+          ]),
+          connectSrc: connectSrc.concat([
+            'https://api.stripe.com',
+            landingAnalyticsSource('https://*.google-analytics.com'),
+            landingAnalyticsSource('https://*.analytics.google.com'),
+            landingAnalyticsSource('https://*.googletagmanager.com'),
+          ]),
           fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdnjs.cloudflare.com'],
           objectSrc: ["'none'"],
           mediaSrc: ["'self'"],
@@ -183,7 +201,6 @@ module.exports = (app) => {
   // Static files
   const staticDir = isProduction ? path.join(process.cwd(), 'dist') : process.cwd();
   const landingDir = path.join(process.cwd(), 'landing');
-  const landingHosts = new Set(['wampums.app', 'www.wampums.app']);
 
   // Lazy-load blog service to avoid crashing on startup if content dir is missing
   let blogService = null;
@@ -200,7 +217,7 @@ module.exports = (app) => {
 
   // Robots.txt (served on all hostnames)
   app.get('/robots.txt', (req, res) => {
-    const isLanding = landingHosts.has(req.hostname);
+    const isLanding = LANDING_HOSTS.has(req.hostname);
     res.type('text/plain');
     if (isLanding) {
       res.send([
@@ -308,7 +325,7 @@ module.exports = (app) => {
 
   // Middleware for wampums.app hostname: blog (SSR) + static landing pages
   app.use(async (req, res, next) => {
-    if (!landingHosts.has(req.hostname)) {
+    if (!LANDING_HOSTS.has(req.hostname)) {
       return next();
     }
 

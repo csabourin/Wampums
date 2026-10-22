@@ -50,6 +50,28 @@ afterAll((done) => {
 });
 
 describe('Landing Host Routing - wampums.app', () => {
+  test.each(['wampums.app', 'www.wampums.app'])('%s permits the analytics script and collection requests', async (host) => {
+    const res = await request(app).get('/en/').set('Host', host);
+    expect(res.status).toBe(200);
+    const directives = Object.fromEntries(res.headers['content-security-policy'].split(';').map((directive) => {
+      const [name, ...sources] = directive.trim().split(/\s+/);
+      return [name, sources];
+    }));
+    expect(directives['script-src']).toContain('https://*.googletagmanager.com');
+    expect(directives['connect-src']).toEqual(expect.arrayContaining([
+      'https://*.google-analytics.com', 'https://*.analytics.google.com', 'https://*.googletagmanager.com',
+    ]));
+    expect(directives['img-src']).toEqual(expect.arrayContaining([
+      'https://*.google-analytics.com', 'https://*.googletagmanager.com',
+    ]));
+  });
+
+  test('the app host does not load or permit landing analytics', async () => {
+    const res = await request(app).get('/').set('Host', 'demo.wampums.app');
+    expect(res.headers['content-security-policy']).not.toMatch(/google-analytics\.com|analytics\.google\.com|googletagmanager\.com/);
+    expect(res.text).not.toContain('G-T3TDD2WS36');
+  });
+
   describe('Root path redirects', () => {
     test('redirects / to /en/ when Accept-Language is en-US', async () => {
       const res = await request(app)
