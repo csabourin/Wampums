@@ -176,10 +176,8 @@ export class OfflineManager {
     debugLog('OfflineManager: Device is offline');
     this.isOffline = true;
 
-    // Show toast notification
-    this.showToast(this.getTranslation('connection.lost'), 'info');
-
-    // Dispatch custom event
+    // The persistent status banner announces this change without covering
+    // the page with a second, temporary notification.
     this.dispatchEvent('offlineStatusChanged', { isOffline: true });
   }
 

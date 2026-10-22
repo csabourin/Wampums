@@ -1,6 +1,6 @@
 import { translate } from '../../app.js';
 import { debugError, debugLog, debugWarn } from '../../utils/DebugUtils.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { CONFIG } from '../../config.js';
@@ -356,10 +356,10 @@ export class Inventory {
           <div class="inventory-header">
             <h2>${escapeHTML(translate('equipment_inventory_title'))}</h2>
             <div class="view-toggle">
-              <button type="button" class="view-toggle-btn ${this.viewMode === 'gallery' ? 'active' : ''}" id="gallery-view-btn" aria-label="${escapeHTML(translate('equipment_gallery_view'))}">
+              <button type="button" class="view-toggle-btn ${this.viewMode === 'gallery' ? 'active' : ''}" id="gallery-view-btn" aria-pressed="${this.viewMode === 'gallery'}" aria-label="${escapeHTML(translate('equipment_gallery_view'))}">
                 <span class="view-icon">▦</span>
               </button>
-              <button type="button" class="view-toggle-btn ${this.viewMode === 'table' ? 'active' : ''}" id="table-view-btn" aria-label="${escapeHTML(translate('equipment_table_view'))}">
+              <button type="button" class="view-toggle-btn ${this.viewMode === 'table' ? 'active' : ''}" id="table-view-btn" aria-pressed="${this.viewMode === 'table'}" aria-label="${escapeHTML(translate('equipment_table_view'))}">
                 <span class="view-icon">☰</span>
               </button>
             </div>
@@ -552,6 +552,9 @@ export class Inventory {
           padding: 0.5rem 0.75rem;
           border: none;
           background: transparent;
+          color: var(--color-text);
+          min-inline-size: var(--touch-target-min);
+          min-block-size: var(--touch-target-min);
           border-radius: 4px;
           cursor: pointer;
           font-size: 1rem;
@@ -560,6 +563,7 @@ export class Inventory {
 
         :is(.inventory-page, .inventory-dialog) .view-toggle-btn.active {
           background: var(--bg-card, white);
+          color: var(--color-primary-dark);
           box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
@@ -680,6 +684,7 @@ export class Inventory {
         :is(.inventory-page, .inventory-dialog) .data-table th {
           font-weight: 600;
           background: var(--bg-secondary, #f5f5f5);
+          color: var(--color-text);
         }
 
         :is(.inventory-page, .inventory-dialog) .table-photo {
@@ -743,11 +748,6 @@ export class Inventory {
 
           :is(.inventory-page, .inventory-dialog) .grid-2 {
             grid-template-columns: 1fr;
-          }
-
-          :is(.inventory-page, .inventory-dialog) .data-table th:nth-child(n+5),
-          :is(.inventory-page, .inventory-dialog) .data-table td:nth-child(n+5) {
-            display: none;
           }
 
         }
@@ -814,7 +814,7 @@ export class Inventory {
     if (this.equipment.length === 0) {
       return `
         <div class="table-container">
-          <table class="data-table">
+          <table class="data-table mobile-labeled-table">
             <thead>
               <tr>
               <th>${escapeHTML(translate('equipment_photo'))}</th>
@@ -836,7 +836,7 @@ export class Inventory {
 
     return `
       <div class="table-container">
-        <table class="data-table">
+        <table class="data-table mobile-labeled-table">
           <thead>
             <tr>
               <th>${escapeHTML(translate('equipment_photo'))}</th>
@@ -851,18 +851,18 @@ export class Inventory {
           <tbody>
             ${this.equipment.map((item) => `
               <tr>
-                <td>
+                <td data-label="${escapeAttribute(translate('equipment_photo'))}">
                   ${item.photo_url
     ? `<img src="${escapeHTML(item.photo_url)}" alt="${escapeHTML(item.name)}" class="table-photo previewable-image" loading="lazy" role="button" tabindex="0" data-equipment-id="${escapeHTML(String(item.id))}" data-photo-url="${escapeHTML(item.photo_url)}" data-photo-alt="${escapeHTML(item.name)}" />`
     : `<div class="table-no-photo">📦</div>`
 }
                 </td>
-                <td>${escapeHTML(item.name)}</td>
-                <td>${escapeHTML(item.category || '-')}</td>
-                <td>${escapeHTML(this.formatLocation(item))}</td>
-                <td>${escapeHTML(String(item.quantity_total ?? 0))}</td>
-                <td>${escapeHTML(this.formatCurrency(item.item_value))}</td>
-                <td>
+                <td data-label="${escapeAttribute(translate('equipment_name'))}">${escapeHTML(item.name)}</td>
+                <td data-label="${escapeAttribute(translate('equipment_category'))}">${escapeHTML(item.category || '-')}</td>
+                <td data-label="${escapeAttribute(translate('equipment_location'))}">${escapeHTML(this.formatLocation(item))}</td>
+                <td data-label="${escapeAttribute(translate('equipment_quantity_total'))}">${escapeHTML(String(item.quantity_total ?? 0))}</td>
+                <td data-label="${escapeAttribute(translate('equipment_item_value'))}">${escapeHTML(this.formatCurrency(item.item_value))}</td>
+                <td data-label="${escapeAttribute(translate('actions'))}">
                   <div class="table-actions">
                     <button type="button" class="button button--secondary button--small edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
                     <button type="button" class="button button--danger button--small delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>

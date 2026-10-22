@@ -682,6 +682,7 @@ export class Attendance {
           </select>
         </div>
         <div class="search-container" style="margin-bottom: 1rem;">
+          <label for="attendance-search" class="sr-only">${translate('search')}</label>
           <input type="search" id="attendance-search" class="search-input" data-archive-safe style="width: 100%; padding: 0.5rem;" placeholder="${translate('search')}..." value="${escapeHTML(this.searchTerm)}">
         </div>
         ${this.renderMarkRemainingButton()}
@@ -764,7 +765,9 @@ export class Attendance {
     debugLog('App language:', this.app.lang);
     const options = this.availableDates
       .map((date) => {
-        const formatted = formatDate(date, this.app.lang);
+        const formatted = formatDate(date, this.app.lang, {
+          weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+        });
         debugLog(`Date ${date} formatted as: ${formatted}`);
         return `<option value="${date}" ${date === this.currentDate ? 'selected' : ''}>
         ${formatted}

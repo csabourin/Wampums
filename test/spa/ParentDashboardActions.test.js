@@ -314,6 +314,13 @@ describe('buttons the unit hides', () => {
     expect(document.querySelector('.parent-dashboard__actions a[href="/parent-onboarding"]')).toBeNull();
   });
 
+  test('children and their forms appear before the general account actions', async () => {
+    await renderDashboard({ organizationSettings: {} });
+    const children = document.querySelector('.parent-dashboard__participants');
+    const actions = document.querySelector('.parent-dashboard__actions');
+    expect(children.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   test('has no WCAG A/AA violations', async () => {
     await renderDashboard({
       organizationSettings: { parent_dashboard_configuration: { hidden_button_keys: ['request_badge'] } },

@@ -348,7 +348,7 @@ describe('US-OFF-005 — Camp mode remembers what was prepared', () => {
 });
 
 describe('US-OFF-007 — The app announces connection changes', () => {
-  it('handleOffline dispatches offlineStatusChanged {isOffline: true} and a toast', () => {
+  it('announces loss of connection through the status banner without a duplicate toast', () => {
     const manager = new OfflineManager();
     const status = captureWindowEvents('offlineStatusChanged');
     const toasts = captureWindowEvents('showToast');
@@ -359,7 +359,7 @@ describe('US-OFF-007 — The app announces connection changes', () => {
     toasts.stop();
     expect(manager.isOffline).toBe(true);
     expect(status.seen).toContainEqual({ isOffline: true });
-    expect(toasts.seen.length).toBeGreaterThan(0);
+    expect(toasts.seen).toEqual([]);
   });
 
   it('handleOnline dispatches {isOffline: false} and runs a sync cycle', async () => {

@@ -158,19 +158,37 @@ export function isoToDateString(dateSource) {
 }
 
 /**
- * Format time to HH:MM format
+ * Format hours and minutes with the person's 12-hour or 24-hour preference.
  * @param {number} hours - Hours (0-23)
  * @param {number} minutes - Minutes (0-59)
- * @returns {string} Time string in HH:MM format
+ * @param {string} [lang] - Interface language; defaults to the stored language
+ * @returns {string} Localized time without seconds
  */
-export function formatTime(hours, minutes) {
+export function formatTime(hours, minutes, lang = getLocale()) {
   const use24h = getTimeFormatPreference() === '24h';
   const date = new Date(1970, 0, 1, Number(hours) || 0, Number(minutes) || 0);
-  return date.toLocaleTimeString(getLocale(), {
+  return date.toLocaleTimeString(lang, {
     hour: use24h ? '2-digit' : 'numeric',
     minute: '2-digit',
     hour12: !use24h
   });
+}
+
+/**
+ * Display a database clock time without seconds, using the person's time
+ * format preference. A clock time has no date or time zone to convert.
+ * @param {string} value - HH:MM or HH:MM:SS
+ * @param {string} [lang] - Interface language
+ * @returns {string} Localized time, or an empty string for an invalid value
+ */
+export function formatClockTime(value, lang = getLocale()) {
+  const match = /^(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(String(value || ''));
+  const HOURS_PER_DAY = 24;
+  const MINUTES_PER_HOUR = 60;
+  if (!match || Number(match[1]) >= HOURS_PER_DAY || Number(match[2]) >= MINUTES_PER_HOUR) {
+    return '';
+  }
+  return formatTime(Number(match[1]), Number(match[2]), lang);
 }
 
 /**

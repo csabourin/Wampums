@@ -157,6 +157,15 @@ afterEach(() => {
 });
 
 describe('US-ATT-001 — See my unit grouped, with honest statuses', () => {
+  it('keeps the full year visible with a compact localized date and labels its search', async () => {
+    seedStandardData();
+    await initPage();
+    const option = document.querySelector('#dateSelect option:checked');
+    expect(option.textContent.trim()).toBe(formatDate(option.value, 'en', {
+      weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+    }));
+    expect(document.querySelector('label[for="attendance-search"]')).not.toBeNull();
+  });
   it('shows a skeleton while loading', () => {
     const page = new Attendance(makeAppStub());
     page.renderSkeleton();

@@ -27,7 +27,7 @@ import { confirmDestructive, prompt as promptDialog } from '../../utils/DialogUt
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { buildNotFoundMarkup } from '../../utils/NotFoundUtils.js';
-import { parseDate } from '../../utils/DateUtils.js';
+import { formatClockTime, parseDate } from '../../utils/DateUtils.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { withButtonLoading } from '../../utils/PerformanceUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
@@ -259,15 +259,15 @@ export class CarpoolDashboard {
           <div class="activity-info-card__details">
             <div class="info-block">
               <strong>${translate('going')}:</strong>
-              <p>${translate('meeting')}: ${escapeHTML(this.activity.meeting_time_going || '-')} @ ${escapeHTML(this.activity.meeting_location_going || '-')}</p>
-              <p>${translate('departure')}: ${escapeHTML(this.activity.departure_time_going || '-')}</p>
+              <p>${translate('meeting')}: ${escapeHTML(formatClockTime(this.activity.meeting_time_going, this.app.lang) || '-')} · ${escapeHTML(this.activity.meeting_location_going || '-')}</p>
+              <p>${translate('departure')}: ${escapeHTML(formatClockTime(this.activity.departure_time_going, this.app.lang) || '-')}</p>
             </div>
 
             ${this.activity.meeting_location_return ? `
               <div class="info-block">
                 <strong>${translate('returning')}:</strong>
-                <p>${translate('meeting')}: ${escapeHTML(this.activity.meeting_time_return || '-')} @ ${escapeHTML(this.activity.meeting_location_return)}</p>
-                <p>${translate('departure')}: ${escapeHTML(this.activity.departure_time_return || '-')}</p>
+                <p>${translate('meeting')}: ${escapeHTML(formatClockTime(this.activity.meeting_time_return, this.app.lang) || '-')} · ${escapeHTML(this.activity.meeting_location_return)}</p>
+                <p>${translate('departure')}: ${escapeHTML(formatClockTime(this.activity.departure_time_return, this.app.lang) || '-')}</p>
               </div>
             ` : ''}
           </div>

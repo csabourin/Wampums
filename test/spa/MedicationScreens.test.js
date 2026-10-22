@@ -110,6 +110,32 @@ beforeEach(() => {
 });
 
 describe('medication planning and dispensing', () => {
+  test.each([null, 'not_received'])('medication not received (%s) is never reported as already given', async (status) => {
+    loadAll();
+    api.getMedicationReceptions.mockResolvedValue({ success: true, data: { receptions: status ? [{
+      participant_id: 5, medication_requirement_id: 11, status,
+    }] : [] } });
+    const screen = new MedicationManagement(makeApp(), { view: 'dispensing' });
+    await screen.init();
+
+    expect(page().querySelector('#participant-medication-cards-pending').textContent).toContain('medication_awaiting_reception');
+    expect(page().textContent).not.toContain('medication_all_distributed_today');
+    screen.destroy();
+  });
+
+  test('received medication with an outstanding dose remains available to dispense', async () => {
+    loadAll();
+    api.getMedicationReceptions.mockResolvedValue({ success: true, data: { receptions: [{
+      participant_id: 5, medication_requirement_id: 11, status: 'received',
+    }] } });
+    const screen = new MedicationManagement(makeApp(), { view: 'dispensing' });
+    await screen.init();
+
+    expect(page().querySelector('#participant-medication-cards-pending .participant-med-card')).not.toBeNull();
+    expect(page().textContent).not.toContain('medication_all_distributed_today');
+    screen.destroy();
+  });
+
   test.each(['planning', 'dispensing'])('the %s view says it is loading, with the way back', async (view) => {
     loadAll();
     let resolve;

@@ -16,7 +16,7 @@ import {
   getParticipants,
 } from '../../ajax-functions.js';
 import { translate } from '../../app.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { formatDateShort, getTodayISO } from '../../utils/DateUtils.js';
 import { clearFinanceRelatedCaches } from '../../indexedDB.js';
@@ -406,9 +406,10 @@ export class Finance extends BaseModule {
 
     return `
       <div class="finance-section">
-        <div class="finance-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div class="finance-section-header">
           <h2>${translate('participant_fees')}</h2>
           <div class="search-container">
+            <label for="finance-search" class="sr-only">${translate('search')}</label>
             <input type="search" id="finance-search" class="search-input" placeholder="${translate('search')}..." value="${escapeHTML(this.searchTerm)}">
           </div>
         </div>
@@ -524,7 +525,7 @@ export class Finance extends BaseModule {
 
     return `
       <div class="finance-table-container">
-        <table class="finance-table">
+        <table class="finance-table mobile-labeled-table">
           <thead>
             <tr>
               <th><button class="sort-btn" data-sort="name">${translate('participant')}${sortIcon('name')}</button></th>
@@ -551,18 +552,18 @@ export class Finance extends BaseModule {
       ? this.formatYearRange(feeDefinition.year_start, feeDefinition.year_end)
       : translate('unknown');
     const outstanding = this.getOutstanding(fee);
-    const statusLabel = translate(fee.status) || fee.status;
+    const statusLabel = translate(fee.status === 'partial' ? 'finance_partially_paid' : fee.status);
     const statusClass = fee.status === 'paid' ? 'success' : fee.status === 'partial' ? 'warning' : 'danger';
 
     return `
       <tr data-fee-id="${fee.id}">
-        <td><strong>${participantName}</strong></td>
-        <td>${yearRange}</td>
-        <td>${this.formatCurrency(fee.total_amount)}</td>
-        <td>${this.formatCurrency(fee.total_paid)}</td>
-        <td><strong class="text-${statusClass}">${this.formatCurrency(outstanding)}</strong></td>
-        <td><span class="finance-pill finance-pill--${statusClass}">${statusLabel}</span></td>
-        <td class="finance-actions">
+        <td data-label="${escapeAttribute(translate('participant'))}"><strong>${participantName}</strong></td>
+        <td data-label="${escapeAttribute(translate('period'))}">${yearRange}</td>
+        <td data-label="${escapeAttribute(translate('total_billed'))}">${this.formatCurrency(fee.total_amount)}</td>
+        <td data-label="${escapeAttribute(translate('total_paid'))}">${this.formatCurrency(fee.total_paid)}</td>
+        <td data-label="${escapeAttribute(translate('outstanding_balance'))}"><strong class="text-${statusClass}">${this.formatCurrency(outstanding)}</strong></td>
+        <td data-label="${escapeAttribute(translate('status'))}"><span class="finance-pill finance-pill--${statusClass}">${statusLabel}</span></td>
+        <td data-label="${escapeAttribute(translate('actions'))}" class="finance-actions">
           <button class="button button--secondary" data-action="open-payment" data-id="${fee.id}">${translate('make_payment')}</button>
           <button class="button button--secondary" data-action="open-plan" data-id="${fee.id}">${translate('manage_installments')}</button>
         </td>

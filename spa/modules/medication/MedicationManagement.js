@@ -1,5 +1,5 @@
 import { translate } from '../../app.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { debugError, debugLog } from '../../utils/DebugUtils.js';
 import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
 import { deleteCachedData, getCachedData, getCachedDataIgnoreExpiration, setCachedData } from '../../indexedDB.js';
@@ -1435,7 +1435,7 @@ export class MedicationManagement {
       <div class="card">
         <h2>${escapeHTML(translate('medication_upcoming_schedule'))}</h2>
         <div class="table-container">
-          <table class="data-table">
+          <table class="data-table mobile-labeled-table">
             <thead>
               <tr>
                 <th>${escapeHTML(translate('date'))}</th>
@@ -1678,6 +1678,7 @@ export class MedicationManagement {
 
     let pendingHtml = '';
     let givenHtml = '';
+    let awaitingReception = false;
 
     Array.from(participantMeds.entries()).forEach(([participantId, medications]) => {
       const participantName = this.getParticipantName(participantId);
@@ -1685,7 +1686,11 @@ export class MedicationManagement {
       // Filter out medications not yet received
       const dispensableMeds = medications.filter((med) => {
         const reception = this.getReceptionForMedication(participantId, med.requirement.id);
-        return reception && reception.status !== 'not_received';
+        const received = reception && reception.status !== 'not_received';
+        if (!received) {
+          awaitingReception = true;
+        }
+        return received;
       });
 
       if (dispensableMeds.length === 0) {return;}
@@ -1719,7 +1724,9 @@ export class MedicationManagement {
     });
 
     return {
-      pendingCards: pendingHtml || `<p>${escapeHTML(translate('medication_all_distributed_today'))}</p>`,
+      pendingCards: pendingHtml || `<p>${escapeHTML(translate(awaitingReception
+        ? 'medication_awaiting_reception'
+        : 'medication_all_distributed_today'))}</p>`,
       givenCards: givenHtml || `<p>${escapeHTML(translate('medication_no_given_today'))}</p>`
     };
   }
@@ -1866,13 +1873,13 @@ export class MedicationManagement {
       const timeLabel = new Date(dist.scheduled_for).toLocaleTimeString(this.app.lang || 'en', { hour: '2-digit', minute: '2-digit' });
       return `
         <tr>
-          <td>${escapeHTML(dateLabel)}</td>
-          <td>${escapeHTML(timeLabel)}</td>
-          <td>${participantName}</td>
-          <td>${escapeHTML(requirement.medication_name || translate('medication'))}</td>
-          <td>${escapeHTML(dist.dose_notes || requirement.dosage_instructions || '-')}</td>
-          <td>${escapeHTML(dist.frequency_text || requirement.frequency_text || '-')}</td>
-          <td>${escapeHTML(dist.general_notice || requirement.general_notes || '-')}</td>
+          <td data-label="${escapeAttribute(translate('date'))}">${escapeHTML(dateLabel)}</td>
+          <td data-label="${escapeAttribute(translate('time'))}">${escapeHTML(timeLabel)}</td>
+          <td data-label="${escapeAttribute(translate('participants'))}">${participantName}</td>
+          <td data-label="${escapeAttribute(translate('medication'))}">${escapeHTML(requirement.medication_name || translate('medication'))}</td>
+          <td data-label="${escapeAttribute(translate('medication_default_dose'))}">${escapeHTML(dist.dose_notes || requirement.dosage_instructions || '-')}</td>
+          <td data-label="${escapeAttribute(translate('medication_frequency'))}">${escapeHTML(dist.frequency_text || requirement.frequency_text || '-')}</td>
+          <td data-label="${escapeAttribute(translate('notes'))}">${escapeHTML(dist.general_notice || requirement.general_notes || '-')}</td>
         </tr>
       `;
     }).join('');

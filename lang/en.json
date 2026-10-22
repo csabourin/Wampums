@@ -1464,6 +1464,8 @@
   "medication_status_pending": "Pending",
   "medication_no_given_today": "No medications have been given yet today.",
   "medication_all_distributed_today": "All scheduled doses have been given for today.",
+  "medication_awaiting_reception": "Assigned medications have not all been received. Check medication reception before dispensing; these doses have not been marked as given.",
+  "finance_partially_paid": "Partially paid",
   "medication_dose_already_given": "This dose has already been given and cannot be given again.",
   "medication_offline_banner": "You are offline. Medication actions will be saved locally and synced when you reconnect.",
   "medication_offline_dose_queued": "Saved locally. Will sync when back online.",

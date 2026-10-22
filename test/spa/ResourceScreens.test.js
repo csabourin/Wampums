@@ -140,6 +140,25 @@ describe.each(SCREENS)('%s', (_name, Screen, titleKey) => {
   });
 });
 
+describe('inventory views', () => {
+  test('table cards keep the quantity, value and actions with their translated labels', async () => {
+    loadAll();
+    await new Inventory(makeApp()).init();
+    page().querySelector('#table-view-btn').click();
+
+    expect(page().querySelector('#table-view-btn').getAttribute('aria-pressed')).toBe('true');
+    expect(page().querySelector('#gallery-view-btn').getAttribute('aria-pressed')).toBe('false');
+    const cells = [...page().querySelectorAll('.mobile-labeled-table tbody tr:first-child td')];
+    expect(cells.map((cell) => cell.dataset.label)).toEqual([
+      'equipment_photo', 'equipment_name', 'equipment_category', 'equipment_location',
+      'equipment_quantity_total', 'equipment_item_value', 'actions',
+    ]);
+    expect(cells[1].textContent).toBe(HOSTILE);
+    expect(cells[6].querySelectorAll('button')).toHaveLength(2);
+    expect(await violations()).toEqual([]);
+  });
+});
+
 describe('a reservation\'s status', () => {
   test('a change the server accepted is reported as done even when the reload after it fails', async () => {
     loadAll();
