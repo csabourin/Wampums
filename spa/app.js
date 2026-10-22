@@ -613,7 +613,7 @@ export const app = {
     const icon = document.createElement('span');
     icon.className = 'toast-icon';
     icon.setAttribute('aria-hidden', 'true');
-    setContent(icon, type === 'error' ? '⚠' : '✓');
+    setContent(icon, type === 'error' ? '⚠' : type === 'success' ? '✓' : 'ℹ');
     // Create message text
     const messageText = document.createElement('span');
     messageText.className = 'toast-message';

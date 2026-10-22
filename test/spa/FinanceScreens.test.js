@@ -188,6 +188,17 @@ describe('finance centre', () => {
     expect(await violations()).toEqual([]);
   });
 
+  test('every value in a mobile fee card keeps its column label', async () => {
+    loaded();
+    await new Finance(makeApp()).init();
+
+    const table = page().querySelector('.mobile-labeled-table');
+    const labels = [...table.querySelectorAll('tbody tr:first-child td')].map((cell) => cell.dataset.label);
+    expect(labels).toEqual(['participant', 'period', 'total_billed', 'total_paid', 'outstanding_balance', 'status', 'actions']);
+    expect(table.querySelector('.finance-pill').textContent).toBe('finance_partially_paid');
+    expect(page().querySelector('label[for="finance-search"]')).not.toBeNull();
+  });
+
   test('a fee list that did not load is an error with a retry, never an empty list', async () => {
     loaded();
     ajax.getParticipantFees.mockRejectedValueOnce(new Error('offline'));

@@ -99,6 +99,27 @@ node .claude/skills/run-wampums/shot.mjs --wait '#complete-registration-form' "/
 `createFamilyLinkRequest` in `services/familyLinks.js` mints family-link tokens
 the same way (the requester needs a child of their own in the unit).
 
+## Screenshots for wampums.app
+
+```bash
+.claude/skills/run-wampums/site-screenshots/take.sh            # all 14 screens, fr + en
+.claude/skills/run-wampums/site-screenshots/take.sh fees parent  # only these
+```
+
+Retakes `landing/images/screenshots/<screen>-<lang>.webp` the way the site's
+images were made, so new ones match the old: the same fictional cub pack
+("Meute des Érables", `showcase.cjs`), 390×844 phone at 2×, WebP quality 0.82.
+It builds its own `wampums_showcase` database and cache
+(`~/.cache/wampums-run/showcase`), starts and stops the servers itself, and
+leaves the usual run unit alone. `capture.cjs` lists each screen, its route and
+any preparation (typing the announcement, switching inventory to its table).
+
+- Dates and times in the pack are relative to now; take every screen in one run.
+- The headless browser has no emoji font, so `capture.cjs` loads Noto Color
+  Emoji. Offline screens cannot fetch it.
+- Look at every image before committing. When a screen changes what it shows,
+  check the `alt` text of the pages that use it (`grep -r <screen>-en.webp landing`).
+
 ## Run (human path)
 
 After `start.sh`, open http://127.0.0.1:5173 and sign in with an account above.

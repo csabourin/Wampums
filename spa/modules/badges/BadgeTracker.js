@@ -358,7 +358,7 @@ export class BadgeTracker {
     return `
       <div class="badge-tracker__filter-bar" role="search">
         <div class="badge-tracker__search">
-          <span class="badge-tracker__search-icon">🔍</span>
+          <span class="badge-tracker__search-icon" aria-hidden="true">🔍</span>
           <input type="search"
                  class="badge-tracker__search-input"
                  placeholder="${translate('badge_search_placeholder') || translate('search_participants')}"

@@ -19,6 +19,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 }));
 
 jest.mock('../../spa/utils/SecurityUtils.js', () => ({
+  ...jest.requireActual('../../spa/utils/SecurityUtils.js'),
   escapeHTML: (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -74,6 +75,10 @@ describe('overview tab', () => {
     expect(doc.querySelector('tfoot')).not.toBeNull();
     expect(doc.body.textContent).toContain('Camps');
     expect(doc.body.textContent).toContain('Matériel');
+    expect([...doc.querySelectorAll('tbody tr:first-child td')].map((cell) => cell.dataset.label))
+      .toEqual(['revenue', 'expenses', 'net']);
+    expect([...doc.querySelectorAll('tfoot td')].map((cell) => cell.dataset.label))
+      .toEqual(['revenue', 'expenses', 'net']);
   });
 
   test('keeps the table active when the fiscal year has no movements yet', () => {

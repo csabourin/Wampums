@@ -2,7 +2,7 @@
  * OfflineIndicator.js
  *
  * Visual UI component that displays offline status and pending sync count.
- * Shows a fixed-position indicator at bottom-left when offline.
+ * Shows an in-flow status banner above the page when offline.
  * Automatically subscribes to OfflineManager events for real-time updates.
  */
 
@@ -97,108 +97,33 @@ export class OfflineIndicator {
     }
 
     const styles = `
-            .offline-indicator {
-                position: fixed;
-                bottom: 20px;
-                left: 20px;
-                background-color: #f44336;
-                color: white;
-                padding: 12px 16px;
-                border-radius: 8px;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-                display: none;
-                align-items: center;
-                gap: 12px;
-                z-index: 9999;
-                font-size: 14px;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                transition: transform 0.3s ease, opacity 0.3s ease;
-            }
-
-            .offline-indicator.visible {
-                display: flex;
-            }
-
-            .offline-indicator.syncing {
-                background-color: #ff9800;
-            }
-
-            .offline-indicator.camp-mode {
-                background-color: #2e7d32;
-            }
-
-            .offline-indicator-icon {
-                font-size: 20px;
-                line-height: 1;
-            }
-
-            .offline-indicator-text {
-                display: flex;
-                flex-direction: column;
-                gap: 4px;
-            }
-
-            .offline-indicator-status {
-                font-weight: 600;
-                font-size: 14px;
-            }
-
-            .offline-indicator-count {
-                font-size: 12px;
-                opacity: 0.9;
-            }
-
-            .offline-indicator-badge {
-                background-color: rgba(255, 255, 255, 0.3);
-                padding: 2px 8px;
-                border-radius: 12px;
-                font-size: 12px;
-                font-weight: bold;
-                min-width: 20px;
-                text-align: center;
-            }
-
-            /* Mobile adjustments - above mobile navigation */
-            /* Note: 70px assumes standard mobile nav height of 50-60px.
-               Adjust if navigation height changes. */
-            @media (max-width: 768px) {
-                .offline-indicator {
-                    bottom: 70px;
-                    left: 10px;
-                    right: 10px;
-                    padding: 10px 14px;
-                    font-size: 13px;
-                }
-
-                .offline-indicator-icon {
-                    font-size: 18px;
-                }
-
-                .offline-indicator-status {
-                    font-size: 13px;
-                }
-
-                .offline-indicator-count {
-                    font-size: 11px;
-                }
-            }
-
-            /* Animation for entering */
-            @keyframes slideInUp {
-                from {
-                    transform: translateY(100px);
-                    opacity: 0;
-                }
-                to {
-                    transform: translateY(0);
-                    opacity: 1;
-                }
-            }
-
-            .offline-indicator.visible {
-                animation: slideInUp 0.3s ease;
-            }
-        `;
+      .offline-indicator {
+        position: sticky;
+        inset-block-start: var(--safe-area-top);
+        margin: var(--space-sm) var(--space-md);
+        margin-inline-end: calc(var(--touch-target-min) + var(--space-xl));
+        padding: var(--space-sm) var(--space-md);
+        border: 1px solid var(--color-warning);
+        border-radius: var(--radius-sm);
+        background: var(--color-warning-light);
+        color: var(--color-text);
+        display: none;
+        align-items: center;
+        gap: var(--space-sm);
+        z-index: var(--z-fixed);
+        min-block-size: var(--touch-target-min);
+      }
+      .offline-indicator.visible { display: flex; }
+      .offline-indicator.camp-mode {
+        background: var(--color-secondary);
+        border-color: var(--color-primary);
+      }
+      .offline-indicator-icon { flex-shrink: 0; }
+      .offline-indicator-text { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+      .offline-indicator-status { font-weight: var(--font-weight-semibold); }
+      .offline-indicator-count { font-size: var(--font-size-sm); }
+      .offline-indicator-badge:empty { display: none; }
+    `;
 
     const styleElement = document.createElement('style');
     styleElement.id = styleId;
@@ -226,7 +151,12 @@ export class OfflineIndicator {
             </div>
             <span class="offline-indicator-badge"></span>
         `);
-    document.body.appendChild(this.element);
+    const appRoot = document.getElementById('app');
+    if (appRoot) {
+      appRoot.before(this.element);
+    } else {
+      document.body.appendChild(this.element);
+    }
     debugLog('OfflineIndicator: Element created');
   }
 
@@ -257,13 +187,11 @@ export class OfflineIndicator {
     this.element.classList.remove('syncing', 'camp-mode');
     if (this.isSyncing) {
       this.element.classList.add('syncing');
-      this.element.style.backgroundColor = '#ff9800';
       iconElement.textContent = '🔄';
       statusElement.textContent = this.getTranslation('status.syncing');
       countElement.textContent = '';
     } else if (this.isOffline && this.isCampMode) {
       this.element.classList.add('camp-mode');
-      this.element.style.backgroundColor = '#2e7d32';
       iconElement.textContent = '🏕️';
       statusElement.textContent = this.getTranslation('status.camp_mode');
       if (this.pendingCount > 0) {
@@ -272,7 +200,6 @@ export class OfflineIndicator {
         countElement.textContent = '';
       }
     } else if (this.isOffline) {
-      this.element.style.backgroundColor = '#f44336';
       iconElement.textContent = '⚠️';
       statusElement.textContent = this.getTranslation('status.offline');
       if (this.pendingCount > 0) {

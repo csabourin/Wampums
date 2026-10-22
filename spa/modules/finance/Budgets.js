@@ -20,7 +20,7 @@ import {
 } from '../../api/api-endpoints.js';
 import { clearBudgetCaches } from '../../indexedDB.js';
 import { translate } from '../../app.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { debugError, debugLog } from '../../utils/DebugUtils.js';
 import { formatDateShort, getTodayISO } from '../../utils/DateUtils.js';
 import { LoadingStateManager, retryWithBackoff } from '../../utils/PerformanceUtils.js';
@@ -421,9 +421,9 @@ export class Budgets {
       ? categories.map((cat) => `
           <tr>
             <th scope="row">${escapeHTML(cat.category_name || translate('uncategorized'))}</th>
-            <td class="text-right amount revenue">${this.formatCurrency(cat.total_revenue)}</td>
-            <td class="text-right amount expense">${this.formatCurrency(cat.total_expense)}</td>
-            <td class="text-right amount ${Number(cat.net_amount) >= 0 ? 'positive' : 'negative'}">
+            <td data-label="${escapeAttribute(translate('revenue'))}" class="text-right amount revenue">${this.formatCurrency(cat.total_revenue)}</td>
+            <td data-label="${escapeAttribute(translate('expenses'))}" class="text-right amount expense">${this.formatCurrency(cat.total_expense)}</td>
+            <td data-label="${escapeAttribute(translate('net'))}" class="text-right amount ${Number(cat.net_amount) >= 0 ? 'positive' : 'negative'}">
               ${this.formatCurrency(cat.net_amount)}
             </td>
           </tr>
@@ -438,7 +438,7 @@ export class Budgets {
       <div class="overview-content">
         <h2>${translate('category_breakdown')}</h2>
         <div class="table-scroll">
-          <table class="data-table budget-table">
+          <table class="data-table budget-table mobile-labeled-table">
             <caption class="visually-hidden">${translate('category_breakdown')}</caption>
             <thead>
               <tr>
@@ -454,9 +454,9 @@ export class Budgets {
             <tfoot>
               <tr class="totals-row">
                 <th scope="row">${translate('total')}</th>
-                <td class="text-right amount revenue">${this.formatCurrency(totalRevenue)}</td>
-                <td class="text-right amount expense">${this.formatCurrency(totalExpense)}</td>
-                <td class="text-right amount ${totalNet >= 0 ? 'positive' : 'negative'}">
+                <td data-label="${escapeAttribute(translate('revenue'))}" class="text-right amount revenue">${this.formatCurrency(totalRevenue)}</td>
+                <td data-label="${escapeAttribute(translate('expenses'))}" class="text-right amount expense">${this.formatCurrency(totalExpense)}</td>
+                <td data-label="${escapeAttribute(translate('net'))}" class="text-right amount ${totalNet >= 0 ? 'positive' : 'negative'}">
                   ${this.formatCurrency(totalNet)}
                 </td>
               </tr>

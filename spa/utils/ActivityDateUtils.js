@@ -1,4 +1,4 @@
-import { formatDateShort, isoToDateString, parseDate } from './DateUtils.js';
+import { formatClockTime, formatDateShort, isoToDateString, parseDate } from './DateUtils.js';
 
 export function getActivityStartDate(activity) {
   const safeActivity = activity || {};
@@ -36,8 +36,8 @@ export function getActivityEndDateObj(activity) {
 export function formatActivityDateRange(activity = {}, lang = 'en') {
   const startDate = getActivityStartDate(activity);
   const endDate = getActivityEndDate(activity);
-  const startTime = getActivityStartTime(activity);
-  const endTime = getActivityEndTime(activity);
+  const startTime = formatClockTime(getActivityStartTime(activity), lang);
+  const endTime = formatClockTime(getActivityEndTime(activity), lang);
 
   if (!startDate && !endDate) {return '';}
 

@@ -462,6 +462,11 @@ const result = await pool.query(
   what would fill it. A failed load is never shown as "nothing here".
 - ✅ Buttons use the `button` classes: `button button--primary`, `--secondary`, `--ghost`, `--danger`,
   `--small`. Do not use the older `btn btn-*` classes in new code.
+- ✅ Stacked mobile tables retain a translated label for every data value. Use
+  `mobile-labeled-table` with `data-label` on each data cell, or keep the columns in a labelled
+  scroll region. Never hide quantities, monetary values or row actions just to fit a phone.
+- ✅ Fixed page controls leave room for the page heading. Connection status belongs above the
+  content, clear of fixed action bars; an informational notice must not look like a saved change.
 
 #### Escaping what you inject
 `setContent()` sanitizes markup with DOMPurify, but that does not stop a name from becoming markup.

@@ -517,6 +517,11 @@ export class ParentDashboard {
                                 ${this.renderAuthorizationsToSign()}
                                 ${this.renderFormsToReview()}
 
+                                <section class="parent-dashboard__participants">
+                                        <h2 class="visually-hidden">${translate('participants_list')}</h2>
+                                        ${this.renderParticipantsList()}
+                                </section>
+
                                 <section class="parent-dashboard__actions">
                                         <h2 class="visually-hidden">${translate('main_actions')}</h2>
                                         <div class="parent-dashboard__actions-grid">
@@ -537,11 +542,6 @@ export class ParentDashboard {
                                         </div>
                                         ${canViewActivities() && !this.hiddenButtons.has('download_calendar') ? calendarDownloadAction : ''}
                                         ${this.renderCarpoolButton()}
-                                </section>
-
-                                <section class="parent-dashboard__participants">
-                                        <h2 class="visually-hidden">${translate('participants_list')}</h2>
-                                        ${this.renderParticipantsList()}
                                 </section>
 
                                 <footer class="parent-dashboard__footer">
