@@ -12706,14 +12706,110 @@ body.modal-open {
   color: var(--color-text);
 }
 
-.demo-banner__text {
-  margin: 0;
+.demo-banner__inner {
   margin-inline: auto;
   max-inline-size: var(--container-xl);
   padding: var(--space-sm, 0.5rem) var(--space-md, 1rem);
+}
+
+/* The fixed account control sits over the banner's top corner; keep the text clear of it. */
+body:has(> .settings-icon) .demo-banner__inner {
+  padding-inline-end: calc(var(--touch-target-min) + var(--space-md, 1rem));
+}
+
+.demo-banner__text {
+  margin: 0;
   font-size: 0.9375rem;
   line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+.demo-missions {
+  margin-block-start: var(--space-sm, 0.5rem);
+}
+
+.demo-missions__summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-weight: var(--font-weight-semibold, 600);
+  min-block-size: var(--touch-target-min);
+  touch-action: manipulation;
+}
+
+.demo-missions__summary:focus-visible,
+.demo-missions__go:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.demo-missions__count {
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary);
+  border-radius: 999px;
+  font-size: 0.875rem;
+  padding: 0 0.5rem;
+}
+
+.demo-missions__intro,
+.demo-missions__progress {
+  margin: 0 0 var(--space-sm, 0.5rem);
+}
+
+.demo-missions__list {
+  display: grid;
+  gap: var(--space-sm, 0.5rem);
+  margin: 0 0 var(--space-sm, 0.5rem);
+  padding: 0;
+  list-style: none;
+}
+
+.demo-missions__item {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: var(--space-sm, 0.5rem);
+}
+
+.demo-missions__check {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+.demo-missions__check input[type="checkbox"] {
+  block-size: var(--control-size-min);
+  flex: none;
+  inline-size: var(--control-size-min);
+  margin: 0;
+}
+
+.demo-missions__text {
+  margin: 0.25rem 0;
+}
+
+.demo-missions__go {
+  align-items: center;
+  color: var(--color-link);
+  display: inline-flex;
+  font-weight: var(--font-weight-semibold, 600);
+  min-block-size: var(--touch-target-min);
+  text-decoration: underline;
+}
+
+@media (min-width: 768px) {
+  .demo-missions__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .demo-missions__list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .demo-banner__title {
