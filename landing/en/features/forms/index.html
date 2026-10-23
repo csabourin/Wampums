@@ -27,7 +27,7 @@
 <meta property="og:locale:alternate" content="fr_CA" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Digital Scout Permission Slips &amp; Health Forms — Wampums" />
-<meta name="twitter:description" content="Replace paper forms with digital, bilingual permission slips and health forms. E-signature, conditional logic, automatic reminders, PIPEDA-compliant." />
+<meta name="twitter:description" content="Replace paper forms with digital, bilingual permission slips and health forms. E-signature, conditional logic, automatic reminders, hosted in Quebec." />
 <meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta name="theme-color" content="#0c2a30" />
 <link rel="manifest" href="/manifest.json" />
@@ -73,8 +73,8 @@
         },
         {
           "@type": "Question",
-          "name": "Are health forms PIPEDA-compliant?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Wampums is designed with Canadian privacy law in mind. Health data is stored encrypted at rest, access is restricted to authorized leaders within the same organization, and data is not shared with third parties. Consent language on health forms explains how information will be used. Organizations can configure data retention periods and request deletion of a participant's records in accordance with PIPEDA requirements." }
+          "name": "How are health forms protected?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Health forms are stored in Quebec, at OVHcloud's Beauharnois data centre, travel over HTTPS, and are included in encrypted backups. Only leaders of the child's own unit whose role allows it can open them. When a family asks, a leader can permanently erase a child's record, health forms included." }
         },
         {
           "@type": "Question",
@@ -164,7 +164,7 @@ Request a demo
       <article class="card">
         <h2>Registration Forms — Dynamic &amp; Customizable</h2>
         <p>Annual registration is the most complex form workflow a scout group runs. It combines personal information, section selection, health data, media consent, code of conduct acknowledgement, fee payment, and sometimes volunteer interest questionnaires — all in one flow. Wampums registration forms support multi-step layouts that guide parents through each section in sequence, with a progress indicator so they know how much remains to complete.</p>
-        <p>Registration forms are dynamic: sections available to a family are determined by the sections with open spots, the participant's age, and any waitlist status. If Beaver Scouts is full, the Beaver section option is either hidden or shown with a waitlist indicator automatically. Partial completions are saved as drafts, so a parent who runs out of time can return to exactly where they left off without re-entering data. Submitted registrations trigger an automatic confirmation email and initiate the fee invoicing flow if online payment is enabled.</p>
+        <p>Registration forms are dynamic: sections available to a family are determined by the sections with open spots, the participant's age, and any waitlist status. If Beaver Scouts is full, the Beaver section option is either hidden or shown with a waitlist indicator automatically. Partial completions are saved as drafts, so a parent who runs out of time can return to exactly where they left off without re-entering data. Submitted registrations trigger an automatic confirmation email and initiate the fee invoicing flow.</p>
       </article>
 
       <article class="card">
@@ -181,7 +181,7 @@ Request a demo
 
       <article class="card">
         <h2>E-Signature &amp; Legal Consent Tracking</h2>
-        <p>An e-signature on a Wampums form is legally equivalent to a handwritten signature in Canadian jurisdictions that recognize electronic signatures under the Uniform Electronic Commerce Act and provincial equivalents. When a parent completes and signs a form, Wampums records the signature timestamp, the IP address of the device used, and the content of the form at the time of signing. This audit trail is stored securely and retrievable for the duration of the retention period configured by your organization.</p>
+        <p>An e-signature on a Wampums form is legally equivalent to a handwritten signature in Canadian jurisdictions that recognize electronic signatures under the Uniform Electronic Commerce Act and provincial equivalents. When a parent completes and signs a form, Wampums records the signature timestamp, the IP address of the device used, and the content of the form at the time of signing. This record is kept with the form.</p>
         <p>For activities with elevated risk — overnight camps, water activities, travel outside the local area — forms can require an explicit consent checkbox in addition to the e-signature, ensuring the parent has acknowledged the specific risk disclosure language. If a form's content is updated after some parents have already signed — for example, when the activity location changes — the system detects the change and re-notifies affected parents to review and re-confirm the updated version, preventing outdated consents from standing for changed conditions.</p>
       </article>
     </div>
@@ -213,9 +213,9 @@ Request a demo
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
-        <h3 itemprop="name">Are health forms PIPEDA-compliant?</h3>
+        <h3 itemprop="name">How are health forms protected?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Wampums is designed with Canadian privacy law in mind. Health data is stored encrypted at rest, access is restricted to authorized leaders within the same organization, and data is not shared with third parties. Organizations can configure data retention periods and request deletion of a participant's records in accordance with PIPEDA requirements.</p>
+          <p itemprop="text">Health forms are stored in Quebec, at OVHcloud's Beauharnois data centre, travel over HTTPS, and are included in encrypted backups. Only leaders of the child's own unit whose role allows it can open them. When a family asks, a leader can permanently erase a child's record, health forms included.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
@@ -306,6 +306,7 @@ Request a demo
             <ul>
               <li><a href="/en/faq/">FAQ</a></li>
               <li><a href="/en/blog/">Blog</a></li>
+              <li><a href="/en/privacy/">Privacy policy</a></li>
               <li><a href="/fr/fonctionnalites/formulaires/" lang="fr-CA" hreflang="fr-CA">Version française</a></li>
             </ul>
           </nav>

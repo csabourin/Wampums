@@ -19,7 +19,7 @@
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Wampums vs TroopTrack — Canadian Scout Management Comparison" />
-<meta property="og:description" content="TroopTrack is US-focused and English-only. Wampums is built for Canadian bilingual scout groups — French support, PIPEDA compliance, Scout Canada compatibility, and local support." />
+<meta property="og:description" content="TroopTrack is US-focused and English-only. Wampums is built for Canadian bilingual scout groups — French support, data hosted in Quebec, Scout Canada compatibility, and local support." />
 <meta property="og:url" content="https://wampums.app/en/compare/wampums-vs-trooptrack/" />
 <meta property="og:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta property="og:site_name" content="Wampums" />
@@ -27,7 +27,7 @@
 <meta property="og:locale:alternate" content="fr_CA" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Wampums vs TroopTrack — Canadian Scout Groups" />
-<meta name="twitter:description" content="Why Canadian scout groups choose Wampums over TroopTrack: bilingual support, PIPEDA compliance, Scout Canada workflows, offline mode, and local support." />
+<meta name="twitter:description" content="Why Canadian scout groups choose Wampums over TroopTrack: bilingual support, data hosted in Quebec, Scout Canada workflows, offline mode, and local support." />
 <meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta name="theme-color" content="#0c2a30" />
 <link rel="manifest" href="/manifest.json" />
@@ -68,8 +68,8 @@
         },
         {
           "@type": "Question",
-          "name": "Is TroopTrack compliant with Canadian privacy law (PIPEDA)?",
-          "acceptedAnswer": { "@type": "Answer", "text": "TroopTrack is a US-based platform designed for US privacy standards. It is not specifically designed for PIPEDA compliance. Wampums stores all data on Canadian servers and is built with Canadian federal and provincial privacy legislation as a core requirement." }
+          "name": "Where does TroopTrack store data, compared with Wampums?",
+          "acceptedAnswer": { "@type": "Answer", "text": "TroopTrack is a US-based platform that stores its data in the United States. Each unit's database and files are hosted in Quebec, at OVHcloud's Beauharnois data centre." }
         },
         {
           "@type": "Question",
@@ -144,9 +144,9 @@ Request a demo
       </article>
 
       <article class="card">
-        <h2>Canadian Privacy Law: PIPEDA vs US Standards</h2>
-        <p>TroopTrack stores data in the United States under US data privacy frameworks. Canadian organizations that collect personal information about children — which every scout group does — are subject to the Personal Information Protection and Electronic Documents Act (PIPEDA) at the federal level and additional legislation in provinces including Quebec (Law 25), Alberta (PIPA), and British Columbia (PIPA). Using a US-based platform that is not specifically designed for Canadian requirements creates compliance exposure that volunteer leaders are rarely equipped to manage.</p>
-        <p>Wampums stores all data on Canadian servers. The platform is designed with PIPEDA compliance as a core requirement, not an afterthought. Data is encrypted in transit and at rest. Role-based access controls ensure that only authorized leaders and parents can access each participant's information. The platform includes data export and deletion tools that organizations need to respond to access and correction requests under Canadian privacy law. For groups in Quebec operating under the stricter requirements of Law 25, Wampums provides a data-residency foundation that a US platform cannot.</p>
+        <h2>Canadian Privacy Law and Where Data Lives</h2>
+        <p>TroopTrack stores data in the United States under US data privacy frameworks. Canadian organizations that collect personal information about children — which every scout group does — are subject to the Personal Information Protection and Electronic Documents Act (PIPEDA) at the federal level and additional legislation in provinces including Quebec (Law 25), Alberta (PIPA), and British Columbia (PIPA). None of these laws forbids a US platform, but under Law 25, sending personal information outside Quebec means assessing the privacy risks first, and that is work volunteer leaders are rarely equipped to do.</p>
+        <p>Wampums keeps each unit's database and files in Quebec, at OVHcloud's Beauharnois data centre. Everything travels over HTTPS, backups are encrypted, and roles decide which leaders and parents can see each participant's information. When a family asks, a leader can permanently erase a child's record. Emails go out through Brevo, which receives each recipient's address and the message, and the optional AI-assisted writing receives only the text a leader submits. For groups in Quebec, keeping the main records in the province means the Law 25 assessment does not apply to them.</p>
       </article>
 
       <article class="card">
@@ -194,9 +194,9 @@ Request a demo
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
-        <h3 itemprop="name">Is TroopTrack compliant with Canadian privacy law (PIPEDA)?</h3>
+        <h3 itemprop="name">Where does TroopTrack store data, compared with Wampums?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">TroopTrack is a US-based platform designed for US privacy standards. It is not specifically designed for PIPEDA compliance. Wampums stores all data on Canadian servers and is built with Canadian federal and provincial privacy legislation as a core requirement.</p>
+          <p itemprop="text">TroopTrack is a US-based platform that stores its data in the United States. Each unit's database and files are hosted in Quebec, at OVHcloud's Beauharnois data centre.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
@@ -281,6 +281,7 @@ Request a demo
             <ul>
               <li><a href="/en/faq/">FAQ</a></li>
               <li><a href="/en/blog/">Blog</a></li>
+              <li><a href="/en/privacy/">Privacy policy</a></li>
               <li><a href="/fr/comparer/wampums-vs-trooptrack/" lang="fr-CA" hreflang="fr-CA">Version française</a></li>
             </ul>
           </nav>

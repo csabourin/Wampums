@@ -716,6 +716,48 @@ a {
   text-align: center;
 }
 
+.story {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.story .section-head {
+  margin-bottom: 0;
+}
+
+.story-body > * + * {
+  margin-top: 1.1rem;
+}
+
+.story-quote {
+  margin: 0;
+  padding: 1.25rem 1.4rem;
+  border-left: 4px solid var(--bead);
+  border-radius: var(--radius-sm);
+  background: var(--bead-soft);
+}
+
+.story-quote blockquote {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.2rem;
+  line-height: 1.45;
+}
+
+.story-quote figcaption {
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+@media (min-width: 900px) {
+  .story {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 3rem;
+    align-items: start;
+  }
+}
+
 .kicker {
   display: block;
   margin-bottom: 0.6rem;
