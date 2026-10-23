@@ -1,7 +1,8 @@
 // RESTful routes for attendance
 const express = require('express');
 const router = express.Router();
-const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, allowDemoSandbox, withScoutYear } = require('../middleware/auth');
+const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateDate, validateAttendanceStatus, checkValidation, validateIdQuery, validateDateOptional } = require('../middleware/validation');
 const { getPointSystemRules } = require('../utils');
@@ -157,7 +158,7 @@ module.exports = (pool, logger) => {
    */
   router.post('/',
     authenticate,
-    blockDemoRoles,
+    allowDemoSandbox(DEMO_SANDBOX.attendanceMark),
     requirePermission('attendance.manage'),
     validateIdBody('participant_id'),
     validateDate('date'),
@@ -258,7 +259,7 @@ module.exports = (pool, logger) => {
    */
   router.post('/carry-forward',
     authenticate,
-    blockDemoRoles,
+    allowDemoSandbox(DEMO_SANDBOX.attendanceCarryForward),
     requirePermission('attendance.manage'),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
@@ -510,7 +511,7 @@ module.exports = (pool, logger) => {
    */
   router.post('/update-attendance',
     authenticate,
-    blockDemoRoles,
+    allowDemoSandbox(DEMO_SANDBOX.attendanceBatch),
     requirePermission('attendance.manage'),
     validateAttendanceStatus,
     validateDate('date'),

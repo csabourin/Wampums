@@ -12692,3 +12692,30 @@ body.modal-open {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* What a demo visitor may try. Sits just before #app on every screen
+   (spa/modules/demo/DemoBanner.js); text on --color-border-light stays above
+   4.5:1, and the border carries the accent, not the meaning. */
+.demo-banner:empty {
+  display: none;
+}
+
+.demo-banner {
+  background: var(--color-border-light);
+  border-bottom: 2px solid var(--color-primary);
+  color: var(--color-text);
+}
+
+.demo-banner__text {
+  margin: 0;
+  margin-inline: auto;
+  max-inline-size: var(--container-xl);
+  padding: var(--space-sm, 0.5rem) var(--space-md, 1rem);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.demo-banner__title {
+  color: var(--color-primary-dark);
+}

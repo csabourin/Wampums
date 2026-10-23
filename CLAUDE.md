@@ -274,6 +274,12 @@ const { blockDemoRoles } = require('../middleware/auth');
 router.post('/users', authenticate, blockDemoRoles, requirePermission('users.manage'), handler);
 router.delete('/data', authenticate, blockDemoRoles, requirePermission('data.delete'), handler);
 ```
+- ✅ Its 403 carries `isDemo: true` and `code: 'demo_read_only'`; the SPA explains the demo from that code.
+- ✅ **The demo unit is a sandbox** (`demo_sign_in`, migrations 039 and 041). A route whose request carries no
+  free text may use `allowDemoSandbox(DEMO_SANDBOX.<policy>)` from `middleware/demoSandbox.js` instead: in that
+  unit only, a demo account may send exactly the fields the policy names (ids, near dates, small numbers, short
+  codes). Today: points, attendance, and honors without a reason. Whatever it opens, the night reset
+  (`scripts/demo/reset-demo-sandbox.js`, `services/demoSandbox.js`) must restore; add its table there too.
 
 #### Multi-Tenant Isolation
 - ✅ **ALWAYS** filter queries by `organization_id`

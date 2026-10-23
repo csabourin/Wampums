@@ -13,7 +13,8 @@ const router = express.Router();
 
 // Import utilities and middleware
 const { getPointSystemRules } = require('../utils/api-helpers');
-const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, withScoutYear } = require('../middleware/auth');
+const { authenticate, requirePermission, blockDemoRoles, allowDemoSandbox, getOrganizationId, withScoutYear } = require('../middleware/auth');
+const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 
@@ -140,7 +141,7 @@ module.exports = (pool, logger) => {
    */
   router.post('/v1/honors',
     authenticate,
-    blockDemoRoles,
+    allowDemoSandbox(DEMO_SANDBOX.honorAward),
     requirePermission('honors.create'),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);

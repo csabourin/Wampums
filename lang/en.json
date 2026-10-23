@@ -4278,7 +4278,7 @@
   "tile_invitations": "Invite families and leaders",
   "tile_invitations_aliases": "invitation, invite, family, parent, leader, team, role",
   "demo_sign_in_title": "Try the demo",
-  "demo_sign_in_intro": "Choose how to explore Wampums. The demo is read-only: it shows sample data and keeps no changes.",
+  "demo_sign_in_intro": "Choose how to explore Wampums. The demo shows made-up data. In the leader view, try awarding points, taking attendance and awarding honors: everything goes back to how it was at midnight. Nothing written in words can be changed.",
   "demo_view_parent": "Parent view",
   "demo_view_parent_text": "Follow a child’s progress, sign permission slips, and see carpools and unit news.",
   "demo_view_leader": "Leader view",
@@ -4288,5 +4288,10 @@
   "demo_sign_in_opening": "Opening the demo…",
   "demo_sign_in_unavailable": "This unit does not offer a demo.",
   "demo_account_unavailable": "This view of the demo is not available right now. Try the other one, or write to hello@wampums.app.",
-  "demo_sign_in_failed": "The demo could not be opened. Check your connection and try again."
+  "demo_sign_in_failed": "The demo could not be opened. Check your connection and try again.",
+  "demo_banner_title": "Saint-Bivouac demo.",
+  "demo_banner_sandbox": "Go ahead and press the buttons: points, attendance and honors work, and everything is reset at midnight. Anything written in words is read-only, so the demo stays tidy for everyone.",
+  "demo_banner_parent": "This is the parent view. It is read-only; to award points or take attendance, open the leader view of the demo.",
+  "demo_banner_read_only": "This demo account is read-only: it shows the app without changing anything.",
+  "demo_read_only_explained": "Not in the demo: anything written in words is read-only, so the demo stays tidy for everyone. Points, attendance and honors do work in the leader view."
 }

@@ -370,7 +370,7 @@ export const app = {
       }
 
       // Fetch organization settings (in background, with caching)
-      this.fetchOrganizationSettings().catch(error => {
+      const settingsLoaded = this.fetchOrganizationSettings().catch(error => {
         debugError('Failed to fetch organization settings:', error);
         this.organizationSettings = { name: 'Scouts' };
       });
@@ -400,6 +400,12 @@ export const app = {
         import('./modules/scout-year/ScoutYearBanner.js')
           .then(({ initScoutYearBanner }) => initScoutYearBanner())
           .catch(error => debugError('Failed to mount the scout year selector:', error));
+
+        // A demo visitor learns what they may try; it reads the demo_sign_in setting.
+        settingsLoaded
+          .then(() => import('./modules/demo/DemoBanner.js'))
+          .then(({ initDemoBanner }) => initDemoBanner())
+          .catch(error => debugError('Failed to mount the demo banner:', error));
 
         // Pick up changes other leaders make while this session is open.
         import('./modules/live-sync/LiveDataSync.js')

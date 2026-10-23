@@ -3,6 +3,10 @@ const winston = require('winston');
 const { OrganizationNotFoundError, respondWithOrganizationFallback } = require('../utils/api-helpers');
 const { requireJWTSecret, verifyJWTToken } = require('../utils/jwt-config');
 const { forbidden, error: errorResponse } = require('./response');
+const { isHarmlessDemoWrite } = require('./demoSandbox');
+
+/** Why a demo account's change was refused; the SPA explains it (`demo_read_only`). */
+const DEMO_READ_ONLY_CODE = 'demo_read_only';
 const HTTP_STATUS = { UNAUTHORIZED: 401, NOT_FOUND: 404, INTERNAL_ERROR: 500 };
 const scoutYearService = require('../services/scoutYear');
 const calendarFeeds = require('../services/calendarFeeds');
@@ -395,6 +399,88 @@ exports.requireAnyPermission = (...permissions) => exports.requirePermission({
 });
 
 /**
+ * Whether a unit is the public demo, open without a password
+ * (`demo_sign_in`, migration 039). Only there may a demo account try things.
+ *
+ * @param {Object} pool - Database connection pool
+ * @param {number} organizationId - Unit to check
+ * @returns {Promise<boolean>} True for the demo unit
+ */
+async function isDemoSignInUnit(pool, organizationId) {
+  const result = await pool.query(
+    `SELECT setting_value FROM organization_settings
+      WHERE organization_id = $1 AND setting_key = 'demo_sign_in'`,
+    [organizationId]
+  );
+  const value = result.rows[0]?.setting_value;
+  return value === true || value === 'true';
+}
+
+/**
+ * Refuse a demo account's change, unless a sandbox policy lets this request
+ * through in the demo unit.
+ *
+ * @param {Object|null} policy - One of `DEMO_SANDBOX`, or null for read-only
+ * @returns {Function} Express middleware
+ */
+function demoWriteGate(policy) {
+  return async (req, res, next) => {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+
+      // Get pool from app locals
+      const pool = req.app.locals.pool;
+      if (!pool) {
+        logger.error('Database pool not available in blockDemoRoles middleware');
+        return res.status(500).json({
+          success: false,
+          message: 'Server configuration error'
+        });
+      }
+
+      // Get organization ID
+      const organizationId = await exports.getOrganizationId(req, pool);
+
+      const context = await loadAuthorizationContext(req, pool, organizationId);
+      if (!context.active) {
+        return forbidden(res, 'This account is no longer active in this organization', [], [], {
+          membershipStatus: context.membershipStatus,
+        });
+      }
+      // policy-allow role-names: demo is an account descriptor, never a grant of authority (CLAUDE.md §3)
+      const demoRoles = context.roles.filter((role) => ['demoadmin', 'demoparent'].includes(role.role_name));
+      if (!demoRoles.length) {
+        return next();
+      }
+      // A sandboxed request still needs its permission: requirePermission follows.
+      if (policy && isHarmlessDemoWrite(policy, req.body) && await isDemoSignInUnit(pool, organizationId)) {
+        return next();
+      }
+      // `code` lets the SPA explain the demo instead of reporting a refusal.
+      return forbidden(res, 'This feature is not available in demo mode. Demo accounts have read-only access.', [], [], {
+        isDemo: true,
+        code: DEMO_READ_ONLY_CODE,
+      });
+    } catch (error) {
+      if (error instanceof OrganizationNotFoundError) {
+        return respondWithOrganizationFallback(res);
+      }
+
+      logger.error('Error in blockDemoRoles middleware:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Authorization check failed'
+      });
+    }
+  };
+}
+
+/**
  * Block demo roles from making changes
  * Use on POST, PUT, PATCH, DELETE endpoints to prevent demo users from modifying data
  *
@@ -405,52 +491,24 @@ exports.requireAnyPermission = (...permissions) => exports.requirePermission({
  *   // Demo users will be blocked before reaching this point
  * });
  */
-exports.blockDemoRoles = async (req, res, next) => {
-  try {
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required'
-      });
-    }
+exports.blockDemoRoles = demoWriteGate(null);
 
-    // Get pool from app locals
-    const pool = req.app.locals.pool;
-    if (!pool) {
-      logger.error('Database pool not available in blockDemoRoles middleware');
-      return res.status(500).json({
-        success: false,
-        message: 'Server configuration error'
-      });
-    }
-
-    // Get organization ID
-    const organizationId = await exports.getOrganizationId(req, pool);
-
-    const context = await loadAuthorizationContext(req, pool, organizationId);
-    if (!context.active) {
-      return forbidden(res, 'This account is no longer active in this organization', [], [], {
-        membershipStatus: context.membershipStatus,
-      });
-    }
-    // policy-allow role-names: demo is an account descriptor, never a grant of authority (CLAUDE.md §3)
-    const demoRoles = context.roles.filter((role) => ['demoadmin', 'demoparent'].includes(role.role_name));
-    if (demoRoles.length) {
-      return forbidden(res, 'This feature is not available in demo mode. Demo accounts have read-only access.', [], [], { isDemo: true });
-    }
-
-    next();
-  } catch (error) {
-    if (error instanceof OrganizationNotFoundError) {
-      return respondWithOrganizationFallback(res);
-    }
-
-    logger.error('Error in blockDemoRoles middleware:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Authorization check failed'
-    });
+/**
+ * Like `blockDemoRoles`, but in the demo unit lets a demo account send a
+ * request that carries no free text (`middleware/demoSandbox.js`). Use it only
+ * with a `DEMO_SANDBOX` policy, on writes the night reset restores.
+ *
+ * @param {Object} policy - One of `DEMO_SANDBOX`
+ * @returns {Function} Express middleware
+ *
+ * @example
+ * router.post('/', authenticate, allowDemoSandbox(DEMO_SANDBOX.points), requirePermission('points.manage'), handler);
+ */
+exports.allowDemoSandbox = (policy) => {
+  if (!policy || !policy.shape) {
+    throw new Error('allowDemoSandbox needs a DEMO_SANDBOX policy');
   }
+  return demoWriteGate(policy);
 };
 
 /**

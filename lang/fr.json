@@ -4278,7 +4278,7 @@
   "tile_invitations": "Inviter des familles et des animateurs",
   "tile_invitations_aliases": "invitation, inviter, famille, parent, animateur, équipe, rôle",
   "demo_sign_in_title": "Essayer la démo",
-  "demo_sign_in_intro": "Choisissez comment explorer Wampums. La démo est en lecture seule : elle montre des données fictives et ne garde aucune modification.",
+  "demo_sign_in_intro": "Choisissez comment explorer Wampums. La démo montre des données fictives. Dans la vue animation, essayez de donner des points, de prendre les présences et de remettre des distinctions : tout revient comme avant à minuit. Rien de ce qui s’écrit en mots ne peut être modifié.",
   "demo_view_parent": "Vue parent",
   "demo_view_parent_text": "Suivez la progression d’un enfant, signez les autorisations, consultez les covoiturages et les nouvelles de l’unité.",
   "demo_view_leader": "Vue animation",
@@ -4288,5 +4288,10 @@
   "demo_sign_in_opening": "Ouverture de la démo…",
   "demo_sign_in_unavailable": "Cette unité n’offre pas de démo.",
   "demo_account_unavailable": "Cette vue de la démo n’est pas disponible pour le moment. Essayez l’autre, ou écrivez à hello@wampums.app.",
-  "demo_sign_in_failed": "La démo n’a pas pu s’ouvrir. Vérifiez votre connexion et réessayez."
+  "demo_sign_in_failed": "La démo n’a pas pu s’ouvrir. Vérifiez votre connexion et réessayez.",
+  "demo_banner_title": "Démo de Saint-Bivouac.",
+  "demo_banner_sandbox": "Allez-y, appuyez sur les boutons : les points, les présences et les distinctions fonctionnent, et tout est remis à zéro à minuit. Ce qui s’écrit en mots est en lecture seule, pour que la démo reste propre pour tout le monde.",
+  "demo_banner_parent": "Vous êtes dans la vue parent, en lecture seule. Pour donner des points ou prendre les présences, ouvrez la vue animation de la démo.",
+  "demo_banner_read_only": "Ce compte de démonstration est en lecture seule : il montre l’application sans rien modifier.",
+  "demo_read_only_explained": "Pas dans la démo : ce qui s’écrit en mots est en lecture seule, pour que la démo reste propre pour tout le monde. Les points, les présences et les distinctions, eux, fonctionnent dans la vue animation."
 }
