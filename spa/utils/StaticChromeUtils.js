@@ -15,7 +15,7 @@ export function localizeStaticChrome(translate, root = document) {
   const privacyLink = root.querySelector('.privacy-policy-link');
   if (privacyLink) {
     privacyLink.textContent = translate('privacy_policy_link');
-    // The policy itself is only published in French.
+    // The link opens the French policy, which offers the English one.
     privacyLink.setAttribute('hreflang', 'fr');
   }
   const loadingIndicator = root.getElementById('loading-indicator');

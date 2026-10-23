@@ -67,3 +67,16 @@ sync that finds another one running, 30 seconds later, with the newer content. A
 refusal is logged as an error and waits for the next deploy. Each submission is
 logged with its HTTP status and URLs under `[IndexNow]`. Coverage lives in
 `test/indexnow.test.js`.
+
+## Privacy policy
+
+The policy lives at `/fr/confidentialite/` and `/en/privacy/`, linked from every
+footer (static pages and `views/partials/footer.ejs`). The app shell's
+`assets/politique-de-confidentialite.html` only forwards to it.
+
+Any page describing hosting, security or outside services must agree with the
+policy: data in Quebec (OVHcloud, Beauharnois), HTTPS, encrypted backups,
+role-based access and erasure on request. Online payment is not turned on.
+Do not claim encryption at rest, retention settings, access logging or
+"PIPEDA/Law 25 compliance"; the code provides none of them. Update the policy's
+date when its content changes.

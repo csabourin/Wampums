@@ -137,6 +137,13 @@ describe('inner pages of the public site', () => {
     expect(PAGES.length).toBeGreaterThanOrEqual(36);
   });
 
+  test.each(['/en/', '/fr/', ...PAGES])('%s links to the privacy policy in its own language from the footer', (pagePath) => {
+    const footer = /<footer class="site-footer">([\s\S]*?)<\/footer>/.exec(read(pagePath))[1];
+    const policy = pagePath.startsWith('/fr/') ? '/fr/confidentialite/' : '/en/privacy/';
+    expect(footer).toContain(`<a href="${policy}">`);
+    expect(fs.existsSync(path.join(LANDING, policy, 'index.html'))).toBe(true);
+  });
+
   test.each(PAGES)('%s uses the home page stylesheet, header, footer and demo dialog', (pagePath) => {
     const html = read(pagePath);
     expect(html).toContain('<link rel="stylesheet" href="/site.css" />');
@@ -158,7 +165,10 @@ describe('inner pages of the public site', () => {
     expect(switcher).toContain(`<a href="${alternate}" lang="${other}-CA"`);
   });
 
-  test.each(PAGES.filter((pagePath) => !pagePath.endsWith('/faq/')))('%s shows a real screen of the app in its own language', (pagePath) => {
+  // The FAQ and the privacy policy are text pages; every other page shows the app.
+  const TEXT_PAGES = ['/en/faq/', '/fr/faq/', '/en/privacy/', '/fr/confidentialite/'];
+
+  test.each(PAGES.filter((pagePath) => !TEXT_PAGES.includes(pagePath)))('%s shows a real screen of the app in its own language', (pagePath) => {
     const html = read(pagePath);
     const lang = pagePath.slice(1, 3);
     expect(html).not.toMatch(/screenshot-placeholder|coming soon|bientôt disponible/i);
@@ -216,6 +226,7 @@ describe('blog pages', () => {
     expectAnalytics(html);
     expect(html).toContain('href="/site.css"');
     expect(html).toContain('<footer class="site-footer">');
+    expect(html).toContain('<a href="/fr/confidentialite/">Politique de confidentialité</a>');
     expect(html).toContain('id="demoModal"');
     expect(html).toContain('<h1>Premier &lt;article&gt;</h1>');
     expect(html).toContain('<a href="/en/blog/first-post/" lang="en-CA" hreflang="en-CA">EN');
