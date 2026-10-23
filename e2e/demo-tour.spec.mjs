@@ -52,4 +52,15 @@ test.describe('the parent tour of the sample unit', () => {
     await expect(page.getByRole('link', { name: /Fiche de santé/ }).or(page.getByRole('button', { name: /Fiche de santé/ }))).toBeVisible();
     await openTourStep(page, `/carpool/${seededActivityId()}`);
   });
+
+  test('signing a permission slip in the demo says it is read-only, and the slip stays pending', async ({ page }) => {
+    await openScreen(page, '/parent-dashboard');
+    await page.getByRole('button', { name: 'Signer', exact: true }).click();
+    // DialogUtils' prompt is an alertdialog.
+    const dialog = page.getByRole('alertdialog', { name: 'Nom du signataire' });
+    await dialog.getByRole('textbox').fill('Demo Parent');
+    await dialog.getByRole('button', { name: 'OK' }).click();
+    await expect(page.locator('#toast-container')).toContainText(READ_ONLY);
+    await expect(page.locator('#app')).toContainText('En attente de signature');
+  });
 });
