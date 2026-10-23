@@ -35,8 +35,10 @@ current tool and message are optional; the two menus send fixed values that
 `DEMO_CURRENT_TOOLS` in `routes/public.js`. Keep the options identical in every
 page's dialog and in `views/partials/footer.ejs`.
 
-The sample unit is `https://demo.wampums.app`: a read-only unit that opens
-without a password, as a parent or a leader (migration 039). The home hero and
+The sample unit is `https://demo.wampums.app`: a unit that opens without a
+password, as a parent or a leader (migration 039). Visitors may try points,
+attendance and honors there (the demo sandbox, migration 041); anything written
+in words stays read-only, and the unit is reset every night. The home hero and
 every dialog link to it for visitors who would rather look first.
 
 ## Claims
@@ -56,9 +58,10 @@ app-store app.
 Pricing: a single unit is free until at least 2028; an organization opening several
 units (five or more, say) gets a negotiated monthly price.
 
-Offline, only attendance, medication doses and receptions, and badges are queued
-(`SAFE_OFFLINE_MUTATIONS` in `spa/modules/OfflineManager.js`); points, incidents,
-carpools, equipment and messages need a connection. A camp prepared before leaving
+Offline, only attendance, points, medication doses and receptions, and badges
+are queued (`SAFE_OFFLINE_MUTATIONS` in `spa/modules/OfflineManager.js`); each
+points batch carries an idempotency key, so a replay never counts twice.
+Incidents, carpools, equipment and messages need a connection. A camp prepared before leaving
 keeps the youth list, attendance, medications and dose schedule, badges and
 carpools on that phone for at least 10 days; health forms and parents' contact
 details are not part of it. Medication reminders are server push notifications,

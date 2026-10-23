@@ -11,7 +11,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Offline Scout App for Meetings &amp; Camps | Wampums</title>
-<meta name="description" content="Take attendance and record doses and badges without a network. Wampums sends those changes when the connection returns, even after a camp." />
+<meta name="description" content="Take attendance, points, doses and badges without a network. Wampums sends those changes when the connection returns, even after a camp." />
 <link rel="canonical" href="https://wampums.app/en/modules/offline/" />
 <link rel="alternate" hreflang="en-CA" href="https://wampums.app/en/modules/offline/" />
 <link rel="alternate" hreflang="fr-CA" href="https://wampums.app/fr/modules/offline/" />
@@ -19,7 +19,7 @@
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Scout App Offline Mode — Works at Remote Camps Without Internet | Wampums" />
-<meta property="og:description" content="Without a network, Wampums keeps attendance, medication doses and badges on the phone and sends them when the connection returns. Prepare the camp before you leave." />
+<meta property="og:description" content="Without a network, Wampums keeps attendance, points, medication doses and badges on the phone and sends them when the connection returns. Prepare the camp before you leave." />
 <meta property="og:url" content="https://wampums.app/en/modules/offline/" />
 <meta property="og:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta property="og:site_name" content="Wampums" />
@@ -27,7 +27,7 @@
 <meta property="og:locale:alternate" content="fr_CA" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Scout App Offline Mode — Wampums" />
-<meta name="twitter:description" content="Attendance, medication doses and badges without a network, and a prepared camp kept on the phone for at least 10 days." />
+<meta name="twitter:description" content="Attendance, points, medication doses and badges without a network, and a prepared camp kept on the phone for at least 10 days." />
 <meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta name="theme-color" content="#0c2a30" />
 <link rel="manifest" href="/manifest.json" />
@@ -46,7 +46,7 @@
       "@type": "WebPage",
       "name": "Scout App Offline Mode — Works at Remote Camps Without Internet | Wampums",
       "url": "https://wampums.app/en/modules/offline/",
-      "description": "Without a network, Wampums keeps attendance, medication doses and badges on the phone and sends them when the connection returns. Prepare the camp before you leave.",
+      "description": "Without a network, Wampums keeps attendance, points, medication doses and badges on the phone and sends them when the connection returns. Prepare the camp before you leave.",
       "inLanguage": "en-CA",
       "isPartOf": { "@type": "WebSite", "name": "Wampums", "url": "https://wampums.app" },
       "breadcrumb": {
@@ -69,7 +69,7 @@
         {
           "@type": "Question",
           "name": "What features work offline?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Without a network, you can read what is already on the phone, take attendance, record doses and medications received, and record badges. Points, incidents, carpools, messages to parents, invitations and changes to the unit need a connection." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Without a network, you can read what is already on the phone, take attendance, award points, record doses and medications received, and record badges. Incidents, carpools, messages to parents, invitations and changes to the unit need a connection." }
         },
         {
           "@type": "Question",
@@ -121,8 +121,8 @@
       </ol>
     </nav>
         <p class="kicker">Module</p>
-        <h1>Scout App Offline Mode — Attendance, Medication and Badges Without Internet</h1>
-          <p class="hero-lede">Three bars of LTE at the trailhead, one bar by the dining hall, and nothing whatsoever at the campfire circle. Without a network, Wampums lets you take attendance, record medication doses and record badges: those changes wait on the phone and go out as soon as the signal returns. The rest, such as points, incidents or messages to parents, needs a connection.</p>
+        <h1>Scout App Offline Mode — Attendance, Points, Medication and Badges Without Internet</h1>
+          <p class="hero-lede">Three bars of LTE at the trailhead, one bar by the dining hall, and nothing whatsoever at the campfire circle. Without a network, Wampums lets you take attendance, award points, record medication doses and record badges: those changes wait on the phone and go out as soon as the signal returns. The rest, such as incidents or messages to parents, needs a connection.</p>
         <div class="hero-actions">
           <button type="button" class="btn btn--ember" data-open-demo-modal>
 Request a demo
@@ -158,9 +158,9 @@ Request a demo
       </article>
 
       <article class="card">
-        <h2>Offline Badge Tracking</h2>
+        <h2>Offline Badge and Points Tracking</h2>
         <p>At camp, youth complete badge requirements all day — orienteering in the morning, outdoor cooking in the afternoon, first aid in the evening. Wampums lets you record badges the moment the activity ends, even without a network. If two leaders record the same level, the server counts it once.</p>
-        <p>Points, though, need a connection: a total added up from several offline phones would end up counted twice. Without a network, note them down and enter them when the signal returns.</p>
+        <p>Points work offline too: each batch awarded without a network waits on the phone and is sent once when the signal returns, so a total added from several phones is never counted twice. Without a network, note them down and enter them when the signal returns.</p>
       </article>
 
       <article class="card">
@@ -199,7 +199,7 @@ Request a demo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">What features work offline?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Without a network, you can read what is already on the phone, take attendance, record doses and medications received, and record badges. Points, incidents, carpools, messages to parents, invitations and changes to the unit need a connection.</p>
+          <p itemprop="text">Without a network, you can read what is already on the phone, take attendance, award points, record doses and medications received, and record badges. Incidents, carpools, messages to parents, invitations and changes to the unit need a connection.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
@@ -363,7 +363,7 @@ Request a demo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Sending…">Send request</button>
         </form>
-        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: read-only, no sign-up.</p>
+        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: no sign-up, and you can try points and attendance.</p>
       </div>
     </div>
 

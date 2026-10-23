@@ -1,14 +1,14 @@
 /**
  * The tour wampums.app invites visitors to take in the sample unit: a leader's
  * meeting and a parent's evening. Every screen it names opens with content, and
- * a change the read-only demo refuses says so, instead of reading like a
+ * a change the demo does not allow (anything written in words) says so, instead of reading like a
  * missing permission. Runs on the demo accounts seed.mjs creates.
  */
 import { test, expect } from '@playwright/test';
 import { DEMO_ACCOUNTS, openScreen, seededActivityId, storageStateFor } from './helpers.mjs';
 
-/** lang/fr.json "demo_read_only_refused", the playwright locale being fr-CA. */
-const READ_ONLY = /La démo est en lecture seule/;
+/** lang/fr.json "demo_read_only_explained", the playwright locale being fr-CA. */
+const READ_ONLY = /Pas dans la démo/;
 
 /** Pages that answer when a guard refuses or a route is missing. */
 const REFUSED = /page introuvable|accès refusé|not found|access denied/i;
@@ -34,13 +34,6 @@ test.describe('the leader tour of the sample unit', () => {
     await openScreen(page, '/attendance');
     await expect(page.locator('#app')).toContainText('Léa Parent');
   });
-
-  test('taking attendance in the demo says it is read-only, and nothing is saved', async ({ page }) => {
-    await openScreen(page, '/attendance');
-    await page.getByText('Léa Parent').click();
-    await page.getByRole('button', { name: 'Présent', exact: true }).click();
-    await expect(page.locator('#toast-container')).toContainText(READ_ONLY);
-  });
 });
 
 test.describe('the parent tour of the sample unit', () => {
@@ -53,7 +46,7 @@ test.describe('the parent tour of the sample unit', () => {
     await openTourStep(page, `/carpool/${seededActivityId()}`);
   });
 
-  test('signing a permission slip in the demo says it is read-only, and the slip stays pending', async ({ page }) => {
+  test('signing a permission slip in the demo explains it is not available there, and the slip stays pending', async ({ page }) => {
     await openScreen(page, '/parent-dashboard');
     await page.getByRole('button', { name: 'Signer', exact: true }).click();
     // DialogUtils' prompt is an alertdialog.

@@ -250,10 +250,10 @@ describe('inner pages of the public site', () => {
     expect(html).toMatch(/remain the responsibility of the adults|restent la responsabilité des adultes/);
   });
 
-  test('no page claims that points, incidents, alerts or health forms work offline', () => {
-    // Offline, only attendance, medication doses and badges are queued (SAFE_OFFLINE_MUTATIONS).
+  test('no page claims that incidents, alerts or health forms work offline', () => {
+    // Offline, only attendance, points, medication doses and badges are queued (SAFE_OFFLINE_MUTATIONS).
     PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
-      expect(read(pagePath)).not.toMatch(/points sync offline|attendance and points (keep working|can be recorded)|présences et (les )?points (fonctionnent|peuvent)|badges, points,? and medication dispensing all work|points de mise à jour hors|alerte se déclenche normalement|accessible offline on the leader's device|contact details are always cached|coordonnées des parents sont toujours disponibles|profils de santé complets sont disponibles sans connexion|immuable|immutable/i);
+      expect(read(pagePath)).not.toMatch(/badges, points,? and medication dispensing all work|points de mise à jour hors|alerte se déclenche normalement|accessible offline on the leader's device|contact details are always cached|coordonnées des parents sont toujours disponibles|profils de santé complets sont disponibles sans connexion|immuable|immutable/i);
     });
   });
 
