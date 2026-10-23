@@ -109,7 +109,7 @@ One evening, looking at this long list of frustrations — attendance on paper, 
 
 Each of these problems was concrete. Each had a digital solution. And if a single application could solve them all, we would save hours. Dozens of hours. Hundreds of hours, taken together.
 
-That is where Wampums was born. (The story behind the name is worth telling on its own — I will save that for another day.)
+That is where Wampums was born. ([The story behind the name](/en/blog/why-wampums-the-story-of-the-name/) is worth telling on its own, so it has its own article.)
 
 > **Sound like your unit?** [Explore the sample unit](https://demo.wampums.app) as a parent or a leader, read-only and without signing up, or [see everything Wampums does](/en/).
 

@@ -2864,14 +2864,14 @@ module.exports = (pool, logger) => {
     [
       validateIdParam('id'),
       check('signed_by').isString().trim().isLength({ min: 2, max: 200 }),
-      check('signed_at').optional().isISO8601(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
-        const { signed_by, signed_at } = req.body;
+        // The server's clock dates the signature: a time sent by the device could be backdated.
+        const { signed_by } = req.body;
 
         const slipResult = await pool.query(
           'SELECT organization_id, participant_id, status FROM permission_slips WHERE id = $1 AND organization_id = $2',
@@ -2895,12 +2895,12 @@ module.exports = (pool, logger) => {
         const updateResult = await pool.query(
           `UPDATE permission_slips
            SET signed_by = $2,
-               signed_at = COALESCE($3, CURRENT_TIMESTAMP),
+               signed_at = CURRENT_TIMESTAMP,
                status = 'signed',
                updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1 AND organization_id = $4 AND status = 'pending'
+           WHERE id = $1 AND organization_id = $3 AND status = 'pending'
            RETURNING *`,
-          [slipId, signed_by, signed_at || null, organizationId],
+          [slipId, signed_by, organizationId],
         );
 
         if (updateResult.rows.length === 0) {
@@ -2928,14 +2928,14 @@ module.exports = (pool, logger) => {
       validateIdParam('id'),
       check('status').equals('declined'),
       check('declined_by').isString().trim().isLength({ min: 2, max: 200 }),
-      check('declined_at').optional().isISO8601(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
-        const { declined_by, declined_at } = req.body;
+        // The server's clock dates the refusal, as it does a signature.
+        const { declined_by } = req.body;
 
         const slipResult = await pool.query(
           `SELECT participant_id, status
@@ -2958,12 +2958,12 @@ module.exports = (pool, logger) => {
         const updateResult = await pool.query(
           `UPDATE permission_slips
               SET declined_by = $2,
-                  declined_at = COALESCE($3, CURRENT_TIMESTAMP),
+                  declined_at = CURRENT_TIMESTAMP,
                   status = 'declined',
                   updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1 AND organization_id = $4 AND status = 'pending'
+            WHERE id = $1 AND organization_id = $3 AND status = 'pending'
             RETURNING *`,
-          [slipId, declined_by, declined_at || null, organizationId],
+          [slipId, declined_by, organizationId],
         );
 
         if (updateResult.rows.length === 0) {
@@ -3016,13 +3016,13 @@ module.exports = (pool, logger) => {
     [
       param('token').isUUID(),
       check('signed_by').isString().trim().isLength({ min: 2, max: 200 }),
-      check('signed_at').optional().isISO8601(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const { token } = req.params;
-        const { signed_by, signed_at } = req.body;
+        // The server's clock dates the signature: a time sent by the device could be backdated.
+        const { signed_by } = req.body;
 
         const slipResult = await pool.query(
           'SELECT id, status FROM permission_slips WHERE access_token = $1',
@@ -3040,12 +3040,12 @@ module.exports = (pool, logger) => {
         const updateResult = await pool.query(
           `UPDATE permission_slips
            SET signed_by = $2,
-               signed_at = COALESCE($3, CURRENT_TIMESTAMP),
+               signed_at = CURRENT_TIMESTAMP,
                status = 'signed',
                updated_at = CURRENT_TIMESTAMP
            WHERE access_token = $1 AND status = 'pending'
            RETURNING *`,
-          [token, signed_by, signed_at || null],
+          [token, signed_by],
         );
 
         if (updateResult.rows.length === 0) {
@@ -3070,22 +3070,22 @@ module.exports = (pool, logger) => {
       param('token').isUUID(),
       check('status').equals('declined'),
       check('declined_by').isString().trim().isLength({ min: 2, max: 200 }),
-      check('declined_at').optional().isISO8601(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const { token } = req.params;
-        const { declined_by, declined_at } = req.body;
+        // The server's clock dates the refusal, as it does a signature.
+        const { declined_by } = req.body;
         const updateResult = await pool.query(
           `UPDATE permission_slips
               SET declined_by = $2,
-                  declined_at = COALESCE($3, CURRENT_TIMESTAMP),
+                  declined_at = CURRENT_TIMESTAMP,
                   status = 'declined',
                   updated_at = CURRENT_TIMESTAMP
             WHERE access_token = $1 AND status = 'pending'
             RETURNING *`,
-          [token, declined_by, declined_at || null],
+          [token, declined_by],
         );
 
         if (updateResult.rows.length === 0) {

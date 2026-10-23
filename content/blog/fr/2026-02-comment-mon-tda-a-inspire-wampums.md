@@ -109,7 +109,7 @@ Un soir, en regardant cette longue liste de frustrations — les présences sur 
 
 Chacun de ces problèmes était concret. Chacun avait une solution numérique. Et si une seule application pouvait tous les résoudre, on gagnerait des heures. Des dizaines d'heures. Des centaines d'heures, mises ensemble.
 
-C'est de là qu'est née l'application Wampums. (L'histoire du nom, je la conterai une autre fois — elle vaut le détour.)
+C'est de là qu'est née l'application Wampums. ([L'histoire du nom](/fr/blogue/pourquoi-wampums-histoire-du-nom/), je la conte dans un autre article — elle vaut le détour.)
 
 > **Vous reconnaissez votre unité?** [Explorez l'unité exemple](https://demo.wampums.app) en parent ou en animateur, en lecture seule et sans inscription, ou [voyez tout ce que Wampums fait](/fr/).
 

@@ -1255,8 +1255,6 @@ export class ParentDashboard {
         if (isDecline) {
           await declinePermissionSlip(slipId, {
             declined_by: signerName,
-            declined_at:
-                                                        new Date().toISOString(),
           });
         } else {
           await signPermissionSlip(slipId, {

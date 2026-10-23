@@ -182,4 +182,60 @@ describe('Permission Slip Security', () => {
       expect(archiveQuery[1]).toEqual([TEST_ID, 1]);
     });
   });
+
+  describe('the date of a signature or refusal', () => {
+    const BACKDATED = '2001-01-01T00:00:00.000Z';
+    const updateCall = () => __mPool.query.mock.calls.find(([sql]) => /UPDATE permission_slips/.test(sql));
+
+    test('a parent signing from the emailed link cannot backdate the signature', async () => {
+      __mPool.query
+        .mockResolvedValueOnce({ rows: [{ id: TEST_ID, status: 'pending' }] })
+        .mockResolvedValueOnce({ rows: [{ id: TEST_ID, status: 'signed', signed_by: 'Parent' }] });
+
+      const res = await request(app)
+        .patch(`/api/v1/resources/permission-slips/s/${TEST_TOKEN}`)
+        .send({ signed_by: 'Parent', signed_at: BACKDATED });
+
+      expect(res.status).toBe(200);
+      const [sql, params] = updateCall();
+      expect(sql).toMatch(/signed_at = CURRENT_TIMESTAMP/);
+      expect(params).not.toContain(BACKDATED);
+    });
+
+    test('a parent declining from the emailed link cannot backdate the refusal', async () => {
+      __mPool.query.mockResolvedValueOnce({ rows: [{ id: TEST_ID, status: 'declined', declined_by: 'Parent' }] });
+
+      const res = await request(app)
+        .patch(`/api/v1/resources/permission-slips/public/${TEST_TOKEN}`)
+        .send({ status: 'declined', declined_by: 'Parent', declined_at: BACKDATED });
+
+      expect(res.status).toBe(200);
+      const [sql, params] = updateCall();
+      expect(sql).toMatch(/declined_at = CURRENT_TIMESTAMP/);
+      expect(params).not.toContain(BACKDATED);
+    });
+
+    test('a parent signing from their account cannot backdate the signature', async () => {
+      const token = jwt.sign({ user_id: 1, organizationId: 1 }, TEST_SECRET);
+      __mPool.query
+        .mockResolvedValueOnce({ rows: [{ organization_id: 1 }] })
+        .mockResolvedValueOnce(authorizationContextRow({
+          permissions: ['permission_slips.sign'],
+          roles: [{ role_name: 'parent', display_name: 'Parent' }],
+        }))
+        .mockResolvedValueOnce({ rows: [{ organization_id: 1, participant_id: 7, status: 'pending' }] })
+        .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
+        .mockResolvedValueOnce({ rows: [{ id: TEST_ID, status: 'signed', signed_by: 'Parent' }] });
+
+      const res = await request(app)
+        .patch(`/api/v1/resources/permission-slips/${TEST_ID}/sign`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ signed_by: 'Parent', signed_at: BACKDATED });
+
+      expect(res.status).toBe(200);
+      const [sql, params] = updateCall();
+      expect(sql).toMatch(/signed_at = CURRENT_TIMESTAMP/);
+      expect(params).toEqual([TEST_ID, 'Parent', 1]);
+    });
+  });
 });

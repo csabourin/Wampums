@@ -236,7 +236,6 @@ export class PermissionSlipSign {
     try {
       const response = await signPublicPermissionSlip(this.token, {
         signed_by: guardianName,
-        signed_at: new Date().toISOString()
       });
 
       if (!response?.success) {
@@ -272,7 +271,6 @@ export class PermissionSlipSign {
     try {
       const response = await declinePublicPermissionSlip(this.token, {
         declined_by: guardianName,
-        declined_at: new Date().toISOString(),
       });
       if (!response?.success) {
         throw Object.assign(new Error('permission_slip_not_declined'), { status: response?.status });
