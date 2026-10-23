@@ -15,6 +15,7 @@ const router = express.Router();
 const { getPointSystemRules } = require('../utils/api-helpers');
 const { authenticate, requirePermission, blockDemoRoles, allowDemoSandbox, getOrganizationId, withScoutYear } = require('../middleware/auth');
 const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
+const { allEnrolledInUnit } = require('../services/unitParticipants');
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 
@@ -172,13 +173,7 @@ module.exports = (pool, logger) => {
 
         // An honor goes to a child of this unit. Without this check, a child of
         // another unit could be named and appear on that unit's honor list.
-        const enrolledResult = await client.query(
-          `SELECT DISTINCT participant_id FROM participant_enrollments
-            WHERE organization_id = $1 AND participant_id = ANY($2::int[])`,
-          [organizationId, participantIds]
-        );
-        const enrolledIds = new Set(enrolledResult.rows.map(row => String(row.participant_id)));
-        if (participantIds.some(id => !enrolledIds.has(String(id)))) {
+        if (!await allEnrolledInUnit(client, organizationId, participantIds)) {
           await client.query('ROLLBACK');
           return errorResponse(res, 'Participant not found', HTTP_NOT_FOUND);
         }

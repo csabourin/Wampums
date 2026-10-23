@@ -57,7 +57,12 @@ function installHandler(storyHandler) {
   const recorded = [];
   mockQueryImplementation(__mClient, __mPool, (query, params) => {
     recorded.push({ query, params });
-    return storyHandler(query, params);
+    const answer = storyHandler(query, params);
+    // Unless a story says otherwise, every child named is one of this unit's.
+    if (answer === undefined && query.includes('FROM participant_enrollments') && query.includes('ANY($2::int[])')) {
+      return { rows: params[1].map((id) => ({ participant_id: Number(id) })) };
+    }
+    return answer;
   });
   return recorded;
 }
@@ -139,6 +144,24 @@ function attendancePostHandler(previousStatus, rules) {
     return undefined;
   };
 }
+
+describe('Attendance is taken for this unit\'s children only (server)', () => {
+  it('refuses to mark a child of another unit, and writes nothing', async () => {
+    const storyHandler = attendancePostHandler(null, SIMPLE_RULES);
+    const recorded = installHandler((query, params) => (
+      query.includes('FROM participant_enrollments') ? { rows: [] } : storyHandler(query, params)
+    ));
+
+    await request(app)
+      .post('/api/v1/attendance')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ participant_id: 99, date: '2026-07-15', status: 'present' })
+      .expect(404);
+
+    expect(queriesMatching(recorded, 'INSERT INTO attendance')).toHaveLength(0);
+    expect(queriesMatching(recorded, 'INSERT INTO points')).toHaveLength(0);
+  });
+});
 
 describe('US-ATT-003 — First-time marking earns the right points (server)', () => {
   it('inserts a +1 points row when marking present with no recorded baseline', async () => {

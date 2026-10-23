@@ -161,6 +161,21 @@ describe.skipIf(!DATABASE_URL)('Demo sandbox', () => {
     expect(await one('SELECT COUNT(*)::int FROM honors WHERE participant_id = $1', [ids.realChild])).toBe(0);
   });
 
+  test('a demo visitor cannot record another unit\'s child in attendance, alone or in a batch', async () => {
+    const single = await post('/api/v1/attendance', ids.visitor, ids.demoUnit, {
+      participant_id: ids.realChild, date: today(), status: 'present',
+    });
+    const batch = await post('/api/v1/attendance/update-attendance', ids.visitor, ids.demoUnit, {
+      participant_id: [ids.annie, ids.realChild], date: today(), status: 'absent',
+    });
+
+    expect(single.status).toBe(404);
+    expect(batch.status).toBe(404);
+    expect(await one('SELECT COUNT(*)::int FROM attendance WHERE participant_id = $1', [ids.realChild])).toBe(0);
+    // The batch wrote nothing, not even for the demo child it also named.
+    expect(await one('SELECT status FROM attendance WHERE participant_id = $1 AND date = $2', [ids.annie, today()])).toBe('present');
+  });
+
   test('a demo visitor cannot give a child a million points', async () => {
     const response = await post('/api/v1/points', ids.visitor, ids.demoUnit, [{ type: 'individual', id: ids.annie, points: 1000000 }]);
 

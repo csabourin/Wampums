@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, allowDemoSandbox, withScoutYear } = require('../middleware/auth');
 const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
+const { allEnrolledInUnit } = require('../services/unitParticipants');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateDate, validateAttendanceStatus, checkValidation, validateIdQuery, validateDateOptional } = require('../middleware/validation');
 const { getPointSystemRules } = require('../utils');
@@ -10,6 +11,7 @@ const { calculateAttendancePoints, handleOrganizationResolutionError } = require
 
 // Longest activity date range (in days) expanded into selectable attendance dates
 const MAX_ACTIVITY_SPAN_DAYS = 31;
+const HTTP_NOT_FOUND = 404;
 
 module.exports = (pool, logger) => {
   /**
@@ -167,6 +169,11 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       const { participant_id, date, status } = req.body;
       const organizationId = await getOrganizationId(req, pool);
+
+      // Attendance is taken for this unit's children only (services/unitParticipants.js).
+      if (!await allEnrolledInUnit(pool, organizationId, [req.body.participant_id])) {
+        return error(res, 'Participant not found', HTTP_NOT_FOUND);
+      }
 
       logger.debug('[attendance POST] participant_id:', participant_id, 'date:', date, 'status:', status, 'organizationId:', organizationId);
 
@@ -526,6 +533,9 @@ module.exports = (pool, logger) => {
       // Validate participant IDs
       if (participantIds.length === 0 || participantIds.some(id => !Number.isInteger(Number(id)) || Number(id) < 1)) {
         return res.status(400).json({ success: false, message: 'At least one valid participant ID (positive integer) is required' });
+      }
+      if (!await allEnrolledInUnit(pool, organizationId, participantIds)) {
+        return error(res, 'Participant not found', HTTP_NOT_FOUND);
       }
 
       const client = await pool.connect();
