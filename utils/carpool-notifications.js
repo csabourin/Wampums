@@ -10,6 +10,9 @@ const { resolveOrganizationEmailSender } = require('../services/emailSender');
 
 const fallbackTranslations = getTranslationsByCode('en');
 
+/** A calendar date without a time, as PostgreSQL sends a DATE column as text. */
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
  * Format a date value according to locale for email templates.
  * @param {string|Date} dateValue - Date string or Date instance.
@@ -18,7 +21,11 @@ const fallbackTranslations = getTranslationsByCode('en');
  */
 function formatEmailDate(dateValue, locale) {
   const safeLocale = (locale || 'en').slice(0, 2).toLowerCase();
-  const date = new Date(dateValue);
+  // A date alone ("2026-11-22") is a calendar day, not UTC midnight: read as UTC,
+  // it would show the day before anywhere in the Americas.
+  const date = typeof dateValue === 'string' && DATE_ONLY_PATTERN.test(dateValue)
+    ? new Date(`${dateValue}T12:00:00`)
+    : new Date(dateValue);
   if (Number.isNaN(date.getTime())) {
     return '';
   }
@@ -26,48 +33,104 @@ function formatEmailDate(dateValue, locale) {
 }
 
 /**
- * Send email notifications to affected guardians when a ride is cancelled
+ * Email texts for one unit, in each recipient's language. An optional language's
+ * bundle may be partial: a missing key falls back to the unit's fallback language
+ * (`interface_languages.fallback`, French or English), then to English.
+ *
+ * @param {Object} pool - Database connection pool
+ * @param {number} organizationId - Unit whose fallback language applies
+ * @returns {Promise<function(string): function(string, Object=): string>} Translator for a language
+ */
+async function loadEmailTranslator(pool, organizationId) {
+  let fallback = 'en';
+  try {
+    const result = await pool.query(
+      `SELECT setting_value FROM organization_settings
+       WHERE organization_id = $1 AND setting_key = 'interface_languages'`,
+      [organizationId]
+    );
+    const raw = result.rows[0]?.setting_value;
+    const setting = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (setting?.fallback === 'fr' || setting?.fallback === 'en') {
+      fallback = setting.fallback;
+    }
+  } catch (err) {
+    console.error(`Could not read the language fallback of unit ${organizationId}:`, err);
+  }
+  const fallbackBundle = getTranslationsByCode(fallback);
+  return (language) => {
+    const bundle = getTranslationsByCode(language);
+    return (key, values = {}) => Object.entries(values).reduce(
+      (text, [name, value]) => text.split(`{${name}}`).join(value ?? ''),
+      bundle[key] ?? fallbackBundle[key] ?? fallbackTranslations[key] ?? key
+    );
+  };
+}
+
+/**
+ * One cancellation email, as text and HTML, in the recipient's language.
+ *
+ * @param {Object} parts - Already translated texts
+ * @param {string} parts.heading - Title of the HTML email
+ * @param {string} parts.greeting - "Hello {name},"
+ * @param {string} parts.activity - Activity name
+ * @param {string} parts.dateLabel - Label of the date line
+ * @param {string} parts.date - Date, formatted for the recipient
+ * @param {string[]} parts.paragraphs - Body paragraphs
+ * @param {string} parts.signature - Closing lines
+ * @returns {{text: string, html: string}} The email bodies
+ */
+function buildCancellationEmail({ heading, greeting, activity, dateLabel, date, paragraphs, signature }) {
+  const text = [greeting, ...paragraphs, signature].join('\n\n');
+  const html = `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2 style="color: #d9534f;">${escapeHtml(heading)}</h2>
+  <p>${escapeHtml(greeting)}</p>
+  <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #d9534f; margin: 20px 0;">
+    <h3 style="margin-top: 0;">${escapeHtml(activity)}</h3>
+    <p style="margin-bottom: 0;"><strong>${escapeHtml(dateLabel)}:</strong> ${escapeHtml(date)}</p>
+  </div>
+  ${paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('\n  ')}
+  <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
+  <p style="color: #6c757d; font-size: 14px;">${escapeHtml(signature).replace(/\n/g, '<br>')}</p>
+</div>
+  `.trim();
+  return { text, html };
+}
+
+/**
+ * Send email notifications to affected guardians when a ride is cancelled,
+ * each in the guardian's language.
  * @param {Object} pool - Database connection pool
  * @param {Array} affectedParticipants - Array of affected participants with guardian info
  * @param {Number} organizationId - Organization ID, whose sender identity the emails use
  */
 async function sendRideCancellationNotifications(pool, affectedParticipants, organizationId) {
   const sender = await resolveOrganizationEmailSender(pool, organizationId);
+  const translatorFor = await loadEmailTranslator(pool, organizationId);
   const emailPromises = affectedParticipants.map(async (participant) => {
-    const subject = `Carpool Ride Cancelled - ${participant.activity_name}`;
-    const message = `
-Hello ${participant.guardian_name},
-
-The carpool ride for ${participant.participant_name} has been cancelled for the activity "${participant.activity_name}" on ${new Date(participant.activity_date).toLocaleDateString()}.
-
-Please make alternative transportation arrangements for your child.
-
-You can view and arrange new carpool options in the Wampums parent portal.
-
-Best regards,
-Wampums Team
-    `.trim();
-
-    const html = `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-  <h2 style="color: #d9534f;">Carpool Ride Cancelled</h2>
-  <p>Hello ${participant.guardian_name},</p>
-  <p>The carpool ride for <strong>${participant.participant_name}</strong> has been cancelled for the activity:</p>
-  <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #d9534f; margin: 20px 0;">
-    <h3 style="margin-top: 0;">${participant.activity_name}</h3>
-    <p style="margin-bottom: 0;"><strong>Date:</strong> ${new Date(participant.activity_date).toLocaleDateString()}</p>
-  </div>
-  <p><strong>Please make alternative transportation arrangements for your child.</strong></p>
-  <p>You can view and arrange new carpool options in the Wampums parent portal.</p>
-  <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
-  <p style="color: #6c757d; font-size: 14px;">Best regards,<br>Wampums Team</p>
-</div>
-    `.trim();
-
     try {
-      await sendEmail(participant.guardian_email, subject, message, html, sender);
+      const language = await getUserEmailLanguage(pool, participant.guardian_email, organizationId);
+      const t = translatorFor(language);
+      const activity = sanitizeInput(participant.activity_name);
+      const date = formatEmailDate(participant.activity_date, language);
+      const name = sanitizeInput(participant.guardian_name) || t('activity_update_email_generic_name');
+      const { text, html } = buildCancellationEmail({
+        heading: t('carpool_ride_cancelled_email_heading'),
+        greeting: t('activity_update_email_greeting', { name }),
+        activity,
+        dateLabel: t('activity_update_email_date_label'),
+        date,
+        paragraphs: [
+          t('carpool_ride_cancelled_email_intro', { participant: sanitizeInput(participant.participant_name), activity, date }),
+          t('carpool_ride_cancelled_email_action'),
+          t('carpool_ride_cancelled_email_portal'),
+        ],
+        signature: t('activity_update_email_signature'),
+      });
+      await sendEmail(participant.guardian_email, t('carpool_ride_cancelled_email_subject', { activity }), text, html, sender);
     } catch (err) {
-      console.error(`Failed to send cancellation email to ${participant.guardian_email}:`, err);
+      console.error('Failed to send a carpool cancellation email:', err);
     }
   });
 
@@ -320,40 +383,30 @@ async function sendActivityCancellationNotifications(pool, activityId, organizat
   const activity = result.rows[0]; // Activity details are the same for all rows
 
   const sender = await resolveOrganizationEmailSender(pool, organizationId);
+  const translatorFor = await loadEmailTranslator(pool, organizationId);
   const emailPromises = result.rows.map(async (user) => {
-    const subject = `Activity Cancelled - ${activity.activity_name}`;
-    const message = `
-Hello ${user.guardian_name},
-
-The activity "${activity.activity_name}" scheduled for ${new Date(activity.activity_date).toLocaleDateString()} has been cancelled.
-
-All related carpool arrangements have been cancelled as well.
-
-We apologize for any inconvenience.
-
-Best regards,
-Wampums Team
-    `.trim();
-
-    const html = `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-  <h2 style="color: #d9534f;">Activity Cancelled</h2>
-  <p>Hello ${user.guardian_name},</p>
-  <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #d9534f; margin: 20px 0;">
-    <h3 style="margin-top: 0;">${activity.activity_name}</h3>
-    <p style="margin-bottom: 0;"><strong>Date:</strong> ${new Date(activity.activity_date).toLocaleDateString()}</p>
-  </div>
-  <p>This activity has been cancelled. All related carpool arrangements have been cancelled as well.</p>
-  <p>We apologize for any inconvenience.</p>
-  <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
-  <p style="color: #6c757d; font-size: 14px;">Best regards,<br>Wampums Team</p>
-</div>
-    `.trim();
-
     try {
-      await sendEmail(user.email, subject, message, html, sender);
+      const language = await getUserEmailLanguage(pool, user.email, organizationId);
+      const t = translatorFor(language);
+      const activityName = sanitizeInput(activity.activity_name);
+      const date = formatEmailDate(activity.activity_date, language);
+      const name = sanitizeInput(user.guardian_name) || t('activity_update_email_generic_name');
+      const { text, html } = buildCancellationEmail({
+        heading: t('activity_cancelled_email_heading'),
+        greeting: t('activity_update_email_greeting', { name }),
+        activity: activityName,
+        dateLabel: t('activity_update_email_date_label'),
+        date,
+        paragraphs: [
+          t('activity_cancelled_email_intro', { activity: activityName, date }),
+          t('activity_cancelled_email_carpools'),
+          t('activity_cancelled_email_apology'),
+        ],
+        signature: t('activity_update_email_signature'),
+      });
+      await sendEmail(user.email, t('activity_cancelled_email_subject', { activity: activityName }), text, html, sender);
     } catch (err) {
-      console.error(`Failed to send cancellation email to ${user.email}:`, err);
+      console.error('Failed to send an activity cancellation email:', err);
     }
   });
 
