@@ -28,6 +28,8 @@ const POSTGRES_INTEGER_MAX = 2147483647;
 
 const ID_PATTERN = /^\d{1,10}$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+/** An ISO 8601 instant, as `new Date().toISOString()` writes it. */
+const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 /** A status or a type the route checks against its own list; never prose. */
 const CODE_PATTERN = /^[a-z_]{1,32}$/;
 
@@ -70,6 +72,7 @@ const FIELD_CHECKS = Object.freeze({
   code: isCode,
   optionalCode: (value) => value === undefined || value === null || isCode(value),
   date: isNearDate,
+  timestamp: (value) => typeof value === 'string' && TIMESTAMP_PATTERN.test(value),
   points: (value) => Number.isInteger(value) && Math.abs(value) <= DEMO_POINTS_LIMIT,
   // A text field a visitor may leave out but never fill.
   blank: (value) => value === undefined || value === null || value === '',
@@ -81,8 +84,11 @@ const FIELD_CHECKS = Object.freeze({
  * or any value outside its kind, keeps the request read-only.
  */
 const DEMO_SANDBOX = Object.freeze({
-  /** POST /api/v1/points: `[{ type, id, points }]` */
-  points: Object.freeze({ list: 'required', shape: { type: 'code', id: 'id', points: 'points' } }),
+  /** POST /api/v1/points: `[{ type, id, points, timestamp, date? }]`, as the points screen sends it */
+  points: Object.freeze({
+    list: 'required',
+    shape: { type: 'code', id: 'id', points: 'points', timestamp: 'timestamp', date: 'date' },
+  }),
   /** POST /api/v1/attendance: one child, one date */
   attendanceMark: Object.freeze({
     shape: { participant_id: 'id', date: 'date', status: 'code', previous_status: 'optionalCode' },

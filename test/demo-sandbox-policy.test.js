@@ -15,6 +15,16 @@ describe('the demo sandbox', () => {
     ], NOW)).toBe(true);
   });
 
+  test('lets through the points the points screen actually sends, timestamp and group date included', () => {
+    const timestamp = '2026-10-23T14:59:58.123Z';
+    expect(isHarmlessDemoWrite(DEMO_SANDBOX.points, [{ type: 'individual', id: 12, points: 5, timestamp }], NOW)).toBe(true);
+    expect(isHarmlessDemoWrite(DEMO_SANDBOX.points, [{ type: 'group', id: 3, points: 5, timestamp, date: '2026-10-23' }], NOW)).toBe(true);
+  });
+
+  test('refuses a timestamp that carries words', () => {
+    expect(isHarmlessDemoWrite(DEMO_SANDBOX.points, [{ type: 'individual', id: 12, points: 5, timestamp: '2026-10-23T14:59:58Z visit my site' }], NOW)).toBe(false);
+  });
+
   test('refuses points beyond what a button gives, or a flood of entries', () => {
     expect(isHarmlessDemoWrite(DEMO_SANDBOX.points, [{ type: 'individual', id: 12, points: 101 }], NOW)).toBe(false);
     const flood = Array.from({ length: 201 }, () => ({ type: 'individual', id: 12, points: 1 }));

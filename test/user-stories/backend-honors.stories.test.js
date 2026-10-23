@@ -95,10 +95,13 @@ afterAll((done) => {
  * @param {Array} options.existing - Existing (participant_id, date) honor rows
  * @param {Array} options.insertedRows - Rows returned by the honors INSERT
  */
-function awardHandler({ existing = [], insertedRows = [] } = {}) {
+function awardHandler({ existing = [], insertedRows = [], enrolled = [1, 2] } = {}) {
   return (query) => {
     if (query.includes('demoadmin')) {
       return { rows: [] };
+    }
+    if (query.includes('FROM participant_enrollments') && query.includes('ANY($2::int[])')) {
+      return { rows: enrolled.map((participantId) => ({ participant_id: participantId })) };
     }
     if (query.includes('organization_settings') && query.includes('point_system_rules')) {
       return { rows: [{ setting_value: { honors: { award: HONOR_POINTS } } }] };
@@ -120,6 +123,19 @@ function awardHandler({ existing = [], insertedRows = [] } = {}) {
 }
 
 describe('US-HON-004 — Awarding one honor also awards its points (server)', () => {
+  it('refuses an honor for a child the unit does not have, and writes nothing', async () => {
+    const recorded = installHandler(awardHandler({ enrolled: [1] }));
+
+    await request(app)
+      .post('/api/v1/honors')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send([{ participantId: 1, date: '2026-07-15' }, { participantId: 99, date: '2026-07-15' }])
+      .expect(404);
+
+    expect(queriesMatching(recorded, 'INSERT INTO honors')).toHaveLength(0);
+    expect(queriesMatching(recorded, 'INSERT INTO points')).toHaveLength(0);
+  });
+
   it('inserts the honor plus a rule-driven points row linked by honor_id', async () => {
     const recorded = installHandler(awardHandler({
       insertedRows: [{ id: 42, participant_id: 1, date: '2026-07-15' }]

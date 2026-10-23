@@ -126,7 +126,10 @@ describe.skipIf(!DATABASE_URL)('Demo sandbox', () => {
   });
 
   test('a demo visitor can award points in the demo unit', async () => {
-    const response = await post('/api/v1/points', ids.visitor, ids.demoUnit, [{ type: 'individual', id: ids.annie, points: 5 }]);
+    // As ManagePoints sends it.
+    const response = await post('/api/v1/points', ids.visitor, ids.demoUnit, [
+      { type: 'individual', id: ids.annie, points: 5, timestamp: new Date().toISOString() },
+    ]);
 
     expect(response.status).toBe(200);
     expect(await demoPointsTotal()).toBe(12);
@@ -149,6 +152,13 @@ describe.skipIf(!DATABASE_URL)('Demo sandbox', () => {
     const plain = await post('/api/v1/honors', ids.visitor, ids.demoUnit, [{ participantId: ids.annie, date: today() }]);
     expect(plain.status).toBe(200);
     expect(await one('SELECT COUNT(*)::int FROM honors WHERE participant_id = $1', [ids.annie])).toBe(1);
+  });
+
+  test('a demo visitor cannot slip an honor onto another unit\'s child', async () => {
+    const response = await post('/api/v1/honors', ids.visitor, ids.demoUnit, [{ participantId: ids.realChild, date: today() }]);
+
+    expect(response.status).toBe(404);
+    expect(await one('SELECT COUNT(*)::int FROM honors WHERE participant_id = $1', [ids.realChild])).toBe(0);
   });
 
   test('a demo visitor cannot give a child a million points', async () => {

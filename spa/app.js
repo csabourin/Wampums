@@ -741,6 +741,13 @@ export const app = {
     this.updatePageTitle();
     localizeStaticChrome(this.translate.bind(this));
 
+    // The demo banner lives outside #app, so reloading the route does not redraw it.
+    if (this.isLoggedIn) {
+      import('./modules/demo/DemoBanner.js')
+        .then(({ initDemoBanner }) => initDemoBanner())
+        .catch(error => debugError('Failed to redraw the demo banner:', error));
+    }
+
     if (this.router && this.initCompleted) {
       this.router.reloadCurrentRoute();
     }
