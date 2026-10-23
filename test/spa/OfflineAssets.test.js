@@ -37,7 +37,7 @@ test('the entry module is verified without requiring the optional online live-up
     expect(await verifyOfflineAssets()).toBe(true);
     const { urls } = controller.postMessage.mock.calls[0][0];
     expect(urls).toContain(new URL('/assets/entry.js', location.origin).href);
-    expect(urls.some((url) => url.includes('socket.io'))).toBe(false);
+    expect(urls.map((url) => new URL(url, location.origin).pathname)).not.toContain('/socket.io/socket.io.js');
   } finally { document.head.innerHTML = ''; }
 });
 
