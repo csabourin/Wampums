@@ -4286,6 +4286,7 @@
   "demo_sign_in_with_account": "Se connecter avec un compte",
   "demo_sign_in_back": "Retour aux vues de la démo",
   "demo_sign_in_opening": "Ouverture de la démo…",
+  "demo_read_only_refused": "La démo est en lecture seule : rien n’y est enregistré. Pour essayer Wampums avec votre unité, demandez une démo sur wampums.app.",
   "demo_sign_in_unavailable": "Cette unité n’offre pas de démo.",
   "demo_account_unavailable": "Cette vue de la démo n’est pas disponible pour le moment. Essayez l’autre, ou écrivez à hello@wampums.app.",
   "demo_sign_in_failed": "La démo n’a pas pu s’ouvrir. Vérifiez votre connexion et réessayez."

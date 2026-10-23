@@ -5,7 +5,6 @@
  */
 
 const MIN_NAME_LENGTH = 2;
-const DEMO_REDIRECT_DELAY_MS = 2000;
 const HTTP_TOO_MANY_REQUESTS = 429;
 const DEMO_URL = 'https://demo.wampums.app';
 const CONTACT_PATH = '/api/v1/public/contact-demo';
@@ -136,14 +135,11 @@ function initDemoDialog() {
     modal.hidden = false;
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
-    fields.name.focus();
+    (sent ? success : fields.name).focus();
     track('demo_dialog_open');
   };
 
   const close = () => {
-    if (sent) {
-      return;
-    }
     modal.classList.remove('active');
     modal.hidden = true;
     document.body.style.overflow = '';
@@ -243,11 +239,11 @@ function initDemoDialog() {
     if (response.ok && data.success) {
       sent = true;
       track('generate_lead', { unit_size: fields.unitSize.value, current_tool: fields.currentTool.value });
+      // No redirect: the visitor reads the confirmation at their own pace and
+      // opens the sample unit from the link it offers.
       form.hidden = true;
       success.hidden = false;
-      setTimeout(() => {
-        window.location.href = DEMO_URL;
-      }, DEMO_REDIRECT_DELAY_MS);
+      success.focus();
       return;
     }
 

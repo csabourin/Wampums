@@ -128,6 +128,8 @@ export async function handleResponse(response) {
     let errorCode = null;
     let errorDetails = null;
     let validationErrors = null;
+    // A demo account's write is refused as read-only (blockDemoRoles), not for lack of a permission.
+    let isDemo = false;
 
     try {
       if (contentType && contentType.includes('application/json')) {
@@ -135,6 +137,7 @@ export async function handleResponse(response) {
         errorMessage = errorData.message || errorMessage;
         errorCode = errorData.code || errorData.errors?.code || null; // AI routes: errors.code
         errorDetails = errorData.data || null;
+        isDemo = errorData.isDemo === true;
         // Log detailed validation errors if present
         if (errorData.errors && Array.isArray(errorData.errors)) {
           validationErrors = errorData.errors;
@@ -156,6 +159,7 @@ export async function handleResponse(response) {
     httpError.code = errorCode;
     httpError.data = errorDetails;
     httpError.errors = validationErrors;
+    httpError.isDemo = isDemo;
     httpError.isNetworkError = getHeader('X-Network-Error') === 'true';
     throw httpError;
   }
@@ -420,6 +424,7 @@ async function sendApiRequest(endpoint, options = {}) {
     ? 'operation_unconfirmed' : lastError.code ?? null;
   finalError.data = lastError.data ?? null;
   finalError.errors = lastError.errors ?? null;
+  finalError.isDemo = lastError.isDemo === true;
   finalError.name = lastError.name;
   finalError.isNetworkError = isNetworkError;
   throw finalError;

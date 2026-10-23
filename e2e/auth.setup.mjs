@@ -3,9 +3,9 @@
  * specs (the SPA keeps its token in localStorage, which storageState saves).
  */
 import { test as setup } from '@playwright/test';
-import { ACCOUNTS, SEED_PASSWORD, settleScreen, storageStateFor } from './helpers.mjs';
+import { ACCOUNTS, DEMO_ACCOUNTS, SEED_PASSWORD, settleScreen, storageStateFor } from './helpers.mjs';
 
-for (const account of Object.values(ACCOUNTS)) {
+for (const account of [...Object.values(ACCOUNTS), ...Object.values(DEMO_ACCOUNTS)]) {
   setup(`sign in as ${account}`, async ({ page }) => {
     await page.goto('/login');
     const form = page.locator('#login-form');

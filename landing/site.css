@@ -2165,6 +2165,14 @@ a {
   font-weight: 600;
 }
 
+.form-success p {
+  margin: 0 0 0.75rem;
+}
+
+.form-success .btn {
+  margin-top: 0.25rem;
+}
+
 .honeypot {
   position: absolute;
   left: -9999px;

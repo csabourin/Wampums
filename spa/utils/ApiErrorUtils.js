@@ -65,6 +65,10 @@ export function apiErrorMessageKey(error, fallbackKey = 'error_occurred') {
   if (error?.isArchiveReadOnly === true || error?.cause?.isArchiveReadOnly === true) {
     return 'scout_year_read_only';
   }
+  // The demo unit is read-only: say so, rather than "ask your leaders for permission".
+  if (error?.isDemo === true || error?.cause?.isDemo === true) {
+    return 'demo_read_only_refused';
+  }
   const code = error?.code ?? error?.cause?.code ?? error?.error?.code;
   if (code && Object.prototype.hasOwnProperty.call(CODE_MESSAGE_KEYS, code)) {
     return CODE_MESSAGE_KEYS[code];

@@ -87,6 +87,33 @@ describe('home page demo request', () => {
     expect(document.getElementById('formSuccess').hidden).toBe(false);
   });
 
+  test.each(['en', 'fr'])('in %s, a sent request stays on screen until the visitor opens the sample unit or closes the dialog', async (lang) => {
+    jest.useFakeTimers();
+    load(lang);
+    global.fetch.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ success: true }) });
+    const opener = document.querySelector('[data-open-demo-modal]');
+    const before = window.location.href;
+
+    opener.click();
+    fillDemoForm();
+    submitDemoForm();
+    await jest.advanceTimersByTimeAsync(10000);
+
+    const success = document.getElementById('formSuccess');
+    expect(window.location.href).toBe(before);
+    expect(success.getAttribute('role')).toBe('status');
+    expect(document.activeElement).toBe(success);
+    expect(success.querySelector('a[href="https://demo.wampums.app"]').textContent.trim()).toBeTruthy();
+
+    document.getElementById('demoModal').querySelector('[role="dialog"]')
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.getElementById('demoModal').hidden).toBe(true);
+    expect(document.activeElement).toBe(opener);
+
+    opener.click();
+    expect(document.activeElement).toBe(success);
+  });
+
   test('missing fields are flagged next to each field and nothing is sent', () => {
     load('fr');
     document.querySelector('[data-open-demo-modal]').click();
@@ -143,7 +170,7 @@ describe('home page demo request', () => {
   test('visitors can explore the sample unit without filling the form', () => {
     load('en');
     const links = [...document.querySelectorAll('a[href="https://demo.wampums.app"]')];
-    expect(links.map((link) => link.closest('.hero-actions, .modal-alt') !== null)).toEqual([true, true]);
+    expect(links.map((link) => link.closest('.hero-actions, .modal-alt, .form-success') !== null)).toEqual([true, true, true]);
     links[0].click();
     expect(window.gtag).toHaveBeenCalledWith('event', 'sample_unit_click', expect.any(Object));
   });

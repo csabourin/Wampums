@@ -16,6 +16,11 @@ export const ACCOUNTS = {
   leader: 'leader@run.test',
   parent: 'parent@run.test',
 };
+/** The sample unit's read-only accounts (demoadmin, demoparent), also from seed.mjs. */
+export const DEMO_ACCOUNTS = {
+  leader: 'demo.leader@run.test',
+  parent: 'demo.parent@run.test',
+};
 export const SEED_PASSWORD = process.env.E2E_PASSWORD || 'Wampums2026!';
 
 /** Closes every document title (spa/utils/PageFocusUtils.js). */

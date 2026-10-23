@@ -92,3 +92,11 @@ test('field validation errors survive the complete request pipeline', async () =
   });
   await expect(API.post('v1/example', {})).rejects.toMatchObject({ status: 400, errors });
 });
+
+test('a demo account\'s refused write keeps the reason, so the screen can say the demo is read-only', async () => {
+  global.fetch.mockResolvedValue({
+    ok: false, status: 403, headers: { get: () => 'application/json' },
+    json: () => Promise.resolve({ success: false, message: 'Demo accounts have read-only access.', required: [], missing: [], isDemo: true }),
+  });
+  await expect(API.post('v1/attendance', {})).rejects.toMatchObject({ status: 403, isDemo: true });
+});

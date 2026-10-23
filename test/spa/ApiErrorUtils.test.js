@@ -77,6 +77,13 @@ describe('reasons that already explain themselves', () => {
     expect(apiErrorMessageKey(archived)).toBe('scout_year_read_only');
   });
 
+  test('a change refused to a demo account says the demo is read-only, not that a permission is missing', () => {
+    const demo = Object.assign(new Error('This feature is not available in demo mode.'), { status: 403, isDemo: true });
+    expect(apiErrorMessageKey(demo)).toBe('demo_read_only_refused');
+    expect(apiErrorMessageKey(new Error('API request failed', { cause: demo }))).toBe('demo_read_only_refused');
+    expect(apiErrorMessageKey({ status: 403 })).toBe('api_error_forbidden');
+  });
+
   test('the AI budget limit is recognised from the AI endpoints\' error object', () => {
     const aiError = Object.assign(new Error('Budget exceeded'), { error: { code: 'AI_BUDGET_EXCEEDED' } });
     expect(apiErrorMessageKey(aiError, 'error_generating_plan')).toBe('ai_budget_exceeded');
