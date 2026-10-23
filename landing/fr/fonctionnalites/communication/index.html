@@ -64,7 +64,7 @@
         {
           "@type": "Question",
           "name": "La communication avec les parents fonctionne-t-elle avec WhatsApp?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Wampums s'intègre avec WhatsApp via un QR code de connexion. Vous pouvez envoyer des messages aux parents directement depuis l'application, avec un statut de livraison en temps réel pour savoir qui a reçu et lu vos communications." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Wampums se relie à WhatsApp par un code QR. Vos annonces partent alors aussi sur WhatsApp, aux parents qui ont inscrit leur numéro, et Wampums note si chaque envoi a réussi ou échoué." }
         },
         {
           "@type": "Question",
@@ -74,7 +74,7 @@
         {
           "@type": "Question",
           "name": "Comment fonctionnent les rappels de permission?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Wampums envoie des rappels automatiques aux parents qui n'ont pas encore signé un formulaire de permission. Vous définissez la fréquence des relances, et le système s'arrête dès que la permission est reçue." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Depuis le suivi des autorisations, relancez d'un clic les familles qui n'ont pas encore signé. Celles qui ont déjà répondu ne reçoivent rien." }
         },
         {
           "@type": "Question",
@@ -146,27 +146,27 @@ Demander une démo
     <div class="shell">
     <div class="cards">
       <article class="card">
-        <h2>Intégration WhatsApp avec statut de livraison</h2>
+        <h2>Intégration WhatsApp par code QR</h2>
         <p>La majorité des parents de vos scouts utilisent déjà WhatsApp. Wampums s'y connecte via un simple scan de code QR, sans nécessiter de numéro de téléphone professionnel séparé. Une fois connecté, vous envoyez vos messages depuis l'interface Wampums, et ils arrivent dans le fil WhatsApp de chaque parent comme un message ordinaire.</p>
-        <p>Le statut de livraison en temps réel vous indique exactement qui a reçu le message, qui l'a lu et qui n'a pas encore ouvert sa notification. Pour les communications urgentes — annulation de séance due à la météo, changement de lieu de rassemblement, alerte de sécurité — cette confirmation en temps réel est inestimable. Vous n'avez plus à vous demander si votre message a bien été vu.</p>
+        <p>Les parents qui ont inscrit leur numéro WhatsApp reçoivent ainsi les annonces là où ils lisent déjà leurs messages, et Wampums note pour chaque annonce si l'envoi a réussi ou échoué.</p>
       </article>
 
       <article class="card">
         <h2>Listes de diffusion par courriel basées sur les rôles</h2>
         <p>Les communications par courriel restent essentielles pour les messages formels, les bulletins mensuels et les confirmations de permission. Wampums gère des listes de diffusion dynamiques basées sur les rôles et les sections : tous les parents de la meute, les animateurs du groupe, les membres du comité de parents, ou une combinaison personnalisée selon votre besoin.</p>
-        <p>La bibliothèque de gabarits vous permet de créer des modèles réutilisables pour les types de communications récurrents : invitation à une activité, rappel de paiement, bilan mensuel du programme. Chaque gabarit peut avoir une version française et une version anglaise, et le système envoie automatiquement chaque parent dans sa langue préférée sans aucune action supplémentaire de votre part.</p>
+        <p>Des modèles réutilisables vous évitent de récrire les communications récurrentes : invitation à une activité, rappel de paiement, bilan du mois. Une annonce part telle que vous l'écrivez; pour une unité bilingue, écrivez-la dans les deux langues.</p>
       </article>
 
       <article class="card">
         <h2>Intégration Google Chat pour l'équipe d'animateurs</h2>
-        <p>La coordination interne entre animateurs est tout aussi importante que la communication avec les parents. Wampums s'intègre avec Google Chat pour que votre équipe de direction puisse recevoir les notifications importantes directement dans l'espace de travail qu'elle utilise déjà : nouvelles inscriptions, formulaires de permission reçus, alertes de présence, et bien plus.</p>
-        <p>Cette intégration évite la fragmentation des informations entre une dizaine de fils de messages différents. Quand un parent soumet un formulaire de santé mis à jour, toute l'équipe pertinente en est informée instantanément. Quand une permission est manquante deux jours avant un camp, le responsable de la logistique reçoit une alerte automatique dans son espace Google Chat habituel.</p>
+        <p>La coordination entre animateurs compte autant que la communication avec les parents. Wampums publie vos annonces dans les espaces Google Chat de votre équipe, et vous pouvez y envoyer un message depuis Wampums.</p>
+        <p>L'information d'équipe reste ainsi au même endroit que vos conversations, plutôt que dispersée dans une dizaine de fils de messages.</p>
       </article>
 
       <article class="card">
-        <h2>Formulaires de permission numériques avec suivi et rappels</h2>
+        <h2>Formulaires de permission numériques avec suivi et relances</h2>
         <p>Créez des formulaires de permission en quelques minutes, envoyez-les aux familles concernées et suivez qui a signé et qui ne l'a pas encore fait — tout depuis un seul tableau de bord. Plus besoin de compter les formulaires papier retournés, de relancer manuellement les parents oublieux ou de gérer une pile de documents à conserver.</p>
-        <p>Le système de rappels automatiques envoie une notification aux parents n'ayant pas encore signé, à une fréquence que vous configurez. Les rappels s'arrêtent automatiquement dès que la permission est reçue. Pour les activités à haute participation comme les camps d'été ou les excursions, cette automatisation vous économise plusieurs heures de travail administratif par événement.</p>
+        <p>Quand des familles tardent à signer, relancez d'un clic seulement celles qui n'ont pas encore répondu : le courriel part dans la langue de chaque parent. Pour un camp d'été ou une grosse sortie, vous économisez des heures de suivi.</p>
       </article>
 
       <article class="card">
@@ -177,8 +177,8 @@ Demander une démo
 
       <article class="card">
         <h2>Notifications push pour les parents et les animateurs</h2>
-        <p>Les notifications push rejoignent les gens là où ils sont, sans qu'ils aient à vérifier leur courriel. Les parents reçoivent des alertes instantanées pour les nouvelles activités, les rappels de permission, les confirmations de badge et les modifications d'horaire. Les animateurs reçoivent des notifications pour les nouvelles inscriptions, les paiements reçus et les demandes d'approbation en attente.</p>
-        <p>Chaque utilisateur contrôle ses préférences de notification : quels types d'alertes recevoir, à quelles heures, et sur quels canaux. Cette granularité évite la fatigue de notification tout en s'assurant que les communications importantes ne se perdent pas dans un flux de messages trop dense. Le respect du temps et de l'attention des parents est au cœur de la conception de Wampums.</p>
+        <p>Les notifications push rejoignent les gens là où ils sont, sans qu'ils aient à vérifier leur courriel. Les parents qui les acceptent reçoivent vos annonces sur leur téléphone; les animateurs qui suivent les médicaments reçoivent un rappel avant chaque dose pendant une activité.</p>
+        <p>Les notifications sont facultatives : chaque personne les active ou non sur son appareil, et peut les retirer en tout temps.</p>
       </article>
     </div>
     </div>
@@ -192,7 +192,7 @@ Demander une démo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">La communication fonctionne-t-elle avec WhatsApp?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Oui. Wampums s'intègre avec WhatsApp via un QR code de connexion. Vous envoyez des messages depuis l'application Wampums, et ils arrivent dans le fil WhatsApp des parents avec un statut de livraison et de lecture en temps réel.</p>
+          <p itemprop="text">Oui. Wampums se relie à WhatsApp par un code QR. Vos annonces partent alors aussi sur WhatsApp, aux parents qui ont inscrit leur numéro, et Wampums note si chaque envoi a réussi ou échoué.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
@@ -204,7 +204,7 @@ Demander une démo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Comment fonctionnent les rappels de permission?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Wampums envoie des rappels automatiques aux parents qui n'ont pas encore signé un formulaire de permission. Vous configurez la fréquence et les canaux de rappel (WhatsApp, courriel, push), et le système s'arrête automatiquement dès que la permission est reçue.</p>
+          <p itemprop="text">Depuis le suivi des autorisations, relancez d'un clic les familles qui n'ont pas encore signé. Celles qui ont déjà répondu ne reçoivent rien.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
