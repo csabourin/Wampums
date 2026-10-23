@@ -431,6 +431,9 @@ export class Login {
     import('../live-sync/LiveDataSync.js')
       .then(({ liveDataSync }) => liveDataSync.start())
       .catch((error) => debugError('Failed to start live sync:', error));
+    import('../demo/DemoBanner.js')
+      .then(({ initDemoBanner }) => initDemoBanner())
+      .catch((error) => debugError('Failed to mount the demo banner:', error));
 
     debugLog('=== FINAL LOCALSTORAGE CHECK ===');
     debugLog('jwtToken:', getStorage('jwtToken') ? 'STORED' : 'MISSING');

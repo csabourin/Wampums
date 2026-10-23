@@ -107,6 +107,17 @@ export function isDemoUser() {
 }
 
 /**
+ * Whether this is a demo account in the public demo unit (demo_sign_in), where
+ * points, attendance and honors without a reason may be tried
+ * (middleware/demoSandbox.js). A demo account in an ordinary unit is read-only.
+ *
+ * @returns {boolean} True in the demo unit's sandbox
+ */
+export function isDemoSandbox() {
+  return isDemoUser() && app.organizationSettings?.demo_sign_in === true;
+}
+
+/**
  * Check if the user holds a family role (parent, demo parent, or the unit's
  * own role replacing one), whatever other roles they also hold. Use it for
  * what belongs to the person as a guardian, such as their guardian profile.

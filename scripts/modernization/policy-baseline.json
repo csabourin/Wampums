@@ -5,7 +5,7 @@
     "api.js": 4,
     "config/app.js": 1,
     "config/rate-limit.js": 4,
-    "middleware/auth.js": 5,
+    "middleware/auth.js": 4,
     "middleware/global.js": 13,
     "middleware/response.js": 3,
     "middleware/validation.js": 2,

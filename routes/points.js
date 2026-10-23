@@ -11,7 +11,8 @@ const express = require('express');
 const router = express.Router();
 
 // Import auth middleware
-const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, getScoutYear, rosterStatusesFor } = require('../middleware/auth');
+const { authenticate, requirePermission, allowDemoSandbox, getOrganizationId, getScoutYear, rosterStatusesFor } = require('../middleware/auth');
+const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
 const { asyncHandler } = require('../middleware/response');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 
@@ -173,7 +174,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.post('/', authenticate, blockDemoRoles, requirePermission('points.manage'), asyncHandler(async (req, res) => {
+  router.post('/', authenticate, allowDemoSandbox(DEMO_SANDBOX.points), requirePermission('points.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const updates = req.body;
 

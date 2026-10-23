@@ -237,6 +237,27 @@ describe('US-HON-002 — Award honors with a reason for each kid', () => {
     expect(optimistic.id).toBe(77);
   });
 
+  it('in the demo unit, a visitor awards an honor without being asked for a reason', async () => {
+    // The demo takes no free text (middleware/demoSandbox.js), so it never asks for one.
+    const { app } = require('../../spa/app.js');
+    app.userRoles = ['demoadmin'];
+    app.organizationSettings = { demo_sign_in: true };
+    try {
+      seedHonorsData();
+      await initPage();
+
+      row(2).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      document.getElementById('awardHonorButton').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flushPromises();
+
+      expect(document.getElementById('honor-reason-modal')).toBeNull();
+      expect(ajax.awardHonor).toHaveBeenCalledWith([{ participantId: '2', date: TODAY, reason: '' }]);
+    } finally {
+      delete app.userRoles;
+      delete app.organizationSettings;
+    }
+  });
+
   it('cancelling the modal resets the pending queue', async () => {
     seedHonorsData();
     const { page } = await initPage();

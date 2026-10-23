@@ -137,6 +137,7 @@ export function clearUserData(isSession = false) {
       'wampums-lang',             // Namespaced language key
       'dashboard_points_collapsed', // UI preference (non-critical)
       'lastSwVersionPrompt',       // PWA update state (non-critical)
+      'demo_missions',             // Demo tour progress, kept when switching demo views
     ];
 
     // For sessionStorage, clear everything (no need to preserve device-level prefs)

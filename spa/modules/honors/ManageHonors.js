@@ -12,6 +12,7 @@ import { offlineManager } from '../OfflineManager.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { isDemoSandbox } from '../../utils/PermissionUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 export class ManageHonors {
   constructor(app) {
@@ -499,6 +500,11 @@ export class ManageHonors {
     }));
 
     this.currentHonorIndex = 0;
+    // The demo unit takes no free text, so its visitors award without a reason.
+    if (isDemoSandbox()) {
+      this.submitHonors();
+      return;
+    }
     this.showReasonModal();
   }
 

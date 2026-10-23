@@ -20,6 +20,7 @@ const STATUS_MESSAGE_KEYS = Object.freeze({
  */
 const CODE_MESSAGE_KEYS = Object.freeze({
   online_required: 'family_operation_online_required',
+  demo_read_only: 'demo_read_only_explained',
   operation_unconfirmed: 'family_operation_unconfirmed',
   AI_BUDGET_EXCEEDED: 'ai_budget_exceeded',
   AI_NOT_CONFIGURED: 'ai_unavailable',
