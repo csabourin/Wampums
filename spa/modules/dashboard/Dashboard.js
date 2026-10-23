@@ -56,6 +56,7 @@ import { CommandPalette } from '../CommandPalette.js';
 import { DashboardSettingsModal } from '../DashboardSettingsModal.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
+import { renderCampReadinessSummary } from '../offline/CampReadiness.js';
 import { offlineManager } from '../OfflineManager.js';
 
 /**
@@ -437,6 +438,7 @@ export class Dashboard extends BaseModule {
     const content = `
       ${this._renderTopBar()}
       ${this._renderHero(buckets.now)}
+      <div id="dashboard-camp-readiness">${renderCampReadinessSummary(this.app.lang || this.app.currentLanguage)}</div>
       ${this._renderWeek(buckets.week)}
       ${this._renderTools(buckets.tools)}
       ${this._renderFab()}
@@ -1306,6 +1308,10 @@ export class Dashboard extends BaseModule {
         this.attachEventListeners();
       }
     };
+    this.addWindowEventListener('campReadinessChanged', () => {
+      const target = document.getElementById('dashboard-camp-readiness');
+      if (target) { setContent(target, renderCampReadinessSummary(this.app.lang || this.app.currentLanguage)); }
+    });
     this.addWindowEventListener('online', rerender);
     this.addWindowEventListener('offline', rerender);
   }

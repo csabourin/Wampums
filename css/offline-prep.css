@@ -398,12 +398,14 @@
 }
 
 /* Danger button variant */
-.button--danger {
-  background: #ef5350;
-  border-color: #ef5350;
+.offline-prep-page .button--danger {
+  background: var(--color-error);
+  background-image: none;
+  color: var(--color-surface);
+  border-color: var(--color-error);
 }
 
-.button--danger:hover {
-  background: #e53935;
-  border-color: #e53935;
+.offline-prep-page .button--danger:hover {
+  background: var(--color-error-dark);
+  border-color: var(--color-error-dark);
 }

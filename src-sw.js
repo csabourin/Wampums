@@ -7,7 +7,7 @@
 // owns and replays its token-free offline mutation outbox.
 // ==================================================================
 
-import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+import { precacheAndRoute, cleanupOutdatedCaches, getCacheKeyForURL } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst, NetworkOnly } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
@@ -19,6 +19,8 @@ import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 
 // Version should match package.json and config.js
 const APP_VERSION = '3.1.0';
+const OFFLINE_SHELL_CACHE = 'offline-shell';
+const OFFLINE_SHELL_URL = '/index.html';
 
 // Camp mode flag - when enabled, use extended cache durations
 let campModeEnabled = false;
@@ -72,7 +74,8 @@ const debugWarn = (...args) => { if (!isProduction()) {console.warn(...args);} }
 // ==================================================================
 
 // Workbox injects the precache manifest here at build time
-precacheAndRoute(self.__WB_MANIFEST);
+const offlineManifest = self.__WB_MANIFEST;
+precacheAndRoute(offlineManifest);
 cleanupOutdatedCaches();
 
 // ==================================================================
@@ -84,6 +87,14 @@ cleanupOutdatedCaches();
 const navigationHandler = new NetworkFirst({
   cacheName: 'html-cache',
   plugins: [
+    {
+      async cacheDidUpdate({ newResponse }) {
+        if (newResponse?.ok && newResponse.headers.get('content-type')?.includes('text/html')) {
+          const shell = await caches.open(OFFLINE_SHELL_CACHE);
+          await shell.put(OFFLINE_SHELL_URL, newResponse.clone());
+        }
+      },
+    },
     new CacheableResponsePlugin({
       statuses: [0, 200],
     }),
@@ -114,7 +125,19 @@ const SSR_PATHS = [
   /^\/landing\//,
 ];
 
-const navigationRoute = new NavigationRoute(navigationHandler, {
+/** Use the latest network HTML online and the retained SPA shell for any SPA route offline. */
+async function handleAppNavigation(context) {
+  try {
+    return await navigationHandler.handle(context);
+  } catch (error) {
+    const shell = await caches.open(OFFLINE_SHELL_CACHE);
+    const response = await shell.match(OFFLINE_SHELL_URL);
+    if (response) { return response; }
+    throw error;
+  }
+}
+
+const navigationRoute = new NavigationRoute(handleAppNavigation, {
   denylist: SSR_PATHS,
 });
 registerRoute(navigationRoute);
@@ -817,6 +840,29 @@ self.addEventListener('sync', (event) => {
   }
 });
 
+/** Check the actual static caches and an HTML shell, rather than an install-time flag. */
+async function verifyOfflineAssets(urls = []) {
+  const required = offlineManifest.map((entry) => typeof entry === 'string' ? entry : entry.url);
+  const present = await Promise.all([...required, ...urls].map(async (url) => {
+    const absolute = new URL(url, self.location.origin);
+    if (absolute.origin !== self.location.origin) { return false; }
+    const key = getCacheKeyForURL(absolute.href) || absolute.href;
+    return Boolean(await caches.match(key));
+  }));
+  if (!present.every(Boolean)) { return false; }
+  const shell = await caches.open(OFFLINE_SHELL_CACHE);
+  const response = await shell.match(OFFLINE_SHELL_URL);
+  if (!response?.ok || !response.headers.get('content-type')?.includes('text/html')) { return false; }
+  // A retained document must still be able to load its own entry script and styles.
+  const html = await response.text();
+  const references = [...html.matchAll(/(?:src|href)=["']([^"']+\.(?:js|css)(?:\?[^"']*)?)["']/g)]
+    .map((match) => new URL(match[1], self.location.origin))
+    .filter((url) => url.origin === self.location.origin);
+  if (!references.length) { return false; }
+  const shellAssets = await Promise.all(references.map((url) => caches.match(getCacheKeyForURL(url.href) || url.href)));
+  return shellAssets.every(Boolean);
+}
+
 // ==================================================================
 // Section 9: Message Handling
 // ==================================================================
@@ -827,6 +873,11 @@ self.addEventListener('message', (event) => {
   }
   if (event.data === 'skipWaiting') {
     self.skipWaiting();
+  }
+  if (event.data?.type === 'VERIFY_OFFLINE_ASSETS' && event.ports?.[0]) {
+    event.waitUntil(verifyOfflineAssets(event.data.urls).then((ready) => {
+      event.ports[0].postMessage({ ready });
+    }).catch(() => event.ports[0].postMessage({ ready: false })));
   }
   if (event.data && event.data.type === 'GET_VERSION') {
     event.ports[0].postMessage({

@@ -435,8 +435,18 @@ envoi : `point_mutation_receipts` et les points sont validés dans la même tran
 Une réponse perdue peut donc être retransmise sans doubler les points. Déployer la
 migration `044_point_mutation_receipts.sql` avant le nouveau client.
 
-Préparer le camp avec « Préparation hors ligne » avant de perdre le réseau pour
-charger les participants, groupes, présences et modules. Les totaux locaux restent
+Les camps des sept prochains jours se préparent automatiquement lorsque la SPA
+est ouverte avec du réseau, pour les comptes ayant `activities.view` et une portée
+unité. `CampPreparation` vérifie les données IndexedDB, les écrans, les traductions
+et le document HTML en cache avant d'annoncer « Prêt hors ligne sur cet appareil ».
+Les préparations et le mode camp sont isolés par compte, unité et année scoute ;
+un ancien indicateur sans preuve ne suffit pas. Les données sont actualisées chaque
+heure et après synchronisation, avec une nouvelle tentative chaque minute en cas
+d'échec. Une file locale non vide reporte le téléchargement pour préserver les
+modifications. Les camps futurs n'activent le mode camp qu'à leur début.
+« Vérifier la disponibilité hors ligne » permet une actualisation manuelle depuis
+les activités ou la préparation hors ligne ; vérifier chaque appareil avant de partir.
+Les totaux locaux restent
 consultables après expiration du cache tant que l’appareil est hors ligne ou qu’un
 lot attend son envoi. La SPA ouverte synchronise au retour du réseau, à son retour
 au premier plan et réessaie toutes les 30 secondes. Garder les présences avant les

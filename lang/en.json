@@ -2949,12 +2949,12 @@
   "achievements_awarded_success": "Achievements awarded successfully",
   "no_updates_needed": "No updates needed",
   "error_processing_awards": "Error processing awards",
-  "prepare_offline_description": "Download data for multi-day activities so the app works without internet. Prepare before going to camp!",
+  "prepare_offline_description": "Camps in the next seven days download automatically while this app is open with a connection. Check availability here on each device before leaving. Local changes sync when the connection returns.",
   "upcoming_multi_day_activities": "Upcoming Multi-Day Activities",
   "no_upcoming_camps": "No upcoming multi-day activities found",
   "camp_mode_active": "Camp Mode Active",
   "camp_mode_inactive": "Camp mode is not active",
-  "camp_mode_description": "App is prepared for extended offline use. Data will be available even without internet.",
+  "camp_mode_description": "Local data is retained for camp. Check offline availability on this device below.",
   "disable_camp_mode": "Disable Camp Mode",
   "prepare_date_range": "Prepare Date Range",
   "preparing": "Preparing...",
@@ -4333,5 +4333,11 @@
   "action_roster_no_participants": "No participants match the current filter.",
   "action_roster_activity_unavailable": "This activity is no longer available for the selected date.",
   "action_roster_participant_unavailable": "This participant is outside the current filter. Check attendance or explicitly show all participants.",
-  "action_roster_departure_requires_presence": "Mark the participant present or late before recording a departure."
+  "action_roster_departure_requires_presence": "Mark the participant present or late before recording a departure.",
+  "camp_device_title": "Offline availability",
+  "camp_device_ready": "Ready offline on this device",
+  "camp_device_preparing": "Downloading on this device…",
+  "camp_device_incomplete": "Offline availability needs checking on this device",
+  "camp_device_updated": "Updated on",
+  "camp_device_check": "Check offline availability"
 }

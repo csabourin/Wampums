@@ -8,6 +8,8 @@
 import { debugLog, debugError, debugWarn } from './utils/DebugUtils.js';
 import { OfflineIndicator } from './components/OfflineIndicator.js';
 import { offlineManager } from './modules/OfflineManager.js';
+import { campPreparation } from './modules/offline/CampPreparation.js';
+import { hasPermission, hasOrganizationScope } from './utils/PermissionUtils.js';
 
 let offlineIndicator = null;
 let initialized = false;
@@ -27,6 +29,7 @@ export function initOfflineSupport() {
   try {
     // Initialize OfflineManager
     offlineManager.init();
+    campPreparation.start(() => hasPermission('activities.view') && hasOrganizationScope());
 
     // Initialize OfflineIndicator
     offlineIndicator = new OfflineIndicator();
@@ -189,6 +192,8 @@ export function cleanupOfflineSupport() {
 
     window.clearInterval(offlineManager.syncTimer);
     offlineManager.syncTimer = null;
+
+    campPreparation.stop();
 
     // Destroy indicator
     if (offlineIndicator) {
