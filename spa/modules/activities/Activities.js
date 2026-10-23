@@ -4,7 +4,7 @@
 import { translate } from '../../app.js';
 import { getActivities, deleteActivity } from '../../api/api-activities.js';
 import { clearActivityRelatedCaches } from '../../indexedDB.js';
-import { canFollowPermissionSlips, canViewActivities, hasPermission } from '../../utils/PermissionUtils.js';
+import { canFollowPermissionSlips, canViewActivities, hasPermission, hasOrganizationScope } from '../../utils/PermissionUtils.js';
 import { skeletonActivityList, setButtonLoading } from '../../utils/SkeletonUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
@@ -19,7 +19,8 @@ import {
   getActivityEndDateObj,
   getActivityStartDate
 } from '../../utils/ActivityDateUtils.js';
-import { offlineManager } from '../OfflineManager.js';
+import { campPreparation } from '../offline/CampPreparation.js';
+import { renderCampReadiness } from '../offline/CampReadiness.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { richTextOrPlain } from '../../utils/RichTextUtils.js';
@@ -42,6 +43,13 @@ export class Activities extends BaseModule {
       return;
     }
 
+    this.addWindowEventListener('campReadinessChanged', () => {
+      document.querySelectorAll('[data-camp-status]').forEach((target) => {
+        const wrapper = document.createElement('div');
+        setContent(wrapper, renderCampReadiness(target.dataset.campStatus, this.app.lang || this.app.currentLanguage));
+        target.replaceWith(wrapper.firstElementChild);
+      });
+    });
     this.isLoading = true;
     this.render();
 
@@ -228,6 +236,7 @@ export class Activities extends BaseModule {
           </span>
         </div>
 
+        ${isMultiDay && !isPast && hasOrganizationScope() ? renderCampReadiness(activity.id, this.app.lang || this.app.currentLanguage) : ''}
         <div class="activity-card__actions">
           <button class="button button--small button--secondary view-carpools-btn" data-activity-id="${activity.id}">
             ${translate('view_carpools')}
@@ -236,12 +245,12 @@ export class Activities extends BaseModule {
             <button class="button button--small button--secondary view-permission-slips-btn" data-activity-id="${activity.id}">
               ${translate('manage_permission_slips')}
             </button>` : ''}
-          ${isMultiDay && !isPast ? `
+          ${isMultiDay && !isPast && hasOrganizationScope() ? `
             <button class="button button--small button--secondary prepare-offline-btn"
                     data-activity-id="${activity.id}"
                     data-start-date="${startDate}"
                     data-end-date="${endDate}">
-              <i class="fa-solid fa-cloud-arrow-down"></i> ${translate('prepare_for_offline')}
+              <i class="fa-solid fa-cloud-arrow-down"></i> ${translate('camp_device_check')}
             </button>
           ` : ''}
           ${this.canEdit ? `
@@ -308,8 +317,8 @@ export class Activities extends BaseModule {
 
       setButtonLoading(button, true);
       try {
-        await offlineManager.prepareForActivity(activityId, startDate, endDate);
-        this.app.showMessage(translate('preparation_complete'), 'success');
+        const ready = await campPreparation.prepare(activityId, startDate, endDate);
+        this.app.showMessage(translate(ready ? 'preparation_complete' : 'camp_device_incomplete'), ready ? 'success' : 'warning');
       } catch (err) {
         debugError('Failed to prepare for offline:', err);
         this.app.showMessage(translate('preparation_failed'), 'error');

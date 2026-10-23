@@ -4,6 +4,8 @@
  */
 import offlinePrepStylesheetUrl from '../../../css/offline-prep.css?url';
 import { translate } from '../../app.js';
+import { campPreparation } from './CampPreparation.js';
+import { renderCampReadiness } from './CampReadiness.js';
 import { offlineManager } from '../OfflineManager.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent, loadStylesheet, withFormBusy } from '../../utils/DOMUtils.js';
@@ -29,6 +31,7 @@ export class OfflinePreparation {
     this.destroyed = false;
     this.boundPreparationProgress = (event) => this.updateProgressUI(event.detail);
     this.boundCampModeChanged = () => this.refresh();
+    this.boundReadinessChanged = () => { if (!this.preparingActivityId) { this.refresh(); } };
   }
 
   async init() {
@@ -131,7 +134,7 @@ export class OfflinePreparation {
     if (offlineManager.campMode) {
       const activePrep = offlineManager.preparedActivities.get(offlineManager.activeActivityId);
       const dateRange = activePrep
-        ? `${formatDate(activePrep.startDate, this.app.currentLanguage)} - ${formatDate(activePrep.endDate, this.app.currentLanguage)}`
+        ? `${formatDate(activePrep.startDate, this.app.lang || this.app.currentLanguage)} - ${formatDate(activePrep.endDate, this.app.lang || this.app.currentLanguage)}`
         : '';
 
       return `
@@ -177,7 +180,7 @@ export class OfflinePreparation {
   }
 
   renderActivityCard(activity) {
-    const isPrepared = offlineManager.preparedActivities.has(activity.id);
+    const isPrepared = campPreparation.getStatus(activity.id).status === 'ready';
     const isCurrentlyPreparing = this.preparingActivityId === activity.id;
     const dayCount = activity.day_count || this.getDayCount(activity.activity_start_date, activity.activity_end_date);
 
@@ -188,22 +191,21 @@ export class OfflinePreparation {
                     ${isPrepared ? `<span class="badge badge--success">${translate('prepared')}</span>` : ''}
                 </div>
                 <div class="activity-card__dates">
-                    <span>${escapeHTML(formatDate(activity.activity_start_date, this.app.currentLanguage))}</span>
+                    <span>${escapeHTML(formatDate(activity.activity_start_date, this.app.lang || this.app.currentLanguage))}</span>
                     <span class="activity-card__arrow" aria-hidden="true">→</span>
-                    <span>${escapeHTML(formatDate(activity.activity_end_date, this.app.currentLanguage))}</span>
+                    <span>${escapeHTML(formatDate(activity.activity_end_date, this.app.lang || this.app.currentLanguage))}</span>
                 </div>
                 <p class="activity-card__duration">${Number(dayCount)} ${translate('days')}</p>
                 ${activity.meeting_location_going ? `<p class="activity-card__location">${escapeHTML(activity.meeting_location_going)}</p>` : ''}
+                ${renderCampReadiness(activity.id, this.app.lang || this.app.currentLanguage)}
                 <button type="button" class="button button--primary prepare-btn ${isCurrentlyPreparing ? 'button--loading' : ''}"
                         data-activity-id="${Number(activity.id)}"
                         data-start="${escapeAttribute(activity.activity_start_date)}"
                         data-end="${escapeAttribute(activity.activity_end_date)}"
-                        ${isPrepared || isCurrentlyPreparing ? 'disabled' : ''}>
+                        ${isCurrentlyPreparing ? 'disabled' : ''}>
                     ${isCurrentlyPreparing
     ? translate('preparing')
-    : isPrepared
-      ? translate('already_prepared')
-      : translate('prepare_for_offline')}
+    : translate('camp_device_check')}
                 </button>
             </div>
         `;
@@ -223,8 +225,8 @@ export class OfflinePreparation {
                     ${items.map(([id, prep]) => `
                         <div class="prepared-item">
                             <div class="prepared-item__info">
-                                <strong>${escapeHTML(formatDate(prep.startDate, this.app.currentLanguage))} - ${escapeHTML(formatDate(prep.endDate, this.app.currentLanguage))}</strong>
-                                <small>${Number(prep.dates?.length) || 0} ${translate('days')} | ${translate('prepared_on')} ${escapeHTML(formatDate(new Date(prep.preparedAt), this.app.currentLanguage))}</small>
+                                <strong>${escapeHTML(formatDate(prep.startDate, this.app.lang || this.app.currentLanguage))} - ${escapeHTML(formatDate(prep.endDate, this.app.lang || this.app.currentLanguage))}</strong>
+                                <small>${Number(prep.dates?.length) || 0} ${translate('days')} | ${translate('prepared_on')} ${escapeHTML(formatDate(new Date(prep.preparedAt), this.app.lang || this.app.currentLanguage))}</small>
                             </div>
                             <button type="button" class="button button--ghost button--small clear-prep-btn" data-activity-id="${escapeAttribute(String(id))}">
                                 ${translate('clear')}
@@ -232,7 +234,7 @@ export class OfflinePreparation {
                         </div>
                     `).join('')}
                 </div>
-                <button type="button" id="clear-all-prep" class="button button--ghost button--danger">
+                <button type="button" id="clear-all-prep" class="button button--danger">
                     ${translate('clear_all_preparations')}
                 </button>
             </div>
@@ -284,6 +286,8 @@ export class OfflinePreparation {
     // Listen for preparation progress events
     window.removeEventListener('preparationProgress', this.boundPreparationProgress);
     window.removeEventListener('campModeChanged', this.boundCampModeChanged);
+    window.removeEventListener('campReadinessChanged', this.boundReadinessChanged);
+    window.addEventListener('campReadinessChanged', this.boundReadinessChanged);
     window.addEventListener('preparationProgress', this.boundPreparationProgress);
     window.addEventListener('campModeChanged', this.boundCampModeChanged);
   }
@@ -305,8 +309,8 @@ export class OfflinePreparation {
     }
 
     try {
-      await offlineManager.prepareForActivity(id, start, end);
-      this.app.showMessage(translate('preparation_complete'), 'success');
+      const ready = await campPreparation.prepare(id, start, end);
+      this.app.showMessage(translate(ready ? 'preparation_complete' : 'camp_device_incomplete'), ready ? 'success' : 'warning');
       this.preparingActivityId = null;
       this.refresh();
     } catch (error) {
@@ -370,7 +374,8 @@ export class OfflinePreparation {
     document.getElementById('preparation-progress')?.classList.remove('hidden');
 
     try {
-      await offlineManager.prepareForActivity(null, startDate, endDate);
+      const ready = await campPreparation.prepare(null, startDate, endDate);
+      this.app.showMessage(translate(ready ? 'preparation_complete' : 'camp_device_incomplete'), ready ? 'success' : 'warning');
     } catch (error) {
       debugError('OfflinePreparation: Manual prepare failed', error);
       this.app.showMessage(apiErrorMessage(error, 'preparation_failed'), 'error');
@@ -378,7 +383,6 @@ export class OfflinePreparation {
       submitBtn.classList.remove('button--loading');
       return;
     }
-    this.app.showMessage(translate('preparation_complete'), 'success');
     this.refresh();
   }
 
@@ -395,6 +399,7 @@ export class OfflinePreparation {
     if (await confirmDestructive(translate('confirm_clear_preparation'))) {
       offlineManager.preparedActivities.delete(idParsed);
       offlineManager.savePreparedActivities();
+      campPreparation.forget(idParsed);
 
       // If this was the active camp mode activity, disable camp mode
       if (offlineManager.activeActivityId === idParsed) {
@@ -408,6 +413,7 @@ export class OfflinePreparation {
   async handleClearAllPrep() {
     if (await confirmDestructive(translate('confirm_clear_all_preparations'))) {
       offlineManager.clearPreparedActivities();
+      campPreparation.forget();
       this.app.showMessage(translate('preparations_cleared'), 'success');
       this.refresh();
     }
@@ -446,6 +452,7 @@ export class OfflinePreparation {
 
   destroy() {
     this.destroyed = true;
+    window.removeEventListener('campReadinessChanged', this.boundReadinessChanged);
     // Clean up event listeners
     window.removeEventListener('preparationProgress', this.boundPreparationProgress);
     window.removeEventListener('campModeChanged', this.boundCampModeChanged);

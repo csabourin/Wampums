@@ -568,3 +568,82 @@ test('the open app retries synchronization without needing another online event'
     jest.useRealTimers();
   }
 });
+
+describe('Camp preparation keeps a trustworthy snapshot on this device', () => {
+  function snapshotResponse() {
+    return makeJsonResponse({ success: true, data: {
+      participants: [], groups: [], actionRoster: { activities: [], attendance: [] },
+      attendance: {}, honors: [], honorsByDate: {}, medications: { requirements: [], distributions: [] },
+      badges: { templates: [], progress: [] },
+    } });
+  }
+
+  it('refuses to overwrite attendance or points still waiting to sync', async () => {
+    const manager = new OfflineManager();
+    manager.isOffline = true;
+    await manager.queueMutation('http://localhost:3000/api/v1/points', { method: 'POST', body: '[]' });
+    await expect(manager.prepareForActivity(9, '2099-07-14', '2099-07-16')).rejects.toThrow('synchronized first');
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(manager.preparedActivities.size).toBe(0);
+  });
+
+  it('does not declare preparation complete when device storage refuses a write', async () => {
+    const manager = new OfflineManager();
+    global.fetch.mockResolvedValue(snapshotResponse());
+    manager.preloadCampModules = jest.fn().mockResolvedValue();
+    const write = jest.spyOn(require('../../spa/indexedDB.js'), 'setCachedData').mockRejectedValue(new Error('quota'));
+    try {
+      await expect(manager.prepareForActivity(9, '2099-07-14', '2099-07-16')).rejects.toThrow('quota');
+      expect(manager.preparedActivities.size).toBe(0);
+      expect(manager.preparationProgress.status).toBe('error');
+    } finally { write.mockRestore(); }
+  });
+
+  it('does not declare a snapshot complete when a required screen fails to download', async () => {
+    const manager = new OfflineManager();
+    global.fetch.mockResolvedValue(snapshotResponse());
+    manager.preloadCampModules = jest.fn().mockRejectedValue(new Error('screen unavailable'));
+    await expect(manager.prepareForActivity(9, '2099-07-14', '2099-07-16')).rejects.toThrow('screen unavailable');
+    expect(manager.preparedActivities.size).toBe(0);
+    expect(manager.preparationProgress.status).toBe('error');
+  });
+
+  it('prepares a future camp without activating camp mode early and remembers its required cache entries', async () => {
+    const manager = new OfflineManager();
+    global.fetch.mockResolvedValue(snapshotResponse());
+    manager.preloadCampModules = jest.fn().mockResolvedValue();
+    await manager.prepareForActivity(9, '2099-07-14T04:00:00.000Z', '2099-07-16T04:00:00.000Z');
+    expect(manager.campMode).toBe(false);
+    expect(String(global.fetch.mock.calls[0][1].headers['x-organization-id'])).toBe('1');
+    expect(manager.preparedActivities.get(9).cacheKeys).toContainEqual(expect.stringContaining('action_roster_2099-07-14'));
+    expect(manager.preparedActivities.get(9).scope).toContain('leader-1');
+    const reloaded = new OfflineManager();
+    reloaded.restoreCampMode();
+    expect(reloaded.isDatePrepared('2099-07-14')).toBe(true);
+    localStorage.setItem('currentOrganizationId', '2');
+    reloaded.restoreCampMode();
+    expect(reloaded.isDatePrepared('2099-07-14')).toBe(false);
+  });
+
+  it('captures the account before checking local changes so a unit switch cannot reuse an old token', async () => {
+    const manager = new OfflineManager();
+    manager.hasPendingResource = jest.fn(() => {
+      localStorage.setItem('currentOrganizationId', '2');
+      return Promise.resolve(false);
+    });
+    await expect(manager.prepareForActivity(9, '2099-07-14', '2099-07-16')).rejects.toThrow('Session changed');
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('stops a preparation when the account changes while the server is answering', async () => {
+    const manager = new OfflineManager();
+    manager.preloadCampModules = jest.fn().mockResolvedValue();
+    global.fetch.mockImplementation(() => {
+      localStorage.setItem('currentOrganizationId', '2');
+      return Promise.resolve(snapshotResponse());
+    });
+    await expect(manager.prepareForActivity(9, '2099-07-14', '2099-07-16')).rejects.toThrow('Session changed');
+    expect(await getCachedData('manage_points_data')).toBeNull();
+    expect(manager.preparedActivities.size).toBe(0);
+  });
+});
