@@ -11,7 +11,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Scout Attendance Tracking App — Mobile, Offline & Bilingual | Wampums</title>
-<meta name="description" content="Take scout attendance on your phone in one tap, even offline. Wampums syncs automatically, tracks trends, and sends bilingual reminders — no paper lists needed." />
+<meta name="description" content="Take scout attendance on your phone in one tap, even offline. Wampums sends the changes when the connection returns — no paper lists needed." />
 <link rel="canonical" href="https://wampums.app/en/features/attendance/" />
 <link rel="alternate" hreflang="en-CA" href="https://wampums.app/en/features/attendance/" />
 <link rel="alternate" hreflang="fr-CA" href="https://wampums.app/fr/fonctionnalites/presences/" />
@@ -19,7 +19,7 @@
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Scout Attendance Tracking App — Mobile, Offline & Bilingual | Wampums" />
-<meta property="og:description" content="Take scout attendance on your phone in one tap, even offline. Wampums syncs automatically, tracks trends, and sends bilingual reminders — no paper lists needed." />
+<meta property="og:description" content="Take scout attendance on your phone in one tap, even offline. Wampums sends the changes when the connection returns — no paper lists needed." />
 <meta property="og:url" content="https://wampums.app/en/features/attendance/" />
 <meta property="og:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta property="og:site_name" content="Wampums" />
@@ -27,7 +27,7 @@
 <meta property="og:locale:alternate" content="fr_CA" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Scout Attendance Tracking App — Wampums" />
-<meta name="twitter:description" content="Take scout attendance on your phone in one tap, even offline. No paper lists. Bilingual reminders. Automatic sync." />
+<meta name="twitter:description" content="Take scout attendance in one tap, even offline, with several leaders at once. No paper lists." />
 <meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta name="theme-color" content="#0c2a30" />
 <link rel="manifest" href="/manifest.json" />
@@ -64,22 +64,22 @@
         {
           "@type": "Question",
           "name": "Does scout attendance tracking work offline?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Wampums uses optimistic updates and offline queuing. You can take attendance at a campsite with no internet — the data syncs automatically when connectivity returns." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Attendance taken without a network waits on the phone and is sent automatically as soon as the signal returns, even at a remote campsite." }
         },
         {
           "@type": "Question",
           "name": "Can I track attendance for multiple sections or groups?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Wampums supports multiple units and sections within a single organization. Each group has its own roster, and attendance data is isolated and reportable by group." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Each unit has its own youth list and attendance, grouped by subgroup. Someone who belongs to several units switches between them without signing out." }
         },
         {
           "@type": "Question",
           "name": "Can parents see attendance records?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Parents can view their child's attendance history through the parent dashboard. Leaders control which data is visible to parents through role-based permission settings." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Not yet: attendance is visible to the leadership team, who can print or export it. Parents see their child's activities, badges and forms in their own space." }
         },
         {
           "@type": "Question",
           "name": "How does Wampums handle guest participants?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Guest participants can be added on the fly during an attendance session without creating a permanent profile. They appear in the attendance record for that meeting only." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Guests are added from the attendance screen without creating a full record. They count in that meeting without joining your member list." }
         }
       ]
     }
@@ -147,38 +147,38 @@ Request a demo
     <div class="cards">
       <article class="card">
         <h2>One-Tap Mobile Attendance</h2>
-        <p>Open the app, select the meeting, and tap each scout's name to mark them present. The roster is pre-populated from your participant list, sorted alphabetically or by group. Absent participants are highlighted so you never miss anyone.</p>
-        <p>The interface is designed for real-world conditions: large tap targets work with gloves, the screen is readable in sunlight, and no scrolling is required for groups of up to 30. For larger groups, a quick search filter narrows the list instantly.</p>
+        <p>Open the app, choose the date and tap each scout's name to mark them present, absent, late or excused — or mark everyone not yet marked as present in one tap. The roster comes from your participant list, grouped by subgroup, and youth not yet marked stand out so nobody is missed.</p>
+        <p>The screen is built for the field: large tap targets that work with gloves, and a search that narrows the list as you type.</p>
       </article>
 
       <article class="card">
         <h2>Offline-First Architecture</h2>
-        <p>Wampums uses optimistic updates: when you tap to mark attendance, the change appears immediately in the UI — even if your connection drops mid-session. All actions are queued locally and sync automatically when connectivity returns.</p>
-        <p>This is especially valuable at campsites, outdoor venues, and community centres with poor WiFi. Attendance taken on a weak network waits on the phone instead of being lost. The sync indicator tells you exactly when data has been confirmed server-side.</p>
+        <p>The moment you tap a name, the attendance shows, even with no signal. It waits on the phone and goes out automatically as soon as the connection returns.</p>
+        <p>This matters at campsites, outdoor venues and community centres with poor Wi-Fi: attendance taken on a weak network waits on the phone instead of being lost, and an indicator shows what is still waiting to be sent.</p>
       </article>
 
       <article class="card">
         <h2>Guest Participant Support</h2>
         <p>When a friend joins for a meeting, you can add them as a guest directly from the attendance screen without creating a full participant profile. Guest entries appear in the attendance record for that session only. This keeps your main roster clean while ensuring accurate meeting counts.</p>
-        <p>If the guest becomes a regular, you can convert them to a full participant in one step, preserving their historical attendance data.</p>
+        <p>If the guest wants to join, the walk-in screen adds them to the unit on the spot and invites their family to complete the record.</p>
       </article>
 
       <article class="card">
-        <h2>Automatic Bilingual Reminders</h2>
-        <p>Before each activity, Wampums sends reminders to parents in their preferred language — English or French — with activity details, outstanding permission slips, and anything else they need to bring. This reduces no-shows and last-minute "what time is it again?" messages.</p>
-        <p>Reminders go out via push notification, email, or WhatsApp depending on the parent's communication preferences. Leaders can customize the timing: 48 hours before, 24 hours before, or both.</p>
+        <h2>Families Told About Changes</h2>
+        <p>When an activity changes date, time or place, Wampums emails the families concerned — those whose child is invited, has a permission slip or a carpool seat — in each parent's language.</p>
+        <p>For a general reminder, an announcement goes out in one click by email, push notification or WhatsApp. Fewer last-minute "what time is it again?" messages.</p>
       </article>
 
       <article class="card">
-        <h2>Attendance History & Trends</h2>
-        <p>Every attendance session is stored and searchable. View per-participant history to identify patterns — which scouts miss consecutive meetings, who has perfect attendance, and which dates had unusually low turnout.</p>
-        <p>Export attendance reports for council submissions, grant applications, or end-of-year reviews. Reports include group totals, individual records, and period-over-period comparisons in CSV or printable format.</p>
+        <h2>Attendance History &amp; Report</h2>
+        <p>Every session is kept: go back to any date to see who was there.</p>
+        <p>The attendance report exports to CSV or prints for council submissions, grant applications or end-of-year reviews, with no spreadsheet to compile by hand.</p>
       </article>
 
       <article class="card">
-        <h2>Integration with Badges & Finance</h2>
-        <p>Attendance data flows automatically into badge tracking and financial reporting. Minimum attendance requirements for certain badges are checked automatically. Fee calculations that depend on attendance (e.g., activity-specific charges) are updated in real time.</p>
-        <p>Leaders spend less time cross-referencing spreadsheets and more time running programs. Everything stays in sync within one platform.</p>
+        <h2>Several Leaders, One List</h2>
+        <p>Several leaders can take attendance at the same time, each on their own phone — one subgroup each, for instance. Other open screens update as soon as attendance is recorded.</p>
+        <p>If two leaders mark the same youth for the same date, the last attendance sent is the one that counts.</p>
       </article>
     </div>
     </div>
@@ -193,25 +193,25 @@ Request a demo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Does scout attendance tracking work offline?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Yes. Wampums uses optimistic updates and offline queuing. You can take attendance at a campsite with no internet — the data syncs automatically when connectivity returns.</p>
+          <p itemprop="text">Yes. Attendance taken without a network waits on the phone and is sent automatically as soon as the signal returns, even at a remote campsite.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Can I track attendance for multiple sections?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Yes. Wampums supports multiple units and sections within a single organization. Each group has its own roster, and attendance data is isolated and reportable by group.</p>
+          <p itemprop="text">Yes. Each unit has its own youth list and attendance, grouped by subgroup. Someone who belongs to several units switches between them without signing out.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Can parents see attendance records?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Parents can view their child's attendance history through the parent dashboard. Leaders control visibility through role-based permission settings.</p>
+          <p itemprop="text">Not yet: attendance is visible to the leadership team, who can print or export it. Parents see their child's activities, badges and forms in their own space.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">How does Wampums handle guest participants?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Guest participants can be added on the fly during an attendance session without creating a permanent profile. They appear in the attendance record for that meeting only.</p>
+          <p itemprop="text">Guests are added from the attendance screen without creating a full record. They count in that meeting without joining your member list.</p>
         </div>
       </div>
     </div>

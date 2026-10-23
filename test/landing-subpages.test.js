@@ -290,6 +290,8 @@ describe('inner pages of the public site', () => {
   test('no page promises features the app does not have: delivery analytics, send previews, budget alerts, file or number fields', () => {
     PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
       expect(read(pagePath)).not.toMatch(/open rates|delivery analytics|send preview|auto-translate suggestions|80 percent of the budget|téléversement de fichier|file upload|assign a driver from the leadership roster/i);
+      // Reminders are sent by a leader in one click; nothing runs on a schedule but medication doses.
+      expect(read(pagePath)).not.toMatch(/rappels automatiques|automatic reminders|daily digest|configurable intervals|calendar view|vue calendrier|leaderboard|maintenance alerts|alertes d.état|waitlist|minimum attendance|présence minimale|journal d.activités|reason note/i);
     });
   });
 

@@ -66,6 +66,14 @@ sent 15 minutes before a dose while an activity is running: they need a
 connection, and the site presents them as an aid, never a guarantee. Nothing in
 Wampums is an immutable log, and there are no read receipts.
 
+Reminders run on no schedule except medication doses: a leader sends a
+permission-slip reminder in one click, and a change to an activity's date,
+time or place emails the families concerned. Attendance is visible to the
+leadership team, not to parents. Points carry no reason or author. There is no
+fundraiser calendar, leaderboard or milestone reminder, no reimbursement
+approval, no activity budget, and no equipment maintenance alert or
+check-in/check-out workflow.
+
 Where a page says data is hosted in Quebec, it also says that emails go through
 Brevo and links to the providers in the privacy policy. Never write that data
 "stays" in Quebec.
