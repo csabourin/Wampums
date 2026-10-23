@@ -1,7 +1,9 @@
 // RESTful routes for attendance
 const express = require('express');
 const router = express.Router();
-const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, allowDemoSandbox, withScoutYear } = require('../middleware/auth');
+const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
+const { allEnrolledInUnit } = require('../services/unitParticipants');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateDate, validateAttendanceStatus, checkValidation, validateIdQuery, validateDateOptional } = require('../middleware/validation');
 const { getPointSystemRules } = require('../utils');
@@ -9,6 +11,8 @@ const { calculateAttendancePoints, handleOrganizationResolutionError } = require
 
 // Longest activity date range (in days) expanded into selectable attendance dates
 const MAX_ACTIVITY_SPAN_DAYS = 31;
+const HTTP_NOT_FOUND = 404;
+const HTTP_CONFLICT = 409;
 
 module.exports = (pool, logger) => {
   /**
@@ -157,7 +161,7 @@ module.exports = (pool, logger) => {
    */
   router.post('/',
     authenticate,
-    blockDemoRoles,
+    allowDemoSandbox(DEMO_SANDBOX.attendanceMark),
     requirePermission('attendance.manage'),
     validateIdBody('participant_id'),
     validateDate('date'),
@@ -166,6 +170,11 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       const { participant_id, date, status } = req.body;
       const organizationId = await getOrganizationId(req, pool);
+
+      // Attendance is taken for this unit's children only (services/unitParticipants.js).
+      if (!await allEnrolledInUnit(pool, organizationId, [req.body.participant_id])) {
+        return error(res, 'Participant not found', HTTP_NOT_FOUND);
+      }
 
       logger.debug('[attendance POST] participant_id:', participant_id, 'date:', date, 'status:', status, 'organizationId:', organizationId);
 
@@ -186,10 +195,10 @@ module.exports = (pool, logger) => {
 
         // Upsert attendance
         const result = await client.query(
-          `INSERT INTO attendance (participant_id, date, status, organization_id)
-         VALUES ($1, $2, $3, $4)
+          `INSERT INTO attendance (participant_id, date, status, organization_id, is_on_site)
+         VALUES ($1, $2, $3::varchar, $4, $3::varchar IN ('present', 'late'))
          ON CONFLICT (participant_id, date, organization_id)
-         DO UPDATE SET status = $3
+         DO UPDATE SET status = $3, is_on_site = $3::varchar IN ('present', 'late'), departed_at = NULL
          RETURNING *`,
           [participant_id, date, status, organizationId]
         );
@@ -227,6 +236,21 @@ module.exports = (pool, logger) => {
       }
     }));
 
+  // A departure is an idempotent update, with no attendance-point adjustment.
+  router.post('/departure', authenticate, allowDemoSandbox(DEMO_SANDBOX.attendanceDeparture),
+    requirePermission('attendance.manage'), validateIdBody('participant_id'), validateDate('date'), checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const result = await pool.query(
+        `UPDATE attendance SET is_on_site = FALSE, departed_at = COALESCE(departed_at, NOW())
+          WHERE organization_id = $1 AND participant_id = $2 AND date = $3::date
+            AND status IN ('present', 'late') RETURNING *`,
+        [organizationId, req.body.participant_id, req.body.date]
+      );
+      if (!result.rows.length) { return error(res, 'action_roster_departure_requires_presence', HTTP_CONFLICT); }
+      return success(res, result.rows[0]);
+    }));
+
   /**
    * @swagger
    * /api/v1/attendance/carry-forward:
@@ -258,7 +282,7 @@ module.exports = (pool, logger) => {
    */
   router.post('/carry-forward',
     authenticate,
-    blockDemoRoles,
+    allowDemoSandbox(DEMO_SANDBOX.attendanceCarryForward),
     requirePermission('attendance.manage'),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
@@ -284,6 +308,7 @@ module.exports = (pool, logger) => {
          WHERE a.organization_id = $1
            AND a.date = $2::date
            AND a.status IN ('present', 'late')
+           AND a.is_on_site IS DISTINCT FROM FALSE
            AND NOT EXISTS (
              SELECT 1 FROM attendance a2
              WHERE a2.participant_id = a.participant_id
@@ -510,7 +535,7 @@ module.exports = (pool, logger) => {
    */
   router.post('/update-attendance',
     authenticate,
-    blockDemoRoles,
+    allowDemoSandbox(DEMO_SANDBOX.attendanceBatch),
     requirePermission('attendance.manage'),
     validateAttendanceStatus,
     validateDate('date'),
@@ -525,6 +550,9 @@ module.exports = (pool, logger) => {
       // Validate participant IDs
       if (participantIds.length === 0 || participantIds.some(id => !Number.isInteger(Number(id)) || Number(id) < 1)) {
         return res.status(400).json({ success: false, message: 'At least one valid participant ID (positive integer) is required' });
+      }
+      if (!await allEnrolledInUnit(pool, organizationId, participantIds)) {
+        return error(res, 'Participant not found', HTTP_NOT_FOUND);
       }
 
       const client = await pool.connect();

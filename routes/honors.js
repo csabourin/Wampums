@@ -9,13 +9,19 @@
  */
 
 const express = require('express');
+const { eligibleActionParticipants } = require('../services/actionRoster');
 const router = express.Router();
 
 // Import utilities and middleware
 const { getPointSystemRules } = require('../utils/api-helpers');
-const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, withScoutYear } = require('../middleware/auth');
+const { authenticate, requirePermission, blockDemoRoles, allowDemoSandbox, getOrganizationId, withScoutYear } = require('../middleware/auth');
+const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
+const { allEnrolledInUnit } = require('../services/unitParticipants');
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
+
+const HTTP_NOT_FOUND = 404;
+const HTTP_CONFLICT = 409;
 
 /**
  * Export route factory function
@@ -140,7 +146,7 @@ module.exports = (pool, logger) => {
    */
   router.post('/v1/honors',
     authenticate,
-    blockDemoRoles,
+    allowDemoSandbox(DEMO_SANDBOX.honorAward),
     requirePermission('honors.create'),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
@@ -166,6 +172,23 @@ module.exports = (pool, logger) => {
         const honorDates = honorsToProcess
           .map(h => h.date)
           .filter(Boolean);
+
+        // An honor goes to a child of this unit. Without this check, a child of
+        // another unit could be named and appear on that unit's honor list.
+        if (!await allEnrolledInUnit(client, organizationId, participantIds)) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'Participant not found', HTTP_NOT_FOUND);
+        }
+
+        // Enforce the same explicitly chosen scope as the three action screens.
+        for (const honor of honorsToProcess) {
+          if (!Object.hasOwn(honor, 'activity_id') && !Object.hasOwn(honor, 'include_all')) { continue; }
+          // eslint-disable-next-line no-await-in-loop -- The batch shares one database transaction.
+          const allowed = await eligibleActionParticipants(client, organizationId, honor);
+          if (allowed !== null && !allowed.has(Number(honor.participantId || honor.participant_id))) {
+            throw Object.assign(new Error('action_roster_participant_unavailable'), { status: HTTP_CONFLICT });
+          }
+        }
 
         // Fetch existing honors in one query
         const existingHonorsResult = await client.query(
@@ -284,6 +307,7 @@ module.exports = (pool, logger) => {
         return success(res, { results }, 'Honor(s) awarded successfully', 200);
       } catch (error) {
         await client.query('ROLLBACK');
+        if (error.status) { return errorResponse(res, error.message, error.status); }
         throw error;
       } finally {
         client.release();

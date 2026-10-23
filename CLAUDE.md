@@ -274,6 +274,12 @@ const { blockDemoRoles } = require('../middleware/auth');
 router.post('/users', authenticate, blockDemoRoles, requirePermission('users.manage'), handler);
 router.delete('/data', authenticate, blockDemoRoles, requirePermission('data.delete'), handler);
 ```
+- ✅ Its 403 carries `isDemo: true` and `code: 'demo_read_only'`; the SPA explains the demo from that code.
+- ✅ **The demo unit is a sandbox** (`demo_sign_in`, migrations 039 and 041). A route whose request carries no
+  free text may use `allowDemoSandbox(DEMO_SANDBOX.<policy>)` from `middleware/demoSandbox.js` instead: in that
+  unit only, a demo account may send exactly the fields the policy names (ids, near dates, small numbers, short
+  codes). Today: points, attendance, and honors without a reason. Whatever it opens, the night reset
+  (`scripts/demo/reset-demo-sandbox.js`, `services/demoSandbox.js`) must restore; add its table there too.
 
 #### Multi-Tenant Isolation
 - ✅ **ALWAYS** filter queries by `organization_id`
@@ -420,6 +426,44 @@ const result = await pool.query(
 - Max 255 characters
 
 **All validation failures return 400 with `{ success: false, message: '...', errors: [...] }`**
+
+### Points hors ligne en camp
+
+Les ajouts et retraits de points sont conservés dans la file IndexedDB de la SPA,
+associés au compte et à l’unité. Chaque lot porte un `Idempotency-Key` dès le premier
+envoi : `point_mutation_receipts` et les points sont validés dans la même transaction.
+Une réponse perdue peut donc être retransmise sans doubler les points. Déployer la
+migration `044_point_mutation_receipts.sql` avant le nouveau client.
+
+Préparer le camp avec « Préparation hors ligne » avant de perdre le réseau pour
+charger les participants, groupes, présences et modules. Les totaux locaux restent
+consultables après expiration du cache tant que l’appareil est hors ligne ou qu’un
+lot attend son envoi. La SPA ouverte synchronise au retour du réseau, à son retour
+au premier plan et réessaie toutes les 30 secondes. Garder les présences avant les
+points dans la file ; une erreur temporaire suspend les opérations suivantes.
+Les refus définitifs sont annoncés et les totaux sont rechargés après synchronisation.
+
+### Action rosters during activities
+
+Attendance, points and honors share `ActionRoster` and `/api/v1/action-roster`.
+An activity with issued permission requests defaults to its signed participants;
+an activity without permission requests offers the whole unit. Once attendance
+exists for the day, points and honors show only present/late participants still
+on site. Attendance keeps the eligible roster visible so late arrivals can be
+marked. A planned meeting defaults to the whole unit in attendance. The explicit
+meeting/activity selector resolves overlapping dates; its choice follows navigation.
+“Show all participants” is an explicit exception for that screen, reset on a context
+change. Group and individual awards send that scope and the server enforces it.
+Unit enrollment checks always apply, including with an exception.
+
+Attendance remains daily, shared by the unit: an activity selector filters the
+roster; it does not create a second attendance register for the same day.
+`POST /api/v1/attendance/departure` sets `is_on_site = false` while retaining the
+recorded status and earned points. Marking present/late again clears the departure.
+Departures do not carry forward to the next camp day. Attendance writes keep their
+outbox order across reconnections. Camp preparation caches the authorization and
+roster snapshots as well as attendance; local unsent arrivals/departures overlay
+them when another action screen opens offline. Apply migration 045 before the client.
 
 ### 7) Frontend Best Practices
 

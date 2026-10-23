@@ -22,7 +22,6 @@ const HAND_WRITTEN_BACK_LINKS = [
   'spa/modules/mailing-list/MailingList.js',
   'spa/modules/meetings/MeetingPrep.js',
   'spa/modules/permission-slips/PermissionSlipDashboard.js',
-  'spa/modules/points/ManagePoints.js',
   'spa/modules/scout-year/ScoutYearTransition.js',
   'spa/modules/unit-settings/unit-settings.js',
   'spa/modules/yearly-planner/YearlyPlanner.js',

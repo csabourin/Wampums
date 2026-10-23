@@ -169,6 +169,7 @@ export const CONFIG = {
      * UI Settings
      */
   UI: {
+    OFFLINE_SYNC_RETRY_INTERVAL: 30000,
     HOMEPAGE_URL: 'https://wampums.app',
     // Default number of items per page for paginated lists
     DEFAULT_PAGE_SIZE: 50,

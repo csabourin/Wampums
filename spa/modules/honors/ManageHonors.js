@@ -1,3 +1,4 @@
+import { ActionRoster } from '../../components/ActionRoster.js';
 import { getHonorsAndParticipants, awardHonor } from '../../ajax-functions.js';
 import { updateHonor, deleteHonor } from '../../api/api-endpoints.js';
 import { debugLog, debugError, debugWarn } from '../../utils/DebugUtils.js';
@@ -12,10 +13,12 @@ import { offlineManager } from '../OfflineManager.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { isDemoSandbox } from '../../utils/PermissionUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 export class ManageHonors {
   constructor(app) {
     this.app = app;
+    this.roster = new ActionRoster('honors');
     this.currentDate = getTodayISO();
     this.honorsData = { groups: [], names: [] };
     this.availableDates = [];
@@ -39,6 +42,7 @@ export class ManageHonors {
     showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
       await this.fetchData();
+      await this.roster.load(this.currentDate);
     } catch (error) {
       debugError('Error initializing manage honors:', error);
       this.renderError();
@@ -219,6 +223,7 @@ export class ManageHonors {
                 ${dateOptions}
             </select>
         </div>
+        ${this.roster.render()}
         <div class="honors-table">
             <div class="honors-table__header">
                 <div class="honors-table__header-cell honors-table__header-cell--checkbox"></div>
@@ -259,7 +264,9 @@ export class ManageHonors {
     }
 
     // Render participants without grouping
-    return this.honorsData.names.map(participant => this.renderParticipantItem(participant)).join('');
+    const visible = this.honorsData.names.filter((participant) => this.roster.includes(participant.participant_id));
+    return visible.length ? visible.map(participant => this.renderParticipantItem(participant)).join('')
+      : `<p role="status">${translate('action_roster_no_participants')}</p>`;
   }
 
   renderParticipantItem(participant) {
@@ -344,6 +351,10 @@ export class ManageHonors {
   }
 
   attachEventListeners() {
+    this.roster.attach(() => {
+      this.render();
+      this.attachEventListeners();
+    });
     document.querySelectorAll('.honors-table__row').forEach((item) => {
       item.addEventListener('click', (event) => this.handleItemClick(event));
     });
@@ -411,20 +422,8 @@ export class ManageHonors {
         document.querySelectorAll('.honor-actions__menu.show').forEach(m => m.classList.remove('show'));
         if (row) {row.classList.remove('menu-open');}
 
-        switch (action) {
-          case 'edit-reason':
-            await this.showEditReasonModal(honorId);
-            break;
-          case 'edit-date':
-            await this.showEditDateModal(honorId);
-            break;
-          case 'undo':
-            await this.handleUndoHonor(honorId);
-            break;
-          case 'delete':
-            await this.handleDeleteHonor(honorId);
-            break;
-        }
+        this.actionPromise = this.handleHonorAction(action, honorId);
+        await this.actionPromise;
       });
     });
 
@@ -438,11 +437,23 @@ export class ManageHonors {
     document.addEventListener('click', this.documentClickHandler);
   }
 
+  /** Track menu work so a departed screen cannot redraw the next page. */
+  handleHonorAction(action, honorId) {
+    switch (action) {
+      case 'edit-reason': return this.showEditReasonModal(honorId);
+      case 'edit-date': return this.showEditDateModal(honorId);
+      case 'undo': return this.handleUndoHonor(honorId);
+      case 'delete': return this.handleDeleteHonor(honorId);
+      default: return Promise.resolve();
+    }
+  }
+
   /**
    * Called by the router before navigating away.
    */
   destroy() {
     this.destroyed = true;
+    this.roster.destroy();
     if (this.documentClickHandler) {
       document.removeEventListener('click', this.documentClickHandler);
       this.documentClickHandler = null;
@@ -465,11 +476,14 @@ export class ManageHonors {
   async onDateChange(newDate) {
     this.currentDate = newDate;
     await this.fetchData();
+    await this.roster.load(this.currentDate);
     this.processHonors();
-    this.updateHonorsListUI();
+    this.render();
+    this.attachEventListeners();
   }
 
   updateHonorsListUI() {
+    if (this.destroyed) { return; }
     setContent(document.getElementById('honors-list'), this.renderHonorsList());
     document.getElementById('awardHonorButton').disabled = this.isPastDate();
 
@@ -499,13 +513,18 @@ export class ManageHonors {
     }));
 
     this.currentHonorIndex = 0;
+    // The demo unit takes no free text, so its visitors award without a reason.
+    if (isDemoSandbox()) {
+      this.awardPromise = this.submitHonors();
+      return;
+    }
     this.showReasonModal();
   }
 
   showReasonModal() {
     if (this.currentHonorIndex >= this.pendingHonors.length) {
       // All reasons collected, submit the honors
-      this.submitHonors();
+      this.awardPromise = this.submitHonors();
       return;
     }
 
@@ -587,7 +606,8 @@ export class ManageHonors {
     const honors = this.pendingHonors.map(h => ({
       participantId: h.participantId,
       date: this.currentDate,
-      reason: h.reason
+      reason: h.reason,
+      ...this.roster.awardContext(),
     }));
 
     try {

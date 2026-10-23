@@ -15,7 +15,7 @@ jest.mock('../../spa/indexedDB.js', () => ({
 }));
 jest.mock('../../spa/utils/PerformanceUtils.js', () => ({ PerformanceMonitor: { logAPICall: jest.fn() } }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({
-  offlineManager: { isOffline: false, queueMutation: jest.fn(), getTranslation: (key) => key },
+  offlineManager: { isOffline: false, hasPendingAttendance: jest.fn(() => Promise.resolve(false)), queueMutation: jest.fn(), getTranslation: (key) => key },
 }));
 
 import { API, makeApiRequest } from '../../spa/api/api-core.js';

@@ -10,6 +10,7 @@ const mockKnownKeys = new Set([
   'api_error_invalid', 'api_error_forbidden', 'api_error_not_found', 'api_error_conflict',
   'api_error_too_large', 'api_error_network', 'error_occurred', 'error_saving',
   'invalid_or_expired_token', 'internal_server_error', 'scout_year_read_only', 'ai_budget_exceeded',
+  'demo_read_only_explained',
 ]);
 jest.mock('../../spa/app.js', () => ({
   translate: (key) => (mockKnownKeys.has(key) ? `t:${key}` : key),
@@ -28,6 +29,14 @@ function apiError(fields) {
 }
 
 describe('apiErrorMessageKey', () => {
+  test('a change the demo keeps read-only is explained as the demo, not as a missing permission', () => {
+    const error = Object.assign(new Error('API request failed: This feature is not available in demo mode.'), {
+      status: 403, code: 'demo_read_only',
+    });
+
+    expect(apiErrorMessage(error, 'error_saving')).toBe('t:demo_read_only_explained');
+  });
+
   test.each([
     [400, 'api_error_invalid'],
     [403, 'api_error_forbidden'],
@@ -75,13 +84,6 @@ describe('reasons that already explain themselves', () => {
   test('an archived year keeps its own explanation rather than "no permission"', () => {
     const archived = Object.assign(new Error('Vous consultez une année archivée'), { status: 403, isArchiveReadOnly: true });
     expect(apiErrorMessageKey(archived)).toBe('scout_year_read_only');
-  });
-
-  test('a change refused to a demo account says the demo is read-only, not that a permission is missing', () => {
-    const demo = Object.assign(new Error('This feature is not available in demo mode.'), { status: 403, isDemo: true });
-    expect(apiErrorMessageKey(demo)).toBe('demo_read_only_refused');
-    expect(apiErrorMessageKey(new Error('API request failed', { cause: demo }))).toBe('demo_read_only_refused');
-    expect(apiErrorMessageKey({ status: 403 })).toBe('api_error_forbidden');
   });
 
   test('the AI budget limit is recognised from the AI endpoints\' error object', () => {

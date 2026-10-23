@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { getActionRoster } = require('../services/actionRoster');
 const { mayReadInviteeList, getActivityParticipation } = require('../services/activityInvitations');
 const { DATE_LIMITS } = require('../config/constants');
 
@@ -109,7 +110,7 @@ module.exports = (pool, logger) => {
         );
 
         const attendanceResult = await client.query(
-          `SELECT a.id, a.participant_id, a.date::text as date, a.status,
+          `SELECT a.id, a.participant_id, a.date::text as date, a.status, a.is_on_site,
                             p.first_name, p.last_name
                      FROM attendance a
                      JOIN participants p ON a.participant_id = p.id
@@ -268,6 +269,7 @@ module.exports = (pool, logger) => {
         }
 
         const responseData = {
+          actionRoster: await getActionRoster(client, organizationId, start_date, end_date),
           activity: activityResult.rows[0] || null,
           dates,
           participants: participantsResult.rows,

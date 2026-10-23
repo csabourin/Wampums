@@ -47,7 +47,8 @@ jest.mock('../../spa/modules/OfflineManager.js', () => ({
   offlineManager: {
     get isOffline() { return mockOfflineState.isOffline; },
     get campMode() { return mockOfflineState.campMode; },
-    queueMutation: jest.fn(),
+    hasPendingPoints: jest.fn(() => Promise.resolve(false)),
+    hasPendingAttendance: jest.fn(() => Promise.resolve(false)), queueMutation: jest.fn(),
     getTranslation: (key) => key,
   },
 }));
@@ -409,3 +410,10 @@ describe('whether this client has handled its own writes', () => {
   });
 });
 
+
+
+test('attendance changes invalidate the signed-authorization snapshot used by honors', async () => {
+  await setCachedData('action_roster_2026-07-15', { attendance: [] }, ONE_HOUR);
+  await invalidateForWrite('v1/attendance/departure');
+  expect(await getCachedData('action_roster_2026-07-15')).toBeNull();
+});

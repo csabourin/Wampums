@@ -13,7 +13,8 @@ import {
   getOfflineData,
   saveOfflineData,
   deleteOfflineData,
-  clearCacheEntriesWhere
+  clearCacheEntriesWhere,
+  clearPointsRelatedCaches
 } from '../indexedDB.js';
 import { CONFIG } from '../config.js';
 import {
@@ -49,13 +50,14 @@ const CACHE_DURATION = {
 const CAMP_MODE_STORAGE_KEY = 'wampums_camp_mode';
 const PREPARED_ACTIVITIES_KEY = 'wampums_prepared_activities';
 
-// Only operations with server-side set/upsert semantics may be replayed.
-// Additive creates (points, honors, payments, roles, etc.) remain online-only
+// Only operations with set/upsert semantics or transactional receipts may replay.
+// Additive creates (honors, payments, roles, etc.) remain online-only
 // until their endpoints implement transactional idempotency.
 // `kind` names the change in the message that reports a refused replay
 // (`sync.rejected_kind_<kind>`).
 const SAFE_OFFLINE_MUTATIONS = [
-  { method: 'POST', path: /^\/api\/v1\/attendance(?:\/carry-forward)?$/, kind: 'attendance' },
+  { method: 'POST', path: /^\/api\/v1\/points$/, kind: 'points' },
+  { method: 'POST', path: /^\/api\/v1\/attendance(?:\/(?:carry-forward|departure))?$/, kind: 'attendance' },
   { method: 'PATCH', path: /^\/api\/v1\/medication\/(?:distributions|receptions)\/\d+$/, kind: 'medication' },
   { method: 'DELETE', path: /^\/api\/v1\/medication\/receptions\/\d+$/, kind: 'medication' },
   // Replaying badge history is safe: the server skips levels already recorded.
@@ -69,6 +71,7 @@ const SAFE_OFFLINE_MUTATIONS = [
  * so a camp's other prepared days survive.
  */
 const SCREEN_CACHE_PREFIXES = {
+  points: ['manage_points_data', 'points_report'],
   medication: [
     'medication_', 'participant_medications', 'fiche_medications',
     '/api/medication_', '/api/participant_medications', '/api/fiche_medications'
@@ -141,6 +144,13 @@ export class OfflineManager {
 
     // Check for pending mutations on init
     this.checkPendingMutations();
+    // A radio can reconnect without a browser online event (or a first replay
+    // can fail on a captive portal). Retry while the authenticated SPA is open.
+    this.syncTimer ??= window.setInterval(() => {
+      if (navigator.onLine && !document.hidden && this.pendingMutations.length > 0) {
+        void this.syncPendingData();
+      }
+    }, CONFIG.UI.OFFLINE_SYNC_RETRY_INTERVAL);
 
     // Restore camp mode state from localStorage
     this.restoreCampMode();
@@ -308,9 +318,9 @@ export class OfflineManager {
         const value = sourceHeaders.get(headerName);
         if (value) { safeHeaders[headerName] = value; }
       }
-      const idempotencyKey = typeof globalThis.crypto?.randomUUID === 'function'
+      const idempotencyKey = sourceHeaders.get('Idempotency-Key') || (typeof globalThis.crypto?.randomUUID === 'function'
         ? globalThis.crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
       safeHeaders['Idempotency-Key'] = idempotencyKey;
 
       const mutation = {
@@ -363,6 +373,24 @@ export class OfflineManager {
       debugError('OfflineManager: Failed to store mutation', error);
       throw error;
     }
+  }
+
+  /** Whether this account and unit have awards waiting for confirmation. */
+  hasPendingPoints() { return this.hasPendingResource('/api/v1/points'); }
+
+  /** Arrivals cannot overtake a departure still waiting in the outbox. */
+  hasPendingAttendance() { return this.hasPendingResource('/api/v1/attendance'); }
+
+  /** Match the authenticated account, unit and resource, including subpaths. */
+  async hasPendingResource(resource) {
+    const records = await getOfflineData();
+    return records.some((record) => {
+      if (!record.data?.url) { return false; }
+      const path = normalizeApiPath(record.data.url);
+      return (path === resource || path.startsWith(`${resource}/`)) &&
+        String(record.data.userId) === String(getCurrentUserId()) &&
+        String(record.data.organizationId) === String(getCurrentOrganizationId());
+    });
   }
 
   /**
@@ -443,6 +471,7 @@ export class OfflineManager {
       'Content-Type': 'application/json'
     };
     let replayed = 0;
+    let replayedPoints = false;
     const rejected = [];
     // Kept apart from `rejected`, which is announced: a body is never broadcast.
     const refusedBodies = [];
@@ -476,6 +505,7 @@ export class OfflineManager {
           if (response.ok) {
             await deleteOfflineData(record.key);
             replayed += 1;
+            replayedPoints ||= normalizeApiPath(record.data.url) === '/api/v1/points';
             this.dispatchEvent('offlineMutationReplayed', {
               url: record.data.url,
               method,
@@ -496,8 +526,10 @@ export class OfflineManager {
             refusedBodies.push(record.data.body);
             debugWarn('OfflineManager: Server rejected mutation, discarding', response.status);
           } else {
-            // 401/429/5xx — leave for retry on next sync
+            // Preserve ordering: attendance must reach the server before a
+            // later group award that uses it to determine eligibility.
             debugWarn('OfflineManager: Mutation replay failed (will retry)', response.status);
+            break;
           }
         }
         // Legacy records have no user/organization scope and cannot be
@@ -513,6 +545,7 @@ export class OfflineManager {
       } catch (error) {
         debugError('OfflineManager: Failed to replay mutation', record.key, error);
         // Leave record in IndexedDB for next sync attempt
+        break;
       }
     }
 
@@ -523,6 +556,9 @@ export class OfflineManager {
       this.forgetRejectedResource(change, refusedBodies[index], refusedScopes[index])));
     rejected.forEach((change) => this.dispatchEvent('offlineMutationRejected', change));
 
+    if (replayedPoints && !await this.hasPendingPoints()) {
+      await clearPointsRelatedCaches();
+    }
     return { replayed, rejected };
   }
 
@@ -764,6 +800,7 @@ export class OfflineManager {
       'sync.rejected_kind_attendance': 'attendance',
       'sync.rejected_kind_medication': 'medication',
       'sync.rejected_kind_badges': 'badge history',
+      'sync.rejected_kind_points': 'points',
       'sync.rejected_kind_other': 'other changes',
       'offline.dataUnavailable': 'This data is not available offline',
       'offline.savedLocally': 'Saved locally - will sync when online',
@@ -927,6 +964,12 @@ export class OfflineManager {
         participants: bulkData.participants
       }, CACHE_DURATION.CAMP_MODE);
 
+      // Snapshot signed authorizations as well as rosters before losing the network.
+      if (bulkData.actionRoster) {
+        await Promise.all(dates.map((date) =>
+          this.cacheData(`action_roster_${date}`, bulkData.actionRoster, CACHE_DURATION.CAMP_MODE)));
+      }
+
       // Step 3: Cache attendance for each date
       this.updatePreparationProgress(3, this.getTranslation('offline.cachingAttendance'));
       for (const date of dates) {
@@ -1060,6 +1103,7 @@ export class OfflineManager {
       group_id: p.group_id,
       group_name: p.group_name,
       attendance_status: attendanceMap.get(p.id) || null,
+      is_on_site: attendanceRows.find((row) => String(row.participant_id) === String(p.id))?.is_on_site,
       date: date || null
     }));
   }

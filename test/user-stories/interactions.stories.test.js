@@ -17,6 +17,28 @@
 require('fake-indexeddb/auto');
 const { IDBFactory } = require('fake-indexeddb');
 
+jest.mock('../../spa/api/api-action-roster.js', () => ({
+  getActionRoster: jest.fn(async (date) => {
+    const { getActivities } = require('../../spa/api/api-activities.js');
+    const { offlineManager } = require('../../spa/modules/OfflineManager.js');
+    const prepared = offlineManager.getPreparedActivityForDate(date);
+    const activities = (await getActivities()).map((activity) => ({ ...activity,
+      start_date: activity.activity_start_date || activity.activity_date,
+      end_date: activity.activity_end_date || activity.activity_date,
+      requires_permission: false, signed_participant_ids: [],
+    }));
+    if (!activities.length && offlineManager.campMode && prepared?.dates?.length) {
+      activities.push({ id: 5, name: 'Prepared camp', start_date: prepared.dates[0],
+        end_date: prepared.dates[prepared.dates.length - 1], requires_permission: false, signed_participant_ids: [] });
+    }
+    const { getAttendance } = require('../../spa/ajax-functions.js');
+    const response = await getAttendance(date);
+    return { data: { activities, attendance: Array.isArray(response?.data) ? response.data : [] } };
+  }),
+  markActivityDeparture: jest.fn(() => Promise.resolve({ success: true })),
+}));
+
+
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(),
   debugWarn: jest.fn(),
@@ -132,9 +154,12 @@ function seedPointsMocks({ alexTotal = 10, samTotal = 5, attendanceToday = [] } 
   ajax.updatePoints.mockResolvedValue({ success: true, data: { updates: [] } });
 }
 
+const pointsPages = [];
+
 async function initPointsPage() {
   const appStub = makeAppStub();
   const page = new ManagePoints(appStub);
+  pointsPages.push(page);
   await page.init();
   await flushPromises();
   return { page, appStub };
@@ -170,6 +195,12 @@ beforeEach(() => {
   jest.clearAllMocks();
   setOnline(true);
   global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ success: true, data: {} }) }));
+});
+
+afterEach(async () => {
+  // Drain IndexedDB transactions before replacing its factory in the next story.
+  await getCachedData('manage_points_data');
+  pointsPages.splice(0).forEach((page) => page.destroy());
 });
 
 describe('US-INT-001 — Marking attendance changes point totals with no stale jump', () => {
@@ -237,7 +268,8 @@ describe('US-INT-002 — UI and server agree on who a group award skips', () => 
     selectGroup(GROUP_ID);
     clickPointButton(3);
     expect(participantTotalText(1)).toBe('13');
-    expect(participantTotalText(2)).toBe('5');
+    expect(document.getElementById('name-points-2')).toBeNull();
+    expect(page.store.getParticipantTotal(2)).toBe(5);
 
     // Server response mirrors routes/points.js: skipped member's total unchanged
     pending.resolve({
@@ -260,7 +292,8 @@ describe('US-INT-002 — UI and server agree on who a group award skips', () => 
     await flushPromises();
 
     expect(participantTotalText(1)).toBe('13');
-    expect(participantTotalText(2)).toBe('5');
+    expect(document.getElementById('name-points-2')).toBeNull();
+    expect(page.store.getParticipantTotal(2)).toBe(5);
     expect(page.store.getGroupTotal(GROUP_ID)).toBe(23);
     expect(page.store.hasPendingDeltas()).toBe(false);
   });
@@ -364,8 +397,8 @@ describe('US-INT-005 — Rapid-fire clicks with slow, out-of-order responses', (
   });
 });
 
-describe('US-INT-006 — Additive awards remain honest when connectivity dies', () => {
-  it('rolls back the optimistic award when safe offline replay is unavailable', async () => {
+describe('US-INT-006 — Awards remain honest when local persistence fails', () => {
+  it('rolls back the optimistic award when the shared API cannot save it', async () => {
     seedPointsMocks({ alexTotal: 10 });
     ajax.updatePoints.mockRejectedValue(new TypeError('Failed to fetch'));
     offlineManager.queueMutation.mockRejectedValue(
@@ -377,14 +410,14 @@ describe('US-INT-006 — Additive awards remain honest when connectivity dies', 
     clickPointButton(5);
     await flushPromises();
 
-    expect(offlineManager.queueMutation).toHaveBeenCalledTimes(1);
+    expect(offlineManager.queueMutation).not.toHaveBeenCalled();
     expect(participantTotalText(1)).toBe('10');
     expect(page.store.hasPendingDeltas()).toBe(false);
 
     const cached = await getCachedData('manage_points_data');
     expect(cached.participants.find((p) => String(p.id) === '1').total_points).toBe(10);
     expect(appStub.showMessage).toHaveBeenCalledWith(
-      tr('offline.writeUnavailable'),
+      tr('error_updating_points'),
       'error',
     );
   });

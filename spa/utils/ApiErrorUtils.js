@@ -20,6 +20,7 @@ const STATUS_MESSAGE_KEYS = Object.freeze({
  */
 const CODE_MESSAGE_KEYS = Object.freeze({
   online_required: 'family_operation_online_required',
+  demo_read_only: 'demo_read_only_explained',
   operation_unconfirmed: 'family_operation_unconfirmed',
   AI_BUDGET_EXCEEDED: 'ai_budget_exceeded',
   AI_NOT_CONFIGURED: 'ai_unavailable',
@@ -64,10 +65,6 @@ export function apiErrorMessageKey(error, fallbackKey = 'error_occurred') {
   // says why; keep that rather than "no permission".
   if (error?.isArchiveReadOnly === true || error?.cause?.isArchiveReadOnly === true) {
     return 'scout_year_read_only';
-  }
-  // The demo unit is read-only: say so, rather than "ask your leaders for permission".
-  if (error?.isDemo === true || error?.cause?.isDemo === true) {
-    return 'demo_read_only_refused';
   }
   const code = error?.code ?? error?.cause?.code ?? error?.error?.code;
   if (code && Object.prototype.hasOwnProperty.call(CODE_MESSAGE_KEYS, code)) {

@@ -1,3 +1,6 @@
+import { attendanceDisplayStatus } from '../../utils/AttendanceStatusUtils.js';
+import { ActionRoster } from '../../components/ActionRoster.js';
+import { markActivityDeparture } from '../../api/api-action-roster.js';
 import {
   getParticipants,
   getAttendance,
@@ -36,6 +39,7 @@ import { renderBackLink } from '../../utils/BackLinkUtils.js';
 export class Attendance {
   constructor(app) {
     this.app = app;
+    this.roster = new ActionRoster('attendance');
     this.currentDate = getTodayISO();
     this.participants = [];
     this.attendanceData = {};
@@ -80,12 +84,14 @@ export class Attendance {
         this.preloadAttendanceData(),
       ]);
 
-      // Detect whether the current date is part of a multi-day activity (camp)
+      await this.roster.load(this.currentDate);
+      // The selected context also controls the camp banner and carry-forward.
       await this.detectActivityContext();
 
       // During a multi-day activity, automatically carry forward attendance
       // from the previous day (works with or without offline camp mode)
       await this.autoCarryForward();
+      this.roster.setAttendance(this.attendanceData);
 
       // Mark as initialized and not loading
       this.isInitialized = true;
@@ -142,7 +148,7 @@ export class Attendance {
     const rawAttendance = data.attendanceData || data.attendanceMap || {};
     if (Array.isArray(rawAttendance)) {
       rawAttendance.forEach((record) => {
-        const status = record.attendance_status || record.status;
+        const status = attendanceDisplayStatus(record);
         if (record.participant_id && status) {
           attendanceMap[record.participant_id] = status;
         }
@@ -331,7 +337,7 @@ export class Attendance {
           // RESTful API format: {success: true, data: [{participant_id, status, ...}, ...]}
           attendanceData.forEach((record) => {
             if (record.participant_id && record.status) {
-              this.attendanceData[record.participant_id] = record.status;
+              this.attendanceData[record.participant_id] = attendanceDisplayStatus(record);
             }
           });
           debugLog(
@@ -375,7 +381,10 @@ export class Attendance {
   async detectActivityContext() {
     this.activeActivity = null;
     try {
-      const activities = await getActivities();
+      const activities = this.roster.date
+        ? (this.roster.activity ? [{ ...this.roster.activity,
+          activity_start_date: this.roster.activity.start_date, activity_end_date: this.roster.activity.end_date }] : [])
+        : await getActivities();
       const current = this.currentDate;
 
       for (const activity of activities) {
@@ -437,6 +446,7 @@ export class Attendance {
    * detected activity's date range. Null when not in a multi-day context.
    */
   getCampDates() {
+    if (this.roster.date && !this.roster.activity) { return null; }
     if (offlineManager.campMode) {
       const prepared = offlineManager.getPreparedActivityForDate(this.currentDate);
       if (prepared?.dates?.length) {
@@ -556,7 +566,7 @@ export class Attendance {
         if (records.length > 0) {
           const attendance = {};
           records.forEach((record) => {
-            const status = record.status || record.attendance_status;
+            const status = attendanceDisplayStatus(record);
             if (record.participant_id && status) {
               attendance[record.participant_id] = status;
             }
@@ -589,7 +599,7 @@ export class Attendance {
       if (!cache) {continue;}
       const { attendanceMap } = this.parseAttendanceCacheEntry(cache);
       const hasData = Object.values(attendanceMap).some(
-        status => status === 'present' || status === 'late' || status === 'absent' || status === 'excused'
+        status => ['present', 'late', 'absent', 'excused', 'departed'].includes(status)
       );
       if (hasData) {
         return { date, attendance: attendanceMap };
@@ -685,6 +695,8 @@ export class Attendance {
           <label for="attendance-search" class="sr-only">${translate('search')}</label>
           <input type="search" id="attendance-search" class="search-input" data-archive-safe style="width: 100%; padding: 0.5rem;" placeholder="${translate('search')}..." value="${escapeHTML(this.searchTerm)}">
         </div>
+        ${this.roster.render()}
+        ${this.roster.activity ? `<button type="button" class="button button--secondary" id="attendance-departure">${translate('action_roster_mark_departure')}</button>` : ''}
         ${this.renderMarkRemainingButton()}
         <div id="attendance-list" class="attendance-list">
           <!-- This will be filled by renderGroupsAndNames() -->
@@ -755,7 +767,7 @@ export class Attendance {
 
   getUnmarkedParticipantIds() {
     return this.participants
-      .filter((p) => !this.attendanceData[p.id])
+      .filter((p) => this.roster.includes(p.id) && !this.attendanceData[p.id])
       .map((p) => p.id);
   }
 
@@ -785,6 +797,7 @@ export class Attendance {
     Object.values(this.groups).forEach((group) => {
       // Filter participants if search term exists
       const filteredParticipants = group.participants.filter(p => {
+        if (!this.roster.includes(p.id)) { return false; }
         if (!term) {return true;}
         // Found by the name the unit uses as by the legal one
         const name = `${p.first_name} ${p.nickname || ''} ${p.last_name}`.toLowerCase();
@@ -851,6 +864,14 @@ export class Attendance {
   }
 
   attachEventListeners() {
+    this.roster.attach(async () => {
+      await this.detectActivityContext();
+      this.selectedParticipant = null;
+      this.selectedGroup = null;
+      this.render();
+      this.attachEventListeners();
+    });
+    document.getElementById('attendance-departure')?.addEventListener('click', () => this.updateStatus('departed'));
     // Guard against running after jsdom teardown or in non-browser contexts.
     if (typeof document === 'undefined') {
       return;
@@ -921,6 +942,7 @@ export class Attendance {
    * Cancel delayed UI work when navigation replaces the attendance module.
    */
   destroy() {
+    this.roster.destroy();
     this.searchHandler?.cancel?.();
     this.searchHandler = null;
     this.pendingDateChange = null;
@@ -1041,6 +1063,13 @@ export class Attendance {
     }
   }
 
+  /** The departure endpoint preserves the day's attendance and points. */
+  saveStatus(participantId, status, previousStatus) {
+    return status === 'departed'
+      ? markActivityDeparture(participantId, this.currentDate)
+      : updateAttendance(participantId, status, this.currentDate, previousStatus);
+  }
+
   async updateIndividualStatus(participantId, newStatus) {
     // Recorded status or null — never a guessed default. The server derives
     // the point-adjustment baseline from its own records anyway.
@@ -1064,18 +1093,15 @@ export class Attendance {
 
           apiFn: async () => {
           // Make actual API call in background
-            return await updateAttendance(
-              participantId,
-              newStatus,
-              this.currentDate,
-              previousStatus,
-            );
+            return await this.saveStatus(participantId, newStatus, previousStatus);
           },
 
           successFn: async (result) => {
           // Handle offline queued state
             if (result.queued) {
-              return; // Keep optimistic state
+              await this.writeAttendanceCache();
+              this.app.showMessage(translate('offline.savedLocally'), 'info');
+              return; // Persist the optimistic state for the other offline screens.
             }
 
             // Success: Update cache with new data
@@ -1108,75 +1134,40 @@ export class Attendance {
   }
 
   async updateGroupStatus(groupId, newStatus) {
-    const participantsToUpdate = this.participants.filter(
-      (p) => String(p.group_id) === String(groupId),
-    );
-
-    const participantIds = participantsToUpdate.map((p) => p.id);
-
-    // Save recorded previous statuses (null when unmarked) for rollback.
-    // Never assume "present": a wrong baseline used to generate phantom
-    // point adjustments server-side.
-    const previousStatuses = participantIds.reduce((acc, id) => {
-      acc[id] = this.attendanceData[id] || null;
-      return acc;
-    }, {});
-
-    // Optimistically update the UI
+    const participantIds = this.participants.filter((participant) =>
+      String(participant.group_id) === String(groupId) && this.roster.includes(participant.id) &&
+      (newStatus !== 'departed' || ['present', 'late'].includes(this.attendanceData[participant.id]))
+    ).map((participant) => participant.id);
+    if (!participantIds.length) {
+      this.app.showMessage(translate('action_roster_no_participants'), 'info');
+      return;
+    }
+    const previousStatuses = Object.fromEntries(participantIds.map((id) => [id, this.attendanceData[id] || null]));
     participantIds.forEach((id) => {
       this.attendanceData[id] = newStatus;
       this.updateAttendanceDisplay(id, newStatus, previousStatuses[id]);
     });
-
-    try {
-      // Call the API for each participant individually
-      const results = await Promise.all(
-        participantIds.map((id) =>
-          updateAttendance(
-            id,
-            newStatus,
-            this.currentDate,
-            previousStatuses[id],
-          ),
-        ),
-      );
-
-      // Check if all updates succeeded
-      const allSucceeded = results.every((result) => result.success);
-
-      if (allSucceeded) {
-        this.app.showMessage(translate('group_attendance_updated'), 'success');
-        // Clear API-level cache to ensure fresh data on next fetch
-        await deleteCachedData(`attendance_api_${this.currentDate}`);
-        // Update UI-level cache with current data
-        await this.writeAttendanceCache();
-      } else {
-        // Rollback failed updates
-        results.forEach((result, index) => {
-          if (!result.success) {
-            const id = participantIds[index];
-            this.attendanceData[id] = previousStatuses[id];
-            this.updateAttendanceDisplay(id, previousStatuses[id], newStatus);
-          }
-        });
-        this.app.showMessage(
-          translate('error_updating_group_attendance'),
-          'error',
-        );
+    // One refused child cannot roll back the display of another already saved.
+    const results = await Promise.allSettled(participantIds.map((id) => this.saveStatus(id, newStatus, previousStatuses[id])));
+    let failed = false;
+    let queued = false;
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value?.success) {
+        queued ||= Boolean(result.value.queued);
+        return;
       }
-    } catch (error) {
-      // Rollback on error
-      debugError('Error updating group attendance:', error);
-      participantIds.forEach((id) => {
-        this.attendanceData[id] = previousStatuses[id];
-        this.updateAttendanceDisplay(id, previousStatuses[id], newStatus);
-      });
-      this.app.showMessage(
-        translate('error_updating_group_attendance'),
-        'error',
-      );
-    }
+      failed = true;
+      const id = participantIds[index];
+      this.attendanceData[id] = previousStatuses[id];
+      this.updateAttendanceDisplay(id, previousStatuses[id], newStatus);
+    });
+    await this.writeAttendanceCache();
+    this.app.showMessage(
+      translate(failed ? 'error_updating_group_attendance' : queued ? 'offline.savedLocally' : 'group_attendance_updated'),
+      failed ? 'error' : queued ? 'info' : 'success',
+    );
   }
+
 
   /**
    * Mark every participant without a recorded status as present.
@@ -1312,8 +1303,8 @@ export class Attendance {
         return;
       }
 
-      // The activity context (camp banner, carry-forward source dates)
-      // depends on the selected date
+      // Resolve the selected activity before carrying attendance into this day.
+      await this.roster.load(this.currentDate);
       await this.detectActivityContext();
       if (carryForward) {
         await this.autoCarryForward();
@@ -1323,6 +1314,7 @@ export class Attendance {
         return;
       }
 
+      this.roster.setAttendance(this.attendanceData);
       // Re-render the entire view with new data
       this.render();
       // Re-attach event listeners

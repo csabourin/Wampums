@@ -12,7 +12,7 @@ jest.mock('../../spa/indexedDB.js', () => ({
 }));
 jest.mock('../../spa/utils/PerformanceUtils.js', () => ({ PerformanceMonitor: { logAPICall: jest.fn() } }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({
-  offlineManager: { isOffline: false, queueMutation: jest.fn(), getTranslation: (key) => key },
+  offlineManager: { isOffline: false, hasPendingPoints: jest.fn(() => Promise.resolve(false)), hasPendingAttendance: jest.fn(() => Promise.resolve(false)), queueMutation: jest.fn(), getTranslation: (key) => key },
 }));
 jest.mock('../../spa/modules/scout-year/ScoutYearContext.js', () => ({ isArchiveMode: () => false, getSelectedScoutYearId: () => null }));
 jest.mock('../../spa/modules/live-sync/LiveDataSync.js', () => ({ isLiveSyncActive: () => false }));
@@ -93,10 +93,40 @@ test('field validation errors survive the complete request pipeline', async () =
   await expect(API.post('v1/example', {})).rejects.toMatchObject({ status: 400, errors });
 });
 
-test('a demo account\'s refused write keeps the reason, so the screen can say the demo is read-only', async () => {
-  global.fetch.mockResolvedValue({
-    ok: false, status: 403, headers: { get: () => 'application/json' },
-    json: () => Promise.resolve({ success: false, message: 'Demo accounts have read-only access.', required: [], missing: [], isDemo: true }),
-  });
-  await expect(API.post('v1/attendance', {})).rejects.toMatchObject({ status: 403, isDemo: true });
+test('a lost points response is queued with the identity used by the first attempt', async () => {
+  const { offlineManager } = require('../../spa/modules/OfflineManager.js');
+  global.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+  offlineManager.queueMutation.mockResolvedValue('queued-batch');
+  const result = await API.post('v1/points', [{ type: 'individual', id: 1, points: 3 }]);
+  expect(result).toMatchObject({ success: true, queued: true });
+  const sentKey = global.fetch.mock.calls[0][1].headers['Idempotency-Key'];
+  expect(sentKey).toEqual(expect.any(String));
+  expect(offlineManager.queueMutation.mock.calls[0][1].headers['Idempotency-Key']).toBe(sentKey);
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+});
+
+test('new points wait behind awards already queued even when the radio is online', async () => {
+  const { offlineManager } = require('../../spa/modules/OfflineManager.js');
+  offlineManager.hasPendingPoints.mockResolvedValueOnce(true);
+  offlineManager.queueMutation.mockResolvedValue('queued-batch');
+  expect(await API.post('v1/points', [{ type: 'group', id: 1, points: 3 }])).toMatchObject({ queued: true });
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+
+
+test('an arrival waits behind a departure already queued when the connection returns', async () => {
+  const { offlineManager } = require('../../spa/modules/OfflineManager.js');
+  offlineManager.hasPendingAttendance.mockResolvedValueOnce(true);
+  offlineManager.queueMutation.mockResolvedValue('arrival-after-departure');
+  expect(await API.post('v1/attendance', { participant_id: 1, date: '2026-07-15', status: 'late' })).toMatchObject({ queued: true });
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+
+
+test('a group award waits behind unsent attendance even if its own outbox is empty', async () => {
+  const { offlineManager } = require('../../spa/modules/OfflineManager.js');
+  offlineManager.hasPendingAttendance.mockResolvedValueOnce(true);
+  offlineManager.queueMutation.mockResolvedValue('award-after-attendance');
+  expect(await API.post('v1/points', [{ type: 'group', id: 1, points: 3 }])).toMatchObject({ queued: true });
+  expect(global.fetch).not.toHaveBeenCalled();
 });

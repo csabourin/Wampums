@@ -160,6 +160,17 @@ test('every key built from a state exists for each state the server returns', ()
   expect(missing(built)).toEqual([]);
 });
 
+test('every demo mission has a title and a text in both languages', () => {
+  const source = code(path.join(ROOT, 'spa/modules/demo/DemoBanner.js'));
+  const missionKeys = [...source.matchAll(/\{ key: '([a-z_]+)', href:/g)].map((match) => match[1]);
+  const keys = missionKeys.flatMap((key) => [
+    [`demo_mission_${key}_title`, 'DemoBanner'], [`demo_mission_${key}_text`, 'DemoBanner'],
+  ]);
+
+  expect(missionKeys).toEqual(expect.arrayContaining(['points', 'attendance', 'family', 'leader_view']));
+  expect(missing(keys)).toEqual([]);
+});
+
 test('the dashboard tiles have labels in both languages', () => {
   const tiles = fs.readFileSync(path.join(ROOT, 'spa/config/dashboard-tiles.js'), 'utf8');
   const labels = [...tiles.matchAll(/label: ["']([a-z0-9_]+)["']/g)].map((m) => [m[1], 'dashboard-tiles']);

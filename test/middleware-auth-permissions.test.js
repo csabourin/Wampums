@@ -455,6 +455,8 @@ describe('blockDemoRoles middleware', () => {
     // Should be blocked
     expect(res.status).toBe(403);
     expect(res.body.isDemo).toBe(true);
+    // The SPA explains the demo from this code instead of reporting a refusal.
+    expect(res.body.code).toBe('demo_read_only');
     expect(demoCheckCalled).toBe(true);
   });
 

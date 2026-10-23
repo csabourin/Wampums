@@ -36,6 +36,7 @@ jest.mock('../middleware/auth', () => {
     requirePermission: actual.requirePermission,
     authorize: () => (_req, _res, next) => next(),
     blockDemoRoles: (_req, _res, next) => next(),
+    allowDemoSandbox: () => (_req, _res, next) => next(),
     getOrganizationId: async () => mockContext.organizationId,
     getUserDataScope: async () => 'organization',
     // The year resolution itself is under test, so it stays real — only the

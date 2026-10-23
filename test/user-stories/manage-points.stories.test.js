@@ -13,6 +13,16 @@
 require('fake-indexeddb/auto');
 const { IDBFactory } = require('fake-indexeddb');
 
+jest.mock('../../spa/api/api-action-roster.js', () => ({
+  getActionRoster: jest.fn(async (date) => {
+    const { getAttendance } = require('../../spa/ajax-functions.js');
+    const response = await getAttendance(date);
+    return { data: { activities: [], attendance: response?.data || [] } };
+  }),
+  markActivityDeparture: jest.fn(() => Promise.resolve({ success: true })),
+}));
+
+
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(),
   debugWarn: jest.fn(),
@@ -68,7 +78,7 @@ jest.mock('../../spa/modules/OfflineManager.js', () => ({
 const ajax = require('../../spa/ajax-functions.js');
 const { app: mockGlobalApp } = require('../../spa/app.js');
 const { offlineManager } = require('../../spa/modules/OfflineManager.js');
-const { getCachedData } = require('../../spa/indexedDB.js');
+const { getCachedData, setCachedData, saveOfflineData } = require('../../spa/indexedDB.js');
 const { ManagePoints } = require('../../spa/modules/points/ManagePoints.js');
 const {
   tr,
@@ -202,7 +212,7 @@ describe('US-PTS-002 — +5 shows instantly and sticks after the server confirms
     const payloads = ajax.updatePoints.mock.calls[0][0];
     expect(payloads).toHaveLength(1);
     expect(payloads[0]).toMatchObject({ type: 'individual', id: '1', points: 5 });
-    expect(payloads[0].date).toBeUndefined();
+    expect(payloads[0].date).toBeDefined();
   });
 });
 
@@ -217,7 +227,7 @@ describe('US-PTS-003 — Group award skips kids who aren\'t here', () => {
       ]
     });
 
-    const { appStub } = await initPage();
+    const { page, appStub } = await initPage();
     selectGroup(GROUP_ID);
     expect(document.getElementById('points-selection-summary').textContent)
       .toBe(tr('points_selection_group', { name: 'Wolves' }));
@@ -225,7 +235,8 @@ describe('US-PTS-003 — Group award skips kids who aren\'t here', () => {
 
     // Alex (present) gains, Sam (absent) does not, the group header gains
     expect(participantTotalText(1)).toBe('13');
-    expect(participantTotalText(2)).toBe('5');
+    expect(document.getElementById('name-points-2')).toBeNull();
+    expect(page.store.getParticipantTotal(2)).toBe(5);
     const header = document.querySelector(`.group-header[data-group-id="${GROUP_ID}"] .group-header__points`);
     expect(header.textContent).toContain('23');
 
@@ -298,7 +309,7 @@ describe('US-PTS-006 — Scoring keeps working with no signal', () => {
     expect(cachedAlex.total_points).toBe(15);
   });
 
-  it('queues via the OfflineManager when the network drops mid-request', async () => {
+  it('rolls back when the API cannot persist an award locally', async () => {
     seedStandardData();
     ajax.updatePoints.mockRejectedValue(new TypeError('Failed to fetch'));
 
@@ -307,12 +318,8 @@ describe('US-PTS-006 — Scoring keeps working with no signal', () => {
     clickPointButton(5);
     await flushPromises();
 
-    expect(offlineManager.queueMutation).toHaveBeenCalledTimes(1);
-    const [url, options] = offlineManager.queueMutation.mock.calls[0];
-    expect(url).toContain('v1/points');
-    expect(JSON.parse(options.body)[0]).toMatchObject({ type: 'individual', id: '1', points: 5 });
-
-    expect(participantTotalText(1)).toBe('15');
+    expect(offlineManager.queueMutation).not.toHaveBeenCalled();
+    expect(participantTotalText(1)).toBe('10');
     expect(page.store.hasPendingDeltas()).toBe(false);
   });
 });
@@ -607,4 +614,51 @@ describe('US-I18N-001 — manage-points strings exist in both languages', () => 
     ];
     expect(i18nGaps(keys)).toEqual({ missingEn: [], missingFr: [] });
   });
+});
+
+
+test('reopening points offline keeps local totals after the cache expiration date', async () => {
+  seedStandardData();
+  await setCachedData('manage_points_data', {
+    participants: [{ id: 1, first_name: 'Alex', last_name: 'River', total_points: 15 }], groups: [],
+  }, -1);
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+  try {
+    const { page } = await initPage();
+    expect(participantTotalText(1)).toBe('15');
+    expect(ajax.getParticipants).not.toHaveBeenCalled();
+    page.destroy();
+  } finally {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+  }
+});
+
+test('a refresh cannot replace queued offline points with older server totals', async () => {
+  seedStandardData();
+  const { page } = await initPage();
+  page.store.load([{ id: 1, total_points: 15 }], []);
+  await page.updateCache();
+  await saveOfflineData('POST', {
+    url: 'http://localhost:3000/api/v1/points', body: '[]', userId: 'leader-1', organizationId: '1',
+  });
+  await page.refreshPointsData({ forceRefresh: true });
+  expect(participantTotalText(1)).toBe('15');
+  expect(ajax.API.getNoCache).not.toHaveBeenCalled();
+  page.destroy();
+});
+
+test('an older attendance cache cannot overwrite the shared roster departure', async () => {
+  seedStandardData();
+  const { getActionRoster } = require('../../spa/api/api-action-roster.js');
+  getActionRoster.mockResolvedValueOnce({ data: { activities: [], attendance: [
+    { participant_id: 1, status: 'present', is_on_site: false },
+    { participant_id: 2, status: 'present', is_on_site: true },
+  ] } });
+  ajax.getAttendance.mockResolvedValue({ success: true, data: [{ participant_id: 1, status: 'present' }] });
+  const { page } = await initPage();
+  expect(document.getElementById('name-points-1')).toBeNull();
+  expect(participantTotalText(2)).toBe('5');
+  expect(page.store.getParticipantTotal(1)).toBe(10);
+  expect(ajax.getAttendance).not.toHaveBeenCalled();
+  page.destroy();
 });
