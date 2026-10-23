@@ -164,6 +164,10 @@ describe('inner pages of the public site', () => {
     const switcher = /<span class="lang-switch">([\s\S]*?)<\/span>\s*<\/nav>/.exec(html)[1];
     expect(switcher).toContain(`<a href="${pagePath}" lang="${lang}-CA" aria-current="page">`);
     expect(switcher).toContain(`<a href="${alternate}" lang="${other}-CA"`);
+    // The footer's other-language link leads to the same page, translated.
+    const footer = /<footer class="site-footer">([\s\S]*?)<\/footer>/.exec(html)[1];
+    const footerSwitch = new RegExp(`<a href="([^"]+)" lang="${other}-CA"`).exec(footer)[1];
+    expect(footerSwitch).toBe(alternate);
   });
 
   // The FAQ and the privacy policy are text pages; every other page shows the app.
