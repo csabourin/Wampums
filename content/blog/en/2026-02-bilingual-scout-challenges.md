@@ -61,7 +61,7 @@ These divisions are not intentional — they emerge naturally when tools don't s
 
 ### What helps
 
-A communication system where a single announcement can be configured to reach English-speaking parents in English and French-speaking parents in French, simultaneously: one announcement, with one version per language on the same screen. Integration with WhatsApp means the system can send the French version to French-speaking families and the English version to English-speaking families — even within the same WhatsApp contact list, if the contact list is organized by language preference.
+A communication system where a single announcement can be configured to reach English-speaking parents in English and French-speaking parents in French, simultaneously: one announcement, translated in one click and reviewed before it goes out. Integration with WhatsApp means the system can send the French version to French-speaking families and the English version to English-speaking families — even within the same WhatsApp contact list, if the contact list is organized by language preference.
 
 This turns a structural divide into an organizational feature: every family gets communications in their preferred language, and the group feels genuinely bilingual rather than nominally bilingual.
 

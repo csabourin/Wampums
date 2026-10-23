@@ -1046,6 +1046,23 @@ a {
   font-size: 0.95rem;
 }
 
+.role-more {
+  margin: 1.25rem 0 0;
+}
+
+.role-more a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+}
+
+.role-more a::after {
+  content: " →";
+  content: " →" / "";
+  white-space: pre;
+}
+
 .tile-teal {
   --tile: #dff0f1;
   --tile-ink: var(--teal);

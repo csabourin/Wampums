@@ -61,7 +61,7 @@ Ces divisions ne sont pas intentionnelles — elles émergent naturellement quan
 
 ### Ce qui aide
 
-Un système de communication où une seule annonce peut être configurée pour atteindre les parents anglophones en anglais et les parents francophones en français, simultanément : une seule annonce, avec une version par langue sur le même écran. L'intégration avec WhatsApp signifie que le système peut envoyer la version française aux familles francophones et la version anglaise aux familles anglophones — même au sein de la même liste de contacts WhatsApp, si la liste de contacts est organisée par préférence de langue.
+Un système de communication où une seule annonce peut être configurée pour atteindre les parents anglophones en anglais et les parents francophones en français, simultanément : une seule annonce, traduite en un clic et relue avant l'envoi. L'intégration avec WhatsApp signifie que le système peut envoyer la version française aux familles francophones et la version anglaise aux familles anglophones — même au sein de la même liste de contacts WhatsApp, si la liste de contacts est organisée par préférence de langue.
 
 Cela transforme une division structurelle en une fonctionnalité organisationnelle : chaque famille reçoit les communications dans sa langue préférée, et le groupe se sent véritablement bilingue plutôt que nominalement bilingue.
 

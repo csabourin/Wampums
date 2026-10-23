@@ -47,8 +47,10 @@ unit. Carpools: parents offer seats and place their own children; present it tha
 way, never as leaders dispatching rides (`carpools.manage` can place anyone, but
 that is not how units use it). Each activity has its own carpool: there are no
 recurring offers. The only carpool email is the cancellation notice when a
-driver withdraws an offer. Announcements are written once per language, never
-translated automatically. Reports export to CSV or print as PDF. There is no
+driver withdraws an offer. An announcement has one subject and one message, sent as written to every
+recipient; the optional AI writing aid translates it in one click. The
+interface, forms (one version per language), permission-slip emails and app
+notifications follow each person's language. Reports export to CSV or print as PDF. There is no
 app-store app.
 
 Pricing: a single unit is free until at least 2028; an organization opening several

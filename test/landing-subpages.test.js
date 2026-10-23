@@ -282,7 +282,14 @@ describe('inner pages of the public site', () => {
 
   test('no page promises that a message written once arrives translated', () => {
     PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
-      expect(read(pagePath)).not.toMatch(/Write once\.|Écrivez une fois\.|handles translation of the notification|bilingual experience is automatic/);
+      // An announcement is one message, sent as written; the AI writing aid can translate it.
+      expect(read(pagePath)).not.toMatch(/Write once\.|Écrivez une fois\.|handles translation of the notification|bilingual experience is automatic|une annonce, une version par langue|one announcement, one version per language|deux versions linguistiques|two side-by-side text areas|la version de sa langue préférée|its own version/i);
+    });
+  });
+
+  test('no page promises features the app does not have: delivery analytics, send previews, budget alerts, file or number fields', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      expect(read(pagePath)).not.toMatch(/open rates|delivery analytics|send preview|auto-translate suggestions|80 percent of the budget|téléversement de fichier|file upload|assign a driver from the leadership roster/i);
     });
   });
 
