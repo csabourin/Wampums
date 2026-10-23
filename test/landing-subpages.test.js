@@ -221,6 +221,80 @@ describe('inner pages of the public site', () => {
       });
   });
 
+  test('no page claims what the app does not do: a native app, read receipts, preloaded badges or a timed speed-up', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      expect(read(pagePath)).not.toMatch(/native (mobile )?app|application (mobile )?native|read receipts?|accusés? de lecture|pré-?configurés?|pre-?configured|90 (secondes|seconds)/i);
+    });
+  });
+
+  test.each(['/en/compare/wampums-vs-spreadsheets/', '/fr/comparer/wampums-vs-tableurs/'])('%s admits spreadsheets can work offline', (pagePath) => {
+    const html = read(pagePath);
+    expect(html).not.toMatch(/requires internet|nécessite une connexion/);
+    expect(html).toMatch(/Google Sheets and Excel both offer an offline mode|Google Sheets et Excel offrent un mode hors ligne/);
+  });
+
+  test('every comparison table has a caption and column headers', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      const doc = new DOMParser().parseFromString(read(pagePath), 'text/html');
+      doc.querySelectorAll('table').forEach((table) => {
+        expect(table.querySelector('caption')?.textContent.trim()).toBeTruthy();
+        table.querySelectorAll('thead th').forEach((header) => expect(header.getAttribute('scope')).toBe('col'));
+      });
+    });
+  });
+
+  test.each(['/en/modules/medications/', '/fr/modules/medications/'])('%s presents reminders as an aid that needs a connection, not a guarantee', (pagePath) => {
+    const html = read(pagePath);
+    expect(html).not.toMatch(/aucune dose ne soit oubliée|every allergy is visible|alerts work the same way with or without internet/);
+    expect(html).toMatch(/an aid, not a guarantee|une aide, pas une garantie/);
+    expect(html).toMatch(/remain the responsibility of the adults|restent la responsabilité des adultes/);
+  });
+
+  test('no page claims that incidents, alerts or health forms work offline', () => {
+    // Offline, only attendance, points, medication doses and badges are queued (SAFE_OFFLINE_MUTATIONS).
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      expect(read(pagePath)).not.toMatch(/badges, points,? and medication dispensing all work|points de mise à jour hors|alerte se déclenche normalement|accessible offline on the leader's device|contact details are always cached|coordonnées des parents sont toujours disponibles|profils de santé complets sont disponibles sans connexion|immuable|immutable/i);
+    });
+  });
+
+  test('a page that names the Quebec data centre also names the email provider', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      const html = read(pagePath);
+      if (/Beauharnois/.test(html)) {
+        expect(html).toContain('Brevo');
+      }
+      expect(html).not.toMatch(/stays in Quebec|restent au Québec/);
+    });
+  });
+
+  test('every page says a unit is free until at least 2028, never that it stops in 2028', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      const html = read(pagePath);
+      expect(html).not.toMatch(/(?<!at least )until 2028|(?<!au moins )jusqu.en 2028/i);
+    });
+  });
+
+  test('carpools are shown as parents placing their own children, without leader dispatch, recurring offers or bilingual notices', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      expect(read(pagePath)).not.toMatch(/leaders? (see all (the )?offers and )?assign participants|responsables (voient toutes les offres et )?assignent|leader assignment|leaders fill the gaps|animateurs complètent|marked as recurring|carpool notification in the parent's preferred language/i);
+    });
+  });
+
+  test('no page promises that a message written once arrives translated', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      // An announcement is one message, sent as written; the AI writing aid can translate it.
+      expect(read(pagePath)).not.toMatch(/Write once\.|Écrivez une fois\.|handles translation of the notification|bilingual experience is automatic|une annonce, une version par langue|one announcement, one version per language|deux versions linguistiques|two side-by-side text areas|la version de sa langue préférée|its own version/i);
+    });
+  });
+
+  test('no page promises features the app does not have: delivery analytics, send previews, budget alerts, file or number fields', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      expect(read(pagePath)).not.toMatch(/open rates|delivery analytics|send preview|auto-translate suggestions|80 percent of the budget|téléversement de fichier|file upload|assign a driver from the leadership roster/i);
+      // Reminders are sent by a leader in one click; nothing runs on a schedule but medication doses.
+      expect(read(pagePath)).not.toMatch(/rappels automatiques|automatic reminders|daily digest|configurable intervals|calendar view|vue calendrier|leaderboard|maintenance alerts|alertes d.état|waitlist|minimum attendance|présence minimale|journal d.activités|reason note/i);
+    });
+  });
+
   test('no page promises an IP address or a legally equivalent signature', () => {
     // The privacy policy names the IP addresses kept in server logs, which is true.
     PAGES.concat(['/en/', '/fr/']).filter((pagePath) => !/privacy|confidentialite/.test(pagePath)).forEach((pagePath) => {

@@ -35,20 +35,51 @@ current tool and message are optional; the two menus send fixed values that
 `DEMO_CURRENT_TOOLS` in `routes/public.js`. Keep the options identical in every
 page's dialog and in `views/partials/footer.ejs`.
 
-The sample unit is `https://demo.wampums.app`: a read-only unit that opens
-without a password, as a parent or a leader (migration 039). The home hero and
+The sample unit is `https://demo.wampums.app`: a unit that opens without a
+password, as a parent or a leader (migration 039). Visitors may try points,
+attendance and honors there (the demo sandbox, migration 041); anything written
+in words stays read-only, and the unit is reset every night. The home hero and
 every dialog link to it for visitors who would rather look first.
 
 ## Claims
 
 Write only what the code does today, and nothing about other units' results
 without a source. The Canadian Path is not preloaded; badges are set up with each
-unit. Carpools: parents place their own children, and leaders holding
-`carpools.manage` place anyone. Reports export to CSV or print as PDF. There is no
+unit. Carpools: parents offer seats and place their own children; present it that
+way, never as leaders dispatching rides (`carpools.manage` can place anyone, but
+that is not how units use it). Each activity has its own carpool: there are no
+recurring offers. The only carpool email is the cancellation notice when a
+driver withdraws an offer. An announcement has one subject and one message, sent as written to every
+recipient; the optional AI writing aid translates it in one click. The
+interface, forms (one version per language), permission-slip emails and app
+notifications follow each person's language. Reports export to CSV or print as PDF. There is no
 app-store app.
 
 Pricing: a single unit is free until at least 2028; an organization opening several
 units (five or more, say) gets a negotiated monthly price.
+
+Offline, only attendance, points, medication doses and receptions, and badges
+are queued (`SAFE_OFFLINE_MUTATIONS` in `spa/modules/OfflineManager.js`); each
+points batch carries an idempotency key, so a replay never counts twice.
+Incidents, carpools, equipment and messages need a connection. A camp prepared before leaving
+keeps the youth list, attendance, medications and dose schedule, badges and
+carpools on that phone for at least 10 days; health forms and parents' contact
+details are not part of it. Medication reminders are server push notifications,
+sent 15 minutes before a dose while an activity is running: they need a
+connection, and the site presents them as an aid, never a guarantee. Nothing in
+Wampums is an immutable log, and there are no read receipts.
+
+Reminders run on no schedule except medication doses: a leader sends a
+permission-slip reminder in one click, and a change to an activity's date,
+time or place emails the families concerned. Attendance is visible to the
+leadership team, not to parents. Points carry no reason or author. There is no
+fundraiser calendar, leaderboard or milestone reminder, no reimbursement
+approval, no activity budget, and no equipment maintenance alert or
+check-in/check-out workflow.
+
+Where a page says data is hosted in Quebec, it also says that emails go through
+Brevo and links to the providers in the privacy policy. Never write that data
+"stays" in Quebec.
 
 A signed permission slip records the name the parent typed, the date and time,
 and the slip's text and authorization. It records no IP address; do not claim one,

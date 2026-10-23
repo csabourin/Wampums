@@ -55,9 +55,9 @@ When I started building my app, the question came up: where does that word actua
 
 The word comes from **wampum**, a term from the Algonquian languages. Wampum are beads cut from shells — white from whelk, purple from quahog clam — strung on cords or woven into belts. For several Indigenous peoples, including the Haudenosaunee and Algonquian nations, these objects carried immense value.
 
-Part of that value lies in the effort they took: drilling and polishing each bead by hand took a long time. But above all, wampum carries memory. The patterns and colours of a belt recall stories, laws and alliances. The Two Row belt, for example, records an agreement made in 1613 between the Haudenosaunee and the Dutch: two parallel paths, each in its own vessel, side by side and at peace. A wampum belt is not read like a document: it is recited, passed on and kept alive.
+Part of that value lies in the effort they took: drilling and polishing each bead by hand took a long time. But above all, wampum carries memory. The patterns and colours of a belt recall stories, laws and alliances. The Two Row belt (Kaswentha), for example, records an agreement that Haudenosaunee tradition dates to 1613, between the Mohawks and the Dutch: two parallel paths, each in its own vessel, side by side and at peace. A wampum belt is not read like a document: it is recited, passed on and kept alive.
 
-Our painted washers were a long way from all that. But as I read, I understood something our Akela may have sensed without knowing it: we were not only rewarding behaviour. We were keeping a record of who we were becoming.
+Our painted washers were a long way from all that: a borrowed word, bent out of shape and stuck on hardware. But as I read, I understood something our Akela may have sensed without knowing it: we were not only rewarding behaviour. We were keeping a record of who we were becoming.
 
 ## Why I kept the name
 
@@ -76,5 +76,14 @@ I do not claim this name repairs anything. But I would rather have a name that r
 Thirty years later, my Akela's points system fits in a phone. No more carrying a pocketful of washers: one tap, and the point is given, recorded, and visible to parents that same evening.
 
 I will admit a little nostalgia, though. A belt that jingles had panache. If you ever find an old gold washer at the back of a drawer, keep it. That is a real woumpoum.
+
+## Learn more
+
+What I write here about wampum, I learned from those who keep it or exhibit it. These sources say it far better than I can:
+
+- [Wampum: Beads of Diplomacy](https://www.musee-mccord-stewart.ca/en/exhibitions/wampum-beads-diplomacy/), an exhibition at the McCord Stewart Museum in Montreal.
+- [Wampum](https://www.onondaganation.org/culture/wampum/) and [Two Row Wampum – Gaswéñdah](https://www.onondaganation.org/culture/wampum/two-row-wampum-belt-guswenta/), Onondaga Nation.
+
+If you belong to one of the nations concerned and a passage here seems wrong to you, write to me at [hello@wampums.app](mailto:hello@wampums.app) and I will correct it.
 
 [Wampums is free for a single unit until at least 2028.](/en/) Request a demo, or [explore the sample unit](https://demo.wampums.app) without signing up.

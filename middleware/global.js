@@ -237,6 +237,11 @@ module.exports = (app) => {
     }
   });
 
+  const HTTP_MOVED_PERMANENTLY = 301;
+  // Per-language sitemaps were once static files listing a dozen pages each;
+  // anything still pointing at them is sent to the complete one.
+  app.get(['/en/sitemap.xml', '/fr/sitemap.xml'], (req, res) => res.redirect(HTTP_MOVED_PERMANENTLY, '/sitemap.xml'));
+
   // Dynamic sitemap.xml
   app.get('/sitemap.xml', (req, res) => {
     const today = new Date().toISOString().slice(0, 10);

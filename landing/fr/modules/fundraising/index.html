@@ -11,7 +11,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Collectes de fonds scoutes : suivi des ventes | Wampums</title>
-<meta name="description" content="Gérez les collectes de fonds scoutes avec Wampums : calendrier, suivi des ventes par participant, archives et intégration aux finances." />
+<meta name="description" content="Gérez les collectes de fonds scoutes avec Wampums : ventes suivies par jeune, feuilles de vente à imprimer, archives et revenus réunis aux finances." />
 <link rel="canonical" href="https://wampums.app/fr/modules/fundraising/" />
 <link rel="alternate" hreflang="fr-CA" href="https://wampums.app/fr/modules/fundraising/" />
 <link rel="alternate" hreflang="en-CA" href="https://wampums.app/en/modules/fundraising/" />
@@ -19,7 +19,7 @@
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Gestion des levées de fonds scouts — Suivez les ventes, les objectifs et les participants | Wampums" />
-<meta property="og:description" content="Créez et gérez vos levées de fonds scouts avec vue calendrier, suivi individuel des ventes, archivage et intégration aux finances. Bilingue pour les groupes canadiens." />
+<meta property="og:description" content="Créez vos collectes de fonds scoutes, suivez les ventes de chaque jeune, imprimez les feuilles de vente et retrouvez les revenus dans vos finances." />
 <meta property="og:url" content="https://wampums.app/fr/modules/fundraising/" />
 <meta property="og:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta property="og:image:width" content="1200" />
@@ -29,7 +29,7 @@
 <meta property="og:locale:alternate" content="en_CA" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Gestion des levées de fonds scouts — Wampums" />
-<meta name="twitter:description" content="Suivi des ventes par participant, vue calendrier des campagnes, tableau de bord de progression et intégration directe aux finances — tout au même endroit." />
+<meta name="twitter:description" content="Ventes suivies par jeune, objectif de campagne, feuilles de vente imprimables et revenus réunis aux finances — au même endroit." />
 <meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta name="theme-color" content="#0c2a30" />
 <link rel="manifest" href="/manifest.json" />
@@ -48,7 +48,7 @@
       "@type": "WebPage",
       "name": "Gestion des levées de fonds scouts — Suivez les ventes, les objectifs et les participants | Wampums",
       "url": "https://wampums.app/fr/modules/fundraising/",
-      "description": "Créez et gérez vos levées de fonds scouts avec vue calendrier, suivi individuel des ventes, archivage et intégration aux finances. Bilingue pour les groupes canadiens.",
+      "description": "Créez et gérez vos levées de fonds scouts avec suivi des ventes par jeune, feuilles de vente imprimables, archivage et intégration aux finances. Bilingue pour les groupes canadiens.",
       "inLanguage": "fr-CA",
       "isPartOf": { "@type": "WebSite", "name": "Wampums", "url": "https://wampums.app" },
       "breadcrumb": {
@@ -66,22 +66,22 @@
         {
           "@type": "Question",
           "name": "Puis-je gérer plusieurs levées de fonds en même temps?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Wampums permet de faire tourner plusieurs campagnes simultanément — vente d'automne, vente des Fêtes, collecte de printemps. La vue calendrier affiche toutes les campagnes actives côte à côte, ce qui facilite la coordination sans que les équipes se marchent sur les pieds." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Plusieurs campagnes peuvent se dérouler en même temps — vente d'automne, vente des Fêtes, collecte de printemps — et chacune garde ses propres ventes." }
         },
         {
           "@type": "Question",
           "name": "Comment suivre les ventes par participant?",
-          "acceptedAnswer": { "@type": "Answer", "text": "L'écran d'assignation des participants vous permet d'associer les scouts inscrits à la campagne. Chaque participant obtient sa propre fiche de ventes, mise à jour en temps réel par les animateurs ou les parents tout au long de la campagne. Les totaux individuels s'accumulent automatiquement dans le tableau de bord global." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Chaque jeune a sa ligne dans la feuille de ventes de la campagne : ce qu'il a vendu et ce qu'il a remis, mis à jour par les animateurs au fil de la campagne." }
         },
         {
           "@type": "Question",
           "name": "Les données de levée de fonds alimentent-elles les rapports financiers?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Les revenus de chaque campagne coulent directement dans le module finances de Wampums, sans saisie manuelle. Chaque levée de fonds apparaît comme une ligne de revenu distincte dans le tableau de bord financier, ce qui simplifie la reddition de comptes au conseil et la préparation des rapports annuels." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Les revenus de chaque collecte apparaissent dans le tableau des revenus de l'unité, à côté des cotisations, sans saisie en double." }
         },
         {
           "@type": "Question",
           "name": "Les parents peuvent-ils voir les progrès de leur enfant dans la levée de fonds?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Les parents ont accès aux ventes de leur enfant via le portail parental. Les animateurs contrôlent la visibilité du classement complet — certains groupes préfèrent montrer uniquement les totaux individuels, d'autres choisissent d'afficher le classement général pour stimuler la motivation." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Les parents voient les ventes de leur enfant dans leur espace, mais pas celles des autres familles." }
         }
       ]
     }
@@ -148,39 +148,39 @@ Demander une démo
     <div class="shell">
     <div class="cards">
       <article class="card">
-        <h2>Création de la levée de fonds — nom, objectif, dates, produits</h2>
-        <p>Lancer une nouvelle campagne prend moins de deux minutes. Vous définissez le nom de la levée de fonds, l'objectif financier, les dates de début et de fin, puis vous ajoutez les produits offerts. Chaque produit peut avoir une description, un prix unitaire et une quantité minimale de commande — assez de souplesse pour une simple vente de biscuits comme pour une campagne multipostes avec plusieurs articles.</p>
-        <p>Une fois créée, la campagne est visible immédiatement dans l'application pour les membres de votre groupe autorisés. Pas besoin d'attendre une approbation ou de configurer des droits d'accès à part — la campagne est prête à recevoir ses premières ventes dès la fin de la configuration.</p>
+        <h2>Création de la collecte — nom, objectif, dates, type</h2>
+        <p>Lancer une campagne prend moins de deux minutes : un nom, un objectif, des dates de début et de fin, et le type de campagne — par exemple une vente à prix fixe, avec son prix unitaire et ce qu'on vend.</p>
+        <p>La campagne est aussitôt visible aux animateurs autorisés, prête à recevoir ses premières ventes.</p>
       </article>
 
       <article class="card">
-        <h2>Suivi par participant — attribuez les scouts et suivez les ventes individuellement</h2>
-        <p>L'écran d'assignation vous permet de choisir quels scouts participent à la campagne depuis votre liste de membres existante. Chaque participant inscrit obtient sa propre fiche de ventes, distincte des autres. Les animateurs et les parents peuvent saisir les commandes, les livraisons et les paiements au fur et à mesure — pas besoin d'attendre la fin de la campagne pour consolider les chiffres.</p>
-        <p>Les totaux individuels se mettent à jour en temps réel. Dès qu'une vente est enregistrée pour un scout, son sous-total s'ajuste et vient alimenter le total global de la campagne. Ce suivi granulaire permet d'identifier rapidement les participants qui ont besoin d'un coup de main ou d'encouragements supplémentaires.</p>
+        <h2>Suivi par participant — les ventes de chaque jeune</h2>
+        <p>Chaque jeune a sa ligne dans la feuille de ventes de la campagne : ce qu'il a vendu et ce qu'il a remis. Les animateurs la tiennent à jour au fil de la campagne.</p>
+        <p>Les totaux s'additionnent à mesure que les ventes sont saisies, ce qui montre vite qui a besoin d'un coup de main ou d'encouragements.</p>
       </article>
 
       <article class="card">
-        <h2>Vue calendrier — planifiez plusieurs campagnes sans chevauchement</h2>
-        <p>Les groupes actifs mènent souvent plusieurs levées de fonds au cours de l'année : campagne d'automne, vente des Fêtes, activité-bénéfice de printemps. La vue calendrier affiche toutes les campagnes actives et à venir sur un seul écran, ce qui rend les conflits d'horaire visibles avant qu'ils deviennent un problème pour vos équipes sur le terrain.</p>
-        <p>Les jalons de campagne peuvent être convertis en rappels dans Wampums, de sorte que les responsables reçoivent une notification quand une date limite approche — fin des commandes, date de livraison, fermeture de la collecte. Le tout intégré au calendrier que votre équipe consulte déjà.</p>
+        <h2>Feuilles de vente à imprimer</h2>
+        <p>Pour une vente porte-à-porte, imprimez les feuilles de vente avant le départ et saisissez les résultats au retour.</p>
+        <p>Plusieurs campagnes peuvent se dérouler en même temps — campagne d'automne, vente des Fêtes, activité-bénéfice de printemps — et chacune garde ses propres ventes.</p>
       </article>
 
       <article class="card">
-        <h2>Tableau de bord de progression — total par rapport à l'objectif</h2>
-        <p>Le tableau de bord de campagne donne une vue d'ensemble d'un seul coup d'œil : total des ventes accumulées, pourcentage de l'objectif atteint, nombre de participants actifs et jours restants avant la clôture. Une barre de progression visuelle résume l'état de la campagne sans avoir à additionner des colonnes de chiffres.</p>
-        <p>Le détail par participant est accessible en dessous : vous pouvez trier la liste par volume de ventes, voir qui a soumis des commandes et qui n'a encore rien enregistré. C'est l'outil qu'un animateur de groupe ou un responsable de financement voudra garder ouvert sur son téléphone pendant toute la durée de la campagne.</p>
+        <h2>Progression — total par rapport à l'objectif</h2>
+        <p>L'écran de la campagne montre le total des ventes à côté de l'objectif, sans avoir à additionner des feuilles de papier.</p>
+        <p>Le détail par jeune est juste en dessous : qui a vendu quoi, et qui n'a encore rien remis. C'est l'écran que le responsable du financement garde ouvert pendant la campagne.</p>
       </article>
 
       <article class="card">
         <h2>Archivage des levées de fonds terminées</h2>
-        <p>Quand une campagne prend fin, l'archivage la retire de la vue active tout en conservant l'intégralité des données de façon permanente. Les levées de fonds archivées restent consultables et exportables — vous pouvez retrouver les chiffres d'une vente d'il y a trois ans aussi facilement que ceux de la campagne en cours.</p>
-        <p>L'historique archivé permet des comparaisons d'une année à l'autre : est-ce que la vente de biscuits de novembre performe mieux que l'an passé? Combien de participants ont contribué? Ces données constituent également un registre de conformité propre pour les besoins de votre conseil régional ou de votre vérificateur.</p>
+        <p>Quand une campagne prend fin, archivez-la : elle quitte la liste active et reste consultable, avec tous ses chiffres.</p>
+        <p>Vous retrouvez ainsi la vente de l'an passé pour la comparer à celle de cette année, ou pour en rendre compte à votre conseil.</p>
       </article>
 
       <article class="card">
         <h2>Intégration au tableau de bord financier</h2>
-        <p>Les revenus d'une levée de fonds ne devraient pas nécessiter une saisie manuelle dans un autre système. Dans Wampums, chaque campagne verse ses totaux directement dans le module finances — sans copier-coller, sans risque d'erreur de transcription. La levée de fonds apparaît comme une ligne de revenu clairement identifiée dans votre tableau de bord financier.</p>
-        <p>Les rapports financiers bilingues générés par Wampums incluent automatiquement les données des campagnes terminées. Que vous prépariez le bilan annuel pour l'assemblée des parents ou que vous soumettez un rapport à votre district, les chiffres sont là, propres et prêts à être imprimés.</p>
+        <p>Les revenus de chaque collecte apparaissent dans le tableau des revenus de l'unité, à côté des cotisations et des autres revenus, sans saisie en double.</p>
+        <p>Une collecte peut aussi être rattachée à une catégorie du budget, et le rapport financier l'inclut quand vous l'imprimez ou l'exportez pour l'assemblée des parents ou le district.</p>
       </article>
     </div>
     </div>
@@ -194,25 +194,25 @@ Demander une démo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Puis-je gérer plusieurs levées de fonds en même temps?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Oui. Wampums permet de faire tourner plusieurs campagnes simultanément — vente d'automne, vente des Fêtes, collecte de printemps. La vue calendrier affiche toutes les campagnes actives côte à côte, ce qui facilite la coordination sans que les équipes se marchent sur les pieds.</p>
+          <p itemprop="text">Oui. Plusieurs campagnes peuvent se dérouler en même temps — vente d'automne, vente des Fêtes, collecte de printemps — et chacune garde ses propres ventes.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Comment suivre les ventes par participant?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">L'écran d'assignation des participants vous permet d'associer les scouts inscrits à la campagne. Chaque participant obtient sa propre fiche de ventes, mise à jour en temps réel par les animateurs ou les parents tout au long de la campagne. Les totaux individuels s'accumulent automatiquement dans le tableau de bord global.</p>
+          <p itemprop="text">Chaque jeune a sa ligne dans la feuille de ventes de la campagne : ce qu'il a vendu et ce qu'il a remis, mis à jour par les animateurs au fil de la campagne.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Les données de levée de fonds alimentent-elles les rapports financiers?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Oui. Les revenus de chaque campagne coulent directement dans le module finances de Wampums, sans saisie manuelle. Chaque levée de fonds apparaît comme une ligne de revenu distincte dans le tableau de bord financier, ce qui simplifie la reddition de comptes au conseil et la préparation des rapports annuels.</p>
+          <p itemprop="text">Oui. Les revenus de chaque collecte apparaissent dans le tableau des revenus de l'unité, à côté des cotisations, sans saisie en double.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Les parents peuvent-ils voir les progrès de leur enfant dans la levée de fonds?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Oui. Les parents ont accès aux ventes de leur enfant via le portail parental. Les animateurs contrôlent la visibilité du classement complet — certains groupes préfèrent montrer uniquement les totaux individuels, d'autres choisissent d'afficher le classement général pour stimuler la motivation.</p>
+          <p itemprop="text">Oui. Les parents voient les ventes de leur enfant dans leur espace, mais pas celles des autres familles.</p>
         </div>
       </div>
     </div>
@@ -322,7 +322,7 @@ Demander une démo
         </div>
         <p class="modal-intro" id="modalIntro">Parlez-nous un peu de votre unité : nous vous répondrons pour la configurer. Seuls le nom et le courriel sont obligatoires.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Merci, votre demande est envoyée. Direction l'unité exemple, à visiter en parent ou en animateur…</p>
+        <div class="form-success" id="formSuccess" role="status" tabindex="-1" hidden><p>Merci, votre demande est envoyée. Nous vous écrirons pour configurer votre unité.</p><p>En attendant, visitez l'unité exemple, en parent ou en animateur.</p><a class="btn btn--teal" href="https://demo.wampums.app" data-track="sample_unit">Explorer l'unité exemple</a></div>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Votre demande n'a pas pu être envoyée. Vérifiez votre connexion et réessayez, ou écrivez à hello@wampums.app." data-busy="Trop de demandes depuis cette connexion. Attendez quelques minutes et réessayez."></p>
 
         <form id="demoForm" novalidate>
@@ -376,7 +376,7 @@ Demander une démo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Envoi en cours…">Envoyer la demande</button>
         </form>
-        <p class="modal-alt">Vous préférez regarder d'abord? <a href="https://demo.wampums.app" data-track="sample_unit">Explorez l'unité exemple</a> : en lecture seule, sans inscription.</p>
+        <p class="modal-alt">Vous préférez regarder d'abord? <a href="https://demo.wampums.app" data-track="sample_unit">Explorez l'unité exemple</a> : sans inscription, et vous pouvez y essayer les points et les présences.</p>
       </div>
     </div>
 

@@ -69,17 +69,17 @@
         {
           "@type": "Question",
           "name": "Can I photograph and catalog scout equipment?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Each item in the Wampums equipment inventory has a photo field. Leaders photograph gear with their phone and the image is attached to the item record alongside the item name, description, storage location, condition status, and serial number or unique identifier. The photo catalog makes it easy to verify that items returned after a camp are in the same condition as when they left, and helps new leaders identify equipment they have not used before." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Each item can have a photo, a description, a category, the quantity owned, its storage location, its value and a note on its condition." }
         },
         {
           "@type": "Question",
           "name": "What happens if two activities need the same gear at the same time?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Wampums detects reservation conflicts automatically. If a tent is already reserved for Activity A on a given weekend and a leader tries to reserve it for Activity B on the same dates, the system highlights the conflict and prevents the double-booking. The leader is shown which activity holds the existing reservation and can either choose an alternative item, coordinate with the other leader, or flag the conflict for resolution." }
+          "acceptedAnswer": { "@type": "Answer", "text": "When a reservation would need more units than are left for those dates, Wampums flags it and shows which activity holds them. You can then move a reservation, rent gear or share it if the schedule allows." }
         },
         {
           "@type": "Question",
           "name": "Does carpool tracking work offline?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Carpool assignment data — who is riding with whom, departure details, and driver contact information — is saved on the leader's phone and works even without cell coverage. Any changes made without internet are queued and synced automatically when connectivity returns." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes, for reading. When a leader prepares the camp before leaving, who is riding with whom and the vehicles are saved on their phone and can be read without cell coverage. Changes to carpools need a connection." }
         }
       ]
     }
@@ -122,7 +122,7 @@
     </nav>
         <p class="kicker">Feature</p>
         <h1>Scout Logistics Made Simple — Equipment, Inventory &amp; Carpool in One App</h1>
-          <p class="hero-lede">The weekend before a big scout camp, two activities discover they have both reserved the same six-person tent. Meanwhile, a leader is texting every parent individually to figure out who can drive on Saturday morning, and nobody can find the first-aid kit because the storage shed has not been inventoried since 2019. Sound familiar? Wampums solves these recurring logistics headaches with an integrated platform for equipment cataloguing, material reservations, and carpool coordination — built mobile-first, available offline, and fully bilingual for Canadian scout groups.</p>
+          <p class="hero-lede">The weekend before a big scout camp, two activities discover they have both reserved the same six-person tent. Meanwhile, a leader is texting every parent individually to figure out who can drive on Saturday morning, and nobody can find the first-aid kit because the storage shed has not been inventoried since 2019. Sound familiar? Wampums solves these recurring logistics headaches with an integrated platform for equipment cataloguing, material reservations, and carpool coordination — built mobile-first and fully bilingual for Canadian scout groups.</p>
         <div class="hero-actions">
           <button type="button" class="btn btn--ember" data-open-demo-modal>
 Request a demo
@@ -147,55 +147,43 @@ Request a demo
     <div class="cards">
       <article class="card">
         <h2>Carpool Coordination — From Offer to Assignment</h2>
-        <p>Organizing transportation for a scout outing typically involves a cascade of group messages, waiting for responses, manually tallying available seats, and then somehow communicating assignments back to dozens of families. Wampums structures this into a clean three-step workflow. Parents who can offer a ride post a carpool offer specifying their available seats, their general starting area, and which direction they can cover — to the activity, back from it, or both. This offer is visible to the leader in a seat-map dashboard that shows all available vehicles alongside the list of participants who need transportation.</p>
-        <p>Parents place their own children in a vehicle with free seats, for the trip there, the trip back or both. Leaders who manage carpools see which youth still need a ride and can place any of them. A vehicle with no seats left cannot take another passenger. Drivers see who is riding with them, and each family sees who is driving their child.</p>
+        <p>Organizing transportation for a scout outing typically involves a cascade of group messages, waiting for responses, manually tallying available seats, and then somehow communicating assignments back to dozens of families. Wampums structures this into a clean three-step workflow. Parents who can offer a ride post a carpool offer specifying their available seats, their general starting area, and which direction they can cover — to the activity, back from it, or both. Every family then sees the activity's offers, with the seats left in each vehicle.</p>
+        <p>Parents place their own children in a vehicle with free seats, for the trip there, the trip back or both. A vehicle with no seats left cannot take another passenger. Drivers see who is riding with them, and each family sees who is driving their child.</p>
       </article>
 
       <article class="card">
-        <h2>Equipment Inventory with Photos &amp; Condition Tracking</h2>
-        <p>Most scout groups have a storage space full of gear accumulated over decades — tents, tarps, stoves, first-aid kits, flags, craft supplies, and tools — but no organized record of what exists, what condition it is in, or where exactly it is stored. The Wampums inventory module gives each item a digital record: name, category, description, storage location, condition status (good, fair, needs repair, retired), serial number or unique identifier, and one or more photographs. Leaders create item records by photographing the gear and filling in the details from their phone in a few seconds per item.</p>
-        <p>Condition status is updated after each use. When an item comes back from camp with damage — a broken tent pole, a cracked lantern lens — the returning leader can update the condition flag and add a note describing the damage while it is fresh in memory. Maintenance alerts notify the equipment coordinator when an item's condition is flagged as "needs repair" so repairs are addressed before the next reservation. A full condition history is stored for each item, providing an audit trail for insurance claims or equipment lifecycle decisions.</p>
+        <h2>Equipment Inventory with Photos &amp; Condition Notes</h2>
+        <p>Most scout groups have a storage space full of gear accumulated over decades — tents, tarps, stoves, first-aid kits, flags and tools — but no organized record of what exists or where it is. Wampums gives each item a record: name, category, description, quantity owned, storage location, value, a note on its condition and a photo, entered from a phone in a few seconds.</p>
+        <p>When an item comes back from camp damaged — a broken tent pole, a cracked lantern — the returning leader updates its condition note while it is fresh in memory, so the next leader knows what is still in good shape.</p>
       </article>
 
       <article class="card">
         <h2>Material Reservations with Conflict Detection</h2>
-        <p>Before an activity, the leader creating the event selects which items from the equipment inventory they need. Each reservation includes the item, the quantity required, the pickup date, and the return date. Wampums checks all existing reservations against these dates and immediately flags any conflicts — if the tent you want to book is already reserved for another activity during your camp dates, the system prevents the double-booking and shows you which activity holds the conflicting reservation.</p>
-        <p>Conflict detection operates at item level and at category level: if you have three identical tents in inventory and all three are already reserved, Wampums alerts you that the category is at capacity for your dates rather than just blocking one item. Leaders can view the reservation calendar for any item — a timeline showing all upcoming reservations and the gaps between them — to find the earliest available window. Items reserved for an activity are locked from other reservations until the return date is confirmed, protecting your planning certainty.</p>
+        <p>Before an activity, a leader reserves the items it needs, with the quantity and the dates. Wampums checks the other reservations for those dates and flags a conflict when there are not enough units left, showing which activity holds them.</p>
+        <p>Reservations are open to every authorized leader, which avoids double bookings between sections, and each one keeps its quantity, dates and the activity that asked for it.</p>
       </article>
 
       <article class="card">
-        <h2>Resource Dashboard — What Is Reserved on Which Date</h2>
-        <p>The resource dashboard gives the equipment coordinator a bird's-eye view of the entire inventory across all upcoming activities. A calendar-based layout shows which items are in use on which dates, which are available, and which are scheduled for maintenance. Color coding distinguishes reserved items (blue), items currently checked out (orange), items flagged for repair (red), and items available for new reservations (green). This makes it immediately obvious whether a specific weekend is logistically heavy or whether there is plenty of capacity for a new booking.</p>
-        <p>The dashboard is filterable by category — show only tents, only cooking equipment, only first-aid supplies — so different leaders can manage their relevant domains without being overwhelmed by the full inventory. A summary widget at the top of the dashboard highlights critical status items: equipment overdue for return, items with open maintenance flags, and upcoming activities with unfilled transportation seats. This single screen replaces the combination of sticky notes, group messages, and informal conversations that most groups currently rely on to manage logistics.</p>
+        <h2>What Is Reserved on Which Date</h2>
+        <p>One screen shows all the equipment reserved for each meeting date, so it is immediately obvious whether a weekend is logistically heavy or whether there is room for a new booking.</p>
+        <p>It updates as soon as a leader reserves or releases gear, and replaces the sticky notes, group messages and informal conversations most groups rely on.</p>
       </article>
 
       <article class="card">
         <h2>Equipment Tracking for Multi-Day Camps</h2>
-        <p>Multi-day camps involve a complex equipment choreography: gear is packed by multiple leaders, transported in multiple vehicles, used across multiple days, and then returned — sometimes missing pieces, sometimes with damage that went unnoticed in the rush to pack out. Wampums supports a check-out and check-in workflow designed specifically for camps. Before departure, the camp coordinator generates a packing list from the reserved items and marks each item as loaded. The list is available offline on every leader's device so it can be checked against physical gear at the campsite.</p>
-        <p>At the end of the camp, returning leaders use the same list to mark each item as returned and note its condition. Items not checked in by the expected return date generate an alert to the equipment coordinator so follow-up happens promptly rather than weeks later when the storage shed is next opened. For large camps involving multiple vehicles, the system tracks which vehicle each item was loaded into, making it straightforward to trace a missing item back to the vehicle that transported it and the leader responsible for that vehicle's inventory.</p>
-      </article>
-
-      <article class="card">
-        <h2>Vehicle &amp; Seat Capacity Management</h2>
-        <p>When parents post carpool offers in Wampums, they specify their vehicle's passenger capacity — the number of seats available for scouts, separate from any adults travelling in the vehicle. This seat count is enforced during assignment: the system prevents a leader from assigning more scouts to a vehicle than it has capacity for. Vehicle information — make, model, and colour — is optionally recorded to help scouts identify the right car in a parking lot. This level of detail is particularly valuable for larger outings where families may not know each other.</p>
-        <p>For groups with a dedicated troop vehicle — a van or trailer — Wampums tracks that vehicle as an inventory item with its own reservation calendar. Leaders can see when the van is available, book it for an activity, and assign a driver from the leadership roster. Insurance and maintenance records can be attached to the vehicle profile, keeping compliance documentation accessible alongside the operational records. The van appears in the carpool assignment screen alongside parent-volunteered vehicles, giving the leader a complete view of all available transportation capacity for each activity.</p>
+        <p>For a multi-day camp, reserve gear for every date of the camp and note who it is reserved for, such as a section. The camp's reservations become your packing list.</p>
+        <p>Back from camp, update the condition note of anything damaged and the available quantity, so the next leader knows what is ready to use.</p>
       </article>
 
       <article class="card">
         <h2>Offline Access for Remote Locations</h2>
-        <p>Scout activities regularly take place in locations with no cell service or unreliable WiFi — provincial parks, conservation areas, rural camp properties, and community halls in older buildings. Wampums is built with an offline-first architecture that caches the data you are most likely to need in the field: participant health forms, attendance rosters, equipment check-out lists, and carpool assignments. All of this data is available on the leader's device even with no network connection.</p>
-        <p>When a leader updates the condition of an equipment item, marks attendance, or confirms a carpool pickup while offline, the change is stored locally and synced to the server as soon as connectivity is restored. A sync status indicator in the app shows whether all local changes have been confirmed server-side, so leaders always know whether they are working with the latest data or a local snapshot. This design ensures that a dropped connection at the worst moment never results in lost data or an inaccessible roster.</p>
+        <p>Scout activities regularly take place in locations with no cell service or unreliable WiFi — provincial parks, conservation areas, rural camp properties, and community halls in older buildings. When a leader prepares the camp before leaving, Wampums keeps on their phone the youth list, attendance, medications and the dose schedule, badges and carpool assignments. Health forms and equipment lists are not part of it, so print what you need before you go.</p>
+        <p>Attendance, points, medication doses and badges recorded offline are stored on the phone and sent as soon as the connection returns. Equipment and carpool changes need a connection. A sync status indicator in the app shows whether local changes are still waiting to be sent.</p>
       </article>
 
-      <article class="card">
-        <h2>Bilingual Logistics Communications</h2>
-        <p>Every notification generated by the logistics module — carpool assignment updates, equipment pickup reminders, overdue return alerts, and resource conflict warnings — is delivered in the recipient's preferred language. A francophone parent assigned as a carpool driver receives their assignment notification in French; an anglophone parent receives the same message in English. Leaders working in either language see the Wampums interface in their own language throughout the equipment and carpool management screens.</p>
-        <p>Equipment item names, storage location labels, and category names can be entered bilingually in the inventory system so that when a leader generates a packing list for a bilingual group, every item renders in the reader's language. This attention to bilingual detail throughout the logistics workflow makes Wampums particularly well-suited to Canadian scout groups operating in both official languages — groups that currently have no logistics tool that supports their linguistic reality without requiring them to maintain two separate systems.</p>
-      </article>
     </div>
     </div>
   </section>
-
 
   <!-- FAQ -->
   <section class="section" itemscope itemtype="https://schema.org/FAQPage">
@@ -211,19 +199,19 @@ Request a demo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Can I photograph and catalog scout equipment?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Yes. Each item in the Wampums equipment inventory has a photo field. Leaders photograph gear with their phone and the image is attached to the item record alongside the item name, description, storage location, condition status, and serial number. The photo catalog makes it easy to verify returned items and helps new leaders identify equipment they have not used before.</p>
+          <p itemprop="text">Yes. Each item can have a photo, a description, a category, the quantity owned, its storage location, its value and a note on its condition.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">What happens if two activities need the same gear at the same time?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Wampums detects reservation conflicts automatically. If a tent is already reserved for Activity A on a given weekend and a leader tries to reserve it for Activity B on the same dates, the system highlights the conflict and prevents the double-booking. The leader is shown which activity holds the existing reservation and can either choose an alternative item or coordinate with the other leader.</p>
+          <p itemprop="text">When a reservation would need more units than are left for those dates, Wampums flags it and shows which activity holds them. You can then move a reservation, rent gear or share it if the schedule allows.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Does carpool tracking work offline?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">The carpool assignment data — who is riding with whom, departure details, and driver contact information — is saved on the leader's phone and works even without cell coverage. This means the information is accessible while driving through areas with no signal. Any changes made without internet are queued and synced when connectivity is restored.</p>
+          <p itemprop="text">Yes, for reading. When a leader prepares the camp before leaving, who is riding with whom and the vehicles are saved on their phone and can be read without cell coverage. Changes to carpools need a connection.</p>
         </div>
       </div>
     </div>
@@ -333,7 +321,7 @@ Request a demo
         </div>
         <p class="modal-intro" id="modalIntro">Tell us a little about your unit and we'll write back to set it up. Only your name and email are required.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the sample unit, where you can look around as a parent or a leader…</p>
+        <div class="form-success" id="formSuccess" role="status" tabindex="-1" hidden><p>Thank you, your request is on its way. We will write to you to set up your unit.</p><p>Meanwhile, look around the sample unit as a parent or a leader.</p><a class="btn btn--teal" href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a></div>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Your request could not be sent. Check your connection and try again, or write to hello@wampums.app." data-busy="Too many requests from this connection. Wait a few minutes and try again."></p>
 
         <form id="demoForm" novalidate>
@@ -387,7 +375,7 @@ Request a demo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Sending…">Send request</button>
         </form>
-        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: read-only, no sign-up.</p>
+        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: no sign-up, and you can try points and attendance.</p>
       </div>
     </div>
 

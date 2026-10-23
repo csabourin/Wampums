@@ -11,7 +11,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Offline Scout App for Meetings &amp; Camps | Wampums</title>
-<meta name="description" content="Wampums works offline for attendance, badges, points, and medication tracking. Data syncs automatically when connectivity returns — perfect for remote camps." />
+<meta name="description" content="Take attendance, points, doses and badges without a network. Wampums sends those changes when the connection returns, even after a camp." />
 <link rel="canonical" href="https://wampums.app/en/modules/offline/" />
 <link rel="alternate" hreflang="en-CA" href="https://wampums.app/en/modules/offline/" />
 <link rel="alternate" hreflang="fr-CA" href="https://wampums.app/fr/modules/offline/" />
@@ -19,7 +19,7 @@
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Scout App Offline Mode — Works at Remote Camps Without Internet | Wampums" />
-<meta property="og:description" content="Wampums works offline for attendance, badges, points, and medication tracking. Data syncs automatically when connectivity returns — perfect for remote camps." />
+<meta property="og:description" content="Without a network, Wampums keeps attendance, points, medication doses and badges on the phone and sends them when the connection returns. Prepare the camp before you leave." />
 <meta property="og:url" content="https://wampums.app/en/modules/offline/" />
 <meta property="og:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta property="og:site_name" content="Wampums" />
@@ -27,7 +27,7 @@
 <meta property="og:locale:alternate" content="fr_CA" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Scout App Offline Mode — Wampums" />
-<meta name="twitter:description" content="Full attendance, badges, points, and medication tracking at remote camps with no internet. Automatic sync when connectivity returns." />
+<meta name="twitter:description" content="Attendance, points, medication doses and badges without a network, and a prepared camp kept on the phone for at least 10 days." />
 <meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta name="theme-color" content="#0c2a30" />
 <link rel="manifest" href="/manifest.json" />
@@ -46,7 +46,7 @@
       "@type": "WebPage",
       "name": "Scout App Offline Mode — Works at Remote Camps Without Internet | Wampums",
       "url": "https://wampums.app/en/modules/offline/",
-      "description": "Wampums works offline for attendance, badges, points, and medication tracking. Data syncs automatically when connectivity returns — perfect for remote camps.",
+      "description": "Without a network, Wampums keeps attendance, points, medication doses and badges on the phone and sends them when the connection returns. Prepare the camp before you leave.",
       "inLanguage": "en-CA",
       "isPartOf": { "@type": "WebSite", "name": "Wampums", "url": "https://wampums.app" },
       "breadcrumb": {
@@ -64,22 +64,22 @@
         {
           "@type": "Question",
           "name": "How long can the app run without internet?",
-          "acceptedAnswer": { "@type": "Answer", "text": "In standard mode, Wampums caches data for 24 to 48 hours. In camp mode, the cache is extended to 10 days so your entire trip is covered without needing any connectivity. All participant data, rosters, badge records, medication profiles, and schedules are stored locally on each device." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Without preparation, the youth list, groups and upcoming activities stay on the phone for about a week, as long as you opened Wampums with a connection. A camp prepared before leaving keeps its data for at least 10 days." }
         },
         {
           "@type": "Question",
           "name": "What features work offline?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Attendance, badge progress logging, points, medication dispensing, incident recording, and parent contact lookup all work fully offline. The only features that require connectivity are sending communications to parents and real-time sync between multiple leader devices." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Without a network, you can read what is already on the phone, take attendance, award points, record doses and medications received, and record badges. Incidents, carpools, messages to parents, invitations and changes to the unit need a connection." }
         },
         {
           "@type": "Question",
           "name": "How does sync work when connectivity returns?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Wampums maintains a mutation queue — a log of every action taken offline. When connectivity is detected, the queue is replayed against the server in chronological order. Conflicts are resolved automatically, and leaders see a sync status indicator confirming when all data has been committed. No manual steps are required." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Each change made without a network waits in a queue on the phone. As soon as the signal returns, sending starts on its own. A change the server refuses, such as a dose already given, is removed from the queue and reported, rather than counted as sent." }
         },
         {
           "@type": "Question",
           "name": "What is camp mode and how do I activate it?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Camp mode is a setting that extends the local data cache from the default 24 hours to 10 days and pre-downloads all participant data, medication profiles, and upcoming schedules for the camp period. Administrators enable it from the event settings page before departure. Once active, it runs automatically on all connected leader devices." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Camp mode keeps on the phone, for at least 10 days, what the team needs for the camp's dates: the youth list, attendance, medications and the dose schedule, badges and carpools. Each leader prepares their own phone before leaving, with a connection, from the activity or with “Prepare for Offline”. Health forms and parents' contact details are not included, so print the health and contact report before you go." }
         }
       ]
     }
@@ -121,8 +121,8 @@
       </ol>
     </nav>
         <p class="kicker">Module</p>
-        <h1>Scout App Offline Mode — Run Your Entire Meeting Without Internet</h1>
-          <p class="hero-lede">Three bars of LTE at the trailhead, one bar by the dining hall, and nothing whatsoever at the campfire circle. Internet access at scout camps is unpredictable by nature. Wampums is built around that reality: the full meeting and camp workflow runs on your device, without any connection, for as long as your camp lasts — and everything syncs the moment you are back online.</p>
+        <h1>Scout App Offline Mode — Attendance, Points, Medication and Badges Without Internet</h1>
+          <p class="hero-lede">Three bars of LTE at the trailhead, one bar by the dining hall, and nothing whatsoever at the campfire circle. Without a network, Wampums lets you take attendance, award points, record medication doses and record badges: those changes wait on the phone and go out as soon as the signal returns. The rest, such as incidents or messages to parents, needs a connection.</p>
         <div class="hero-actions">
           <button type="button" class="btn btn--ember" data-open-demo-modal>
 Request a demo
@@ -147,38 +147,38 @@ Request a demo
     <div class="cards">
       <article class="card">
         <h2>Optimistic Updates — Instant UI Response</h2>
-        <p>When you tap to mark a scout present, award a point, or confirm a medication dose, the change appears in the interface immediately — before any server round-trip. This is called an optimistic update, and it means Wampums feels fast and responsive even on a slow or intermittent connection.</p>
-        <p>In the background, the action is queued for server sync. If the sync succeeds, the UI state is confirmed. If it fails, the item remains in the queue and retries automatically. You never see a loading spinner that blocks your workflow. The app stays usable regardless of what the network is doing.</p>
+        <p>When you mark a scout present or record a dose, the change appears on screen right away, without waiting for the server. On a weak connection or none at all, nothing blocks your work.</p>
+        <p>In the background, the change waits on the phone and goes out as soon as the connection returns. A banner shows that you are offline and how many changes are still waiting to be sent.</p>
       </article>
 
       <article class="card">
         <h2>Offline Attendance — Full Roster Available Locally</h2>
-        <p>The complete participant roster for your group is cached locally on each leader's device. Opening the attendance screen works instantly with no network call required. Mark present, absent, late, or excused for every scout, add notes, and add guests — all without a single byte transmitted over the air.</p>
-        <p>The roster cache is updated automatically whenever connectivity is available, so you always have the most recent participant list before you leave for a remote location. Attendance data from offline sessions is timestamped accurately at the moment of entry, ensuring records reflect when events actually occurred rather than when they synced.</p>
+        <p>Your unit's youth list stays on your phone for about a week each time you open Wampums with a connection. Mark present or absent with one tap, without a network. Buttons are large and well spaced, for cold fingers and dark tents alike.</p>
+        <p>Several leaders can take attendance at the same time, each from their own phone, one subgroup each for instance. If two leaders mark the same youth for the same date, the last attendance sent is the one that counts.</p>
       </article>
 
       <article class="card">
         <h2>Offline Badge and Points Tracking</h2>
-        <p>Badge requirements completed at a campfire activity, points earned during a team challenge, progress logged during a skills workshop — all of it can be recorded offline with the same interface leaders use at a regular meeting. The badge and points modules cache all current progress data locally and accept new entries without network access.</p>
-        <p>When multiple leaders are all offline simultaneously — common at a remote camp — each device maintains its own queue. When connectivity returns, all queues are merged and replayed in chronological order. Duplicate entries are detected and flagged for review so no scout ends up with double points for the same activity.</p>
+        <p>At camp, youth complete badge requirements all day — orienteering in the morning, outdoor cooking in the afternoon, first aid in the evening. Wampums lets you record badges the moment the activity ends, even without a network. If two leaders record the same level, the server counts it once.</p>
+        <p>Points work offline too: each batch awarded without a network waits on the phone and is sent once when the signal returns, so a total added from several phones is never counted twice. Without a network, note them down and enter them when the signal returns.</p>
       </article>
 
       <article class="card">
         <h2>Offline Medication Dispensing</h2>
-        <p>Health and safety cannot wait for a WiFi connection. The full medication dispensing workflow — viewing participant health profiles, checking dispensing schedules, confirming and logging doses — is available offline on every leader device. Medication profiles and timed alerts work the same way with or without internet.</p>
-        <p>Dispensing confirmations logged offline are stored in the mutation queue with accurate timestamps and synced as soon as connectivity returns. The permanent dispensing log therefore reflects exactly what happened in the field, not just what was uploaded hours later. For groups conducting multi-day camps, this creates a complete, reliable medication record across the entire trip.</p>
+        <p>If the camp was prepared before leaving, the dose schedule and the medications to give are on the phone, and each dose is recorded without a network with the time it was given. Reminder notifications go through the server and need a connection, so without a network, check the schedule in the app.</p>
+        <p>Doses recorded without a network go out as soon as the signal returns. Until then, other leaders do not see them, so agree on who gives which dose. If two phones marked the same dose, the second is refused when the network returns, and Wampums says so.</p>
       </article>
 
       <article class="card">
         <h2>Mutation Queue — Every Change Tracked</h2>
-        <p>Behind the optimistic update layer is the mutation queue — a persistent local log of every write operation performed while offline or on a weak connection. Each entry records the action type, the affected records, the timestamp, and the leader who performed it. The queue survives app restarts and device reboots.</p>
-        <p>When connectivity returns, the queue processes automatically in the background. Leaders see a progress indicator and a final confirmation when all pending changes have been committed to the server. If any individual mutation fails due to a server-side conflict, it is flagged for manual review rather than silently dropped, so nothing is lost without notice.</p>
+        <p>Changes made without a network are kept in a queue on your phone. It survives closing the app and restarting the phone, and each change keeps the time it was made.</p>
+        <p>When the connection returns, sending starts on its own. If the server refuses a change, such as a dose already given or access removed in the meantime, Wampums removes it from the queue and tells you which one, instead of announcing that everything was sent.</p>
       </article>
 
       <article class="card">
-        <h2>Camp Mode — 10-Day Extended Cache</h2>
-        <p>Standard caching keeps data fresh for 24 to 48 hours — plenty for a weekly meeting cycle. Camp mode extends that to 10 days and pre-fetches everything your leadership team will need for the trip: participant rosters, health profiles, medication schedules, badge progress, points history, and emergency contacts. Enabling it before departure takes one click.</p>
-        <p>Camp mode activates on all logged-in leader devices automatically once an administrator enables it for the event. It requires a full sync before departure to ensure all data is current, and it displays a clear indicator showing the last sync time so leaders know how fresh their local data is. After the camp, deactivating camp mode returns the app to its standard cache configuration.</p>
+        <h2>Camp Mode — Prepared Before You Leave, Kept for at Least 10 Days</h2>
+        <p>Before leaving, with a connection, each leader prepares their phone, from the activity or with “Prepare for Offline”. Wampums downloads, for every date of the camp, the youth and group lists, attendance, medications and the dose schedule, badges and carpools, and keeps them for at least 10 days.</p>
+        <p>Full health forms and parents' contact details are not part of this bundle, so print the health and contact report before you go. Prepared data stays on the phone; protect it with a passcode.</p>
       </article>
     </div>
     </div>
@@ -193,25 +193,25 @@ Request a demo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">How long can the app run without internet?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">In standard mode, Wampums caches data for 24 to 48 hours. In camp mode, the cache is extended to 10 days so your entire trip is covered without needing any connectivity. All participant data, rosters, badge records, medication profiles, and schedules are stored locally on each device.</p>
+          <p itemprop="text">Without preparation, the youth list, groups and upcoming activities stay on the phone for about a week, as long as you opened Wampums with a connection. A camp prepared before leaving keeps its data for at least 10 days.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">What features work offline?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Attendance, badge progress logging, points, medication dispensing, incident recording, and parent contact lookup all work fully offline. The only features that require connectivity are sending communications to parents and real-time sync between multiple leader devices.</p>
+          <p itemprop="text">Without a network, you can read what is already on the phone, take attendance, award points, record doses and medications received, and record badges. Incidents, carpools, messages to parents, invitations and changes to the unit need a connection.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">How does sync work when connectivity returns?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Wampums maintains a mutation queue — a log of every action taken offline. When connectivity is detected, the queue is replayed against the server in chronological order. Conflicts are resolved automatically, and leaders see a sync status indicator confirming when all data has been committed. No manual steps are required.</p>
+          <p itemprop="text">Each change made without a network waits in a queue on the phone. As soon as the signal returns, sending starts on its own. A change the server refuses, such as a dose already given, is removed from the queue and reported, rather than counted as sent.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">What is camp mode and how do I activate it?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Camp mode extends the local data cache from 24 hours to 10 days and pre-downloads all participant data, medication profiles, and upcoming schedules for the camp period. Administrators enable it from the event settings page before departure. Once active, it runs automatically on all connected leader devices.</p>
+          <p itemprop="text">Camp mode keeps on the phone, for at least 10 days, what the team needs for the camp's dates: the youth list, attendance, medications and the dose schedule, badges and carpools. Each leader prepares their own phone before leaving, with a connection, from the activity or with “Prepare for Offline”. Health forms and parents' contact details are not included, so print the health and contact report before you go.</p>
         </div>
       </div>
     </div>
@@ -309,7 +309,7 @@ Request a demo
         </div>
         <p class="modal-intro" id="modalIntro">Tell us a little about your unit and we'll write back to set it up. Only your name and email are required.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the sample unit, where you can look around as a parent or a leader…</p>
+        <div class="form-success" id="formSuccess" role="status" tabindex="-1" hidden><p>Thank you, your request is on its way. We will write to you to set up your unit.</p><p>Meanwhile, look around the sample unit as a parent or a leader.</p><a class="btn btn--teal" href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a></div>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Your request could not be sent. Check your connection and try again, or write to hello@wampums.app." data-busy="Too many requests from this connection. Wait a few minutes and try again."></p>
 
         <form id="demoForm" novalidate>
@@ -363,7 +363,7 @@ Request a demo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Sending…">Send request</button>
         </form>
-        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: read-only, no sign-up.</p>
+        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: no sign-up, and you can try points and attendance.</p>
       </div>
     </div>
 

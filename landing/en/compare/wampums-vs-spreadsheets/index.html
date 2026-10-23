@@ -149,23 +149,24 @@ Request a demo
     <p>The table below covers the ten areas where the difference between a dedicated tool and a spreadsheet matters most for a typical Canadian scout group of 20–80 participants.</p>
     <div class="table-scroll" tabindex="0" role="region" aria-label="Feature-by-feature comparison">
       <table class="compare-table">
+        <caption>What spreadsheets and Wampums offer for a scout unit's everyday tasks</caption>
         <thead>
           <tr>
-            <th>Feature</th>
-            <th>Spreadsheets</th>
-            <th>Wampums</th>
+            <th scope="col">Feature</th>
+            <th scope="col">Spreadsheets</th>
+            <th scope="col">Wampums</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td>Mobile attendance at meetings</td>
-            <td>Awkward — pinch-to-zoom, misclicks, no offline save</td>
-            <td>One-tap on phone, large targets, works offline</td>
+            <td>Awkward — pinch-to-zoom, misclicks, tiny cells</td>
+            <td>One tap per youth, large targets, works without a network</td>
           </tr>
           <tr>
             <td>Offline / no-internet mode</td>
-            <td>No — requires internet for Google Sheets sync</td>
-            <td>Yes — full offline queuing, auto-syncs on reconnect</td>
+            <td>Possible — Google Sheets and Excel both offer an offline mode, turned on ahead of time on each device</td>
+            <td>Prepared for the meeting or camp; changes wait for a network and are sent on reconnect</td>
           </tr>
           <tr>
             <td>Badge &amp; achievement tracking</td>
@@ -175,12 +176,12 @@ Request a demo
           <tr>
             <td>Bilingual (English / French)</td>
             <td>Manual — you build two versions or mix languages</td>
-            <td>Native — each user sees their preferred language</td>
+            <td>Each user sees the app in their language; forms are written once per language</td>
           </tr>
           <tr>
             <td>Parent communications</td>
             <td>Copy-paste emails, no templates, no tracking</td>
-            <td>Bilingual push, email &amp; in-app messages with read receipts</td>
+            <td>Push, email and in-app messages, with a sent or failed status for each email</td>
           </tr>
           <tr>
             <td>Permission slips &amp; digital forms</td>
@@ -220,13 +221,13 @@ Request a demo
       <article class="card">
         <h2>Mobile Attendance That Actually Works in the Field</h2>
         <p>A spreadsheet on a phone is a frustration exercise. You zoom in, accidentally tap the wrong cell, lose your place when a parent asks a question, and spend five minutes finding the right row. Wampums is built specifically for the five minutes between scouts arriving and the meeting starting — a full-screen roster with large tap targets, alphabetical sort, and a search bar that narrows the list as you type.</p>
-        <p>Even more importantly, Wampums works when you have no internet. At a campsite, a community hall with spotty WiFi, or an outdoor park, the app queues every action locally and syncs automatically the moment connectivity returns. You never lose data and you never need to ask "did that save?" — the sync indicator tells you exactly where you stand.</p>
+        <p>Even more importantly, Wampums works when you have no internet. At a campsite, a community hall with spotty WiFi, or an outdoor park, the app keeps your changes on the phone and sends them when the connection returns. The sync indicator shows what is still waiting to be sent, so you can tell what has reached the server.</p>
       </article>
 
       <article class="card">
         <h2>Badge Tracking Without the Formula Headaches</h2>
         <p>Tracking badge progress in a spreadsheet means building a matrix of participants versus requirements, maintaining formulas that flag incomplete rows, and manually updating it every time a scout completes a new element. When a leader leaves and takes their spreadsheet knowledge with them, badge records often become orphaned and unreliable.</p>
-        <p>Wampums stores badge records in a structured database tied to each participant. Requirements are predefined — leaders check off completions from a list instead of maintaining a formula. Progress is visible per participant and per badge, and historical records survive leadership transitions because they live in the platform, not someone's personal Drive folder.</p>
+        <p>Wampums stores badge records in a structured database tied to each participant. Requirements are set up once with your unit — leaders then check off completions from a list instead of maintaining a formula. Progress is visible per participant and per badge, and historical records survive leadership transitions because they live in the platform, not someone's personal Drive folder.</p>
       </article>
 
       <article class="card">
@@ -238,7 +239,7 @@ Request a demo
       <article class="card">
         <h2>Permission Slips and Digital Forms Without the Paper Chase</h2>
         <p>The classic scout-group workflow for a permission slip: create a Word document, convert to PDF, email to parents, wait, email reminders to the non-responders, collect paper forms at the door, file them somewhere safe (sometimes), and then manually update a tracking spreadsheet. Every step is manual and every step is a failure point.</p>
-        <p>Wampums replaces this entire chain with a built-in form builder. Leaders create the form once, attach it to an activity, and parents complete it on their phone — in their language — with an electronic signature. The platform tracks who has and hasn't responded, sends automatic reminders, and surfaces outstanding forms at the top of the leader's dashboard. No paper, no email threads, no separate tracking sheet.</p>
+        <p>Wampums replaces this entire chain with a built-in form builder. Leaders create the form once, attach it to an activity, and parents complete it on their phone — in their language — with an electronic signature. The platform tracks who has and hasn't responded, sends reminders in one click, and surfaces outstanding forms at the top of the leader's dashboard. No paper, no email threads, no separate tracking sheet.</p>
       </article>
 
       <article class="card">
@@ -381,7 +382,7 @@ Request a demo
         </div>
         <p class="modal-intro" id="modalIntro">Tell us a little about your unit and we'll write back to set it up. Only your name and email are required.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the sample unit, where you can look around as a parent or a leader…</p>
+        <div class="form-success" id="formSuccess" role="status" tabindex="-1" hidden><p>Thank you, your request is on its way. We will write to you to set up your unit.</p><p>Meanwhile, look around the sample unit as a parent or a leader.</p><a class="btn btn--teal" href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a></div>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Your request could not be sent. Check your connection and try again, or write to hello@wampums.app." data-busy="Too many requests from this connection. Wait a few minutes and try again."></p>
 
         <form id="demoForm" novalidate>
@@ -435,7 +436,7 @@ Request a demo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Sending…">Send request</button>
         </form>
-        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: read-only, no sign-up.</p>
+        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: no sign-up, and you can try points and attendance.</p>
       </div>
     </div>
 

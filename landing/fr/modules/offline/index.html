@@ -11,7 +11,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Application scoute hors ligne pour les camps | Wampums</title>
-<meta name="description" content="Gérez présences, badges, points et médicaments scouts sans connexion. Wampums synchronise vos données au retour du réseau, même après un camp." />
+<meta name="description" content="Prenez les présences, les points, les doses et les badges sans réseau. Wampums envoie ces changements au retour de la connexion, même après un camp." />
 <link rel="canonical" href="https://wampums.app/fr/modules/offline/" />
 <link rel="alternate" hreflang="fr-CA" href="https://wampums.app/fr/modules/offline/" />
 <link rel="alternate" hreflang="en-CA" href="https://wampums.app/en/modules/offline/" />
@@ -19,7 +19,7 @@
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Wampums en camp sans connexion — Présences, médicaments et badges sans internet | Wampums" />
-<meta property="og:description" content="Wampums fonctionne entièrement sans connexion pour les présences, les badges, les points et les médicaments. Les données se synchronisent automatiquement — parfait pour les camps en forêt." />
+<meta property="og:description" content="Sans réseau, Wampums garde les présences, les points, les doses de médicaments et les badges sur le téléphone, et les envoie au retour de la connexion. Préparez le camp avant de partir." />
 <meta property="og:url" content="https://wampums.app/fr/modules/offline/" />
 <meta property="og:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta property="og:image:width" content="1200" />
@@ -29,7 +29,7 @@
 <meta property="og:locale:alternate" content="en_CA" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Wampums sans connexion — Wampums" />
-<meta name="twitter:description" content="Présences, badges, points et médicaments fonctionnent entièrement sans internet — même au fond des bois pendant 10 jours." />
+<meta name="twitter:description" content="Présences, points, doses de médicaments et badges sans réseau, et un camp préparé gardé au moins 10 jours sur le téléphone." />
 <meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta name="theme-color" content="#0c2a30" />
 <link rel="manifest" href="/manifest.json" />
@@ -48,7 +48,7 @@
       "@type": "WebPage",
       "name": "Wampums en camp sans connexion — Présences, médicaments et badges sans internet | Wampums",
       "url": "https://wampums.app/fr/modules/offline/",
-      "description": "Wampums fonctionne entièrement sans connexion pour les présences, les badges, les points et les médicaments. Les données se synchronisent automatiquement — parfait pour les camps en forêt.",
+      "description": "Sans réseau, Wampums garde les présences, les points, les doses de médicaments et les badges sur le téléphone, et les envoie au retour de la connexion. Préparez le camp avant de partir.",
       "inLanguage": "fr-CA",
       "isPartOf": { "@type": "WebSite", "name": "Wampums", "url": "https://wampums.app" },
       "breadcrumb": {
@@ -66,22 +66,22 @@
         {
           "@type": "Question",
           "name": "Combien de temps l'application fonctionne-t-elle sans connexion?",
-          "acceptedAnswer": { "@type": "Answer", "text": "En utilisation normale, Wampums conserve toutes les données localement pendant 24 à 48 heures, ce qui couvre aisément une réunion hebdomadaire ou une sortie d'une journée sans réseau. Le mode camp étend ce stockage à 10 jours complets — suffisant pour les camps en forêt les plus longs, bien au-delà de toute couverture cellulaire." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Sans préparation, la liste des jeunes, les groupes et les activités à venir restent sur le téléphone environ une semaine, à condition d'avoir ouvert Wampums avec une connexion. Un camp préparé avant le départ garde ses données au moins 10 jours." }
         },
         {
           "@type": "Question",
           "name": "Quelles fonctions sont disponibles sans connexion?",
-          "acceptedAnswer": { "@type": "Answer", "text": "La quasi-totalité du travail sur place fonctionne sans connexion : prise des présences, attribution de badges et de points, distribution des médicaments, consignation d'incidents, et consultation des coordonnées d'urgence des parents. Les seules actions qui nécessitent une connexion sont les opérations purement administratives comme l'invitation de nouveaux membres ou la modification de la structure du groupe." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Sans réseau, vous consultez ce qui est déjà sur le téléphone, vous prenez les présences, vous attribuez des points, vous consignez les doses et les médicaments reçus, et vous inscrivez les badges. Les incidents, le covoiturage, les messages aux parents, les invitations et les changements à l'unité demandent une connexion." }
         },
         {
           "@type": "Question",
           "name": "Comment la synchronisation fonctionne-t-elle au retour du signal?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Chaque action effectuée sans connexion est conservée dans une file d'attente locale sur l'appareil. Dès qu'un signal est détecté — que ce soit le WiFi du chalet en fin de journée ou le réseau cellulaire en sortant de la forêt — la synchronisation démarre automatiquement. Les conflits éventuels sont résolus intelligemment, et un indicateur de statut vous confirme que tout est à jour." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Chaque changement fait sans réseau attend dans une file sur le téléphone. Dès que le signal revient, l'envoi démarre seul. Un changement que le serveur refuse, comme une dose déjà donnée, est retiré de la file et signalé, plutôt que compté comme envoyé." }
         },
         {
           "@type": "Question",
           "name": "Qu'est-ce que le mode camp et comment l'activer?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Le mode camp étend la conservation locale des données à 10 jours et pré-télécharge tout ce dont les animateurs auront besoin pendant le séjour — présences, profils médicaux, progrès de badges, coordonnées des parents. Un administrateur l'active depuis les paramètres de l'événement avant le départ, idéalement la veille, pour que chaque animateur parte avec toutes les données à jour sur son téléphone." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Le mode camp garde sur le téléphone, au moins 10 jours, ce dont l'équipe a besoin pour les dates du camp : la liste des jeunes, les présences, les médicaments et l'horaire des doses, les badges et le covoiturage. Chaque animateur prépare son propre téléphone avant le départ, avec une connexion, depuis l'activité ou avec « Préparer pour hors-ligne ». Les fiches santé et les coordonnées des parents n'en font pas partie : imprimez le rapport de santé et contact avant de partir." }
         }
       ]
     }
@@ -123,8 +123,8 @@
       </ol>
     </nav>
         <p class="kicker">Module</p>
-        <h1>Wampums sans connexion — Gérez votre réunion même au fond des bois</h1>
-          <p class="hero-lede">Les camps en forêt, les sorties en montagne et même certains sous-sols d'église n'ont pas de signal fiable. Wampums est conçu pour que ça ne change rien à votre gestion de groupe. Présences, badges, points et médicaments fonctionnent tous depuis votre téléphone, sans connexion, exactement comme si vous étiez en ligne. Les données se synchronisent automatiquement dès que le signal revient.</p>
+        <h1>Wampums sans connexion — Présences, points, médicaments et badges au fond des bois</h1>
+          <p class="hero-lede">Les camps en forêt, les sorties en montagne et même certains sous-sols d'église n'ont pas de signal fiable. Sans réseau, Wampums vous laisse prendre les présences, attribuer des points, consigner les doses de médicaments et inscrire les badges : ces changements attendent sur le téléphone et partent dès que le signal revient. Le reste, comme les incidents ou les messages aux parents, demande une connexion.</p>
         <div class="hero-actions">
           <button type="button" class="btn btn--ember" data-open-demo-modal>
 Demander une démo
@@ -149,38 +149,38 @@ Demander une démo
     <div class="cards">
       <article class="card">
         <h2>Mises à jour instantanées — aucune attente</h2>
-        <p>Chaque action que vous posez dans Wampums s'enregistre immédiatement sur votre écran, sans délai. Vous cochez une présence, le crochet apparaît tout de suite. Vous attribuez des points, le total monte en direct. Pas de rouleau de chargement, pas d'écran figé, pas d'attente d'une confirmation du serveur qui ne viendra jamais faute de signal.</p>
-        <p>En coulisse, l'action est mise en file d'attente pour être synchronisée dès que la connexion revient. Mais pour vous, sur le terrain, rien ne bloque votre travail. Avec 20 scouts qui attendent en cercle que vous finissiez les présences, chaque seconde compte — et Wampums ne vous en fait pas perdre.</p>
+        <p>Quand vous cochez une présence ou consignez une dose, le changement apparaît tout de suite à l'écran, sans attendre la réponse du serveur. Si le réseau est faible ou absent, rien ne bloque votre travail.</p>
+        <p>En coulisse, le changement attend sur le téléphone et part dès que la connexion revient. Un bandeau indique que vous êtes hors ligne et combien de changements restent à envoyer. Avec 20 scouts qui attendent en cercle que vous finissiez les présences, chaque seconde compte.</p>
       </article>
 
       <article class="card">
         <h2>Présences sans connexion — la liste complète sur votre téléphone</h2>
-        <p>La liste complète des membres de votre groupe est chargée sur votre téléphone avant même que vous arriviez sur place. Cochez les présents et les absents d'un seul toucher, sans avoir besoin d'une connexion pour voir les noms, les photos ou les informations des participants. Les boutons sont larges et bien espacés pour être facilement utilisables avec des gants ou dans le noir.</p>
-        <p>Plusieurs animateurs peuvent prendre les présences simultanément depuis leurs propres appareils — chacun sur une section différente du groupe, si vous le souhaitez. Les données se fusionnent automatiquement à la synchronisation, sans conflits ni doublons à corriger manuellement.</p>
+        <p>La liste des jeunes de votre unité reste sur votre téléphone environ une semaine chaque fois que vous ouvrez Wampums avec une connexion. Cochez les présents et les absents d'un toucher, sans réseau. Les boutons sont larges et bien espacés, pour les doigts froids comme pour le noir.</p>
+        <p>Plusieurs animateurs peuvent prendre les présences en même temps, chacun depuis son téléphone, par exemple une sous-unité chacun. Si deux animateurs notent le même jeune pour la même date, c'est la dernière présence envoyée qui compte.</p>
       </article>
 
       <article class="card">
         <h2>Badges et points sans connexion</h2>
-        <p>En camp, les jeunes complètent des exigences de badges toute la journée — orientation en forêt le matin, cuisine en plein air l'après-midi, premiers soins en soirée. Wampums vous permet de consigner les progrès de badges directement au moment où l'activité se termine, sans attendre d'être de retour à la connexion. Plus besoin de prendre des notes sur papier et de tout ressaisir après le camp.</p>
-        <p>Les points d'équipe pour les défis de camp s'attribuent depuis la même interface. Un animateur note les points sur son téléphone pendant que les scouts célèbrent leur victoire — le classement sera à jour pour tout le monde dès la synchronisation. Chaque enregistrement porte l'heure exacte à laquelle il a été fait, même hors ligne.</p>
+        <p>En camp, les jeunes complètent des exigences de badges toute la journée — orientation en forêt le matin, cuisine en plein air l'après-midi, premiers soins en soirée. Wampums vous laisse inscrire les badges au moment où l'activité se termine, même sans réseau. Si deux animateurs inscrivent le même niveau, le serveur ne le compte qu'une fois.</p>
+        <p>Les points fonctionnent aussi hors ligne : chaque lot attribué sans réseau attend sur le téléphone et part une seule fois au retour du signal, pour qu'un total additionné depuis plusieurs téléphones ne compte jamais deux fois. Sans réseau, notez-les et entrez-les au retour du signal.</p>
       </article>
 
       <article class="card">
         <h2>Distribution des médicaments sans connexion</h2>
-        <p>Le processus complet de gestion des médicaments fonctionne sans connexion : les profils de santé des participants, les horaires de distribution et les alertes chronométrées sont tous disponibles sur l'appareil de l'animateur responsable. Quand l'heure de la distribution arrive, l'alerte se déclenche normalement, le profil du participant s'affiche avec ses consignes, et la dose est enregistrée avec son horodatage.</p>
-        <p>Pour les camps de plusieurs jours, chaque distribution consignée sans connexion est conservée localement et synchronisée dès le retour du signal. Le registre complet des doses — qui, quoi, quand — reste intact et vérifiable, même si vous avez passé cinq jours sans un seul bar de réseau.</p>
+        <p>Si le camp a été préparé avant le départ, l'horaire des doses et les médicaments à donner sont sur le téléphone, et chaque dose se consigne sans réseau avec l'heure où elle a été donnée. Les rappels par notification passent par le serveur et demandent une connexion : sans réseau, consultez l'horaire dans l'application.</p>
+        <p>Les doses consignées sans réseau partent dès le retour du signal. D'ici là, les autres animateurs ne les voient pas : convenez de qui donne quelle dose. Si deux téléphones ont marqué la même dose, la seconde est refusée au retour du réseau, et Wampums le signale.</p>
       </article>
 
       <article class="card">
         <h2>File d'attente locale — chaque action conservée</h2>
-        <p>Toutes les actions effectuées sans connexion sont enregistrées dans une file d'attente persistante sur votre téléphone. Cette file survit aux redémarrages de l'application, aux redémarrages du téléphone et aux mises à jour — rien n'est perdu, même si vous fermez Wampums entre-temps. Chaque entrée porte l'heure exacte à laquelle elle a été créée, pas l'heure de la synchronisation.</p>
-        <p>Quand la connexion revient, la synchronisation démarre automatiquement sans aucune intervention de votre part. Vous verrez un indicateur de statut confirmer que tout est à jour. Si une action ne peut pas être synchronisée pour une raison quelconque, vous en êtes avisé clairement avec les détails nécessaires pour régler la situation.</p>
+        <p>Les changements faits sans réseau sont gardés dans une file sur votre téléphone. Elle survit à la fermeture de l'application et au redémarrage du téléphone, et chaque changement garde l'heure où il a été fait.</p>
+        <p>Quand la connexion revient, l'envoi démarre seul. Si le serveur refuse un changement, par exemple une dose déjà donnée ou un accès retiré entre-temps, Wampums le retire de la file et vous dit lequel, au lieu d'annoncer que tout est envoyé.</p>
       </article>
 
       <article class="card">
-        <h2>Mode camp — données conservées jusqu'à 10 jours</h2>
-        <p>En utilisation normale, Wampums conserve les données localement pour 24 à 48 heures. Le mode camp étend cette conservation à 10 jours complets et pré-télécharge tout ce dont les animateurs auront besoin pendant le séjour : liste des participants, profils médicaux, progrès de badges, coordonnées d'urgence des parents, et paramètres du groupe.</p>
-        <p>Un administrateur active le mode camp depuis les paramètres de l'événement avant le départ — idéalement la veille, pendant que tout le monde est encore sur le WiFi. Chaque animateur reçoit une confirmation que son téléphone est prêt. En forêt, le camp peut durer aussi longtemps qu'il le faut : Wampums tiendra.</p>
+        <h2>Mode camp — préparé avant de partir, gardé au moins 10 jours</h2>
+        <p>Avant de partir, avec une connexion, chaque animateur prépare son téléphone, depuis l'activité ou avec « Préparer pour hors-ligne ». Wampums y télécharge, pour toutes les dates du camp, la liste des jeunes et des groupes, les présences, les médicaments et l'horaire des doses, les badges et le covoiturage, et les garde au moins 10 jours.</p>
+        <p>Les fiches santé complètes et les coordonnées des parents ne font pas partie de ce paquet : imprimez le rapport de santé et contact avant le départ. Les données préparées restent sur le téléphone; protégez-le par un code.</p>
       </article>
     </div>
     </div>
@@ -194,25 +194,25 @@ Demander une démo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Combien de temps l'application fonctionne-t-elle sans connexion?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">En utilisation normale, Wampums conserve toutes les données localement pendant 24 à 48 heures, ce qui couvre aisément une réunion hebdomadaire ou une sortie d'une journée. Le mode camp étend ce stockage à 10 jours complets — suffisant pour les camps en forêt les plus longs, bien au-delà de toute couverture cellulaire.</p>
+          <p itemprop="text">Sans préparation, la liste des jeunes, les groupes et les activités à venir restent sur le téléphone environ une semaine, à condition d'avoir ouvert Wampums avec une connexion. Un camp préparé avant le départ garde ses données au moins 10 jours.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Quelles fonctions sont disponibles sans connexion?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">La quasi-totalité du travail sur place fonctionne sans connexion : prise des présences, attribution de badges et de points, distribution des médicaments, consignation d'incidents, et consultation des coordonnées d'urgence des parents. Les seules actions qui nécessitent une connexion sont les opérations purement administratives comme l'invitation de nouveaux membres ou la modification de la structure du groupe.</p>
+          <p itemprop="text">Sans réseau, vous consultez ce qui est déjà sur le téléphone, vous prenez les présences, vous attribuez des points, vous consignez les doses et les médicaments reçus, et vous inscrivez les badges. Les incidents, le covoiturage, les messages aux parents, les invitations et les changements à l'unité demandent une connexion.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Comment la synchronisation fonctionne-t-elle au retour du signal?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Chaque action effectuée sans connexion est conservée dans une file d'attente locale sur l'appareil. Dès qu'un signal est détecté — WiFi du chalet en fin de journée ou réseau cellulaire en sortant de la forêt — la synchronisation démarre automatiquement. Les conflits éventuels sont résolus intelligemment, et un indicateur de statut vous confirme que tout est à jour.</p>
+          <p itemprop="text">Chaque changement fait sans réseau attend dans une file sur le téléphone. Dès que le signal revient, l'envoi démarre seul. Un changement que le serveur refuse, comme une dose déjà donnée, est retiré de la file et signalé, plutôt que compté comme envoyé.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Qu'est-ce que le mode camp et comment l'activer?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Le mode camp étend la conservation locale des données à 10 jours et pré-télécharge tout ce dont les animateurs auront besoin — présences, profils médicaux, progrès de badges, coordonnées des parents. Un administrateur l'active depuis les paramètres de l'événement avant le départ, idéalement la veille, pour que chaque animateur parte avec toutes les données à jour sur son téléphone.</p>
+          <p itemprop="text">Le mode camp garde sur le téléphone, au moins 10 jours, ce dont l'équipe a besoin pour les dates du camp : la liste des jeunes, les présences, les médicaments et l'horaire des doses, les badges et le covoiturage. Chaque animateur prépare son propre téléphone avant le départ, avec une connexion, depuis l'activité ou avec « Préparer pour hors-ligne ». Les fiches santé et les coordonnées des parents n'en font pas partie : imprimez le rapport de santé et contact avant de partir.</p>
         </div>
       </div>
     </div>
@@ -322,7 +322,7 @@ Demander une démo
         </div>
         <p class="modal-intro" id="modalIntro">Parlez-nous un peu de votre unité : nous vous répondrons pour la configurer. Seuls le nom et le courriel sont obligatoires.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Merci, votre demande est envoyée. Direction l'unité exemple, à visiter en parent ou en animateur…</p>
+        <div class="form-success" id="formSuccess" role="status" tabindex="-1" hidden><p>Merci, votre demande est envoyée. Nous vous écrirons pour configurer votre unité.</p><p>En attendant, visitez l'unité exemple, en parent ou en animateur.</p><a class="btn btn--teal" href="https://demo.wampums.app" data-track="sample_unit">Explorer l'unité exemple</a></div>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Votre demande n'a pas pu être envoyée. Vérifiez votre connexion et réessayez, ou écrivez à hello@wampums.app." data-busy="Trop de demandes depuis cette connexion. Attendez quelques minutes et réessayez."></p>
 
         <form id="demoForm" novalidate>
@@ -376,7 +376,7 @@ Demander une démo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Envoi en cours…">Envoyer la demande</button>
         </form>
-        <p class="modal-alt">Vous préférez regarder d'abord? <a href="https://demo.wampums.app" data-track="sample_unit">Explorez l'unité exemple</a> : en lecture seule, sans inscription.</p>
+        <p class="modal-alt">Vous préférez regarder d'abord? <a href="https://demo.wampums.app" data-track="sample_unit">Explorez l'unité exemple</a> : sans inscription, et vous pouvez y essayer les points et les présences.</p>
       </div>
     </div>
 

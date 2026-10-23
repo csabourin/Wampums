@@ -72,7 +72,7 @@
         {
           "@type": "Question",
           "name": "How does the badge approval workflow work?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Leaders can set a badge to 'pending' when a scout earns it, then mark it 'approved' after verification, and finally 'delivered' once the physical badge is handed out. Each status change is logged with a timestamp." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Leaders can set a badge to 'pending' when a scout earns it, then mark it 'approved' after verification, and finally 'delivered' once the physical badge is handed out. The approval and delivery dates are kept." }
         }
       ]
     }
@@ -147,25 +147,25 @@ Request a demo
       <article class="card">
         <h2>Three-Stage Approval Workflow</h2>
         <p>The approval process mirrors how scouting actually works. When a scout earns a badge, a leader marks it <strong>Pending</strong>. After verification (a test, a presentation, or a committee review), it moves to <strong>Approved</strong>. Once the physical badge is handed out at a ceremony, it becomes <strong>Delivered</strong>.</p>
-        <p>Every status transition is timestamped and attributed to the leader who made the change, creating a complete audit trail. Bulk operations let you advance multiple scouts at once — ideal for ceremony nights when 12 badges are awarded at the same time.</p>
+        <p>Wampums keeps the approval and delivery dates, and who handed the badge out. Bulk operations let you advance several scouts at once — ideal for ceremony nights when 12 badges are awarded at the same time.</p>
       </article>
 
       <article class="card">
         <h2>Points System</h2>
-        <p>Award points for participation, achievements, good conduct, or any criteria your group uses. Points can be assigned by group or individually, with sortable views to see rankings. Leaders can add or deduct points with a reason note, keeping the history transparent.</p>
-        <p>Points sync offline — you can award points at a campfire with no connection and they'll sync when you're back in range. The optimistic update system means the scout sees their new total immediately, with no confusing delays.</p>
+        <p>Award points for participation, achievements, good conduct, or any criteria your group uses. Points can be given to a team or to one youth, and leaders can add or deduct them, with the standings a tap away.</p>
+        <p>The scout sees their new total immediately, with no confusing delays. Points work at a campfire with no signal too: they wait on the phone and are sent once when you are back in range, so a total is never counted twice.</p>
       </article>
 
       <article class="card">
         <h2>Parent Visibility</h2>
         <p>Parents see their child's badge progress in their dashboard — which badges are earned, which are pending approval, and which are delivered. This eliminates the common situation where a parent doesn't know their child earned a badge until the physical item comes home weeks later.</p>
-        <p>Progress is displayed with visual indicators: a progress bar toward the next level, a checklist of completed requirements, and a history of awarded badges with dates. Parents can filter by badge category and print a progress summary for their records.</p>
+        <p>Parents see each badge as soon as it is recorded, approved or delivered, without waiting weeks for the physical badge to come home.</p>
       </article>
 
       <article class="card">
         <h2>Program Progress Reports</h2>
-        <p>Generate per-participant progress reports that cover attendance, badges, honors, and points over any time period. Reports can be shared with parents, used for council submissions, or printed for end-of-year ceremonies.</p>
-        <p>Group-level reports show which badges are most commonly earned, which requirements are bottlenecks, and which scouts are advancing fastest. This data helps leaders identify where program adjustments might help struggling participants.</p>
+        <p>Wampums reports cover the unit's badges, honors, points and attendance. They print for end-of-year ceremonies or export to CSV for council submissions.</p>
+        <p>A glance at the badge report shows where each youth stands, to plan next season's activities.</p>
       </article>
 
       <article class="card">
@@ -197,7 +197,7 @@ Request a demo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">How does the badge approval workflow work?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Leaders set a badge to 'pending' when earned, 'approved' after verification, and 'delivered' once the physical badge is handed out. Each change is logged with a timestamp.</p>
+          <p itemprop="text">Leaders set a badge to 'pending' when earned, 'approved' after verification, and 'delivered' once the physical badge is handed out. The approval and delivery dates are kept.</p>
         </div>
       </div>
     </div>
@@ -308,7 +308,7 @@ Request a demo
         </div>
         <p class="modal-intro" id="modalIntro">Tell us a little about your unit and we'll write back to set it up. Only your name and email are required.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the sample unit, where you can look around as a parent or a leader…</p>
+        <div class="form-success" id="formSuccess" role="status" tabindex="-1" hidden><p>Thank you, your request is on its way. We will write to you to set up your unit.</p><p>Meanwhile, look around the sample unit as a parent or a leader.</p><a class="btn btn--teal" href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a></div>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Your request could not be sent. Check your connection and try again, or write to hello@wampums.app." data-busy="Too many requests from this connection. Wait a few minutes and try again."></p>
 
         <form id="demoForm" novalidate>
@@ -362,7 +362,7 @@ Request a demo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Sending…">Send request</button>
         </form>
-        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: read-only, no sign-up.</p>
+        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: no sign-up, and you can try points and attendance.</p>
       </div>
     </div>
 

@@ -55,9 +55,9 @@ Quand j'ai commencé à développer mon application, la question s'est imposée 
 
 Le mot vient de **wampum**, un terme issu des langues algonquiennes. Les wampums sont des perles taillées dans des coquillages — blanches, tirées du buccin, et violettes, tirées de la palourde quahog — enfilées en colliers ou tissées en ceintures. Chez plusieurs peuples autochtones, dont les Haudenosaunee et des nations algonquiennes, ces objets avaient une valeur immense.
 
-Une valeur qui tient en partie à l'effort qu'ils demandaient : percer et polir chaque perle à la main prenait un temps considérable. Mais surtout, les wampums portent une mémoire. Les motifs et les couleurs d'une ceinture rappellent des récits, des lois, des alliances. La ceinture à deux rangs, par exemple, consigne une entente conclue en 1613 entre les Haudenosaunee et les Néerlandais : deux chemins parallèles, chacun dans son embarcation, côte à côte et en paix. On ne lit pas une ceinture de wampum comme un document : on la récite, on la transmet, on la garde vivante.
+Une valeur qui tient en partie à l'effort qu'ils demandaient : percer et polir chaque perle à la main prenait un temps considérable. Mais surtout, les wampums portent une mémoire. Les motifs et les couleurs d'une ceinture rappellent des récits, des lois, des alliances. La ceinture à deux rangs (Kaswentha), par exemple, consigne une entente que la tradition haudenosaunee fait remonter à 1613, entre les Mohawks et les Néerlandais : deux chemins parallèles, chacun dans son embarcation, côte à côte et en paix. On ne lit pas une ceinture de wampum comme un document : on la récite, on la transmet, on la garde vivante.
 
-Nos rondelles peintes étaient bien loin de tout ça. Mais en lisant, j'ai compris ce que notre Akéla avait peut-être deviné, sans le savoir : on ne récompensait pas seulement des comportements. On gardait une trace de qui on devenait.
+Nos rondelles peintes étaient bien loin de tout ça : un mot emprunté, déformé, et collé sur de la quincaillerie. Mais en lisant, j'ai compris ce que notre Akéla avait peut-être deviné, sans le savoir : on ne récompensait pas seulement des comportements. On gardait une trace de qui on devenait.
 
 ## Pourquoi j'ai gardé le nom
 
@@ -76,5 +76,14 @@ Je ne prétends pas que ce nom répare quoi que ce soit. Mais je préfère un no
 Trente ans plus tard, le système de points de mon Akéla tient dans un téléphone. Plus besoin de traîner une poche de rondelles : un toucher, et le point est donné, consigné, visible par les parents le soir même.
 
 Je dois quand même avouer une petite nostalgie. Une ceinture qui cliquette, ça avait du panache. Si jamais vous retrouvez une vieille rondelle dorée au fond d'un tiroir, gardez-la. C'est un vrai woumpoum.
+
+## Pour en savoir plus
+
+Ce que j'écris ici sur le wampum, je l'ai appris de ceux qui en ont la garde ou qui l'exposent. Ces sources en parlent bien mieux que moi :
+
+- [Wampum : perles de diplomatie](https://www.musee-mccord-stewart.ca/fr/expositions/wampum-perles-diplomatie/), exposition du Musée McCord Stewart, à Montréal.
+- [Wampum](https://www.onondaganation.org/culture/wampum/) et [Two Row Wampum – Gaswéñdah](https://www.onondaganation.org/culture/wampum/two-row-wampum-belt-guswenta/), Nation onondaga (en anglais).
+
+Si vous êtes membre d'une nation concernée et qu'un passage de ce texte vous semble inexact, écrivez-moi à [hello@wampums.app](mailto:hello@wampums.app) : je le corrigerai.
 
 [Wampums est gratuit pour une unité au moins jusqu'en 2028.](/fr/) Demandez une démo, ou [explorez l'unité exemple](https://demo.wampums.app) sans inscription.

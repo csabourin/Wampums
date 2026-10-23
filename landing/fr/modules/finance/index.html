@@ -11,7 +11,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Cotisations scoutes : suivi des paiements | Wampums</title>
-<meta name="description" content="Gérez les finances de votre groupe scout : cotisations, suivi des dépenses avec IA, budgets, collectes de fonds et rapports financiers bilingues." />
+<meta name="description" content="Gérez les finances de votre groupe scout : cotisations et plans de paiement, dépenses avec lecture des reçus, budgets, collectes de fonds et rapports." />
 <link rel="canonical" href="https://wampums.app/fr/modules/finance/" />
 <link rel="alternate" hreflang="en-CA" href="https://wampums.app/en/modules/finance/" />
 <link rel="alternate" hreflang="fr-CA" href="https://wampums.app/fr/modules/finance/" />
@@ -19,7 +19,7 @@
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Logiciel de gestion financière scout — Cotisations, budgets et collectes | Wampums" />
-<meta property="og:description" content="Gérez les finances de votre groupe scout : cotisations, suivi des dépenses avec IA, budgets, collectes de fonds et rapports financiers bilingues." />
+<meta property="og:description" content="Gérez les finances de votre groupe scout : cotisations et plans de paiement, dépenses avec lecture des reçus, budgets, collectes de fonds et rapports." />
 <meta property="og:url" content="https://wampums.app/fr/modules/finance/" />
 <meta property="og:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta property="og:site_name" content="Wampums" />
@@ -64,22 +64,22 @@
         {
           "@type": "Question",
           "name": "Comment les cotisations sont-elles suivies dans Wampums?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Chaque participant a un dossier de paiement qui indique les cotisations dues, les montants reçus et le solde restant. Les animateurs peuvent enregistrer les paiements en espèces, par chèque ou par virement, et le système génère automatiquement des rappels pour les familles dont le solde est en retard. Un tableau de bord affiche le taux de recouvrement global en temps réel." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Chaque jeune a un dossier de cotisation : les frais d'inscription et d'adhésion de l'année, les paiements reçus et le solde. Les animateurs consignent chaque paiement (comptant, chèque ou virement), et un plan de paiement peut étaler le montant en plusieurs versements." }
         },
         {
           "@type": "Question",
           "name": "Comment les données financières sont-elles protégées?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Les données financières circulent en HTTPS, sont hébergées au Québec avec des sauvegardes chiffrées, et ne sont accessibles qu'aux rôles autorisés." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Les données financières circulent en HTTPS, sont hébergées au Québec avec des sauvegardes chiffrées, et ne sont accessibles qu'aux rôles autorisés. Les courriels partent par Brevo, qui reçoit l'adresse de chaque destinataire et le message, et l'aide à la rédaction par IA, facultative, ne reçoit que le texte qu'un animateur lui soumet." }
         },
         {
           "@type": "Question",
           "name": "Peut-on générer des rapports financiers annuels pour le conseil de groupe?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Wampums génère des rapports financiers périodiques et annuels en format PDF ou CSV, disponibles en français et en anglais. Les rapports incluent les revenus par catégorie (cotisations, levées de fonds, subventions), les dépenses par poste budgétaire, et le bilan de la période. Ils sont prêts à soumettre au conseil de groupe ou à l'organisme scout provincial." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Les rapports couvrent les revenus par source, les budgets, les paiements et les soldes dus. Ils s'exportent en CSV ou s'impriment en PDF, dans la langue de la personne qui les produit." }
         },
         {
           "@type": "Question",
           "name": "Les parents peuvent-ils voir les détails financiers de leur enfant?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Les parents ont accès à un portail qui affiche le solde de cotisations de leur enfant, l'historique des paiements et les montants à venir. Les informations financières des autres familles ne sont pas visibles. Les animateurs contrôlent le niveau de détail affiché via les paramètres de permission du groupe." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Les parents voient dans leur espace le solde de cotisation de leur enfant, les paiements reçus et les versements à venir. Ils ne voient pas les informations financières des autres familles." }
         }
       ]
     }
@@ -147,38 +147,38 @@ Demander une démo
     <div class="cards">
       <article class="card">
         <h2>Gestion des cotisations par participant</h2>
-        <p>Chaque participant du groupe a un dossier financier individuel qui regroupe les cotisations dues pour l'année, les paiements reçus, et le solde courant. Les animateurs enregistrent les paiements en espèces, par chèque ou par virement bancaire directement dans l'application. Le système calcule automatiquement les soldes et identifie les familles en retard.</p>
-        <p>Des rappels automatiques sont envoyés aux parents concernés dans leur langue préférée — français ou anglais — avant les dates d'échéance. Pour les familles avec plusieurs enfants dans le groupe, les cotisations sont regroupées dans un seul dossier afin d'éviter la confusion. Les animateurs ont accès à un tableau de bord du taux de recouvrement en temps réel pour savoir exactement où en est la collecte des frais d'adhésion.</p>
+        <p>Chaque jeune a un dossier de cotisation : les frais d'inscription et d'adhésion de l'année, les paiements reçus et le solde courant. Les animateurs consignent les paiements reçus en espèces, par chèque ou par virement, et le solde se calcule tout seul.</p>
+        <p>Un plan de paiement étale le montant en plusieurs versements, et les parents voient le solde de leur enfant dans leur espace. Le rapport des soldes dus montre d'un coup d'œil où en est la perception des cotisations.</p>
       </article>
 
       <article class="card">
-        <h2>Suivi des dépenses avec catégorisation intelligente</h2>
-        <p>Chaque dépense du groupe est enregistrée avec sa date, son montant, sa catégorie budgétaire et les pièces justificatives numérisées. L'assistant de catégorisation suggère automatiquement la bonne ligne budgétaire à partir de la description de la dépense, ce qui réduit les erreurs de saisie et accélère la comptabilité mensuelle.</p>
-        <p>Les approbations de dépenses suivent un flux configurable : l'animateur responsable soumet, le trésorier approuve, et le reçu est archivé. Ce processus crée une piste d'audit complète pour chaque transaction. Les rapports de dépenses par catégorie, par animateur responsable ou par événement sont disponibles en tout temps.</p>
+        <h2>Suivi des dépenses avec lecture des reçus</h2>
+        <p>Chaque dépense est enregistrée avec sa date, son montant, sa catégorie budgétaire, son mode de paiement et la photo du reçu. Photographiez le reçu : Wampums en lit le fournisseur, la date et le montant, et préremplit la dépense.</p>
+        <p>Chaque dépense garde le nom de la personne qui l'a saisie, et la TPS et la TVQ se calculent sur le montant. Les dépenses s'exportent en CSV pour le trésorier ou le vérificateur.</p>
       </article>
 
       <article class="card">
-        <h2>Budgets par activité et par année</h2>
-        <p>Créez un budget annuel pour le groupe et associez chaque activité à ses postes de revenus et de dépenses prévus. Wampums compare automatiquement les montants réels aux prévisions et affiche les écarts en temps réel. Quand les dépenses d'un camp dépassent le budget prévu, les animateurs voient l'alerte immédiatement plutôt qu'à la fin de l'exercice.</p>
-        <p>Les modèles de budget des années précédentes peuvent être dupliqués et ajustés pour la nouvelle année, ce qui simplifie la planification annuelle. Les budgets sont visibles aux animateurs autorisés et peuvent être partagés avec le comité de groupe pour validation avant le début de l'exercice. Les administrateurs configurent qui peut modifier les budgets et qui peut seulement les consulter.</p>
+        <h2>Budgets annuels par catégorie</h2>
+        <p>Créez le budget de l'exercice par catégorie et par poste, avec les revenus et les dépenses prévus. À mesure que les dépenses et les revenus s'inscrivent, Wampums compare le réel au prévu, et l'écran des budgets signale une catégorie qui dépasse son enveloppe.</p>
+        <p>Les animateurs autorisés consultent le budget, et le rapport financier s'imprime pour le présenter au comité de groupe.</p>
       </article>
 
       <article class="card">
         <h2>Intégration des levées de fonds</h2>
-        <p>Les revenus générés par les levées de fonds alimentent automatiquement le tableau de bord financier sans saisie manuelle. Chaque campagne de financement apparaît comme une ligne de revenu distincte dans les rapports, avec le total collecté, le nombre de participants et la comparaison avec l'objectif fixé. Cette intégration élimine le travail de réconciliation manuel entre le suivi des ventes et la comptabilité du groupe.</p>
-        <p>Pour les groupes qui gèrent plusieurs levées de fonds sur l'année — vente de chocolats, journée de lavage de voitures, souper-bénéfice — les revenus de chaque campagne sont clairement identifiés et séparés dans les rapports financiers. Cela simplifie la reddition de comptes auprès de l'organisme scout provincial et des partenaires financiers du groupe.</p>
+        <p>Les revenus des collectes de fonds apparaissent dans le tableau des revenus sans saisie en double, et chaque collecte peut être rattachée à une catégorie du budget.</p>
+        <p>Vente de chocolats, lavage de voitures, souper-bénéfice : chaque campagne garde ses propres chiffres, ce qui simplifie la reddition de comptes à l'organisme scout ou aux bailleurs de fonds.</p>
       </article>
 
       <article class="card">
-        <h2>Tableau de bord des revenus en temps réel</h2>
-        <p>Le tableau de bord financier affiche d'un seul coup d'œil les revenus du mois, les dépenses engagées, le solde de trésorerie disponible et la progression par rapport au budget annuel. Les graphiques sont mis à jour en temps réel dès qu'une transaction est enregistrée. Les trésoriers n'ont plus à attendre la fin du mois pour savoir où en sont les finances du groupe.</p>
-        <p>Le tableau de bord distingue les revenus récurrents (cotisations) des revenus ponctuels (levées de fonds, subventions) et des dépenses ordinaires versus extraordinaires. Cette segmentation facilite la planification à moyen terme et les décisions en matière de programme. Les données sont exportables pour les réunions du comité de groupe ou les rapports au district scout.</p>
+        <h2>Tableau des revenus, toutes sources réunies</h2>
+        <p>Le tableau des revenus réunit les cotisations, les collectes de fonds et les autres revenus que vous saisissez, comme les dons et les subventions, par source et par exercice financier. Il se met à jour dès qu'une transaction est enregistrée.</p>
+        <p>Les revenus s'exportent en CSV pour les réunions du comité ou les rapports au district.</p>
       </article>
 
       <article class="card">
-        <h2>Rapports financiers bilingues et protégés</h2>
-        <p>Tous les rapports financiers générés par Wampums sont disponibles en français et en anglais d'un seul clic. Les groupes bilingues ou les groupes qui doivent produire des rapports dans les deux langues officielles n'ont plus à refaire leur mise en page. Les rapports sont formatés selon les conventions canadiennes pour les montants, les dates et la terminologie comptable.</p>
-        <p>Les données financières personnelles — cotisations par participant, historique de paiement — sont hébergées au Québec, circulent en HTTPS et ne sont accessibles qu'aux rôles autorisés.</p>
+        <h2>Rapports financiers et données protégées</h2>
+        <p>Les rapports financiers s'impriment en PDF ou s'exportent en CSV, dans la langue de la personne qui les produit : un trésorier anglophone et un président francophone ont chacun le leur.</p>
+        <p>Les données financières personnelles — cotisations par participant, historique de paiement — sont hébergées au Québec, circulent en HTTPS et ne sont accessibles qu'aux rôles autorisés. Les courriels partent par Brevo, qui reçoit l'adresse de chaque destinataire et le message, et l'aide à la rédaction par IA, facultative, ne reçoit que le texte qu'un animateur lui soumet. Les autres fournisseurs sont nommés dans la <a href="/fr/confidentialite/#fournisseurs">politique de confidentialité</a>.</p>
       </article>
     </div>
     </div>
@@ -193,25 +193,25 @@ Demander une démo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Comment les cotisations sont-elles suivies dans Wampums?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Chaque participant a un dossier de paiement qui indique les cotisations dues, les montants reçus et le solde restant. Les animateurs peuvent enregistrer les paiements en espèces, par chèque ou par virement, et le système génère automatiquement des rappels pour les familles dont le solde est en retard. Un tableau de bord affiche le taux de recouvrement global en temps réel.</p>
+          <p itemprop="text">Chaque jeune a un dossier de cotisation : les frais d'inscription et d'adhésion de l'année, les paiements reçus et le solde. Les animateurs consignent chaque paiement (comptant, chèque ou virement), et un plan de paiement peut étaler le montant en plusieurs versements.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Comment les données financières sont-elles protégées?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Les données financières circulent en HTTPS, sont hébergées au Québec avec des sauvegardes chiffrées, et ne sont accessibles qu'aux rôles autorisés.</p>
+          <p itemprop="text">Les données financières circulent en HTTPS, sont hébergées au Québec avec des sauvegardes chiffrées, et ne sont accessibles qu'aux rôles autorisés. Les courriels partent par Brevo, qui reçoit l'adresse de chaque destinataire et le message, et l'aide à la rédaction par IA, facultative, ne reçoit que le texte qu'un animateur lui soumet. Les autres fournisseurs sont nommés dans la <a href="/fr/confidentialite/#fournisseurs">politique de confidentialité</a>.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Peut-on générer des rapports financiers annuels pour le conseil de groupe?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Oui. Wampums génère des rapports financiers périodiques et annuels en format PDF ou CSV, disponibles en français et en anglais. Les rapports incluent les revenus par catégorie, les dépenses par poste budgétaire, et le bilan de la période. Ils sont prêts à soumettre au conseil de groupe ou à l'organisme scout provincial.</p>
+          <p itemprop="text">Oui. Les rapports couvrent les revenus par source, les budgets, les paiements et les soldes dus. Ils s'exportent en CSV ou s'impriment en PDF, dans la langue de la personne qui les produit.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Les parents peuvent-ils voir les détails financiers de leur enfant?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Les parents ont accès à un portail qui affiche le solde de cotisations de leur enfant, l'historique des paiements et les montants à venir. Les informations financières des autres familles ne sont pas visibles. Les animateurs contrôlent le niveau de détail affiché via les paramètres de permission du groupe.</p>
+          <p itemprop="text">Oui. Les parents voient dans leur espace le solde de cotisation de leur enfant, les paiements reçus et les versements à venir. Ils ne voient pas les informations financières des autres familles.</p>
         </div>
       </div>
     </div>
@@ -309,7 +309,7 @@ Demander une démo
         </div>
         <p class="modal-intro" id="modalIntro">Parlez-nous un peu de votre unité : nous vous répondrons pour la configurer. Seuls le nom et le courriel sont obligatoires.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Merci, votre demande est envoyée. Direction l'unité exemple, à visiter en parent ou en animateur…</p>
+        <div class="form-success" id="formSuccess" role="status" tabindex="-1" hidden><p>Merci, votre demande est envoyée. Nous vous écrirons pour configurer votre unité.</p><p>En attendant, visitez l'unité exemple, en parent ou en animateur.</p><a class="btn btn--teal" href="https://demo.wampums.app" data-track="sample_unit">Explorer l'unité exemple</a></div>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Votre demande n'a pas pu être envoyée. Vérifiez votre connexion et réessayez, ou écrivez à hello@wampums.app." data-busy="Trop de demandes depuis cette connexion. Attendez quelques minutes et réessayez."></p>
 
         <form id="demoForm" novalidate>
@@ -363,7 +363,7 @@ Demander une démo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Envoi en cours…">Envoyer la demande</button>
         </form>
-        <p class="modal-alt">Vous préférez regarder d'abord? <a href="https://demo.wampums.app" data-track="sample_unit">Explorez l'unité exemple</a> : en lecture seule, sans inscription.</p>
+        <p class="modal-alt">Vous préférez regarder d'abord? <a href="https://demo.wampums.app" data-track="sample_unit">Explorez l'unité exemple</a> : sans inscription, et vous pouvez y essayer les points et les présences.</p>
       </div>
     </div>
 

@@ -11,7 +11,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Autorisations et fiches de santé scoutes en ligne | Wampums</title>
-<meta name="description" content="Remplacez les formulaires papier par des versions numériques bilingues avec logique conditionnelle, signature électronique et rappels automatiques." />
+<meta name="description" content="Remplacez les formulaires papier par des versions numériques bilingues avec logique conditionnelle, signature électronique et relances en un clic." />
 <link rel="canonical" href="https://wampums.app/fr/fonctionnalites/formulaires/" />
 <link rel="alternate" hreflang="fr-CA" href="https://wampums.app/fr/fonctionnalites/formulaires/" />
 <link rel="alternate" hreflang="en-CA" href="https://wampums.app/en/features/forms/" />
@@ -19,7 +19,7 @@
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Formulaires de permission et de santé numériques pour scouts | Wampums" />
-<meta property="og:description" content="Remplacez les formulaires papier par des versions numériques bilingues. Constructeur de formulaires avec logique conditionnelle, signature électronique et rappels automatiques." />
+<meta property="og:description" content="Remplacez les formulaires papier par des versions numériques bilingues. Constructeur de formulaires avec logique conditionnelle, signature électronique et relances en un clic." />
 <meta property="og:url" content="https://wampums.app/fr/fonctionnalites/formulaires/" />
 <meta property="og:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta property="og:site_name" content="Wampums" />
@@ -27,7 +27,7 @@
 <meta property="og:locale:alternate" content="en_CA" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Formulaires numériques pour scouts — Permission, santé et inscription | Wampums" />
-<meta name="twitter:description" content="Formulaires de permission, fiches de santé et inscriptions numériques bilingues. Logique conditionnelle, signature électronique, rappels automatiques." />
+<meta name="twitter:description" content="Formulaires de permission, fiches de santé et inscriptions numériques bilingues. Logique conditionnelle, signature électronique, relances en un clic." />
 <meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta name="theme-color" content="#0c2a30" />
 <link rel="manifest" href="/manifest.json" />
@@ -64,7 +64,7 @@
         {
           "@type": "Question",
           "name": "Les parents peuvent-ils signer les formulaires depuis leur téléphone?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Les parents reçoivent un lien par courriel, WhatsApp ou notification push, accèdent au formulaire depuis leur navigateur mobile et signent électroniquement sans avoir à télécharger d'application. La signature est enregistrée avec le nom tapé par le parent, la date et l'heure, et le texte de l'autorisation tel qu'il a été envoyé." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Les parents reçoivent un lien par courriel ou signent depuis leur compte, dans leur navigateur mobile, sans télécharger d'application. La signature est enregistrée avec le nom tapé par le parent, la date et l'heure, et le texte de l'autorisation tel qu'il a été envoyé." }
         },
         {
           "@type": "Question",
@@ -74,7 +74,7 @@
         {
           "@type": "Question",
           "name": "Comment les fiches de santé sont-elles protégées?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Les fiches de santé sont hébergées au Québec, au centre de données OVHcloud de Beauharnois, circulent en HTTPS et font partie des sauvegardes chiffrées. Seuls les animateurs de l'unité de l'enfant dont le rôle le permet peuvent les ouvrir. À la demande d'une famille, un animateur peut effacer définitivement le dossier d'un enfant, fiches de santé comprises." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Les fiches de santé sont hébergées au Québec, au centre de données OVHcloud de Beauharnois, circulent en HTTPS et font partie des sauvegardes chiffrées. Les courriels partent par Brevo, qui reçoit l'adresse de chaque destinataire et le message, et l'aide à la rédaction par IA, facultative, ne reçoit que le texte qu'un animateur lui soumet. Seuls les animateurs de l'unité de l'enfant dont le rôle le permet peuvent les ouvrir. À la demande d'une famille, un animateur peut effacer définitivement le dossier d'un enfant, fiches de santé comprises." }
         },
         {
           "@type": "Question",
@@ -122,7 +122,7 @@
     </nav>
         <p class="kicker">Fonctionnalité</p>
         <h1>Formulaires numériques — Fini l'impression, la numérisation et les relances</h1>
-          <p class="hero-lede">Chaque camp, chaque excursion, chaque activité spéciale génère une pile de formulaires : permission des parents, fiche de santé, accord photographique, formulaire d'inscription. Imprimer, distribuer, collecter, numériser, archiver — et recommencer six semaines plus tard pour le prochain événement. Wampums remplace ce cycle par des formulaires numériques bilingues que les parents remplissent et signent depuis leur téléphone, avec rappels automatiques pour ceux qui oublient.</p>
+          <p class="hero-lede">Chaque camp, chaque excursion, chaque activité spéciale génère une pile de formulaires : permission des parents, fiche de santé, accord photographique, formulaire d'inscription. Imprimer, distribuer, collecter, numériser, archiver — et recommencer six semaines plus tard pour le prochain événement. Wampums remplace ce cycle par des formulaires numériques bilingues que les parents remplissent et signent depuis leur téléphone, avec une relance en un clic pour ceux qui oublient.</p>
         <div class="hero-actions">
           <button type="button" class="btn btn--ember" data-open-demo-modal>
 Demander une démo
@@ -148,25 +148,25 @@ Demander une démo
       <article class="card">
         <h2>Formulaires de permission numériques avec suivi du statut</h2>
         <p>Créez un formulaire de permission en quelques minutes, envoyez-le aux familles concernées et suivez les retours en temps réel depuis votre tableau de bord. Pour chaque activité, vous voyez instantanément combien de permissions ont été reçues, combien sont en attente et combien sont en retard. Un code de couleur clair — vert, jaune, rouge — vous indique l'urgence de la situation sans avoir à ouvrir chaque dossier individuellement.</p>
-        <p>Les formulaires de permission incluent la signature électronique du parent ou tuteur : Wampums consigne le nom qu'il tape, la date et l'heure, et le texte de l'autorisation tel qu'il a été envoyé. Au Québec, une signature sur un document numérique peut prendre toute forme qui relie la personne au document et manifeste son consentement (Loi concernant le cadre juridique des technologies de l'information, art. 39, et Code civil, art. 2827). Il s'agit d'une signature électronique simple, non certifiée : pour les activités à risque élevé, vérifiez ce qu'exige votre organisme ou votre assureur. Les parents n'ont pas à télécharger d'application : un simple lien reçu par courriel ou WhatsApp suffit pour accéder au formulaire depuis n'importe quel navigateur mobile. C'est aussi simple que consulter un message texte.</p>
+        <p>Les formulaires de permission incluent la signature électronique du parent ou tuteur : Wampums consigne le nom qu'il tape, la date et l'heure, et le texte de l'autorisation tel qu'il a été envoyé. Au Québec, une signature sur un document numérique peut prendre toute forme qui relie la personne au document et manifeste son consentement (Loi concernant le cadre juridique des technologies de l'information, art. 39, et Code civil, art. 2827). Il s'agit d'une signature électronique simple, non certifiée : pour les activités à risque élevé, vérifiez ce qu'exige votre organisme ou votre assureur. Les parents n'ont pas à télécharger d'application : ils signent depuis leur compte, ou depuis le lien reçu par courriel, dans n'importe quel navigateur mobile. C'est aussi simple que consulter un message texte.</p>
       </article>
 
       <article class="card">
         <h2>Fiches de santé sécurisées — allergies, médicaments et urgences</h2>
         <p>Les fiches de santé sont parmi les documents les plus critiques qu'un animateur doit avoir sous la main lors d'un camp ou d'une excursion. Wampums stocke les informations médicales de chaque participant de façon sécurisée et les rend accessibles hors connexion sur le téléphone de l'animateur responsable. Allergies alimentaires, médicaments prescrits, conditions médicales particulières, contacts d'urgence — tout est centralisé et à jour.</p>
-        <p>Les parents mettent à jour les fiches de santé directement depuis leur tableau de bord parental, et les animateurs reçoivent une notification à chaque modification. Cette approche garantit que vous avez toujours les informations les plus récentes avant de partir en activité. Les données de santé circulent en HTTPS, sont hébergées au Québec et ne sont accessibles qu'aux animateurs autorisés.</p>
+        <p>Les parents mettent à jour les fiches de santé directement depuis leur tableau de bord parental. Relisez les fiches avant un camp, par exemple dans le rapport santé. Cette approche garantit que vous avez toujours les informations les plus récentes avant de partir en activité. Les données de santé circulent en HTTPS, sont hébergées au Québec et ne sont accessibles qu'aux animateurs autorisés. Les courriels partent par Brevo, qui reçoit l'adresse de chaque destinataire et le message, et l'aide à la rédaction par IA, facultative, ne reçoit que le texte qu'un animateur lui soumet. Les autres fournisseurs sont nommés dans la <a href="/fr/confidentialite/#fournisseurs">politique de confidentialité</a>.</p>
       </article>
 
       <article class="card">
-        <h2>Constructeur de formulaires glisser-déposer avec logique conditionnelle</h2>
-        <p>Le constructeur de formulaires de Wampums vous permet de créer n'importe quel type de formulaire sans aucune compétence technique. Faites glisser les types de champs depuis la palette — texte court, texte long, case à cocher, liste déroulante, téléversement de fichier, signature, date — et assemblez votre formulaire en quelques minutes. Chaque libellé de champ peut être saisi en français et en anglais pour un support bilingue complet.</p>
+        <h2>Constructeur de formulaires avec questions conditionnelles</h2>
+        <p>Le constructeur de formulaires de Wampums vous permet de créer vos propres formulaires sans compétence technique, avec des champs de texte court et long, de courriel, de téléphone, de date, des listes déroulantes, des boutons radio, des cases à cocher et des textes d'information. Réordonnez les champs en les glissant, ou avec les boutons monter et descendre. Chaque libellé se saisit dans chaque langue de l'unité.</p>
         <p>La logique conditionnelle vous permet d'afficher ou de masquer des sections en fonction des réponses précédentes. Par exemple, si un parent coche « Mon enfant a des allergies alimentaires », un bloc de champs détaillés apparaît automatiquement. Cette fonctionnalité rend vos formulaires plus intelligents et plus courts pour les cas simples, tout en collectant toutes les informations nécessaires pour les cas complexes.</p>
       </article>
 
       <article class="card">
         <h2>Formulaires d'inscription pour les nouvelles recrues</h2>
         <p>Le processus d'inscription d'un nouveau membre dans votre groupe commence souvent par une montagne de papiers. Wampums offre des formulaires d'inscription numériques qui collectent toutes les informations nécessaires en une seule étape : informations personnelles du scout, coordonnées des parents et tuteurs, préférences de communication, données médicales de base et accord de participation. Le tout en format bilingue, rempli depuis n'importe quel appareil.</p>
-        <p>Dès que le formulaire est soumis, Wampums crée automatiquement le profil du participant dans votre système, informe les animateurs de la nouvelle inscription et envoie un message de bienvenue à la famille dans sa langue préférée. Le processus qui prenait autrefois plusieurs échanges de courriels et une visite en personne se déroule maintenant en quelques minutes, à n'importe quelle heure de la journée.</p>
+        <p>Le parent inscrit lui-même son enfant depuis son compte : le dossier du jeune est créé et relié à sa famille au même moment, sans ressaisie par les animateurs. Le processus qui prenait autrefois plusieurs échanges de courriels et une visite en personne se déroule maintenant en quelques minutes, à n'importe quelle heure de la journée.</p>
       </article>
 
       <article class="card">
@@ -192,7 +192,7 @@ Demander une démo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Les parents peuvent-ils signer les formulaires depuis leur téléphone?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Oui. Les parents reçoivent un lien par courriel, WhatsApp ou notification push, accèdent au formulaire depuis leur navigateur mobile et signent électroniquement sans télécharger d'application. La signature est enregistrée avec le nom tapé par le parent, la date et l'heure, et le texte de l'autorisation tel qu'il a été envoyé.</p>
+          <p itemprop="text">Oui. Les parents reçoivent un lien par courriel ou signent depuis leur compte, dans leur navigateur mobile, sans télécharger d'application. La signature est enregistrée avec le nom tapé par le parent, la date et l'heure, et le texte de l'autorisation tel qu'il a été envoyé.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
@@ -204,7 +204,7 @@ Demander une démo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Comment les fiches de santé sont-elles protégées?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Les fiches de santé sont hébergées au Québec, au centre de données OVHcloud de Beauharnois, circulent en HTTPS et font partie des sauvegardes chiffrées. Seuls les animateurs de l'unité de l'enfant dont le rôle le permet peuvent les ouvrir. À la demande d'une famille, un animateur peut effacer définitivement le dossier d'un enfant, fiches de santé comprises.</p>
+          <p itemprop="text">Les fiches de santé sont hébergées au Québec, au centre de données OVHcloud de Beauharnois, circulent en HTTPS et font partie des sauvegardes chiffrées. Les courriels partent par Brevo, qui reçoit l'adresse de chaque destinataire et le message, et l'aide à la rédaction par IA, facultative, ne reçoit que le texte qu'un animateur lui soumet. Les autres fournisseurs sont nommés dans la <a href="/fr/confidentialite/#fournisseurs">politique de confidentialité</a>. Seuls les animateurs de l'unité de l'enfant dont le rôle le permet peuvent les ouvrir. À la demande d'une famille, un animateur peut effacer définitivement le dossier d'un enfant, fiches de santé comprises.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
@@ -319,7 +319,7 @@ Demander une démo
         </div>
         <p class="modal-intro" id="modalIntro">Parlez-nous un peu de votre unité : nous vous répondrons pour la configurer. Seuls le nom et le courriel sont obligatoires.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Merci, votre demande est envoyée. Direction l'unité exemple, à visiter en parent ou en animateur…</p>
+        <div class="form-success" id="formSuccess" role="status" tabindex="-1" hidden><p>Merci, votre demande est envoyée. Nous vous écrirons pour configurer votre unité.</p><p>En attendant, visitez l'unité exemple, en parent ou en animateur.</p><a class="btn btn--teal" href="https://demo.wampums.app" data-track="sample_unit">Explorer l'unité exemple</a></div>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Votre demande n'a pas pu être envoyée. Vérifiez votre connexion et réessayez, ou écrivez à hello@wampums.app." data-busy="Trop de demandes depuis cette connexion. Attendez quelques minutes et réessayez."></p>
 
         <form id="demoForm" novalidate>
@@ -373,7 +373,7 @@ Demander une démo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Envoi en cours…">Envoyer la demande</button>
         </form>
-        <p class="modal-alt">Vous préférez regarder d'abord? <a href="https://demo.wampums.app" data-track="sample_unit">Explorez l'unité exemple</a> : en lecture seule, sans inscription.</p>
+        <p class="modal-alt">Vous préférez regarder d'abord? <a href="https://demo.wampums.app" data-track="sample_unit">Explorez l'unité exemple</a> : sans inscription, et vous pouvez y essayer les points et les présences.</p>
       </div>
     </div>
 

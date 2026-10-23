@@ -93,7 +93,6 @@ test('field validation errors survive the complete request pipeline', async () =
   await expect(API.post('v1/example', {})).rejects.toMatchObject({ status: 400, errors });
 });
 
-
 test('a lost points response is queued with the identity used by the first attempt', async () => {
   const { offlineManager } = require('../../spa/modules/OfflineManager.js');
   global.fetch.mockRejectedValue(new TypeError('Failed to fetch'));

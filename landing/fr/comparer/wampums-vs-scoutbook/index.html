@@ -90,7 +90,7 @@
           "name": "Wampums fonctionne-t-il sans connexion pour les camps éloignés?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Oui. Wampums offre un mode camp complet jusqu'à 10 jours sans connexion internet. Les présences, les badges, les points et les médicaments fonctionnent tous hors ligne. Les données se synchronisent automatiquement au retour en zone de couverture. "
+            "text": "Oui. Wampums offre un mode camp complet jusqu'à 10 jours sans connexion internet. Les présences, les points, les badges et les doses de médicaments s'enregistrent hors ligne. Les données se synchronisent automatiquement au retour en zone de couverture. "
           }
         }
       ]
@@ -161,6 +161,7 @@ Demander une démo
     <p>Une comparaison directe des fonctionnalités qui comptent pour un groupe jeunesse canadien bilingue.</p>
     <div class="table-scroll" tabindex="0" role="region" aria-label="Tableau comparatif : Scoutbook vs Wampums">
       <table class="comparison-table">
+        <caption>Scoutbook et Wampums, fonctionnalité par fonctionnalité, à jour au 23 octobre 2026</caption>
         <thead>
           <tr>
             <th scope="col">Fonctionnalité</th>
@@ -192,7 +193,7 @@ Demander une démo
           <tr>
             <td>Gestion des médicaments</td>
             <td class="lose">Non disponible</td>
-            <td class="win">Alertes médicaments, accessible hors ligne</td>
+            <td class="win">Horaire des doses consultable hors ligne, rappels en ligne</td>
           </tr>
           <tr>
             <td>Covoiturage intégré</td>
@@ -241,14 +242,14 @@ Demander une démo
       <article class="card">
         <h3>Mode camp sans connexion — pas de WiFi requis</h3>
         <p>Sur un site de camping à 60 kilomètres du réseau cellulaire le plus proche, il faut une application qui fonctionne hors ligne.</p>
-        <p>Le mode camp de Wampums fonctionne entièrement sans connexion pour les présences, les badges, les points et les médicaments, jusqu'à 10 jours. Avant de partir, l'application précharge toutes les données nécessaires sur l'appareil de l'animateur. Au retour en zone de couverture, tout se synchronise automatiquement.</p>
+        <p>Sans réseau, Wampums enregistre les présences, les points, les badges et les doses de médicaments, et un camp préparé avant le départ reste sur le téléphone au moins 10 jours. Avant de partir, l'application précharge toutes les données nécessaires sur l'appareil de l'animateur. Au retour en zone de couverture, tout se synchronise automatiquement.</p>
         <p>Ce n'est pas un mode dégradé — toutes les fonctionnalités critiques sont disponibles. Un animateur peut prendre les présences, marquer les critères de badges complétés, consulter les fiches médicales des participants et gérer l'administration du médicament du soir, sans jamais avoir besoin d'une barre de signal.</p>
       </article>
 
       <article class="card">
         <h3>Médicaments, covoiturage et finances intégrés</h3>
         <p>Scoutbook se concentre sur la progression et les présences — et le fait bien dans son contexte américain. Mais gérer un groupe scout canadien va bien au-delà de ces deux éléments. Chaque semaine, les animateurs jonglent avec l'organisation des covoiturages, le suivi des médicaments lors des camps, la gestion des cotisations et des frais d'activités, et la collecte des formulaires de permission signés.</p>
-        <p>Wampums comprend tout cela dans une seule plateforme : gestion sécurisée des médicaments avec alertes pour ne jamais manquer une dose, module de covoiturage pour organiser les transports par activité, gestion financière complète avec suivi des dépenses et des recettes, et un module de levée de fonds dédié pour les campagnes annuelles.</p>
+        <p>Wampums comprend tout cela dans une seule plateforme : gestion sécurisée des médicaments avec l'horaire des doses et un rappel avant chacune, module de covoiturage pour organiser les transports par activité, gestion financière complète avec suivi des dépenses et des recettes, et un module de levée de fonds dédié pour les campagnes annuelles.</p>
         <p>Pas d'outils tiers à assembler, pas de feuilles de calcul partagées par courriel, pas d'applications séparées pour chaque besoin. Tout est dans Wampums, tout fonctionne ensemble, et tout fonctionne hors ligne.</p>
       </article>
 
@@ -294,7 +295,7 @@ Demander une démo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Wampums fonctionne-t-il sans connexion pour les camps éloignés?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Oui. Wampums offre un mode camp complet jusqu'à 10 jours sans connexion internet. Les présences, les badges, les points et les médicaments fonctionnent tous hors ligne. Le mode camp précharge toutes les données avant le départ, et tout se synchronise automatiquement au retour en zone de couverture.</p>
+          <p itemprop="text">Oui. Wampums offre un mode camp complet jusqu'à 10 jours sans connexion internet. Les présences, les points, les badges et les doses de médicaments s'enregistrent hors ligne. Le mode camp garde sur le téléphone les données du camp préparé avant le départ, et tout se synchronise automatiquement au retour en zone de couverture.</p>
         </div>
       </div>
     </div>
@@ -403,7 +404,7 @@ Demander une démo
         </div>
         <p class="modal-intro" id="modalIntro">Parlez-nous un peu de votre unité : nous vous répondrons pour la configurer. Seuls le nom et le courriel sont obligatoires.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Merci, votre demande est envoyée. Direction l'unité exemple, à visiter en parent ou en animateur…</p>
+        <div class="form-success" id="formSuccess" role="status" tabindex="-1" hidden><p>Merci, votre demande est envoyée. Nous vous écrirons pour configurer votre unité.</p><p>En attendant, visitez l'unité exemple, en parent ou en animateur.</p><a class="btn btn--teal" href="https://demo.wampums.app" data-track="sample_unit">Explorer l'unité exemple</a></div>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Votre demande n'a pas pu être envoyée. Vérifiez votre connexion et réessayez, ou écrivez à hello@wampums.app." data-busy="Trop de demandes depuis cette connexion. Attendez quelques minutes et réessayez."></p>
 
         <form id="demoForm" novalidate>
@@ -457,7 +458,7 @@ Demander une démo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Envoi en cours…">Envoyer la demande</button>
         </form>
-        <p class="modal-alt">Vous préférez regarder d'abord? <a href="https://demo.wampums.app" data-track="sample_unit">Explorez l'unité exemple</a> : en lecture seule, sans inscription.</p>
+        <p class="modal-alt">Vous préférez regarder d'abord? <a href="https://demo.wampums.app" data-track="sample_unit">Explorez l'unité exemple</a> : sans inscription, et vous pouvez y essayer les points et les présences.</p>
       </div>
     </div>
 

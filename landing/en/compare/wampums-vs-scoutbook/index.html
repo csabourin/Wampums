@@ -79,7 +79,7 @@
         {
           "@type": "Question",
           "name": "Can Wampums work offline at remote camps?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Camp mode extends the local data cache to 10 days so attendance, badges, points, and medication dispensing all work without internet. Data syncs automatically when connectivity returns." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Without internet, Wampums records attendance, points, badges and medication doses, and a camp prepared before leaving stays on the phone for at least 10 days. Data syncs automatically when connectivity returns." }
         }
       ]
     }
@@ -166,7 +166,7 @@ Request a demo
       <article class="card">
         <h2>Offline Camp Mode — No WiFi Required</h2>
         <p>Scout camps are often out of range. Algonquin Park, provincial wilderness areas and hundreds of remote Canadian sites have no LTE coverage. That is exactly when accurate medical records and attendance matter most.</p>
-        <p>Wampums works fully offline for attendance, badges, points, and medication dispensing for up to 10 days in camp mode. Before departure, camp leaders pre-load all participant data onto their devices. At camp, the full operational record is available without any network connection. Medication dispensing logs are kept locally and timestamped. Attendance is taken normally. When the group returns to connectivity, everything syncs automatically. This was not an afterthought feature — it is a core design requirement that shapes the entire platform architecture.</p>
+        <p>Without a network, Wampums records attendance, points, badges and medication doses, and a camp prepared before leaving stays on the phone for at least 10 days. Before departure, camp leaders pre-load all participant data onto their devices. At camp, the full operational record is available without any network connection. Medication dispensing logs are kept locally and timestamped. Attendance is taken normally. When the group returns to connectivity, everything syncs automatically. This was not an afterthought feature — it is a core design requirement that shapes the entire platform architecture.</p>
       </article>
 
       <article class="card">
@@ -214,7 +214,7 @@ Request a demo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Can Wampums work offline at remote camps?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Yes. Camp mode extends the local data cache to 10 days so attendance, badges, points, and medication dispensing all work without internet. Data syncs automatically when connectivity returns.</p>
+          <p itemprop="text">Yes. Without internet, Wampums records attendance, points, badges and medication doses, and a camp prepared before leaving stays on the phone for at least 10 days. Data syncs automatically when connectivity returns.</p>
         </div>
       </div>
     </div>
@@ -318,7 +318,7 @@ Request a demo
         </div>
         <p class="modal-intro" id="modalIntro">Tell us a little about your unit and we'll write back to set it up. Only your name and email are required.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the sample unit, where you can look around as a parent or a leader…</p>
+        <div class="form-success" id="formSuccess" role="status" tabindex="-1" hidden><p>Thank you, your request is on its way. We will write to you to set up your unit.</p><p>Meanwhile, look around the sample unit as a parent or a leader.</p><a class="btn btn--teal" href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a></div>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Your request could not be sent. Check your connection and try again, or write to hello@wampums.app." data-busy="Too many requests from this connection. Wait a few minutes and try again."></p>
 
         <form id="demoForm" novalidate>
@@ -372,7 +372,7 @@ Request a demo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Sending…">Send request</button>
         </form>
-        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: read-only, no sign-up.</p>
+        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: no sign-up, and you can try points and attendance.</p>
       </div>
     </div>
 
