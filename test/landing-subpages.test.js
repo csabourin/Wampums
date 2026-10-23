@@ -221,6 +221,28 @@ describe('inner pages of the public site', () => {
       });
   });
 
+  test('no page claims what the app does not do: a native app, read receipts, preloaded badges or a timed speed-up', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      expect(read(pagePath)).not.toMatch(/native (mobile )?app|application (mobile )?native|read receipts?|accusés? de lecture|pré-?configurés?|pre-?configured|90 (secondes|seconds)/i);
+    });
+  });
+
+  test.each(['/en/compare/wampums-vs-spreadsheets/', '/fr/comparer/wampums-vs-tableurs/'])('%s admits spreadsheets can work offline', (pagePath) => {
+    const html = read(pagePath);
+    expect(html).not.toMatch(/requires internet|nécessite une connexion/);
+    expect(html).toMatch(/Google Sheets and Excel both offer an offline mode|Google Sheets et Excel offrent un mode hors ligne/);
+  });
+
+  test('every comparison table has a caption and column headers', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      const doc = new DOMParser().parseFromString(read(pagePath), 'text/html');
+      doc.querySelectorAll('table').forEach((table) => {
+        expect(table.querySelector('caption')?.textContent.trim()).toBeTruthy();
+        table.querySelectorAll('thead th').forEach((header) => expect(header.getAttribute('scope')).toBe('col'));
+      });
+    });
+  });
+
   test('no page promises an IP address or a legally equivalent signature', () => {
     // The privacy policy names the IP addresses kept in server logs, which is true.
     PAGES.concat(['/en/', '/fr/']).filter((pagePath) => !/privacy|confidentialite/.test(pagePath)).forEach((pagePath) => {
