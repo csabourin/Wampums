@@ -43,8 +43,12 @@ every dialog link to it for visitors who would rather look first.
 
 Write only what the code does today, and nothing about other units' results
 without a source. The Canadian Path is not preloaded; badges are set up with each
-unit. Carpools: parents place their own children, and leaders holding
-`carpools.manage` place anyone. Reports export to CSV or print as PDF. There is no
+unit. Carpools: parents offer seats and place their own children; present it that
+way, never as leaders dispatching rides (`carpools.manage` can place anyone, but
+that is not how units use it). Each activity has its own carpool: there are no
+recurring offers. The only carpool email is the cancellation notice when a
+driver withdraws an offer. Announcements are written once per language, never
+translated automatically. Reports export to CSV or print as PDF. There is no
 app-store app.
 
 Pricing: a single unit is free until at least 2028; an organization opening several

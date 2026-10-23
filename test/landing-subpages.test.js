@@ -267,6 +267,25 @@ describe('inner pages of the public site', () => {
     });
   });
 
+  test('every page says a unit is free until at least 2028, never that it stops in 2028', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      const html = read(pagePath);
+      expect(html).not.toMatch(/(?<!at least )until 2028|(?<!au moins )jusqu.en 2028/i);
+    });
+  });
+
+  test('carpools are shown as parents placing their own children, without leader dispatch, recurring offers or bilingual notices', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      expect(read(pagePath)).not.toMatch(/leaders? (see all (the )?offers and )?assign participants|responsables (voient toutes les offres et )?assignent|leader assignment|leaders fill the gaps|animateurs complètent|marked as recurring|carpool notification in the parent's preferred language/i);
+    });
+  });
+
+  test('no page promises that a message written once arrives translated', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      expect(read(pagePath)).not.toMatch(/Write once\.|Écrivez une fois\.|handles translation of the notification|bilingual experience is automatic/);
+    });
+  });
+
   test('no page promises an IP address or a legally equivalent signature', () => {
     // The privacy policy names the IP addresses kept in server logs, which is true.
     PAGES.concat(['/en/', '/fr/']).filter((pagePath) => !/privacy|confidentialite/.test(pagePath)).forEach((pagePath) => {
