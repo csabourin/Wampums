@@ -15,6 +15,8 @@ test wins and the document gets fixed.
   commented-out or duplicate code. Check `spa/utils/` before writing a helper.
 - **Security first**: escape what you inject, parameterized SQL only, validate input, never log or
   return secrets, tokens or stack traces.
+- **Fictional data only**: no real youth's, parent's or leader's information ever goes into an AI tool.
+  Work on the seeded or showcase units, never a production database, log, export or screenshot.
 - **Documentation**: JSDoc for non-trivial functions; update the docs when behaviour changes.
 
 ## Architecture & API

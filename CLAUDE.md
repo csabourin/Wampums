@@ -1,6 +1,6 @@
 # CLAUDE.md - Development Guidelines for Wampums Scout Management System
 
-**Last Updated:** 2026-10-11
+**Last Updated:** 2026-10-23
 **Project:** Wampums Scout Management System
 **Tech Stack:** Node.js + Express, PostgreSQL, Vite (SPA), Vanilla JavaScript (ES modules), Expo/React Native (mobile)
 
@@ -389,6 +389,14 @@ const result = await pool.query(
 - ✅ **Validate inputs** using `express-validator` and shared utilities
 - ✅ **Rate limiting** on sensitive endpoints (login, password reset); all API responses must include rate-limit headers (`ratelimit-limit` / `x-ratelimit-limit`)
 - ✅ **Never log secrets** (JWT tokens, passwords, API keys)
+- ✅ **Real people's information never reaches an AI tool.** The site promises families that youth and
+  family information never goes through the AI used to build Wampums, and that every test runs on
+  fictional data. Develop, test, debug and take screenshots only on fictional data: the seeded unit
+  (`.claude/skills/run-wampums/seed.mjs`) and the showcase pack (`site-screenshots/showcase.cjs`). Never
+  connect a session to a production database (`.env` points at one; `start.sh` overrides it), and never
+  paste production rows, exports, logs, error reports or screenshots that name a youth, a parent or a
+  leader into a prompt. To reproduce a production bug, rebuild it with invented names. Fixtures and
+  examples in tests and docs use invented people (`Ada Lovelace`, `Léa Tremblay`), never real ones.
 - ✅ **HTTPS only** in production
 - ✅ **Content Security Policy** headers set (via `helmet`); CSP must restrict `frame-src` to `https://js.stripe.com` and `object-src 'none'`
 - ✅ **X-Content-Type-Options: nosniff** header required on all responses
