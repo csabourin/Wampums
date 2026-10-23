@@ -560,6 +560,12 @@ a {
   margin-top: 1.1rem;
 }
 
+.story-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
 .story-quote {
   margin: 0;
   padding: 1.25rem 1.4rem;
@@ -1605,6 +1611,38 @@ a {
 .card ul {
   margin: 0;
   padding-left: 1.2rem;
+}
+
+/* The person behind Wampums: a photo beside the text */
+
+.about {
+  display: grid;
+  gap: 2rem;
+}
+
+.about-photo {
+  max-width: 320px;
+  margin: 0;
+}
+
+.about-photo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-lg);
+}
+
+.about-photo figcaption {
+  margin-top: 0.6rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+@media (min-width: 900px) {
+  .about {
+    grid-template-columns: 320px minmax(0, 1fr);
+    align-items: start;
+  }
 }
 
 /* A screen of the app, in a phone frame, with what it shows */

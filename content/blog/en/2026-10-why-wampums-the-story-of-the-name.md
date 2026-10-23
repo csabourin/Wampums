@@ -63,6 +63,8 @@ Our painted washers were a long way from all that. But as I read, I understood s
 
 The app I build — the fruit of my labour, assisted by artificial intelligence, I admit it freely — does exactly that. It gathers each young person's story and progress: attendance, badges, milestones, good deeds. And it is something shared: between the leaders who fill it in and the parents who read it, between the unit and the families.
 
+And to be clear: the youth's information never goes through those AI tools. I build and test on fictional data.
+
 A memory passed on. A link between two groups moving forward side by side.
 
 It felt right to name it **Wampums**. In memory of our traditions — the washers, the shower-curtain hooks, Akela, Bagheera and everyone who held those packs together. And as a tribute to the Indigenous peoples who are our neighbours, from whom we borrowed so much as children without always understanding it. Here in the Outaouais, we lead on the unceded territory of the Anishinaabe Algonquin Nation.

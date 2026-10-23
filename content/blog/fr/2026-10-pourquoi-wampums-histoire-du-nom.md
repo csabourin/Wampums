@@ -63,6 +63,8 @@ Nos rondelles peintes étaient bien loin de tout ça. Mais en lisant, j'ai compr
 
 L'application que je développe — fruit de mon labeur, assisté par l'intelligence artificielle, je l'avoue sans gêne — fait exactement ça. Elle recueille l'histoire et la progression de chaque jeune : ses présences, ses badges, ses étapes, ses bons coups. Et elle est un objet de partage : entre les animateurs qui la remplissent et les parents qui la consultent, entre l'unité et les familles.
 
+Et pour être clair : les renseignements des jeunes ne passent jamais dans ces outils d'IA. Je développe et je teste sur des données fictives.
+
 Une mémoire qu'on se transmet. Un lien entre deux groupes qui avancent côte à côte.
 
 Il m'a semblé juste de la nommer **Wampums**. En mémoire de nos traditions — les rondelles, le crochet de rideau de douche, Akéla, Bagheera et tous ceux qui ont tenu ces meutes à bout de bras. Et en hommage aux peuples autochtones que nous côtoyons, dont nous avons emprunté, enfants, tant de choses sans toujours les comprendre. Ici, en Outaouais, nous animons sur le territoire non cédé de la Nation anishinaabe algonquine.

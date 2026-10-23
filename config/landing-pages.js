@@ -40,6 +40,7 @@ const LANDING_STATIC_PAGES = [
   { en: '/en/compare/wampums-vs-scoutstracker/', fr: '/fr/comparer/wampums-vs-scoutstracker/', freq: 'monthly', pri: '0.7' },
   { en: '/en/administrators/', fr: '/fr/administrateurs/', freq: 'monthly', pri: '0.7' },
   { en: '/en/districts/', fr: '/fr/districts/', freq: 'monthly', pri: '0.7' },
+  { en: '/en/who-is-behind-wampums/', fr: '/fr/qui-est-derriere-wampums/', freq: 'monthly', pri: '0.6' },
   { en: BLOG_INDEX_PATHS.en, fr: BLOG_INDEX_PATHS.fr, freq: 'weekly', pri: '0.8' },
   { en: '/en/faq/', fr: '/fr/faq/', freq: 'monthly', pri: '0.6' },
   { en: '/en/privacy/', fr: '/fr/confidentialite/', freq: 'yearly', pri: '0.3' },

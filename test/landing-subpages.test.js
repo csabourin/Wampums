@@ -164,10 +164,14 @@ describe('inner pages of the public site', () => {
     const switcher = /<span class="lang-switch">([\s\S]*?)<\/span>\s*<\/nav>/.exec(html)[1];
     expect(switcher).toContain(`<a href="${pagePath}" lang="${lang}-CA" aria-current="page">`);
     expect(switcher).toContain(`<a href="${alternate}" lang="${other}-CA"`);
+    // The footer's other-language link leads to the same page, translated.
+    const footer = /<footer class="site-footer">([\s\S]*?)<\/footer>/.exec(html)[1];
+    const footerSwitch = new RegExp(`<a href="([^"]+)" lang="${other}-CA"`).exec(footer)[1];
+    expect(footerSwitch).toBe(alternate);
   });
 
   // The FAQ and the privacy policy are text pages; every other page shows the app.
-  const TEXT_PAGES = ['/en/faq/', '/fr/faq/', '/en/privacy/', '/fr/confidentialite/'];
+  const TEXT_PAGES = ['/en/faq/', '/fr/faq/', '/en/privacy/', '/fr/confidentialite/', '/en/who-is-behind-wampums/', '/fr/qui-est-derriere-wampums/'];
 
   test.each(PAGES.filter((pagePath) => !TEXT_PAGES.includes(pagePath)))('%s shows a real screen of the app in its own language', (pagePath) => {
     const html = read(pagePath);
@@ -224,6 +228,14 @@ describe('inner pages of the public site', () => {
     });
   });
 
+  test.each(['/en/who-is-behind-wampums/', '/fr/qui-est-derriere-wampums/'])('%s shows who builds Wampums, with a photo, commitments and what comes next', (pagePath) => {
+    const html = read(pagePath);
+    expect(html).toMatch(/<img src="\/images\/christian-sabourin-480\.webp"[^>]*alt="Christian Sabourin[^"]+"/);
+    expect(html).toMatch(/2028/);
+    expect(html).toContain('id="roadmap"');
+    expect(read(pagePath.startsWith('/en/') ? '/en/' : '/fr/')).toContain(`href="${pagePath}"`);
+  });
+
   test('every screenshot in the images folder is shown on a page', () => {
     const shown = new Set(PAGES.flatMap((pagePath) => [...read(pagePath).matchAll(/src="\/images\/screenshots\/([^"]+)"/g)].map((match) => match[1])));
     const files = fs.readdirSync(path.join(LANDING, 'images', 'screenshots'));
@@ -244,7 +256,7 @@ describe('inner pages of the public site', () => {
 
   test.each([
     '/en/faq/', '/fr/faq/', '/fr/modules/finance/', '/en/features/attendance/',
-    '/fr/comparer/wampums-vs-trooptrack/', '/en/compare/wampums-vs-scoutbook/',
+    '/fr/comparer/wampums-vs-trooptrack/', '/en/compare/wampums-vs-scoutbook/', '/fr/qui-est-derriere-wampums/',
   ])('%s has no accessibility violations', async (pagePath) => {
     load(read(pagePath));
     expect((await axe.run(document.body, AXE_OPTIONS)).violations).toEqual([]);
