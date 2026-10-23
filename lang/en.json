@@ -2530,6 +2530,7 @@
   "sync.rejected_kind_attendance": "attendance",
   "sync.rejected_kind_medication": "medication",
   "sync.rejected_kind_badges": "badge history",
+  "sync.rejected_kind_points": "points",
   "sync.rejected_kind_other": "other changes",
   "badge_history_replay_rejected": "The badge history saved offline was refused and not recorded. Check the levels and save again.",
   "offline.dataUnavailable": "This data is not available offline",
@@ -4320,5 +4321,17 @@
   "demo_mission_calendar_title": "See the activity calendar",
   "demo_mission_calendar_text": "Spoiler: there will be marshmallows.",
   "demo_mission_leader_view_title": "See the other side",
-  "demo_mission_leader_view_text": "Sign out and open the leader view to award points (and take some back)."
+  "demo_mission_leader_view_text": "Sign out and open the leader view to award points (and take some back).",
+  "action_roster_context": "Meeting or activity",
+  "action_roster_unit": "Meeting / whole unit",
+  "action_roster_show_all": "Show all participants",
+  "action_roster_all_notice": "All participants are shown. Awards may include exceptions.",
+  "action_roster_signed_notice": "Signed authorizations only; points and honors also follow recorded attendance.",
+  "action_roster_attendance_notice": "Attendance shows everyone. Once taken, points and honors show only those still present.",
+  "action_roster_mark_departure": "Mark departure",
+  "departed": "Left the activity",
+  "action_roster_no_participants": "No participants match the current filter.",
+  "action_roster_activity_unavailable": "This activity is no longer available for the selected date.",
+  "action_roster_participant_unavailable": "This participant is outside the current filter. Check attendance or explicitly show all participants.",
+  "action_roster_departure_requires_presence": "Mark the participant present or late before recording a departure."
 }

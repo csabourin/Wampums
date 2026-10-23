@@ -187,6 +187,9 @@ export function cleanupOfflineSupport() {
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     window.removeEventListener('showToast', handleToastEvent);
 
+    window.clearInterval(offlineManager.syncTimer);
+    offlineManager.syncTimer = null;
+
     // Destroy indicator
     if (offlineIndicator) {
       offlineIndicator.destroy();

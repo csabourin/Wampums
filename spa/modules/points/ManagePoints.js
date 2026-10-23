@@ -1,11 +1,11 @@
+import { attendanceDisplayStatus } from '../../utils/AttendanceStatusUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
+import { ActionRoster } from '../../components/ActionRoster.js';
 import {
   getParticipants,
   getGroups,
-  getAttendance,
   updatePoints,
-  getAuthHeader,
-  getCurrentOrganizationId,
-  getApiUrl,
   CONFIG,
   API,
 } from '../../ajax-functions.js';
@@ -15,6 +15,7 @@ import {
   setCachedData,
   getCachedData,
   getCachedDataIgnoreExpiration,
+  getOfflineData,
 } from '../../indexedDB.js';
 import { canViewPoints } from '../../utils/PermissionUtils.js';
 import { normalizeParticipantList } from '../../utils/ParticipantRoleUtils.js';
@@ -25,12 +26,15 @@ import { PointActionBar } from '../../modules/points/PointActionBar.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { normalizeApiPath } from '../../utils/OfflineCacheKeys.js';
 import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 const POINTS_CACHE_KEY = 'manage_points_data';
 
 export class ManagePoints {
   constructor(app) {
     this.app = app;
+    this.destroyed = false;
+    this.roster = new ActionRoster('points');
     // Selection is data rather than DOM references so it survives sorting and
     // list re-renders. Groups remain exclusive; individuals can be combined.
     this.selected = null; // { type: 'group', id } | { type: 'individual', ids: Set }
@@ -69,18 +73,18 @@ export class ManagePoints {
       return;
     }
 
+    showPageLoading(document.getElementById('app'), this.pageOptions());
     try {
       await this.preloadManagePointsData();
+      await this.roster.load(getTodayISO());
+      this.loadTodayAttendance();
       this.render();
       this.attachEventListeners();
       this.unsubscribeStore?.();
       this.unsubscribeStore = this.store.subscribe((changedIds) => this.onStoreChange(changedIds));
       debugLog('ManagePoints initialized');
       if (navigator.onLine) {
-        await Promise.all([
-          this.refreshPointsData(),
-          this.loadTodayAttendance(),
-        ]);
+        await this.refreshPointsData();
       }
     } catch (error) {
       debugError('Error initializing manage points:', error);
@@ -90,28 +94,12 @@ export class ManagePoints {
 
   async preloadManagePointsData() {
     try {
-      const cachedData = await getCachedData(POINTS_CACHE_KEY);
+      const keepLocalTotals = !navigator.onLine || await this.hasQueuedPoints();
+      const cachedData = keepLocalTotals
+        ? await getCachedDataIgnoreExpiration(POINTS_CACHE_KEY)
+        : await getCachedData(POINTS_CACHE_KEY);
       if (cachedData) {
         this.applyPointsData(this.normalizePointsData(cachedData));
-
-        // Try to get fresh points data, but if offline, gracefully
-        // use the cached data that was already loaded above.
-        try {
-          const freshData = await getParticipants();
-          if (freshData.success) {
-            this.participants = normalizeParticipantList(
-              freshData.data || freshData.participants || []
-            );
-            debugLog('Fresh participants loaded:', this.participants.length, 'records');
-            this.store.load(this.participants, this.groups);
-            this.organizeParticipants();
-          }
-        } catch (fetchError) {
-          debugWarn(
-            'Could not fetch fresh participants (possibly offline), using cached data:',
-            fetchError.message,
-          );
-        }
       } else {
         await this.fetchData();
       }
@@ -190,33 +178,17 @@ export class ManagePoints {
     }
   }
 
-  /**
-   * Load today's attendance so group awards can skip absent/excused members
-   * locally, matching what the server will do. Non-fatal: without it the
-   * server response still corrects the totals.
-   */
-  async loadTodayAttendance() {
-    try {
-      const response = await getAttendance(getTodayISO());
-      const records = Array.isArray(response?.data) ? response.data : [];
-      this.todayAttendance = {};
-      records.forEach((record) => {
-        const status = record.status || record.attendance_status;
-        if (record.participant_id && status) {
-          this.todayAttendance[record.participant_id] = status;
-        }
-      });
-      debugLog("Loaded today's attendance:", Object.keys(this.todayAttendance).length, 'records');
-    } catch (error) {
-      debugWarn("Could not load today's attendance:", error.message);
-      this.todayAttendance = {};
-    }
+  /** Use the shared snapshot, including departures still waiting for sync. */
+  loadTodayAttendance() {
+    this.todayAttendance = Object.fromEntries(Object.entries(this.roster.attendance)
+      .map(([id, record]) => [id, attendanceDisplayStatus(record)]));
   }
 
   render() {
+    if (this.destroyed) { return; }
     const content = `
       <section class="manage-points-page">
-        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+        ${renderBackLink()}
         <h1>${translate('manage_points')}</h1>
         <div class="controls-container">
           <div class="sort-options">
@@ -241,6 +213,7 @@ export class ManagePoints {
             </select>
           </div>
         </div>
+        ${this.roster.render()}
         <div id="points-list"></div>
       </section>
       ${this.actionBar.render()}
@@ -262,6 +235,10 @@ export class ManagePoints {
       return;
     }
 
+    if (this.participants.length && !this.participants.some((participant) => this.roster.includes(participant.id))) {
+      setContent(pointsList, `<p role="status">${translate('action_roster_no_participants')}</p>`);
+      return;
+    }
     if (this.currentSort.key === 'group') {
       setContent(pointsList, this.renderGroupedList() + this.renderUnassignedParticipants());
     } else {
@@ -341,6 +318,7 @@ export class ManagePoints {
   }
 
   renderParticipantItem(participant) {
+    if (!this.roster.includes(participant.id)) { return ''; }
     return `
       <button type="button" class="list-item" data-participant-id="${participant.id}"
         data-type="individual" data-group-id="${participant.group_id ?? 'null'}"
@@ -360,9 +338,21 @@ export class ManagePoints {
 
   // Event delegation for attaching listeners to dynamically added elements
   attachEventListeners() {
+    this.roster.attach(() => {
+      this.selected = null;
+      this.render();
+      this.attachEventListeners();
+    });
     this.eventController?.abort();
     this.eventController = new AbortController();
     const { signal } = this.eventController;
+    window.addEventListener('syncStatusChanged', (event) => {
+      if (!event.detail?.isSyncing && navigator.onLine) {
+        void this.refreshPointsData({ forceRefresh: true }).catch((error) => {
+          debugWarn('Could not refresh points after sync', error);
+        });
+      }
+    }, { signal });
     const sortContainer = document.querySelector('.sort-options');
     const pointsList = document.getElementById('points-list');
     const filterDropdown = document.getElementById('group-filter');
@@ -566,7 +556,13 @@ export class ManagePoints {
 
     if (type === 'group') {
       const { id } = this.selected;
-      const { eligible, skipped } = this.getEligibleGroupMemberIds(id);
+      const groupMembers = this.participants.filter((participant) => String(participant.group_id) === String(id));
+      const eligible = groupMembers.filter((participant) => this.roster.includes(participant.id)).map((participant) => participant.id);
+      const skipped = groupMembers.filter((participant) => !this.roster.includes(participant.id)).map((participant) => participant.id);
+      if (!eligible.length) {
+        this.app.showMessage(translate('action_roster_no_participants'), 'info');
+        return false;
+      }
       if (skipped.length > 0) {
         this.app.showMessage(
           translate('points_skipped_absent_participants').replace('{{count}}', skipped.length),
@@ -586,7 +582,8 @@ export class ManagePoints {
         date: today,
       }];
     } else {
-      const ids = [...this.selected.ids];
+      const ids = [...this.selected.ids].filter((id) => this.roster.includes(id));
+      if (!ids.length) { return false; }
       txn = {
         participantDeltas: Object.fromEntries(ids.map((id) => [id, points])),
         groupDeltas: {},
@@ -599,6 +596,8 @@ export class ManagePoints {
         timestamp,
       }));
     }
+
+    payloads = payloads.map((payload) => ({ ...payload, ...this.roster.awardContext() }));
 
     const actionKey = this.getActionKey(points);
     if (this.pendingActionKeys.has(actionKey)) {return false;}
@@ -693,46 +692,10 @@ export class ManagePoints {
     } catch (error) {
       debugError('Error in batch update:', error);
 
-      // Network error (went offline mid-request): queue for offline sync
-      if (error instanceof TypeError || !navigator.onLine) {
-        try {
-          const { offlineManager } = await import('../../modules/OfflineManager.js');
-          await offlineManager.queueMutation(
-            getApiUrl('api/v1/points'),
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...getAuthHeader(),
-                'x-organization-id': getCurrentOrganizationId(),
-              },
-              body: JSON.stringify(payloads),
-            }
-          );
-          debugLog('Batch update queued for offline sync (network error fallback):', payloads.length, 'updates');
-        } catch (queueError) {
-          debugError('Failed to queue offline mutation:', queueError);
-          // Point awards are additive and cannot be replayed safely until the
-          // endpoint implements transactional idempotency. Restore the exact
-          // pre-click state instead of showing totals that were never saved.
-          this.store.rollbackBatch(txns);
-          await this.updateCache();
-          this.app.showMessage(
-            queueError.message || translate('offline.writeUnavailable'),
-            'error',
-          );
-          return;
-        }
-        this.store.foldBatch(txns);
-        await this.updateCache();
-      } else {
-        // Server error: undo the optimistic deltas
-        this.store.rollbackBatch(txns);
-        this.app.showMessage(
-          apiErrorMessage(error, 'error_updating_points'),
-          'error'
-        );
-      }
+      // The shared API client owns queueing and preserves the request identity.
+      // A failure here means local persistence or the server refused the award.
+      this.store.rollbackBatch(txns);
+      this.app.showMessage(apiErrorMessage(error, 'error_updating_points'), 'error');
     } finally {
       this.batchInFlight = false;
       batch.forEach((entry) => entry.resolve());
@@ -808,7 +771,7 @@ export class ManagePoints {
           groupedParticipants: this.groupedParticipants,
           unassignedParticipants: this.unassignedParticipants,
         },
-        CONFIG.CACHE_DURATION.SHORT,
+        CONFIG.CACHE_DURATION.CAMP_MODE || CONFIG.CACHE_DURATION.LONG,
       );
       debugLog('Cache updated with new points data.');
     } catch (error) {
@@ -876,9 +839,18 @@ export class ManagePoints {
     });
   }
 
-  async refreshPointsData() {
+  /** Whether the durable outbox still holds point totals not confirmed by the server. */
+  async hasQueuedPoints() {
+    const records = await getOfflineData();
+    return records.some((record) => record.data?.url &&
+      normalizeApiPath(record.data.url) === '/api/v1/points');
+  }
+
+  async refreshPointsData({ forceRefresh = false } = {}) {
     try {
-      const cachedData = await getCachedData(POINTS_CACHE_KEY);
+      // Server totals do not include queued awards yet. Keep their local copy.
+      if (this.batchInFlight || this.updateQueue.length || await this.hasQueuedPoints()) { return; }
+      const cachedData = forceRefresh ? null : await getCachedData(POINTS_CACHE_KEY);
       if (cachedData) {
         debugLog('Using cached points data');
         this.applyPointsData(this.normalizePointsData(cachedData));
@@ -967,6 +939,8 @@ export class ManagePoints {
   }
 
   destroy() {
+    this.destroyed = true;
+    this.roster.destroy();
     this.eventController?.abort();
     this.eventController = null;
     this.unsubscribeStore?.();
@@ -977,11 +951,15 @@ export class ManagePoints {
     this.pendingActionKeys.clear();
   }
 
+  /** Shared loading and retry states retain the way back to the dashboard. */
+  pageOptions() {
+    return { title: translate('manage_points'), className: 'manage-points-page' };
+  }
+
   renderError() {
-    const errorMessage = `
-        <h1>${translate('error')}</h1>
-        <p>${translate('error_loading_manage_points')}</p>
-    `;
-    setContent(document.getElementById('app'), errorMessage);
+    if (this.destroyed) { return; }
+    showPageError(document.getElementById('app'), {
+      ...this.pageOptions(), message: translate('error_loading_manage_points'),
+    }, () => this.init());
   }
 }

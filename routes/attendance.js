@@ -12,6 +12,7 @@ const { calculateAttendancePoints, handleOrganizationResolutionError } = require
 // Longest activity date range (in days) expanded into selectable attendance dates
 const MAX_ACTIVITY_SPAN_DAYS = 31;
 const HTTP_NOT_FOUND = 404;
+const HTTP_CONFLICT = 409;
 
 module.exports = (pool, logger) => {
   /**
@@ -194,10 +195,10 @@ module.exports = (pool, logger) => {
 
         // Upsert attendance
         const result = await client.query(
-          `INSERT INTO attendance (participant_id, date, status, organization_id)
-         VALUES ($1, $2, $3, $4)
+          `INSERT INTO attendance (participant_id, date, status, organization_id, is_on_site)
+         VALUES ($1, $2, $3::varchar, $4, $3::varchar IN ('present', 'late'))
          ON CONFLICT (participant_id, date, organization_id)
-         DO UPDATE SET status = $3
+         DO UPDATE SET status = $3, is_on_site = $3::varchar IN ('present', 'late'), departed_at = NULL
          RETURNING *`,
           [participant_id, date, status, organizationId]
         );
@@ -233,6 +234,21 @@ module.exports = (pool, logger) => {
       } finally {
         client.release();
       }
+    }));
+
+  // A departure is an idempotent update, with no attendance-point adjustment.
+  router.post('/departure', authenticate, allowDemoSandbox(DEMO_SANDBOX.attendanceDeparture),
+    requirePermission('attendance.manage'), validateIdBody('participant_id'), validateDate('date'), checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const result = await pool.query(
+        `UPDATE attendance SET is_on_site = FALSE, departed_at = COALESCE(departed_at, NOW())
+          WHERE organization_id = $1 AND participant_id = $2 AND date = $3::date
+            AND status IN ('present', 'late') RETURNING *`,
+        [organizationId, req.body.participant_id, req.body.date]
+      );
+      if (!result.rows.length) { return error(res, 'action_roster_departure_requires_presence', HTTP_CONFLICT); }
+      return success(res, result.rows[0]);
     }));
 
   /**
@@ -292,6 +308,7 @@ module.exports = (pool, logger) => {
          WHERE a.organization_id = $1
            AND a.date = $2::date
            AND a.status IN ('present', 'late')
+           AND a.is_on_site IS DISTINCT FROM FALSE
            AND NOT EXISTS (
              SELECT 1 FROM attendance a2
              WHERE a2.participant_id = a.participant_id

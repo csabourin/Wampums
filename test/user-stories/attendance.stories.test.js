@@ -15,6 +15,26 @@
 require('fake-indexeddb/auto');
 const { IDBFactory } = require('fake-indexeddb');
 
+jest.mock('../../spa/api/api-action-roster.js', () => ({
+  getActionRoster: jest.fn(async (date) => {
+    const { getActivities } = require('../../spa/api/api-activities.js');
+    const { offlineManager } = require('../../spa/modules/OfflineManager.js');
+    const prepared = offlineManager.getPreparedActivityForDate(date);
+    const activities = (await getActivities()).map((activity) => ({ ...activity,
+      start_date: activity.activity_start_date || activity.activity_date,
+      end_date: activity.activity_end_date || activity.activity_date,
+      requires_permission: false, signed_participant_ids: [],
+    }));
+    if (!activities.length && offlineManager.campMode && prepared?.dates?.length) {
+      activities.push({ id: 5, name: 'Prepared camp', start_date: prepared.dates[0],
+        end_date: prepared.dates[prepared.dates.length - 1], requires_permission: false, signed_participant_ids: [] });
+    }
+    return { data: { activities, attendance: [] } };
+  }),
+  markActivityDeparture: jest.fn(() => Promise.resolve({ success: true })),
+}));
+
+
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(),
   debugWarn: jest.fn(),
@@ -701,4 +721,74 @@ describe('US-ATT-A11Y — The page says what it is, in every state', () => {
     expect(document.querySelector('[role="alert"]')).toBeNull();
     expect(document.querySelectorAll('.group-card')).toHaveLength(2);
   });
+});
+
+
+test('marking the remaining participants present only touches the signed roster', async () => {
+  seedStandardData();
+  const { getActionRoster } = require('../../spa/api/api-action-roster.js');
+  getActionRoster.mockResolvedValueOnce({ data: {
+    activities: [{ id: 5, name: 'Camp des Érables', start_date: TODAY, end_date: TODAY, requires_permission: true, signed_participant_ids: [1] }],
+    attendance: [],
+  } });
+  const { page } = await initPage();
+  expect(document.querySelector('.participant-row[data-participant-id="2"]')).toBeNull();
+  await page.markAllRemainingPresent();
+  expect(ajax.updateAttendance).toHaveBeenCalledTimes(1);
+  expect(ajax.updateAttendance).toHaveBeenCalledWith(1, 'present', TODAY, null);
+});
+
+test('an offline departure is written to the shared cache for points and honors', async () => {
+  seedStandardData({ attendanceToday: [{ participant_id: 1, status: 'present' }] });
+  const { markActivityDeparture } = require('../../spa/api/api-action-roster.js');
+  markActivityDeparture.mockResolvedValueOnce({ success: true, queued: true });
+  const { page } = await initPage();
+  await page.updateIndividualStatus(1, 'departed');
+  expect(markActivityDeparture).toHaveBeenCalledWith(1, TODAY);
+  expect((await getCachedData(`attendance_${TODAY}`)).attendanceData[1]).toBe('departed');
+  expect(statusChip(1)).toBe(tr('departed'));
+});
+
+test('a group departure keeps successful saves when another departure is refused', async () => {
+  seedStandardData({ attendanceToday: [{ participant_id: 1, status: 'present' }, { participant_id: 2, status: 'late' }] });
+  const { markActivityDeparture } = require('../../spa/api/api-action-roster.js');
+  markActivityDeparture.mockResolvedValueOnce({ success: true }).mockRejectedValueOnce(new Error('refused'));
+  const { page } = await initPage();
+  await page.updateGroupStatus(1, 'departed');
+  expect(statusChip(1)).toBe(tr('departed'));
+  expect(statusChip(2)).toBe(tr('late'));
+  const cached = await getCachedData(`attendance_${TODAY}`);
+  expect(cached.attendanceData).toMatchObject({ 1: 'departed', 2: 'late' });
+});
+
+
+test('a departure remains the latest camp attendance source instead of reviving an older presence', async () => {
+  await setCachedData(`attendance_${YESTERDAY}`, { attendanceData: { 1: 'present' } }, 60000);
+  await setCachedData(`attendance_${TODAY}`, { attendanceData: { 1: 'departed' } }, 60000);
+  const page = new Attendance(makeAppStub());
+  const source = await page.findCarryForwardSourceOffline([YESTERDAY, TODAY]);
+  expect(source).toEqual({ date: TODAY, attendance: { 1: 'departed' } });
+  page.destroy();
+});
+
+test('the online camp carry-forward excludes a participant who already left', async () => {
+  ajax.getAttendance.mockResolvedValue({ success: true, data: [{ participant_id: 1, status: 'present', is_on_site: false }] });
+  const page = new Attendance(makeAppStub());
+  const source = await page.findCarryForwardSourceOnline([YESTERDAY]);
+  expect(source.attendance[1]).toBe('departed');
+  page.destroy();
+});
+
+test('a planned meeting keeps the whole attendance roster without carrying an overlapping camp', async () => {
+  seedStandardData();
+  getActivities.mockResolvedValue([{ id: 5, name: 'Camp des Érables', activity_start_date: YESTERDAY, activity_end_date: TOMORROW }]);
+  const { getActionRoster } = require('../../spa/api/api-action-roster.js');
+  getActionRoster.mockResolvedValueOnce({ data: {
+    activities: [{ id: 5, name: 'Camp des Érables', start_date: YESTERDAY, end_date: TOMORROW, requires_permission: true, signed_participant_ids: [1] }],
+    attendance: [], meeting_dates: [TODAY],
+  } });
+  const { page } = await initPage();
+  expect(page.activeActivity).toBeNull();
+  expect(document.querySelectorAll('.participant-row')).toHaveLength(4);
+  expect(global.fetch.mock.calls.some(([url]) => String(url).includes('carry-forward'))).toBe(false);
 });

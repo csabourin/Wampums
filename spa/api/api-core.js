@@ -306,12 +306,21 @@ async function sendApiRequest(endpoint, options = {}) {
   }
 
   const requestPath = normalizeApiPath(endpoint);
+  // Keep the same identity from the first attempt through every offline replay.
+  if (method === 'POST' && requestPath === '/api/v1/points') {
+    requestConfig.headers['Idempotency-Key'] ||= crypto.randomUUID();
+  }
   const requiresOnline = !queueOffline || (CONFIG.ONLINE_REQUIRED_MUTATION_RESOURCES || []).some((resource) =>
     requestPath === `/api/v1/${resource}` || requestPath.startsWith(`/api/v1/${resource}/`)
   );
 
-  // Family authority and mail delivery must be confirmed before reporting success.
-  if ((offlineManager.isOffline || navigator.onLine === false) && method !== 'GET') {
+  const pointsWaiting = method === 'POST' && requestPath === '/api/v1/points'
+    && (await offlineManager.hasPendingPoints() || await offlineManager.hasPendingAttendance());
+  const attendanceWaiting = method === 'POST' &&
+    (requestPath === '/api/v1/attendance' || requestPath.startsWith('/api/v1/attendance/')) &&
+    await offlineManager.hasPendingAttendance();
+  // Keep arrivals, departures and awards in their original order across reconnects.
+  if ((offlineManager.isOffline || navigator.onLine === false || pointsWaiting || attendanceWaiting) && method !== 'GET') {
     if (requiresOnline) {
       const offlineError = new Error(offlineManager.getTranslation('family_operation_online_required'));
       offlineError.code = 'online_required';
@@ -325,7 +334,7 @@ async function sendApiRequest(endpoint, options = {}) {
         body: requestConfig.body
       });
 
-      await invalidateCachedResource(endpoint);
+      if (requestPath !== '/api/v1/points') { await invalidateCachedResource(endpoint); }
 
       return {
         success: true,

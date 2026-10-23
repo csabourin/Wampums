@@ -2524,6 +2524,7 @@
   "sync.rejected_kind_attendance": "présences",
   "sync.rejected_kind_medication": "médicaments",
   "sync.rejected_kind_badges": "historique des badges",
+  "sync.rejected_kind_points": "points",
   "sync.rejected_kind_other": "autres modifications",
   "badge_history_replay_rejected": "L’historique des badges enregistré hors ligne a été refusé et n’est pas enregistré. Vérifiez les niveaux et enregistrez de nouveau.",
   "offline.dataUnavailable": "Ces données ne sont pas disponibles hors ligne",
@@ -4320,5 +4321,17 @@
   "demo_mission_calendar_title": "Voyez le calendrier des activités",
   "demo_mission_calendar_text": "Divulgâcheur : il y aura des guimauves.",
   "demo_mission_leader_view_title": "Passez de l’autre côté",
-  "demo_mission_leader_view_text": "Déconnectez-vous et ouvrez la vue animation pour donner des points (et en reprendre)."
+  "demo_mission_leader_view_text": "Déconnectez-vous et ouvrez la vue animation pour donner des points (et en reprendre).",
+  "action_roster_context": "Réunion ou activité",
+  "action_roster_unit": "Réunion / toute l’unité",
+  "action_roster_show_all": "Afficher tous les participants",
+  "action_roster_all_notice": "Tous les participants sont affichés. Les attributions peuvent inclure des exceptions.",
+  "action_roster_signed_notice": "Autorisations signées seulement ; les points et honneurs tiennent aussi compte des présences saisies.",
+  "action_roster_attendance_notice": "Les présences affichent tout le monde. Une fois saisies, les points et honneurs affichent seulement les jeunes encore présents.",
+  "action_roster_mark_departure": "Marquer le départ",
+  "departed": "A quitté l’activité",
+  "action_roster_no_participants": "Aucun participant ne correspond au filtre actuel.",
+  "action_roster_activity_unavailable": "Cette activité n’est plus disponible pour la date choisie.",
+  "action_roster_participant_unavailable": "Ce participant est exclu du filtre actuel. Vérifiez les présences ou choisissez explicitement d’afficher tous les participants.",
+  "action_roster_departure_requires_presence": "Indiquez le participant comme présent ou en retard avant de marquer son départ."
 }

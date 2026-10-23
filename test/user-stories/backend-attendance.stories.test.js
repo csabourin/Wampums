@@ -487,3 +487,19 @@ describe('US-PERM-003 — Demo accounts are read-only', () => {
     expect(res.body.isDemo).toBe(true);
   });
 });
+
+test('a departure keeps the recorded attendance and earned points', async () => {
+  const recorded = installHandler((query) => {
+    if (query.includes('UPDATE attendance SET is_on_site')) {
+      return { rows: [{ participant_id: 1, status: 'present', is_on_site: false }] };
+    }
+    return undefined;
+  });
+  const result = await request(app).post('/api/v1/attendance/departure').set('Authorization', `Bearer ${generateToken()}`)
+    .send({ participant_id: 1, date: '2026-07-15' }).expect(200);
+  expect(result.body.data).toMatchObject({ status: 'present', is_on_site: false });
+  expect(queriesMatching(recorded, 'INSERT INTO points')).toHaveLength(0);
+  const departure = queriesMatching(recorded, 'UPDATE attendance SET is_on_site')[0];
+  expect(departure.query).toContain('organization_id = $1');
+  expect(departure.params).toEqual([ORG_ID, 1, '2026-07-15']);
+});

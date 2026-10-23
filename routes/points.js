@@ -8,6 +8,8 @@
  */
 
 const express = require('express');
+const { eligibleActionParticipants } = require('../services/actionRoster');
+const { createHash } = require('node:crypto');
 const router = express.Router();
 
 // Import auth middleware
@@ -26,6 +28,7 @@ const POSTGRES_INTEGER_MIN = -2147483648;
 const POSTGRES_INTEGER_MAX = 2147483647;
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
+const HTTP_CONFLICT = 409;
 
 /**
  * Export route factory function
@@ -177,6 +180,10 @@ module.exports = (pool, logger) => {
   router.post('/', authenticate, allowDemoSandbox(DEMO_SANDBOX.points), requirePermission('points.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const updates = req.body;
+    const idempotencyKey = req.get('Idempotency-Key');
+    if (idempotencyKey && !/^[a-zA-Z0-9-]{1,128}$/.test(idempotencyKey)) {
+      return errorResponse(res, 'Invalid idempotency key', HTTP_BAD_REQUEST);
+    }
 
     logger.info('[update-points] Processing request', { 
       updateCount: Array.isArray(updates) ? updates.length : 0,
@@ -209,6 +216,8 @@ module.exports = (pool, logger) => {
       }
     }
 
+    const requestHash = createHash('sha256').update(JSON.stringify(updates)).digest('hex');
+
     // Totals returned to the client are the running totals of the active scout
     // year, not lifetime totals: opening a new year is what resets the score.
     const activeScoutYear = await ensureActiveScoutYear(pool, organizationId);
@@ -219,12 +228,39 @@ module.exports = (pool, logger) => {
     try {
       await client.query('BEGIN');
 
+      if (idempotencyKey) {
+        // A unique row serializes concurrent retries. It commits with the points,
+        // so a lost response can be retried without awarding the batch twice.
+        const claim = await client.query(
+          `INSERT INTO point_mutation_receipts (organization_id, user_id, mutation_key, request_hash)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (organization_id, user_id, mutation_key) DO NOTHING
+           RETURNING mutation_key`,
+          [organizationId, req.user.id, idempotencyKey, requestHash]
+        );
+        if (claim.rows.length === 0) {
+          const existing = await client.query(
+            `SELECT request_hash, response_data FROM point_mutation_receipts
+             WHERE organization_id = $1 AND user_id = $2 AND mutation_key = $3`,
+            [organizationId, req.user.id, idempotencyKey]
+          );
+          await client.query('ROLLBACK');
+          if (existing.rows[0].request_hash !== requestHash) {
+            return errorResponse(res, 'Idempotency key already used for another batch', HTTP_CONFLICT);
+          }
+          return success(res, existing.rows[0].response_data, 'Points updated successfully');
+        }
+      }
+
       for (const update of normalizedUpdates) {
         // Frontend sends: {type, id, points, timestamp, date?}
         // We need to convert to: {participant_id, group_id, value}
         // date is optional - if provided, we filter by attendance (only present/late get points)
         const { type, id, points, date } = update;
         const value = points;
+        const hasRosterContext = Object.hasOwn(update, 'activity_id') || Object.hasOwn(update, 'include_all');
+        // eslint-disable-next-line no-await-in-loop -- Keep each award and its roster check in the same transaction.
+        const eligible = hasRosterContext ? await eligibleActionParticipants(client, organizationId, update) : null;
 
         if (type === 'group') {
           // For group points, add points to the group AND to each individual member
@@ -246,12 +282,16 @@ module.exports = (pool, logger) => {
           );
 
           let memberIds = membersResult.rows.map(r => r.id);
+          if (eligible !== null) { memberIds = memberIds.filter((memberId) => eligible.has(Number(memberId))); }
+          if (hasRosterContext && memberIds.length === 0) {
+            throw Object.assign(new Error('action_roster_no_participants'), { status: HTTP_CONFLICT });
+          }
           let skippedCount = 0;
           let skippedParticipants = [];
 
           // If date is provided, filter by attendance (only present/late)
           // But only if attendance was actually taken for that date
-          if (date && memberIds.length > 0) {
+          if (date && memberIds.length > 0 && !hasRosterContext) {
             // First check if ANY attendance was recorded for this date
             const anyAttendanceResult = await client.query(
               `SELECT COUNT(*) as count FROM attendance
@@ -267,7 +307,7 @@ module.exports = (pool, logger) => {
                 `SELECT participant_id, status FROM attendance
                    WHERE organization_id = $1 AND date = $2::date
                    AND participant_id = ANY($3)
-                   AND status IN ('present', 'late')`,
+                   AND status IN ('present', 'late') AND is_on_site IS DISTINCT FROM FALSE`,
                 [organizationId, date, memberIds]
               );
 
@@ -379,6 +419,9 @@ module.exports = (pool, logger) => {
         } else {
           // For individual participant points
           const participantId = id;
+          if (eligible !== null && !eligible.has(Number(participantId))) {
+            throw Object.assign(new Error('action_roster_participant_unavailable'), { status: HTTP_CONFLICT });
+          }
 
           // Get the participant's group_id and verify they belong to this organization
           const participantResult = await client.query(
@@ -422,6 +465,13 @@ module.exports = (pool, logger) => {
         }
       }
 
+      if (idempotencyKey) {
+        await client.query(
+          `UPDATE point_mutation_receipts SET response_data = $4::jsonb
+           WHERE organization_id = $1 AND user_id = $2 AND mutation_key = $3`,
+          [organizationId, req.user.id, idempotencyKey, JSON.stringify({ updates: responseUpdates })]
+        );
+      }
       await client.query('COMMIT');
       logger.info('[update-points] Points update successful', { 
         updateCount: responseUpdates.length,
@@ -430,6 +480,7 @@ module.exports = (pool, logger) => {
       return success(res, { updates: responseUpdates }, 'Points updated successfully');
     } catch (error) {
       await client.query('ROLLBACK');
+      if (error.status) { return errorResponse(res, error.message, error.status); }
       if (error.code === 'POINT_INDIVIDUAL_NOT_FOUND') {
         return errorResponse(res, 'participant_not_found', HTTP_NOT_FOUND);
       }

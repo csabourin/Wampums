@@ -17,6 +17,12 @@
 require('fake-indexeddb/auto');
 const { IDBFactory } = require('fake-indexeddb');
 
+jest.mock('../../spa/api/api-action-roster.js', () => ({
+  getActionRoster: jest.fn(() => Promise.resolve({ data: { activities: [], attendance: [] } })),
+  markActivityDeparture: jest.fn(() => Promise.resolve({ success: true })),
+}));
+
+
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(),
   debugWarn: jest.fn(),
@@ -117,9 +123,12 @@ function seedHonorsData({ todayHonorCreatedAt = MINUTES_5_AGO } = {}) {
   ajax.awardHonor.mockResolvedValue({ success: true, data: { results: [] } });
 }
 
+const honorPages = [];
+
 async function initPage() {
   const appStub = makeAppStub();
   const page = new ManageHonors(appStub);
+  honorPages.push(page);
   await page.init();
   await flushPromises();
   return { page, appStub };
@@ -138,7 +147,9 @@ beforeEach(() => {
   offlineManager.getPreparedActivityForDate.mockReturnValue(null);
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await Promise.all(honorPages.flatMap((page) => [page.awardPromise, page.actionPromise]));
+  honorPages.splice(0).forEach((page) => page.destroy());
   // Modals append to document.body outside #app
   document.body.innerHTML = '';
 });
@@ -229,7 +240,7 @@ describe('US-HON-002 — Award honors with a reason for each kid', () => {
     await flushPromises();
 
     expect(ajax.awardHonor).toHaveBeenCalledWith([
-      { participantId: '2', date: TODAY, reason: 'Cooked dinner' }
+      { participantId: '2', date: TODAY, reason: 'Cooked dinner', activity_id: null, include_all: false }
     ]);
     expect(appStub.showMessage).toHaveBeenCalledWith(tr('honors_awarded_successfully'), 'success');
 
@@ -251,7 +262,7 @@ describe('US-HON-002 — Award honors with a reason for each kid', () => {
       await flushPromises();
 
       expect(document.getElementById('honor-reason-modal')).toBeNull();
-      expect(ajax.awardHonor).toHaveBeenCalledWith([{ participantId: '2', date: TODAY, reason: '' }]);
+      expect(ajax.awardHonor).toHaveBeenCalledWith([{ participantId: '2', date: TODAY, reason: '', activity_id: null, include_all: false }]);
     } finally {
       delete app.userRoles;
       delete app.organizationSettings;

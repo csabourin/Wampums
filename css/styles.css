@@ -12815,3 +12815,23 @@ body:has(> .settings-icon) .demo-banner__inner {
 .demo-banner__title {
   color: var(--color-primary-dark);
 }
+
+/* Shared activity scope for attendance, points and honors. */
+.action-roster-controls {
+  display: grid;
+  gap: var(--space-sm);
+  margin-block: var(--space-md);
+  min-width: 0;
+}
+.action-roster-controls select {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--touch-target-min);
+}
+.action-roster-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--touch-target-min);
+}
+.action-roster-controls p { margin: 0; }
