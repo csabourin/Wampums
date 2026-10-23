@@ -82,3 +82,20 @@ for (const lang of ['en', 'fr']) {
     await expect(banner.locator('[data-consent-choice="denied"]')).toBeFocused();
   });
 }
+
+test('the consent banner is in place at the first paint, so the page does not jump when it appears', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.layoutShift = 0;
+    new PerformanceObserver((list) => {
+      list.getEntries().forEach((entry) => {
+        if (!entry.hadRecentInput) {
+          window.layoutShift += entry.value;
+        }
+      });
+    }).observe({ type: 'layout-shift', buffered: true });
+  });
+  await page.goto(`${LANDING_ORIGIN}/en/features/forms/`, { waitUntil: 'networkidle' });
+  await expect(page.locator('#cookie-consent')).toBeVisible();
+  // Core Web Vitals call a cumulative layout shift under 0.1 good.
+  expect(await page.evaluate(() => window.layoutShift)).toBeLessThan(0.1);
+});

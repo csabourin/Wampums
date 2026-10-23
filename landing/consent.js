@@ -104,9 +104,16 @@
     return node;
   }
 
-  /** Render an in-flow banner and a permanent footer control, without covering page content. */
-  function initConsentControls() {
-    if (document.getElementById('cookie-consent')) {
+  /** The banner's parts, once placed. */
+  let controls = null;
+
+  /**
+   * Place the in-flow banner, without covering page content. It goes in as soon
+   * as the skip link exists, while the page is still being parsed, so it is there
+   * at the first paint and nothing below it moves when it appears.
+   */
+  function placeBanner() {
+    if (controls || document.getElementById('cookie-consent')) {
       return;
     }
     const lang = document.documentElement.lang.startsWith('fr') ? 'fr' : 'en';
@@ -140,6 +147,21 @@
     } else {
       document.body.prepend(banner);
     }
+    const status = element('p', 'shell cookie-consent__status');
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    banner.after(status);
+    controls = { banner, heading, status, accept, reject, copy, wired: false };
+  }
+
+  /** Add the permanent footer control and wire the choices once the page is parsed. */
+  function initConsentControls() {
+    placeBanner();
+    if (!controls || controls.wired) {
+      return;
+    }
+    controls.wired = true;
+    const { banner, heading, status, accept, reject, copy } = controls;
 
     const settings = element('button', 'cookie-settings', copy.settings);
     settings.type = 'button';
@@ -147,10 +169,6 @@
     settings.setAttribute('aria-expanded', String(!banner.hidden));
     const footer = document.querySelector('.footer-base') || document.querySelector('footer') || document.body;
     footer.append(settings);
-    const status = element('p', 'shell cookie-consent__status');
-    status.setAttribute('role', 'status');
-    status.setAttribute('aria-live', 'polite');
-    banner.after(status);
     let openedFromSettings = false;
 
     settings.addEventListener('click', () => {
@@ -196,7 +214,20 @@
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initConsentControls, { once: true });
+    // Without MutationObserver the banner simply waits for DOMContentLoaded.
+    const observer = typeof MutationObserver === 'function'
+      ? new MutationObserver(() => {
+        if (document.querySelector('.skip-link')) {
+          observer.disconnect();
+          placeBanner();
+        }
+      })
+      : null;
+    observer?.observe(document.documentElement, { childList: true, subtree: true });
+    document.addEventListener('DOMContentLoaded', () => {
+      observer?.disconnect();
+      initConsentControls();
+    }, { once: true });
   } else {
     initConsentControls();
   }

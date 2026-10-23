@@ -188,6 +188,26 @@ describe('Landing Host Routing - wampums.app', () => {
     });
   });
 
+  describe('Sitemaps', () => {
+    test.each(['/en/sitemap.xml', '/fr/sitemap.xml'])('the retired %s sends crawlers to the complete sitemap', async (from) => {
+      const res = await request(app).get(from).set('Host', 'wampums.app');
+
+      expect(res.status).toBe(301);
+      expect(res.header.location).toBe('/sitemap.xml');
+    });
+
+    test('the sitemap lists every page of the site in English, with its French alternate', async () => {
+      const res = await request(app).get('/sitemap.xml').set('Host', 'wampums.app');
+      const { LANDING_STATIC_PAGES } = require('../config/landing-pages');
+
+      expect(res.status).toBe(200);
+      LANDING_STATIC_PAGES.forEach(({ en, fr }) => {
+        expect(res.text).toContain(`<loc>https://wampums.app${en}</loc>`);
+        expect(res.text).toContain(`href="https://wampums.app${fr}"`);
+      });
+    });
+  });
+
   describe('Canonical trailing slash redirects', () => {
     test('redirects /en to /en/ with 301 permanent redirect', async () => {
       const res = await request(app)

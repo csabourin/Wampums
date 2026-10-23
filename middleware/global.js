@@ -237,6 +237,10 @@ module.exports = (app) => {
     }
   });
 
+  // Per-language sitemaps were once static files listing a dozen pages each;
+  // anything still pointing at them is sent to the complete one.
+  app.get(['/en/sitemap.xml', '/fr/sitemap.xml'], (req, res) => res.redirect(301, '/sitemap.xml'));
+
   // Dynamic sitemap.xml
   app.get('/sitemap.xml', (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
