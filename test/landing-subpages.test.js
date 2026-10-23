@@ -151,6 +151,7 @@ describe('inner pages of the public site', () => {
     expect(html).toContain('<header class="site-header">');
     expect(html).toContain('<footer class="site-footer">');
     expect(html).toContain('id="demoModal"');
+    expect(/<header class="site-header">[\s\S]*?<button type="button" class="btn btn--ember nav-cta" data-open-demo-modal>[\s\S]*?<\/header>/.test(html)).toBe(true);
     expect(html).toContain('<script src="/landing.js" defer></script>');
     expect(html).not.toMatch(/btn-primary|btn-secondary/);
   });
@@ -172,6 +173,9 @@ describe('inner pages of the public site', () => {
     const html = read(pagePath);
     const lang = pagePath.slice(1, 3);
     expect(html).not.toMatch(/screenshot-placeholder|coming soon|bientôt disponible/i);
+
+    // The screen comes first in the page body, not after the long text.
+    expect(/<main id="main" class="page-body">\s*<figure class="app-shot">/.test(html)).toBe(true);
 
     const shots = [...html.matchAll(/<figure class="app-shot">[\s\S]*?<img src="([^"]+)"[^>]*alt="([^"]+)"[\s\S]*?<figcaption>([^<]+)<\/figcaption>/g)];
     expect(shots).toHaveLength(1);
@@ -228,6 +232,7 @@ describe('blog pages', () => {
     expect(html).toContain('<footer class="site-footer">');
     expect(html).toContain('<a href="/fr/confidentialite/">Politique de confidentialité</a>');
     expect(html).toContain('id="demoModal"');
+    expect(/<header class="site-header">[\s\S]*?<button type="button" class="btn btn--ember nav-cta" data-open-demo-modal>[\s\S]*?<\/header>/.test(html)).toBe(true);
     expect(html).toContain('<h1>Premier &lt;article&gt;</h1>');
     expect(html).toContain('<a href="/en/blog/first-post/" lang="en-CA" hreflang="en-CA">EN');
 

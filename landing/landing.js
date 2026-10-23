@@ -5,7 +5,6 @@
  */
 
 const MIN_NAME_LENGTH = 2;
-const MIN_MESSAGE_LENGTH = 10;
 const DEMO_REDIRECT_DELAY_MS = 2000;
 const HTTP_TOO_MANY_REQUESTS = 429;
 const DEMO_URL = 'https://demo.wampums.app';
@@ -73,6 +72,22 @@ function initTabs() {
   select(tabs[0], false);
 }
 
+/* ---------- Measurement ---------- */
+
+/**
+ * Records a step towards a demo request, so each page shows where visitors
+ * stop. consent.js defines gtag; without consent Google keeps it cookieless.
+ */
+function track(eventName, params = {}) {
+  window.gtag?.('event', eventName, { page_path: window.location.pathname, ...params });
+}
+
+function initTracking() {
+  document.querySelectorAll('[data-track]').forEach((link) => {
+    link.addEventListener('click', () => track(`${link.dataset.track}_click`));
+  });
+}
+
 /* ---------- Demo request dialog ---------- */
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([tabindex="-1"]), textarea, select';
@@ -93,6 +108,8 @@ function initDemoDialog() {
     email: document.getElementById('email'),
     organization: document.getElementById('organization'),
     phone: document.getElementById('phone'),
+    unitSize: document.getElementById('unitSize'),
+    currentTool: document.getElementById('currentTool'),
     message: document.getElementById('message'),
     honeypot: document.getElementById('honeypot'),
   };
@@ -120,6 +137,7 @@ function initDemoDialog() {
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
     fields.name.focus();
+    track('demo_dialog_open');
   };
 
   const close = () => {
@@ -168,7 +186,7 @@ function initDemoDialog() {
   });
 
   // A message clears as soon as its field changes.
-  [fields.name, fields.email, fields.message].forEach((input) => {
+  [fields.name, fields.email].forEach((input) => {
     input.addEventListener('input', () => setFieldError(input, false));
   });
 
@@ -176,7 +194,6 @@ function initDemoDialog() {
     const checks = [
       [fields.name, fields.name.value.trim().length >= MIN_NAME_LENGTH],
       [fields.email, /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email.value.trim())],
-      [fields.message, fields.message.value.trim().length >= MIN_MESSAGE_LENGTH],
     ];
     checks.forEach(([input, valid]) => setFieldError(input, !valid));
     const firstInvalid = checks.find(([, valid]) => !valid);
@@ -211,6 +228,8 @@ function initDemoDialog() {
           email: fields.email.value.trim(),
           organization: fields.organization.value.trim(),
           phone: fields.phone.value.trim(),
+          unit_size: fields.unitSize.value,
+          current_tool: fields.currentTool.value,
           message: fields.message.value.trim(),
           honeypot: fields.honeypot.value,
         }),
@@ -223,6 +242,7 @@ function initDemoDialog() {
     const data = await response.json().catch(() => ({}));
     if (response.ok && data.success) {
       sent = true;
+      track('generate_lead', { unit_size: fields.unitSize.value, current_tool: fields.currentTool.value });
       form.hidden = true;
       success.hidden = false;
       setTimeout(() => {
@@ -243,4 +263,5 @@ function initDemoDialog() {
 }
 
 initTabs();
+initTracking();
 initDemoDialog();

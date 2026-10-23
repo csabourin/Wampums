@@ -10,7 +10,7 @@
 </script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Scout Finance Software: Payments &amp; Reports | Wampums</title>
+<title>Scout Membership Fees &amp; Payment Tracking | Wampums</title>
 <meta name="description" content="Manage scout fees, activity charges, expenses, AI receipt scanning, budgets, fundraisers and year-end reports in one bilingual app." />
 <link rel="canonical" href="https://wampums.app/en/modules/finance/" />
 <link rel="alternate" hreflang="en-CA" href="https://wampums.app/en/modules/finance/" />
@@ -64,7 +64,7 @@
         {
           "@type": "Question",
           "name": "Can parents pay fees directly through Wampums?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Wampums tracks fee assignments and payment status, and integrates with payment processors to allow online fee collection. Leaders can send bilingual payment reminders and mark payments as received — whether paid online or in cash." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Wampums tracks fee assignments and payment status. Online payment is not turned on yet: leaders record each payment received (cash, cheque or e-Transfer), and parents see their balance in their preferred language." }
         },
         {
           "@type": "Question",
@@ -103,6 +103,7 @@
             <a class="nav-pages" href="/en/#compare">Compare</a>
             <a class="nav-pages" href="/en/faq/">FAQ</a>
             <a class="nav-pages" href="/en/blog/">Blog</a>
+            <button type="button" class="btn btn--ember nav-cta" data-open-demo-modal><span class="nav-cta-long">Request a demo</span><span class="nav-cta-short">Demo</span></button>
             <span class="lang-switch">
               <a href="/fr/modules/finance/" lang="fr-CA" hreflang="fr-CA">FR<span class="sr-only"> — Français</span></a>
               <a href="/en/modules/finance/" lang="en-CA" aria-current="page">EN<span class="sr-only"> — English</span></a>
@@ -120,7 +121,7 @@
       </ol>
     </nav>
         <p class="kicker">Module</p>
-        <h1>Scout Finance Management — From Membership Fees to Year-End Reports</h1>
+        <h1>Membership Fees and Payment Tracking for Scout Groups</h1>
           <p class="hero-lede">Scout group finances are deceptively complex for a volunteer-run organization. You collect membership fees from families, charge activity-specific amounts, track deposits for camps, reimburse leaders for supply purchases, manage fundraiser revenue and costs, and produce reports for district councils — all with a rotating roster of volunteer treasurers who may or may not have accounting backgrounds. The Wampums finance module handles every part of this cycle in a single bilingual platform, replacing the spreadsheet-and-shoebox-receipts workflow that most groups currently rely on.</p>
         <div class="hero-actions">
           <button type="button" class="btn btn--ember" data-open-demo-modal>
@@ -133,6 +134,13 @@ Request a demo
     </div>
 
 <main id="main" class="page-body">
+
+  <figure class="app-shot">
+    <div class="app-shot__phone">
+      <img src="/images/screenshots/fees-en.webp" width="390" height="844" alt="Membership fees and payments: each participant&#x27;s 2026-2027 fees, amount paid, balance and status." decoding="async" />
+    </div>
+    <figcaption>Each family's fees: paid, partly paid or still due.</figcaption>
+  </figure>
 
   <section class="section">
     <div class="shell">
@@ -176,12 +184,6 @@ Request a demo
     </div>
   </section>
 
-  <figure class="app-shot">
-    <div class="app-shot__phone">
-      <img src="/images/screenshots/fees-en.webp" width="390" height="844" alt="Membership fees and payments: each participant&#x27;s 2026-2027 fees, amount paid, balance and status." loading="lazy" decoding="async" />
-    </div>
-    <figcaption>Each family's fees: paid, partly paid or still due.</figcaption>
-  </figure>
 
   <section class="section" itemscope itemtype="https://schema.org/FAQPage">
     <div class="shell">
@@ -190,7 +192,7 @@ Request a demo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Can parents pay fees directly through Wampums?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Wampums tracks fee assignments and payment status, and integrates with payment processors to allow online fee collection. Leaders can send bilingual payment reminders and mark payments as received — whether paid online or in cash.</p>
+          <p itemprop="text">Wampums tracks fee assignments and payment status. Online payment is not turned on yet: leaders record each payment received (cash, cheque or e-Transfer), and parents see their balance in their preferred language.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
@@ -301,9 +303,9 @@ Request a demo
             <svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-x" /></svg>
           </button>
         </div>
-        <p class="modal-intro" id="modalIntro">Tell us a little about your unit. We'll write back, and you can try the demo right away.</p>
+        <p class="modal-intro" id="modalIntro">Tell us a little about your unit and we'll write back to set it up. Only your name and email are required.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the demo…</p>
+        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the sample unit, where you can look around as a parent or a leader…</p>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Your request could not be sent. Check your connection and try again, or write to hello@wampums.app." data-busy="Too many requests from this connection. Wait a few minutes and try again."></p>
 
         <form id="demoForm" novalidate>
@@ -326,10 +328,30 @@ Request a demo
             <input type="tel" id="phone" name="phone" autocomplete="tel" />
           </div>
           <div class="form-group">
-            <label for="message">Message</label>
-            <textarea id="message" name="message" required aria-describedby="message-hint message-error"></textarea>
-            <span class="form-hint" id="message-hint">How many youth and leaders, and what you'd like to fix first.</span>
-            <span class="form-error" id="message-error">Write a few words (at least 10 characters).</span>
+            <label for="unitSize">Number of youth <span class="optional">(optional)</span></label>
+            <select id="unitSize" name="unit_size">
+              <option value="">Choose…</option>
+              <option value="under_15">Fewer than 15</option>
+              <option value="15_30">15 to 30</option>
+              <option value="31_60">31 to 60</option>
+              <option value="over_60">More than 60</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="currentTool">What you use today <span class="optional">(optional)</span></label>
+            <select id="currentTool" name="current_tool">
+              <option value="">Choose…</option>
+              <option value="paper">Paper</option>
+              <option value="spreadsheets">Spreadsheets</option>
+              <option value="scouts_digital">Scouts Digital</option>
+              <option value="other_app">Another app</option>
+              <option value="nothing">Nothing yet</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="message">Message <span class="optional">(optional)</span></label>
+            <textarea id="message" name="message" aria-describedby="message-hint"></textarea>
+            <span class="form-hint" id="message-hint">For example, what you'd like to fix first.</span>
           </div>
           <div class="honeypot" aria-hidden="true">
             <label for="honeypot">Leave this field empty</label>
@@ -337,6 +359,7 @@ Request a demo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Sending…">Send request</button>
         </form>
+        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: read-only, no sign-up.</p>
       </div>
     </div>
 

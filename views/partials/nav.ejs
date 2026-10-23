@@ -12,6 +12,7 @@
             <a class="nav-pages" href="/<%= lang %>/#compare"><%= fr ? 'Comparer' : 'Compare' %></a>
             <a class="nav-pages" href="/<%= lang %>/faq/">FAQ</a>
             <a class="nav-pages" href="<%= fr ? '/fr/blogue/' : '/en/blog/' %>" aria-current="<%= isBlogIndex ? 'page' : 'true' %>"><%= fr ? 'Blogue' : 'Blog' %></a>
+            <button type="button" class="btn btn--ember nav-cta" data-open-demo-modal><span class="nav-cta-long"><%= fr ? 'Demander une démo' : 'Request a demo' %></span><span class="nav-cta-short"><%= fr ? 'Démo' : 'Demo' %></span></button>
             <span class="lang-switch">
               <% if (fr) { %>
               <a href="<%= frPath %>" lang="fr-CA" aria-current="page">FR<span class="sr-only"> — Français</span></a>

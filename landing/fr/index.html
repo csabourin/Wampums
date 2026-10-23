@@ -100,7 +100,22 @@
               {
                 "@type": "Question",
                 "name": "Nos données sont-elles protégées?",
-                "acceptedAnswer": { "@type": "Answer", "text": "Oui. Tout circule en HTTPS, les sauvegardes sont chiffrées et chaque personne ne voit que ce que son rôle permet. Les données de votre unité sont séparées de celles des autres unités et ne sont jamais partagées avec des tiers." }
+                "acceptedAnswer": { "@type": "Answer", "text": "Oui. Les données de votre unité sont hébergées au Québec, chez OVHcloud à Beauharnois. Tout circule en HTTPS, les sauvegardes sont chiffrées et chaque personne ne voit que ce que son rôle permet. Les données de votre unité sont séparées de celles des autres unités et ne sont jamais vendues ni utilisées à des fins publicitaires. Une famille peut faire effacer le dossier d'un jeune, et une unité qui part peut faire supprimer toutes ses données." }
+              },
+              {
+                "@type": "Question",
+                "name": "Que deviennent nos dossiers si Wampums s'arrête?",
+                "acceptedAnswer": { "@type": "Answer", "text": "Ils restent à vous. Les rapports sur les jeunes, les présences, la santé et les finances s'exportent en CSV ou s'impriment en PDF en tout temps : vous pouvez en garder une copie ou les emporter ailleurs. Wampums est conçu par Christian Sabourin, animateur scout dont l'unité fonctionne avec." }
+              },
+              {
+                "@type": "Question",
+                "name": "Wampums remplace-t-il Scouts Digital?",
+                "acceptedAnswer": { "@type": "Answer", "text": "Non. Scouts Digital reste le registre officiel d'inscription et de progression de Scouts Canada, et il n'y a pas de synchronisation entre les deux. Les unités utilisent Wampums pour le travail de chaque semaine : présences, formulaires, communication, covoiturage et finances." }
+              },
+              {
+                "@type": "Question",
+                "name": "Le Parcours canadien est-il déjà chargé?",
+                "acceptedAnswer": { "@type": "Answer", "text": "Pas encore. Wampums fournit la structure (étoiles, badges à niveaux et étapes d'approbation), et nous configurons avec vous les badges de votre section à l'ouverture de votre unité." }
               },
               {
                 "@type": "Question",
@@ -150,6 +165,7 @@
             <a class="nav-pages" href="#compare">Comparer</a>
             <a class="nav-pages" href="/fr/faq/">FAQ</a>
             <a class="nav-pages" href="/fr/blogue/">Blogue</a>
+            <button type="button" class="btn btn--ember nav-cta" data-open-demo-modal><span class="nav-cta-long">Demander une démo</span><span class="nav-cta-short">Démo</span></button>
             <span class="lang-switch">
               <a href="/fr/" lang="fr-CA" aria-current="page">FR<span class="sr-only"> — Français</span></a>
               <a href="/en/" lang="en-CA" hreflang="en-CA">EN<span class="sr-only"> — English</span></a>
@@ -172,43 +188,20 @@
               Demander une démo
               <svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-arrow" /></svg>
             </button>
-            <a class="btn btn--ghost-light" href="#week">Voir une semaine avec Wampums</a>
+            <a class="btn btn--ghost-light" href="https://demo.wampums.app" data-track="sample_unit">Explorer l'unité exemple</a>
           </div>
+          <p class="hero-note">L'unité exemple s'ouvre sans inscription : visitez-la en parent ou en animateur.</p>
           <ul class="proof">
             <li><svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-check-circle" /></svg>Gratuit en accès anticipé</li>
             <li><svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-globe" /></svg>Français et anglais</li>
             <li><svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-offline" /></svg>Fonctionne hors ligne</li>
-            <li><svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-phone" /></svg>Aucune boutique d'applis</li>
+            <li><svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-shield" /></svg>Données hébergées au Québec</li>
           </ul>
         </div>
 
-        <figure class="stage" role="img" aria-label="Exemple : un animateur prend les présences sur son téléphone lors de la réunion du mardi">
-          <div class="phone" aria-hidden="true">
-            <div class="phone-screen">
-              <div class="app-bar">
-                <div><strong>Présences</strong><small>Mardi · 18 h 30</small></div>
-                <span class="count">18 / 21</span>
-              </div>
-              <ul class="roster">
-                <li><span class="avatar" style="--av: #13707e">LT</span><span class="who"><b>Léa Tremblay</b><span>Renards</span></span><span class="state state--in">Présente</span></li>
-                <li><span class="avatar" style="--av: #2f7a3e">NB</span><span class="who"><b>Noah Bouchard</b><span>Loups</span></span><span class="state state--in">Présent</span></li>
-                <li><span class="avatar" style="--av: #6d4fa1">AM</span><span class="who"><b>Amira Mansour</b><span>Hiboux</span></span><span class="state state--late">En retard</span></li>
-                <li><span class="avatar" style="--av: #174c78">JR</span><span class="who"><b>Jacob Roy</b><span>Renards</span></span><span class="state state--in">Présent</span></li>
-                <li><span class="avatar" style="--av: #a4520f">ÉG</span><span class="who"><b>Éloïse Gagnon</b><span>Loups</span></span><span class="state state--out">Motivée</span></li>
-              </ul>
-              <div class="offline-pill">
-                <svg class="icon"><use href="/images/icons.svg#i-offline" /></svg>
-                Pas de réseau au camp : enregistré, synchro plus tard
-              </div>
-            </div>
-          </div>
-          <div class="float-card float-card--slip" aria-hidden="true">
-            <span class="badge-icon"><svg class="icon"><use href="/images/icons.svg#i-check" /></svg></span>
-            <div><b>Autorisation signée</b><span>Sortie canot · 19 sur 21</span></div>
-          </div>
-          <div class="float-card float-card--badge" aria-hidden="true">
-            <span class="badge-icon"><svg class="icon"><use href="/images/icons.svg#i-award" /></svg></span>
-            <div><b>Badge approuvé</b><span>Noah · Deuxième étoile</span></div>
+        <figure class="stage">
+          <div class="phone">
+            <img src="/images/screenshots/dashboard-fr.webp" width="390" height="844" alt="Le tableau de bord Wampums des animateurs d&#x27;une meute : prendre les présences, donner des points, autorisations à faire signer et covoiturage de la semaine." fetchpriority="high" decoding="async" />
           </div>
         </figure>
       </div>
@@ -592,7 +585,7 @@
               </blockquote>
               <figcaption>Christian Sabourin, animateur scout et créateur de Wampums</figcaption>
             </figure>
-            <p>Christian est animateur, programmeur, et vit avec un TDA. Entre les feuilles de présences froissées, le tableau Excel de Baloo et le cartable de médicaments de Frère-Gris, il a bâti l'outil dont son unité avait besoin, et le peaufine depuis, réunion après réunion.</p>
+            <p>Christian est animateur, programmeur, et vit avec un TDA. Entre les feuilles de présences froissées, le tableau Excel de Baloo et le cartable de médicaments de Frère-Gris, il a bâti l'outil dont son unité avait besoin. Son unité s'en sert à chaque réunion depuis 2024, et il le peaufine selon ce que lui disent les autres animateurs.</p>
             <p><a class="btn btn--outline" href="/fr/blogue/comment-mon-tda-a-inspire-wampums/">Lire son histoire</a></p>
           </div>
         </div>
@@ -619,7 +612,19 @@
             </details>
             <details>
               <summary>Nos données sont-elles protégées?<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-plus" /></svg></summary>
-              <p>Oui. Tout circule en HTTPS, les sauvegardes sont chiffrées et chaque personne ne voit que ce que son rôle permet. Les données de votre unité sont séparées de celles des autres unités et ne sont jamais partagées avec des tiers. Les détails sont dans notre <a href="/fr/confidentialite/">politique de confidentialité</a>.</p>
+              <p>Oui. Les données de votre unité sont hébergées au Québec, chez OVHcloud à Beauharnois. Tout circule en HTTPS, les sauvegardes sont chiffrées et chaque personne ne voit que ce que son rôle permet. Les données de votre unité sont séparées de celles des autres unités et ne sont jamais vendues ni utilisées à des fins publicitaires. Une famille peut faire effacer le dossier d'un jeune, et une unité qui part peut faire supprimer toutes ses données. Les détails sont dans notre <a href="/fr/confidentialite/">politique de confidentialité</a>.</p>
+            </details>
+            <details>
+              <summary>Que deviennent nos dossiers si Wampums s'arrête?<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-plus" /></svg></summary>
+              <p>Ils restent à vous. Les rapports sur les jeunes, les présences, la santé et les finances s'exportent en CSV ou s'impriment en PDF en tout temps : vous pouvez en garder une copie ou les emporter ailleurs. Wampums est conçu par Christian Sabourin, animateur scout dont l'unité fonctionne avec.</p>
+            </details>
+            <details>
+              <summary>Wampums remplace-t-il Scouts Digital?<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-plus" /></svg></summary>
+              <p>Non. Scouts Digital reste le registre officiel d'inscription et de progression de Scouts Canada, et il n'y a pas de synchronisation entre les deux. Les unités utilisent Wampums pour le travail de chaque semaine : présences, formulaires, communication, covoiturage et finances. Voir la <a href="/fr/comparer/wampums-vs-scouts-digital/">comparaison détaillée</a>.</p>
+            </details>
+            <details>
+              <summary>Le Parcours canadien est-il déjà chargé?<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-plus" /></svg></summary>
+              <p>Pas encore. Wampums fournit la structure (étoiles, badges à niveaux et étapes d'approbation), et nous configurons avec vous les badges de votre section à l'ouverture de votre unité.</p>
             </details>
             <details>
               <summary>Peut-on travailler en français et en anglais?<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-plus" /></svg></summary>
@@ -732,9 +737,9 @@
             <svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-x" /></svg>
           </button>
         </div>
-        <p class="modal-intro" id="modalIntro">Parlez-nous un peu de votre unité. Nous vous répondrons, et vous pouvez essayer la démo tout de suite.</p>
+        <p class="modal-intro" id="modalIntro">Parlez-nous un peu de votre unité : nous vous répondrons pour la configurer. Seuls le nom et le courriel sont obligatoires.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Merci, votre demande est envoyée. Direction la démo…</p>
+        <p class="form-success" id="formSuccess" role="status" hidden>Merci, votre demande est envoyée. Direction l'unité exemple, à visiter en parent ou en animateur…</p>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Votre demande n'a pas pu être envoyée. Vérifiez votre connexion et réessayez, ou écrivez à hello@wampums.app." data-busy="Trop de demandes depuis cette connexion. Attendez quelques minutes et réessayez."></p>
 
         <form id="demoForm" novalidate>
@@ -757,10 +762,30 @@
             <input type="tel" id="phone" name="phone" autocomplete="tel" />
           </div>
           <div class="form-group">
-            <label for="message">Message</label>
-            <textarea id="message" name="message" required aria-describedby="message-hint message-error"></textarea>
-            <span class="form-hint" id="message-hint">Combien de jeunes et d'animateurs, et ce que vous aimeriez régler en premier.</span>
-            <span class="form-error" id="message-error">Écrivez quelques mots (au moins 10 caractères).</span>
+            <label for="unitSize">Nombre de jeunes <span class="optional">(facultatif)</span></label>
+            <select id="unitSize" name="unit_size">
+              <option value="">Choisir…</option>
+              <option value="under_15">Moins de 15</option>
+              <option value="15_30">15 à 30</option>
+              <option value="31_60">31 à 60</option>
+              <option value="over_60">Plus de 60</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="currentTool">Ce que vous utilisez aujourd'hui <span class="optional">(facultatif)</span></label>
+            <select id="currentTool" name="current_tool">
+              <option value="">Choisir…</option>
+              <option value="paper">Papier</option>
+              <option value="spreadsheets">Tableurs</option>
+              <option value="scouts_digital">Scouts Digital</option>
+              <option value="other_app">Une autre application</option>
+              <option value="nothing">Rien pour l'instant</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="message">Message <span class="optional">(facultatif)</span></label>
+            <textarea id="message" name="message" aria-describedby="message-hint"></textarea>
+            <span class="form-hint" id="message-hint">Par exemple, ce que vous aimeriez régler en premier.</span>
           </div>
           <div class="honeypot" aria-hidden="true">
             <label for="honeypot">Laissez ce champ vide</label>
@@ -768,6 +793,7 @@
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Envoi en cours…">Envoyer la demande</button>
         </form>
+        <p class="modal-alt">Vous préférez regarder d'abord? <a href="https://demo.wampums.app" data-track="sample_unit">Explorez l'unité exemple</a> : en lecture seule, sans inscription.</p>
       </div>
     </div>
 

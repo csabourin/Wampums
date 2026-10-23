@@ -2,7 +2,7 @@
 title: "How My ADHD Inspired Me to Build a Scout App"
 slug: "how-my-adhd-inspired-a-scout-app"
 date: "2026-02-17"
-updated: "2026-02-17"
+updated: "2026-10-23"
 lang: "en"
 alternate: "comment-mon-tda-a-inspire-wampums"
 description: "How a scout leader and programmer with ADHD turned administrative frustrations into Wampums, an app built to give leaders their time back."
@@ -111,6 +111,8 @@ Each of these problems was concrete. Each had a digital solution. And if a singl
 
 That is where Wampums was born. (The story behind the name is worth telling on its own — I will save that for another day.)
 
+> **Sound like your unit?** [Explore the sample unit](https://demo.wampums.app) as a parent or a leader, read-only and without signing up, or [see everything Wampums does](/en/).
+
 ## Two Years in the Field
 
 I have been developing Wampums for two years. Not in an office, not in theory: in the field. I test it at every meeting. I listen to feedback from other leaders. One tells me a button is not visible enough. Another points out that the attendance flow could be faster. I refine, I adjust, I iterate.
@@ -121,7 +123,7 @@ Today, I realize that Wampums replaces, on its own, a whole pile of tools that g
 
 ## A Tool for the Community
 
-I want to share this creation with the scouting community. During pre-launch, I am offering it for free, because I want to deliver a quality product that will work for as many groups as possible. I care about accessibility — making sure every leader, regardless of their comfort with technology, can find their way around. And I care about offline capability, so all this data is available when you are deep in the woods with no cell signal.
+I want to share this creation with the scouting community. During early access, I am offering it for free, because I want to deliver a quality product that will work for as many groups as possible. I care about accessibility — making sure every leader, regardless of their comfort with technology, can find their way around. And I care about offline capability, so all this data is available when you are deep in the woods with no cell signal.
 
 ## The Irony
 
@@ -131,4 +133,4 @@ I started from concrete problems — mine, Baloo's, Grey Brother's, the treasure
 
 So you can have scouting at your fingertips.
 
-[Wampums is free during the pre-launch period.](https://wampums.app/en/) Request a demo and we will set up your organization together.
+[Wampums is free during early access.](/en/) Request a demo and we will set up your unit together.

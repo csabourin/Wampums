@@ -103,6 +103,7 @@
             <a class="nav-pages" href="/en/#compare">Compare</a>
             <a class="nav-pages" href="/en/faq/">FAQ</a>
             <a class="nav-pages" href="/en/blog/">Blog</a>
+            <button type="button" class="btn btn--ember nav-cta" data-open-demo-modal><span class="nav-cta-long">Request a demo</span><span class="nav-cta-short">Demo</span></button>
             <span class="lang-switch">
               <a href="/fr/modules/carpool/" lang="fr-CA" hreflang="fr-CA">FR<span class="sr-only"> — Français</span></a>
               <a href="/en/modules/carpool/" lang="en-CA" aria-current="page">EN<span class="sr-only"> — English</span></a>
@@ -134,6 +135,13 @@ Request a demo
 
 <main id="main" class="page-body">
 
+  <figure class="app-shot">
+    <div class="app-shot__phone">
+      <img src="/images/screenshots/carpool-en.webp" width="390" height="844" alt="Carpooling for the canoe outing: rides offered by parents, seats left and the passengers in each car." decoding="async" />
+    </div>
+    <figcaption>Parents offer seats; leaders place the youth.</figcaption>
+  </figure>
+
   <section class="section">
     <div class="shell">
     <div class="cards">
@@ -144,9 +152,9 @@ Request a demo
       </article>
 
       <article class="card">
-        <h2>Leader Assignment — Thoughtful, Not Random</h2>
-        <p>Once ride offers are in, the leader opens the carpool assignment view for the activity. Each participant who needs a ride is listed alongside available carpool offers showing the driver, vehicle, available seats, and direction. The leader drags participants into carpool slots — or uses the automatic suggestion feature, which proposes assignments that balance seat utilization and minimize the number of vehicles needed.</p>
-        <p>The assignment view respects constraints automatically: a participant cannot be placed in a vehicle that has no remaining seats, and assignment conflicts are flagged in real time. The leader can override any suggestion and manually assign based on factors the system doesn't know — neighbours who prefer to ride together, a participant with a special need, or a family situation the leader is aware of. When assignments are finalized, all drivers and passengers receive an instant notification with the complete carpool details for their vehicle.</p>
+        <h2>Parents Place Their Children, Leaders Fill the Gaps</h2>
+        <p>Once ride offers are in, each parent places their own children in a vehicle with free seats, for one direction or both. The carpool view for the activity lists every offer with its driver, available seats and direction. Leaders who manage carpools also see which participants still need a ride, and can place any of them.</p>
+        <p>A participant cannot be placed in a vehicle that has no remaining seats. Leaders can move a participant to another vehicle for reasons the system doesn't know — neighbours who prefer to ride together, a participant with a special need, or a family situation the leader is aware of. Drivers and families then see the details for their vehicle.</p>
       </article>
 
       <article class="card">
@@ -176,12 +184,6 @@ Request a demo
     </div>
   </section>
 
-  <figure class="app-shot">
-    <div class="app-shot__phone">
-      <img src="/images/screenshots/carpool-en.webp" width="390" height="844" alt="Carpooling for the canoe outing: rides offered by parents, seats left and the passengers in each car." loading="lazy" decoding="async" />
-    </div>
-    <figcaption>Parents offer seats; leaders place the youth.</figcaption>
-  </figure>
 
   <section class="section" itemscope itemtype="https://schema.org/FAQPage">
     <div class="shell">
@@ -301,9 +303,9 @@ Request a demo
             <svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-x" /></svg>
           </button>
         </div>
-        <p class="modal-intro" id="modalIntro">Tell us a little about your unit. We'll write back, and you can try the demo right away.</p>
+        <p class="modal-intro" id="modalIntro">Tell us a little about your unit and we'll write back to set it up. Only your name and email are required.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the demo…</p>
+        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the sample unit, where you can look around as a parent or a leader…</p>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Your request could not be sent. Check your connection and try again, or write to hello@wampums.app." data-busy="Too many requests from this connection. Wait a few minutes and try again."></p>
 
         <form id="demoForm" novalidate>
@@ -326,10 +328,30 @@ Request a demo
             <input type="tel" id="phone" name="phone" autocomplete="tel" />
           </div>
           <div class="form-group">
-            <label for="message">Message</label>
-            <textarea id="message" name="message" required aria-describedby="message-hint message-error"></textarea>
-            <span class="form-hint" id="message-hint">How many youth and leaders, and what you'd like to fix first.</span>
-            <span class="form-error" id="message-error">Write a few words (at least 10 characters).</span>
+            <label for="unitSize">Number of youth <span class="optional">(optional)</span></label>
+            <select id="unitSize" name="unit_size">
+              <option value="">Choose…</option>
+              <option value="under_15">Fewer than 15</option>
+              <option value="15_30">15 to 30</option>
+              <option value="31_60">31 to 60</option>
+              <option value="over_60">More than 60</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="currentTool">What you use today <span class="optional">(optional)</span></label>
+            <select id="currentTool" name="current_tool">
+              <option value="">Choose…</option>
+              <option value="paper">Paper</option>
+              <option value="spreadsheets">Spreadsheets</option>
+              <option value="scouts_digital">Scouts Digital</option>
+              <option value="other_app">Another app</option>
+              <option value="nothing">Nothing yet</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="message">Message <span class="optional">(optional)</span></label>
+            <textarea id="message" name="message" aria-describedby="message-hint"></textarea>
+            <span class="form-hint" id="message-hint">For example, what you'd like to fix first.</span>
           </div>
           <div class="honeypot" aria-hidden="true">
             <label for="honeypot">Leave this field empty</label>
@@ -337,6 +359,7 @@ Request a demo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Sending…">Send request</button>
         </form>
+        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: read-only, no sign-up.</p>
       </div>
     </div>
 
