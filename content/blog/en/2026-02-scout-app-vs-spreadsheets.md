@@ -2,10 +2,10 @@
 title: "Scout App vs Spreadsheets: A Guide for Scout Leaders"
 slug: "scout-app-vs-spreadsheets"
 date: "2026-02-16"
-updated: "2026-02-16"
+updated: "2026-10-23"
 lang: "en"
 alternate: "application-scout-vs-tableurs"
-description: "Scout groups across Canada are abandoning spreadsheets for purpose-built apps. Here's why — with concrete examples of what breaks and what gets better."
+description: "What breaks when a scout group runs on spreadsheets, and what a purpose-built app does better, with concrete examples."
 keywords:
   - scout management software vs spreadsheets
   - why scout groups use apps
@@ -127,7 +127,7 @@ The most common concern from leaders considering a switch is the migration effor
 
 **Parallel running**: Most groups run both systems in parallel for one or two meeting cycles before trusting the new system fully. This is prudent — it lets you catch any discrepancies before abandoning the spreadsheet.
 
-**Total cost**: For most groups, the full transition takes four to six weeks of parallel running and one concentrated setup day. The return on investment, measured in volunteer hours saved, is typically achieved within three months.
+**Total cost**: Plan one concentrated setup day, then a few weeks of parallel running until the team trusts the new system.
 
 ## Who Should Still Use Spreadsheets?
 

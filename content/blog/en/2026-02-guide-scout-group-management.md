@@ -2,7 +2,7 @@
 title: "The Complete Guide to Scout Group Management in 2026"
 slug: "guide-scout-group-management"
 date: "2026-02-16"
-updated: "2026-02-16"
+updated: "2026-10-23"
 lang: "en"
 alternate: "guide-gestion-groupe-scout"
 description: "A practical guide to scout group management: attendance, badges, communication, finances and tools that help leaders spend more time with youth."
@@ -29,7 +29,7 @@ This guide covers every aspect of modern scout group management — what works, 
 
 Before diving into solutions, it helps to understand what poor organization actually costs. Not in dollars — in time, energy, and burnout.
 
-The average scout leader spends between two and four hours per week on administrative tasks that have nothing to do with programming. That includes re-entering attendance data from paper sheets, emailing permission slips and following up when they're not returned, maintaining multiple spreadsheets that drift out of sync, and answering WhatsApp messages that could have been automated.
+Many scout leaders spend hours every week on administrative tasks that have nothing to do with programming. That includes re-entering attendance data from paper sheets, emailing permission slips and following up when they're not returned, maintaining multiple spreadsheets that drift out of sync, and answering WhatsApp messages that could have been automated.
 
 Over a scouting year of roughly 36 meetings, that adds up to 72 to 144 hours of administrative overhead per leader. For a group of six volunteers, you're looking at 432 to 864 volunteer hours spent on administration alone. Those are hours that could have gone into program planning, outdoor skills training, or simply enjoying the meetings.
 
@@ -176,7 +176,7 @@ Transitioning to a new group management system is most successful when you follo
 
 **Week 4 — Badges and finance**: Import existing badge records and set up the current budget. These modules have more setup time but pay off quickly once running.
 
-After 30 days, most groups find they have reduced administrative time by 40 to 60 percent. The payoff is not just saved hours — it is the quality of the data that is now available. Attendance trends, badge progression rates, and financial health are visible at a glance instead of buried in spreadsheets.
+After a month, the payoff is not just saved hours — it is the quality of the data that is now available. Attendance trends, badge progression rates, and financial health are visible at a glance instead of buried in spreadsheets.
 
 ## Conclusion: The Right Admin Infrastructure Lets You Be a Better Leader
 

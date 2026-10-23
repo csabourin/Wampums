@@ -67,9 +67,9 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
   </url>
   <url>
-    <loc>https://wampums.app/fr/comparer/wampums-vs-scouts-digital/</loc>
-    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/compare/wampums-vs-scouts-digital/" />
-    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/comparer/wampums-vs-scouts-digital/" />
+    <loc>https://wampums.app/fr/comparer/wampums-vs-scoutstracker/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/compare/wampums-vs-scoutstracker/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/comparer/wampums-vs-scoutstracker/" />
     <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
   </url>
   <url>

@@ -38,6 +38,21 @@ const {
   declineFamilyLinkRequest
 } = require('../services/familyLinks');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
+
+/** Answers the demo form's two menus may send, with how the request email names them. */
+const DEMO_UNIT_SIZES = {
+  under_15: 'Fewer than 15',
+  '15_30': '15 to 30',
+  '31_60': '31 to 60',
+  over_60: 'More than 60',
+};
+const DEMO_CURRENT_TOOLS = {
+  paper: 'Paper',
+  spreadsheets: 'Spreadsheets',
+  scoutstracker: 'ScoutsTracker',
+  other_app: 'Another app',
+  nothing: 'Nothing yet',
+};
 const {
   normalizeEmailValue,
   validateEmail,
@@ -245,7 +260,6 @@ module.exports = (pool, logger) => {
    *             required:
    *               - name
    *               - email
-   *               - message
    *             properties:
    *               name:
    *                 type: string
@@ -260,9 +274,17 @@ module.exports = (pool, logger) => {
    *               phone:
    *                 type: string
    *                 description: Phone number (optional)
+   *               unit_size:
+   *                 type: string
+   *                 enum: [under_15, 15_30, 31_60, over_60]
+   *                 description: Number of youth (optional)
+   *               current_tool:
+   *                 type: string
+   *                 enum: [paper, spreadsheets, scoutstracker, other_app, nothing]
+   *                 description: What the unit uses today (optional)
    *               message:
    *                 type: string
-   *                 description: Demo request message
+   *                 description: Demo request message (optional)
    *               honeypot:
    *                 type: string
    *                 description: Anti-spam honeypot field (should be empty)
@@ -302,12 +324,21 @@ module.exports = (pool, logger) => {
         .trim()
         .isLength({ max: 20 })
         .withMessage('Phone number is too long'),
+      check('unit_size')
+        .optional({ values: 'falsy' })
+        .isIn(Object.keys(DEMO_UNIT_SIZES))
+        .withMessage('Unknown unit size'),
+      check('current_tool')
+        .optional({ values: 'falsy' })
+        .isIn(Object.keys(DEMO_CURRENT_TOOLS))
+        .withMessage('Unknown current tool'),
       check('message')
+        .optional()
+        .isString()
+        .withMessage('Message must be text')
         .trim()
-        .notEmpty()
-        .withMessage('Message is required')
-        .isLength({ min: 10, max: 2000 })
-        .withMessage('Message must be between 10 and 2000 characters'),
+        .isLength({ max: 2000 })
+        .withMessage('Message must be at most 2000 characters'),
       check('honeypot')
         .optional()
         .custom((value) => {
@@ -347,7 +378,9 @@ module.exports = (pool, logger) => {
         const email = sanitizeInput(req.body.email);
         const organization = sanitizeInput(req.body.organization || 'Not provided');
         const phone = sanitizeInput(req.body.phone || 'Not provided');
-        const message = sanitizeInput(req.body.message);
+        const unitSize = DEMO_UNIT_SIZES[req.body.unit_size] || 'Not provided';
+        const currentTool = DEMO_CURRENT_TOOLS[req.body.current_tool] || 'Not provided';
+        const message = sanitizeInput(req.body.message || '') || 'Not provided';
 
         // Construct email content
         const subject = `Demo Request from ${name}`;
@@ -359,6 +392,8 @@ Name: ${name}
 Email: ${email}
 Organization: ${organization}
 Phone: ${phone}
+Youth: ${unitSize}
+Uses today: ${currentTool}
 
 Message:
 ${message}
@@ -399,6 +434,12 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
       </div>
       <div class="field">
         <span class="label">Phone:</span> ${escapeHtml(phone)}
+      </div>
+      <div class="field">
+        <span class="label">Youth:</span> ${escapeHtml(unitSize)}
+      </div>
+      <div class="field">
+        <span class="label">Uses today:</span> ${escapeHtml(currentTool)}
       </div>
       <div class="field">
         <span class="label">Message:</span>

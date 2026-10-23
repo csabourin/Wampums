@@ -90,7 +90,7 @@
               {
                 "@type": "Question",
                 "name": "How much does Wampums cost?",
-                "acceptedAnswer": { "@type": "Answer", "text": "Wampums is free for scout groups during the early-access period. Write to us for details on future pricing." }
+                "acceptedAnswer": { "@type": "Answer", "text": "A single unit uses Wampums free until at least 2028. For an organization opening several units (five or more, say), we agree on a competitive monthly price together." }
               },
               {
                 "@type": "Question",
@@ -100,7 +100,22 @@
               {
                 "@type": "Question",
                 "name": "Is our data secure?",
-                "acceptedAnswer": { "@type": "Answer", "text": "Yes. Everything travels over HTTPS, backups are encrypted, and each person only sees what their role allows. Your unit's data is kept separate from every other unit's and is never shared with third parties." }
+                "acceptedAnswer": { "@type": "Answer", "text": "Yes. Your unit's data is hosted in Quebec, at OVHcloud in Beauharnois. Everything travels over HTTPS, backups are encrypted, and each person only sees what their role allows. Your unit's data is kept separate from every other unit's and is never sold or used for advertising. A family can have a youth's record erased, and a unit that leaves can have all its data deleted." }
+              },
+              {
+                "@type": "Question",
+                "name": "What happens to our records if Wampums stops?",
+                "acceptedAnswer": { "@type": "Answer", "text": "They stay yours. Reports on participants, attendance, health and finances export to CSV or print as PDF at any time, so you can keep a copy or take it elsewhere. Wampums is built by Christian Sabourin, a scout leader whose own unit runs on it." }
+              },
+              {
+                "@type": "Question",
+                "name": "Does it replace MyScouts or ScoutsTracker?",
+                "acceptedAnswer": { "@type": "Answer", "text": "No. Units registered with Scouts Canada keep registering their members in MyScouts, and there is no sync with it or with ScoutsTracker, Scouts Canada's badge tracker. Units use Wampums for the week-to-week work: attendance, forms, communication, carpools and finances." }
+              },
+              {
+                "@type": "Question",
+                "name": "Is the Canadian Path already loaded?",
+                "acceptedAnswer": { "@type": "Answer", "text": "Not yet. Wampums provides the structure (stars, badges with levels and approval steps), and we set up your section's badges with you when we open your unit." }
               },
               {
                 "@type": "Question",
@@ -150,6 +165,7 @@
             <a class="nav-pages" href="#compare">Compare</a>
             <a class="nav-pages" href="/en/faq/">FAQ</a>
             <a class="nav-pages" href="/en/blog/">Blog</a>
+            <button type="button" class="btn btn--ember nav-cta" data-open-demo-modal><span class="nav-cta-long">Request a demo</span><span class="nav-cta-short">Demo</span></button>
             <span class="lang-switch">
               <a href="/fr/" lang="fr-CA" hreflang="fr-CA">FR<span class="sr-only"> — Français</span></a>
               <a href="/en/" lang="en-CA" aria-current="page">EN<span class="sr-only"> — English</span></a>
@@ -172,43 +188,20 @@
               Request a demo
               <svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-arrow" /></svg>
             </button>
-            <a class="btn btn--ghost-light" href="#week">See a week with Wampums</a>
+            <a class="btn btn--ghost-light" href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>
           </div>
+          <p class="hero-note">The sample unit opens without signing up: look around as a parent or as a leader.</p>
           <ul class="proof">
-            <li><svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-check-circle" /></svg>Free during early access</li>
+            <li><svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-check-circle" /></svg>Free for one unit until 2028</li>
             <li><svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-globe" /></svg>English &amp; French</li>
             <li><svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-offline" /></svg>Works offline</li>
-            <li><svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-phone" /></svg>No app store needed</li>
+            <li><svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-shield" /></svg>Data hosted in Quebec</li>
           </ul>
         </div>
 
-        <figure class="stage" role="img" aria-label="Example: a leader taking attendance on a phone at a Tuesday meeting">
-          <div class="phone" aria-hidden="true">
-            <div class="phone-screen">
-              <div class="app-bar">
-                <div><strong>Attendance</strong><small>Tuesday · 6:30 pm</small></div>
-                <span class="count">18 / 21</span>
-              </div>
-              <ul class="roster">
-                <li><span class="avatar" style="--av: #13707e">LT</span><span class="who"><b>Léa Tremblay</b><span>Foxes</span></span><span class="state state--in">Present</span></li>
-                <li><span class="avatar" style="--av: #2f7a3e">NB</span><span class="who"><b>Noah Bouchard</b><span>Wolves</span></span><span class="state state--in">Present</span></li>
-                <li><span class="avatar" style="--av: #6d4fa1">AM</span><span class="who"><b>Amira Mansour</b><span>Owls</span></span><span class="state state--late">Late</span></li>
-                <li><span class="avatar" style="--av: #174c78">JR</span><span class="who"><b>Jacob Roy</b><span>Foxes</span></span><span class="state state--in">Present</span></li>
-                <li><span class="avatar" style="--av: #a4520f">ÉG</span><span class="who"><b>Éloïse Gagnon</b><span>Wolves</span></span><span class="state state--out">Excused</span></li>
-              </ul>
-              <div class="offline-pill">
-                <svg class="icon"><use href="/images/icons.svg#i-offline" /></svg>
-                No signal at camp: saved, will sync later
-              </div>
-            </div>
-          </div>
-          <div class="float-card float-card--slip" aria-hidden="true">
-            <span class="badge-icon"><svg class="icon"><use href="/images/icons.svg#i-check" /></svg></span>
-            <div><b>Permission slip signed</b><span>Canoe trip · 19 of 21</span></div>
-          </div>
-          <div class="float-card float-card--badge" aria-hidden="true">
-            <span class="badge-icon"><svg class="icon"><use href="/images/icons.svg#i-award" /></svg></span>
-            <div><b>Badge approved</b><span>Noah · Second star</span></div>
+        <figure class="stage">
+          <div class="phone">
+            <img src="/images/screenshots/dashboard-en.webp" width="390" height="844" alt="The Wampums leaders&#x27; dashboard for a cub pack: take attendance, give points, permission slips to collect and this week&#x27;s carpooling." fetchpriority="high" decoding="async" />
           </div>
         </figure>
       </div>
@@ -542,7 +535,7 @@
             <a href="/en/compare/wampums-vs-sporteasy/">vs SportEasy</a>
             <a href="/en/compare/wampums-vs-trooptrack/">vs TroopTrack</a>
             <a href="/en/compare/wampums-vs-scoutbook/">vs Scoutbook</a>
-            <a href="/en/compare/wampums-vs-scouts-digital/">vs Scouts Digital</a>
+            <a href="/en/compare/wampums-vs-scoutstracker/">vs ScoutsTracker</a>
           </nav>
         </div>
       </section>
@@ -579,6 +572,23 @@
         </div>
       </section>
 
+      <section class="section" id="voices" aria-labelledby="voices-title">
+        <div class="shell story">
+          <div class="section-head">
+            <span class="kicker">What a parent says</span>
+            <h2 id="voices-title">From a parent, the day after signing up</h2>
+          </div>
+          <div class="story-body">
+            <figure class="story-quote">
+              <blockquote>
+                <p>“I found it good and practical, the app. It was good to have all the documents to sign in the same place. It was quick to do.”</p>
+              </blockquote>
+              <figcaption>Charles, a parent, after registering a child in October 2026 (translated from French)</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
       <section class="section" id="story" aria-labelledby="story-title">
         <div class="shell story">
           <div class="section-head">
@@ -592,7 +602,7 @@
               </blockquote>
               <figcaption>Christian Sabourin, scout leader and creator of Wampums</figcaption>
             </figure>
-            <p>Christian is a leader, a programmer, and lives with ADHD. Between crumpled attendance sheets, Baloo's Excel spreadsheet and Grey Brother's medication binder, he built the tool his unit needed, and has kept refining it, one meeting at a time.</p>
+            <p>Christian is a leader, a programmer, and lives with ADHD. Between crumpled attendance sheets, Baloo's Excel spreadsheet and Grey Brother's medication binder, he built the tool his unit needed. His own unit has used it at every meeting since 2024, and he keeps refining it from what other leaders tell him.</p>
             <p><a class="btn btn--outline" href="/en/blog/how-my-adhd-inspired-a-scout-app/">Read his story</a></p>
           </div>
         </div>
@@ -611,7 +621,7 @@
             </details>
             <details>
               <summary>How much does Wampums cost?<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-plus" /></svg></summary>
-              <p>Wampums is free for scout groups during the early-access period. Write to us for details on future pricing.</p>
+              <p>A single unit uses Wampums free until at least 2028. For an organization opening several units (five or more, say), we agree on a competitive monthly price together.</p>
             </details>
             <details>
               <summary>Are all the features available?<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-plus" /></svg></summary>
@@ -619,7 +629,19 @@
             </details>
             <details>
               <summary>Is our data secure?<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-plus" /></svg></summary>
-              <p>Yes. Everything travels over HTTPS, backups are encrypted, and each person only sees what their role allows. Your unit's data is kept separate from every other unit's and is never shared with third parties. The details are in our <a href="/en/privacy/">privacy policy</a>.</p>
+              <p>Yes. Your unit's data is hosted in Quebec, at OVHcloud in Beauharnois. Everything travels over HTTPS, backups are encrypted, and each person only sees what their role allows. Your unit's data is kept separate from every other unit's and is never sold or used for advertising. A family can have a youth's record erased, and a unit that leaves can have all its data deleted. The details are in our <a href="/en/privacy/">privacy policy</a>.</p>
+            </details>
+            <details>
+              <summary>What happens to our records if Wampums stops?<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-plus" /></svg></summary>
+              <p>They stay yours. Reports on participants, attendance, health and finances export to CSV or print as PDF at any time, so you can keep a copy or take it elsewhere. Wampums is built by Christian Sabourin, a scout leader whose own unit runs on it.</p>
+            </details>
+            <details>
+              <summary>Does it replace MyScouts or ScoutsTracker?<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-plus" /></svg></summary>
+              <p>No. Units registered with Scouts Canada keep registering their members in MyScouts, and there is no sync with it or with ScoutsTracker, Scouts Canada's badge tracker. Units use Wampums for the week-to-week work: attendance, forms, communication, carpools and finances. See the <a href="/en/compare/wampums-vs-scoutstracker/">detailed comparison</a>.</p>
+            </details>
+            <details>
+              <summary>Is the Canadian Path already loaded?<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-plus" /></svg></summary>
+              <p>Not yet. Wampums provides the structure (stars, badges with levels and approval steps), and we set up your section's badges with you when we open your unit.</p>
             </details>
             <details>
               <summary>Can we work in English and French?<svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-plus" /></svg></summary>
@@ -651,7 +673,7 @@
           <div class="final-card">
             <div class="bead-rule bead-rule--center" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
             <h2 id="final-title">Ready to put the clipboard down?</h2>
-            <p>Tell us about your unit. We'll show you Wampums with your own week in mind, and set you up for free during early access.</p>
+            <p>Tell us about your unit. We'll show you Wampums with your own week in mind, and set your unit up for free.</p>
             <div class="hero-actions">
               <button type="button" class="btn btn--ember" data-open-demo-modal>
                 Request a demo
@@ -704,12 +726,14 @@
               <li><a href="/en/compare/wampums-vs-sporteasy/">vs SportEasy</a></li>
               <li><a href="/en/compare/wampums-vs-trooptrack/">vs TroopTrack</a></li>
               <li><a href="/en/compare/wampums-vs-scoutbook/">vs Scoutbook</a></li>
-              <li><a href="/en/compare/wampums-vs-scouts-digital/">vs Scouts Digital</a></li>
+              <li><a href="/en/compare/wampums-vs-scoutstracker/">vs ScoutsTracker</a></li>
             </ul>
           </nav>
           <nav aria-labelledby="footer-learn">
             <h2 id="footer-learn">Learn</h2>
             <ul>
+              <li><a href="/en/administrators/">For administrators</a></li>
+              <li><a href="/en/districts/">For districts</a></li>
               <li><a href="/en/faq/">FAQ</a></li>
               <li><a href="/en/blog/">Blog</a></li>
               <li><a href="/en/privacy/">Privacy policy</a></li>
@@ -732,9 +756,9 @@
             <svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-x" /></svg>
           </button>
         </div>
-        <p class="modal-intro" id="modalIntro">Tell us a little about your unit. We'll write back, and you can try the demo right away.</p>
+        <p class="modal-intro" id="modalIntro">Tell us a little about your unit and we'll write back to set it up. Only your name and email are required.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the demo…</p>
+        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the sample unit, where you can look around as a parent or a leader…</p>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Your request could not be sent. Check your connection and try again, or write to hello@wampums.app." data-busy="Too many requests from this connection. Wait a few minutes and try again."></p>
 
         <form id="demoForm" novalidate>
@@ -757,10 +781,30 @@
             <input type="tel" id="phone" name="phone" autocomplete="tel" />
           </div>
           <div class="form-group">
-            <label for="message">Message</label>
-            <textarea id="message" name="message" required aria-describedby="message-hint message-error"></textarea>
-            <span class="form-hint" id="message-hint">How many youth and leaders, and what you'd like to fix first.</span>
-            <span class="form-error" id="message-error">Write a few words (at least 10 characters).</span>
+            <label for="unitSize">Number of youth <span class="optional">(optional)</span></label>
+            <select id="unitSize" name="unit_size">
+              <option value="">Choose…</option>
+              <option value="under_15">Fewer than 15</option>
+              <option value="15_30">15 to 30</option>
+              <option value="31_60">31 to 60</option>
+              <option value="over_60">More than 60</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="currentTool">What you use today <span class="optional">(optional)</span></label>
+            <select id="currentTool" name="current_tool">
+              <option value="">Choose…</option>
+              <option value="paper">Paper</option>
+              <option value="spreadsheets">Spreadsheets</option>
+              <option value="scoutstracker">ScoutsTracker</option>
+              <option value="other_app">Another app</option>
+              <option value="nothing">Nothing yet</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="message">Message <span class="optional">(optional)</span></label>
+            <textarea id="message" name="message" aria-describedby="message-hint"></textarea>
+            <span class="form-hint" id="message-hint">For example, what you'd like to fix first.</span>
           </div>
           <div class="honeypot" aria-hidden="true">
             <label for="honeypot">Leave this field empty</label>
@@ -768,6 +812,7 @@
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Sending…">Send request</button>
         </form>
+        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: read-only, no sign-up.</p>
       </div>
     </div>
 

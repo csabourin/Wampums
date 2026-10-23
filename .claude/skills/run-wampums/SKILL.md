@@ -102,7 +102,7 @@ the same way (the requester needs a child of their own in the unit).
 ## Screenshots for wampums.app
 
 ```bash
-.claude/skills/run-wampums/site-screenshots/take.sh            # all 14 screens, fr + en
+.claude/skills/run-wampums/site-screenshots/take.sh            # all 16 screens, fr + en
 .claude/skills/run-wampums/site-screenshots/take.sh fees parent  # only these
 ```
 

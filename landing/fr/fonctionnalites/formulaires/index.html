@@ -64,7 +64,7 @@
         {
           "@type": "Question",
           "name": "Les parents peuvent-ils signer les formulaires depuis leur téléphone?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Les parents reçoivent un lien par courriel, WhatsApp ou notification push, accèdent au formulaire depuis leur navigateur mobile et signent électroniquement sans avoir à télécharger d'application. La signature est enregistrée avec horodatage et adresse IP." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Les parents reçoivent un lien par courriel, WhatsApp ou notification push, accèdent au formulaire depuis leur navigateur mobile et signent électroniquement sans avoir à télécharger d'application. La signature est enregistrée avec le nom tapé par le parent, la date et l'heure, et le texte de l'autorisation tel qu'il a été envoyé." }
         },
         {
           "@type": "Question",
@@ -103,6 +103,7 @@
             <a class="nav-pages" href="/fr/#compare">Comparer</a>
             <a class="nav-pages" href="/fr/faq/">FAQ</a>
             <a class="nav-pages" href="/fr/blogue/">Blogue</a>
+            <button type="button" class="btn btn--ember nav-cta" data-open-demo-modal><span class="nav-cta-long">Demander une démo</span><span class="nav-cta-short">Démo</span></button>
             <span class="lang-switch">
               <a href="/fr/fonctionnalites/formulaires/" lang="fr-CA" aria-current="page">FR<span class="sr-only"> — Français</span></a>
               <a href="/en/features/forms/" lang="en-CA" hreflang="en-CA">EN<span class="sr-only"> — English</span></a>
@@ -134,13 +135,20 @@ Demander une démo
 
 <main id="main" class="page-body">
 
+  <figure class="app-shot">
+    <div class="app-shot__phone">
+      <img src="/images/screenshots/forms-fr.webp" width="390" height="844" alt="Fiche de santé remplie par un parent sur téléphone : médecin de famille, problèmes de santé, allergies, médicaments." decoding="async" />
+    </div>
+    <figcaption>Les parents remplissent la fiche de santé eux-mêmes, dans leur langue.</figcaption>
+  </figure>
+
   <section class="section">
     <div class="shell">
     <div class="cards">
       <article class="card">
         <h2>Formulaires de permission numériques avec suivi du statut</h2>
         <p>Créez un formulaire de permission en quelques minutes, envoyez-le aux familles concernées et suivez les retours en temps réel depuis votre tableau de bord. Pour chaque activité, vous voyez instantanément combien de permissions ont été reçues, combien sont en attente et combien sont en retard. Un code de couleur clair — vert, jaune, rouge — vous indique l'urgence de la situation sans avoir à ouvrir chaque dossier individuellement.</p>
-        <p>Les formulaires de permission incluent la signature électronique du parent ou tuteur, qui est enregistrée avec horodatage et adresse IP pour une valeur juridique complète. Les parents n'ont pas à télécharger d'application : un simple lien reçu par courriel ou WhatsApp suffit pour accéder au formulaire depuis n'importe quel navigateur mobile. C'est aussi simple que consulter un message texte.</p>
+        <p>Les formulaires de permission incluent la signature électronique du parent ou tuteur : Wampums consigne le nom qu'il tape, la date et l'heure, et le texte de l'autorisation tel qu'il a été envoyé. Au Québec, une signature sur un document numérique peut prendre toute forme qui relie la personne au document et manifeste son consentement (Loi concernant le cadre juridique des technologies de l'information, art. 39, et Code civil, art. 2827). Il s'agit d'une signature électronique simple, non certifiée : pour les activités à risque élevé, vérifiez ce qu'exige votre organisme ou votre assureur. Les parents n'ont pas à télécharger d'application : un simple lien reçu par courriel ou WhatsApp suffit pour accéder au formulaire depuis n'importe quel navigateur mobile. C'est aussi simple que consulter un message texte.</p>
       </article>
 
       <article class="card">
@@ -176,12 +184,6 @@ Demander une démo
     </div>
   </section>
 
-  <figure class="app-shot">
-    <div class="app-shot__phone">
-      <img src="/images/screenshots/forms-fr.webp" width="390" height="844" alt="Fiche de santé remplie par un parent sur téléphone : médecin de famille, problèmes de santé, allergies, médicaments." loading="lazy" decoding="async" />
-    </div>
-    <figcaption>Les parents remplissent la fiche de santé eux-mêmes, dans leur langue.</figcaption>
-  </figure>
 
   <section class="section" itemscope itemtype="https://schema.org/FAQPage">
     <div class="shell">
@@ -190,7 +192,7 @@ Demander une démo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Les parents peuvent-ils signer les formulaires depuis leur téléphone?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Oui. Les parents reçoivent un lien par courriel, WhatsApp ou notification push, accèdent au formulaire depuis leur navigateur mobile et signent électroniquement sans télécharger d'application. La signature est enregistrée avec horodatage et adresse IP pour une valeur juridique complète.</p>
+          <p itemprop="text">Oui. Les parents reçoivent un lien par courriel, WhatsApp ou notification push, accèdent au formulaire depuis leur navigateur mobile et signent électroniquement sans télécharger d'application. La signature est enregistrée avec le nom tapé par le parent, la date et l'heure, et le texte de l'autorisation tel qu'il a été envoyé.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
@@ -284,12 +286,14 @@ Demander une démo
               <li><a href="/fr/comparer/wampums-vs-sporteasy/">vs SportEasy</a></li>
               <li><a href="/fr/comparer/wampums-vs-trooptrack/">vs TroopTrack</a></li>
               <li><a href="/fr/comparer/wampums-vs-scoutbook/">vs Scoutbook</a></li>
-              <li><a href="/fr/comparer/wampums-vs-scouts-digital/">vs Scouts Digital</a></li>
+              <li><a href="/fr/comparer/wampums-vs-scoutstracker/">vs ScoutsTracker</a></li>
             </ul>
           </nav>
           <nav aria-labelledby="footer-learn">
             <h2 id="footer-learn">Ressources</h2>
             <ul>
+              <li><a href="/fr/administrateurs/">Pour les administrateurs</a></li>
+              <li><a href="/fr/districts/">Pour les districts</a></li>
               <li><a href="/fr/faq/">FAQ</a></li>
               <li><a href="/fr/blogue/">Blogue</a></li>
               <li><a href="/fr/confidentialite/">Politique de confidentialité</a></li>
@@ -312,9 +316,9 @@ Demander une démo
             <svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-x" /></svg>
           </button>
         </div>
-        <p class="modal-intro" id="modalIntro">Parlez-nous un peu de votre unité. Nous vous répondrons, et vous pouvez essayer la démo tout de suite.</p>
+        <p class="modal-intro" id="modalIntro">Parlez-nous un peu de votre unité : nous vous répondrons pour la configurer. Seuls le nom et le courriel sont obligatoires.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Merci, votre demande est envoyée. Direction la démo…</p>
+        <p class="form-success" id="formSuccess" role="status" hidden>Merci, votre demande est envoyée. Direction l'unité exemple, à visiter en parent ou en animateur…</p>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Votre demande n'a pas pu être envoyée. Vérifiez votre connexion et réessayez, ou écrivez à hello@wampums.app." data-busy="Trop de demandes depuis cette connexion. Attendez quelques minutes et réessayez."></p>
 
         <form id="demoForm" novalidate>
@@ -337,10 +341,30 @@ Demander une démo
             <input type="tel" id="phone" name="phone" autocomplete="tel" />
           </div>
           <div class="form-group">
-            <label for="message">Message</label>
-            <textarea id="message" name="message" required aria-describedby="message-hint message-error"></textarea>
-            <span class="form-hint" id="message-hint">Combien de jeunes et d'animateurs, et ce que vous aimeriez régler en premier.</span>
-            <span class="form-error" id="message-error">Écrivez quelques mots (au moins 10 caractères).</span>
+            <label for="unitSize">Nombre de jeunes <span class="optional">(facultatif)</span></label>
+            <select id="unitSize" name="unit_size">
+              <option value="">Choisir…</option>
+              <option value="under_15">Moins de 15</option>
+              <option value="15_30">15 à 30</option>
+              <option value="31_60">31 à 60</option>
+              <option value="over_60">Plus de 60</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="currentTool">Ce que vous utilisez aujourd'hui <span class="optional">(facultatif)</span></label>
+            <select id="currentTool" name="current_tool">
+              <option value="">Choisir…</option>
+              <option value="paper">Papier</option>
+              <option value="spreadsheets">Tableurs</option>
+              <option value="scoutstracker">ScoutsTracker</option>
+              <option value="other_app">Une autre application</option>
+              <option value="nothing">Rien pour l'instant</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="message">Message <span class="optional">(facultatif)</span></label>
+            <textarea id="message" name="message" aria-describedby="message-hint"></textarea>
+            <span class="form-hint" id="message-hint">Par exemple, ce que vous aimeriez régler en premier.</span>
           </div>
           <div class="honeypot" aria-hidden="true">
             <label for="honeypot">Laissez ce champ vide</label>
@@ -348,6 +372,7 @@ Demander une démo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Envoi en cours…">Envoyer la demande</button>
         </form>
+        <p class="modal-alt">Vous préférez regarder d'abord? <a href="https://demo.wampums.app" data-track="sample_unit">Explorez l'unité exemple</a> : en lecture seule, sans inscription.</p>
       </div>
     </div>
 

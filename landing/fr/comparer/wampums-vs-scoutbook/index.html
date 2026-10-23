@@ -66,7 +66,7 @@
           "name": "Scoutbook est-il disponible en français?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Scoutbook offre un support français limité et n'a pas été conçu pour la commutation de langue par utilisateur au sein d'un même groupe. Dans un groupe mixte anglais-français, certaines familles seront inévitablement mal servies. Wampums affiche l'application entière dans la langue préférée de chaque utilisateur — les animateurs, les parents et les jeunes voient chacun l'interface dans leur langue, sans aucune configuration supplémentaire."
+            "text": "Nous n’avons trouvé aucune version française de Scoutbook en octobre 2026. Wampums affiche l'application entière dans la langue préférée de chaque utilisateur — les animateurs, les parents et les jeunes voient chacun l'interface dans leur langue, sans aucune configuration supplémentaire."
           }
         },
         {
@@ -82,7 +82,7 @@
           "name": "Wampums héberge-t-il les données sur des serveurs canadiens?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Oui. La base de données et les fichiers de chaque unité sont hébergés au Québec, au centre de données OVHcloud de Beauharnois. Les courriels partent par Brevo, qui reçoit l'adresse de chaque destinataire et le message, et l'aide à la rédaction par IA, facultative, ne reçoit que le texte qu'un animateur lui soumet. Scoutbook héberge les données sur des serveurs américains soumis aux lois américaines, ce qui peut poser des enjeux de conformité pour les groupes canadiens."
+            "text": "Oui. La base de données et les fichiers de chaque unité sont hébergés au Québec, au centre de données OVHcloud de Beauharnois. Les courriels partent par Brevo, qui reçoit l'adresse de chaque destinataire et le message, et l'aide à la rédaction par IA, facultative, ne reçoit que le texte qu'un animateur lui soumet. Scoutbook est exploité aux États-Unis par Scouting America, ce qui demande du travail de conformité aux groupes canadiens."
           }
         },
         {
@@ -90,7 +90,7 @@
           "name": "Wampums fonctionne-t-il sans connexion pour les camps éloignés?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Oui. Wampums offre un mode camp complet jusqu'à 10 jours sans connexion internet. Les présences, les badges, les points et les médicaments fonctionnent tous hors ligne. Les données se synchronisent automatiquement au retour en zone de couverture. Scoutbook nécessite une connexion pour la plupart de ses fonctions."
+            "text": "Oui. Wampums offre un mode camp complet jusqu'à 10 jours sans connexion internet. Les présences, les badges, les points et les médicaments fonctionnent tous hors ligne. Les données se synchronisent automatiquement au retour en zone de couverture. "
           }
         }
       ]
@@ -115,6 +115,7 @@
             <a class="nav-pages" href="/fr/#compare">Comparer</a>
             <a class="nav-pages" href="/fr/faq/">FAQ</a>
             <a class="nav-pages" href="/fr/blogue/">Blogue</a>
+            <button type="button" class="btn btn--ember nav-cta" data-open-demo-modal><span class="nav-cta-long">Demander une démo</span><span class="nav-cta-short">Démo</span></button>
             <span class="lang-switch">
               <a href="/fr/comparer/wampums-vs-scoutbook/" lang="fr-CA" aria-current="page">FR<span class="sr-only"> — Français</span></a>
               <a href="/en/compare/wampums-vs-scoutbook/" lang="en-CA" hreflang="en-CA">EN<span class="sr-only"> — English</span></a>
@@ -133,7 +134,7 @@
     </nav>
         <p class="kicker">Comparatif</p>
         <h1>Wampums vs Scoutbook : conçu pour le Canada, pas traduit pour lui</h1>
-          <p class="hero-lede">Scoutbook est la plateforme officielle de Scouts BSA, l'organisation scoute américaine. Elle remplit bien son rôle pour les troupes américaines. Mais le paysage scout canadien est fondamentalement différent — des familles bilingues, des lois provinciales sur la vie privée, un mélange de Scouts Canada, de Filles Guides, de Cadets et d'organismes jeunesse indépendants, et des attentes culturelles autour des services en langue française que Scoutbook n'a tout simplement pas été conçu pour satisfaire. Ce comparatif explique les différences clés et pourquoi les groupes canadiens choisissent de plus en plus Wampums.</p>
+          <p class="hero-lede">Scoutbook Plus est l’outil officiel et gratuit de progression de Scouting America (anciennement les Boy Scouts of America), réservé à ses propres unités. Elle remplit bien son rôle pour les troupes américaines. Mais le paysage scout canadien est fondamentalement différent — des familles bilingues, des lois provinciales sur la vie privée, un mélange de Scouts Canada, de Filles Guides, de Cadets et d'organismes jeunesse indépendants, et des attentes culturelles autour des services en langue française que Scoutbook n'a tout simplement pas été conçu pour satisfaire. Ce comparatif explique les différences clés.</p>
         <div class="hero-actions">
           <button type="button" class="btn btn--ember" data-open-demo-modal>
 Demander une démo
@@ -145,6 +146,13 @@ Demander une démo
     </div>
 
 <main id="main" class="page-body">
+
+  <figure class="app-shot">
+    <div class="app-shot__phone">
+      <img src="/images/screenshots/offline-fr.webp" width="390" height="844" alt="Présences prises sans réseau : un bandeau au-dessus de la page indique le mode hors ligne." decoding="async" />
+    </div>
+    <figcaption>Pas de réseau au camp ? On continue : tout se synchronise au retour.</figcaption>
+  </figure>
 
   <!-- Comparison Table -->
   <section class="section">
@@ -173,7 +181,7 @@ Demander une démo
           </tr>
           <tr>
             <td>Hébergement sur serveurs canadiens</td>
-            <td class="lose">Serveurs américains, lois américaines</td>
+            <td class="lose">Exploité aux États-Unis par Scouting America</td>
             <td class="win">Base de données hébergée au Québec</td>
           </tr>
           <tr>
@@ -225,14 +233,14 @@ Demander une démo
 
       <article class="card">
         <h3>Vie privée canadienne — pas des serveurs américains</h3>
-        <p>Scoutbook héberge les données sur des serveurs américains soumis aux lois américaines. Pour les groupes canadiens qui collectent des informations personnelles sur des mineurs — noms, coordonnées, données médicales, photos — cette réalité soulève des questions légitimes de conformité que les conseils d'administration doivent prendre au sérieux.</p>
+        <p>Scoutbook est exploité aux États-Unis par Scouting America, sous la loi américaine. Pour les groupes canadiens qui recueillent des renseignements personnels sur des mineurs, cela demande du travail de conformité.</p>
         <p>Wampums héberge la base de données et les fichiers de chaque unité au Québec, au centre de données OVHcloud de Beauharnois. Tout circule en HTTPS, les sauvegardes sont chiffrées, chaque unité ne voit que ses propres dossiers et les rôles décident qui peut ouvrir une fiche de santé. À la demande d'une famille, un animateur peut effacer définitivement le dossier d'un enfant. Les courriels partent par Brevo, qui reçoit l'adresse de chaque destinataire et le message, et l'aide à la rédaction par IA, facultative, ne reçoit que le texte qu'un animateur lui soumet.</p>
-        <p>Pour les groupes québécois, la Loi 25 n'interdit pas de conserver des renseignements personnels hors du Québec, mais avant de les y communiquer, l'organisme doit évaluer les facteurs relatifs à la vie privée et s'assurer qu'ils seront adéquatement protégés. Les dossiers principaux restant au Québec, cette démarche ne les concerne pas.</p>
+        <p>Pour les groupes québécois, la Loi 25 n'interdit pas de conserver des renseignements personnels hors du Québec, mais avant de les y communiquer, l'organisme doit évaluer les facteurs relatifs à la vie privée et s'assurer qu'ils seront adéquatement protégés. Les dossiers principaux restant au Québec, l’évaluation ne porte plus que sur les quelques services externes énumérés, et non sur toute la base de données.</p>
       </article>
 
       <article class="card">
         <h3>Mode camp sans connexion — pas de WiFi requis</h3>
-        <p>Scoutbook nécessite une connexion pour la plupart de ses fonctions. Dans un bureau ou à la maison, ce n'est pas un problème. Sur un site de camping à 60 kilomètres du réseau cellulaire le plus proche, c'est une impasse complète.</p>
+        <p>Sur un site de camping à 60 kilomètres du réseau cellulaire le plus proche, il faut une application qui fonctionne hors ligne.</p>
         <p>Le mode camp de Wampums fonctionne entièrement sans connexion pour les présences, les badges, les points et les médicaments, jusqu'à 10 jours. Avant de partir, l'application précharge toutes les données nécessaires sur l'appareil de l'animateur. Au retour en zone de couverture, tout se synchronise automatiquement.</p>
         <p>Ce n'est pas un mode dégradé — toutes les fonctionnalités critiques sont disponibles. Un animateur peut prendre les présences, marquer les critères de badges complétés, consulter les fiches médicales des participants et gérer l'administration du médicament du soir, sans jamais avoir besoin d'une barre de signal.</p>
       </article>
@@ -250,17 +258,15 @@ Demander une démo
         <p>Wampums fonctionne pour tout organisme jeunesse canadien : Scouts Canada, Filles Guides, Cadets de l'air, Cadets de la Marine, clubs culturels, groupes de jeunesse autochtone, programmes parascolaires et organismes indépendants. Le même ensemble de fonctionnalités bilingues est disponible pour tous, sans adaptation ni contournement.</p>
         <p>Si votre région compte plusieurs organismes qui collaborent — un groupe scout et un groupe guides qui partagent parfois des activités, par exemple — Wampums peut gérer cette complexité. Scoutbook est conçu pour un seul type d'organisme et une seule réalité nationale.</p>
       </article>
+      <article class="card">
+        <h3>À propos de cette comparaison</h3>
+        <p>Faits sur Scoutbook à jour au 23 octobre 2026, d’après <a href="https://www.capitolareascouting.org/resources/scoutbook/">la page Scoutbook d’un conseil de Scouting America</a> et <a href="https://www.scouting.org/">scouting.org</a>. Quand nous écrivons « nous n’avons trouvé aucun », nous avons cherché sans trouver ; écrivez-nous à <a href="mailto:hello@wampums.app">hello@wampums.app</a> si quelque chose a changé.</p>
+      </article>
 
     </div>
     </div>
   </section>
 
-  <figure class="app-shot">
-    <div class="app-shot__phone">
-      <img src="/images/screenshots/offline-fr.webp" width="390" height="844" alt="Présences prises sans réseau : un bandeau au-dessus de la page indique le mode hors ligne." loading="lazy" decoding="async" />
-    </div>
-    <figcaption>Pas de réseau au camp ? On continue : tout se synchronise au retour.</figcaption>
-  </figure>
 
   <!-- FAQ -->
   <section class="section" itemscope itemtype="https://schema.org/FAQPage">
@@ -270,7 +276,7 @@ Demander une démo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Scoutbook est-il disponible en français?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Scoutbook offre un support français limité et n'a pas été conçu pour la commutation de langue par utilisateur au sein d'un même groupe. Dans un groupe mixte anglais-français, certaines familles seront inévitablement mal servies. Wampums affiche l'application entière dans la langue préférée de chaque utilisateur — les animateurs, les parents et les jeunes voient chacun l'interface dans leur langue, sans aucune configuration supplémentaire.</p>
+          <p itemprop="text">Nous n’avons trouvé aucune version française de Scoutbook en octobre 2026. Wampums affiche l'application entière dans la langue préférée de chaque utilisateur — les animateurs, les parents et les jeunes voient chacun l'interface dans leur langue, sans aucune configuration supplémentaire.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
@@ -282,13 +288,13 @@ Demander une démo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Wampums héberge-t-il les données sur des serveurs canadiens?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Oui. La base de données et les fichiers de chaque unité sont hébergés au Québec, au centre de données OVHcloud de Beauharnois. Les courriels partent par Brevo, qui reçoit l'adresse de chaque destinataire et le message, et l'aide à la rédaction par IA, facultative, ne reçoit que le texte qu'un animateur lui soumet. Scoutbook héberge les données sur des serveurs américains soumis aux lois américaines, ce qui peut poser des enjeux de conformité pour les groupes canadiens.</p>
+          <p itemprop="text">Oui. La base de données et les fichiers de chaque unité sont hébergés au Québec, au centre de données OVHcloud de Beauharnois. Les courriels partent par Brevo, qui reçoit l'adresse de chaque destinataire et le message, et l'aide à la rédaction par IA, facultative, ne reçoit que le texte qu'un animateur lui soumet. Scoutbook est exploité aux États-Unis par Scouting America, ce qui demande du travail de conformité aux groupes canadiens.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Wampums fonctionne-t-il sans connexion pour les camps éloignés?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Oui. Wampums offre un mode camp complet jusqu'à 10 jours sans connexion internet. Les présences, les badges, les points et les médicaments fonctionnent tous hors ligne. Le mode camp précharge toutes les données avant le départ, et tout se synchronise automatiquement au retour en zone de couverture. Scoutbook nécessite une connexion pour la plupart de ses fonctions.</p>
+          <p itemprop="text">Oui. Wampums offre un mode camp complet jusqu'à 10 jours sans connexion internet. Les présences, les badges, les points et les médicaments fonctionnent tous hors ligne. Le mode camp précharge toutes les données avant le départ, et tout se synchronise automatiquement au retour en zone de couverture.</p>
         </div>
       </div>
     </div>
@@ -364,12 +370,14 @@ Demander une démo
               <li><a href="/fr/comparer/wampums-vs-sporteasy/">vs SportEasy</a></li>
               <li><a href="/fr/comparer/wampums-vs-trooptrack/">vs TroopTrack</a></li>
               <li><a href="/fr/comparer/wampums-vs-scoutbook/">vs Scoutbook</a></li>
-              <li><a href="/fr/comparer/wampums-vs-scouts-digital/">vs Scouts Digital</a></li>
+              <li><a href="/fr/comparer/wampums-vs-scoutstracker/">vs ScoutsTracker</a></li>
             </ul>
           </nav>
           <nav aria-labelledby="footer-learn">
             <h2 id="footer-learn">Ressources</h2>
             <ul>
+              <li><a href="/fr/administrateurs/">Pour les administrateurs</a></li>
+              <li><a href="/fr/districts/">Pour les districts</a></li>
               <li><a href="/fr/faq/">FAQ</a></li>
               <li><a href="/fr/blogue/">Blogue</a></li>
               <li><a href="/fr/confidentialite/">Politique de confidentialité</a></li>
@@ -392,9 +400,9 @@ Demander une démo
             <svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-x" /></svg>
           </button>
         </div>
-        <p class="modal-intro" id="modalIntro">Parlez-nous un peu de votre unité. Nous vous répondrons, et vous pouvez essayer la démo tout de suite.</p>
+        <p class="modal-intro" id="modalIntro">Parlez-nous un peu de votre unité : nous vous répondrons pour la configurer. Seuls le nom et le courriel sont obligatoires.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Merci, votre demande est envoyée. Direction la démo…</p>
+        <p class="form-success" id="formSuccess" role="status" hidden>Merci, votre demande est envoyée. Direction l'unité exemple, à visiter en parent ou en animateur…</p>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Votre demande n'a pas pu être envoyée. Vérifiez votre connexion et réessayez, ou écrivez à hello@wampums.app." data-busy="Trop de demandes depuis cette connexion. Attendez quelques minutes et réessayez."></p>
 
         <form id="demoForm" novalidate>
@@ -417,10 +425,30 @@ Demander une démo
             <input type="tel" id="phone" name="phone" autocomplete="tel" />
           </div>
           <div class="form-group">
-            <label for="message">Message</label>
-            <textarea id="message" name="message" required aria-describedby="message-hint message-error"></textarea>
-            <span class="form-hint" id="message-hint">Combien de jeunes et d'animateurs, et ce que vous aimeriez régler en premier.</span>
-            <span class="form-error" id="message-error">Écrivez quelques mots (au moins 10 caractères).</span>
+            <label for="unitSize">Nombre de jeunes <span class="optional">(facultatif)</span></label>
+            <select id="unitSize" name="unit_size">
+              <option value="">Choisir…</option>
+              <option value="under_15">Moins de 15</option>
+              <option value="15_30">15 à 30</option>
+              <option value="31_60">31 à 60</option>
+              <option value="over_60">Plus de 60</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="currentTool">Ce que vous utilisez aujourd'hui <span class="optional">(facultatif)</span></label>
+            <select id="currentTool" name="current_tool">
+              <option value="">Choisir…</option>
+              <option value="paper">Papier</option>
+              <option value="spreadsheets">Tableurs</option>
+              <option value="scoutstracker">ScoutsTracker</option>
+              <option value="other_app">Une autre application</option>
+              <option value="nothing">Rien pour l'instant</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="message">Message <span class="optional">(facultatif)</span></label>
+            <textarea id="message" name="message" aria-describedby="message-hint"></textarea>
+            <span class="form-hint" id="message-hint">Par exemple, ce que vous aimeriez régler en premier.</span>
           </div>
           <div class="honeypot" aria-hidden="true">
             <label for="honeypot">Laissez ce champ vide</label>
@@ -428,6 +456,7 @@ Demander une démo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Envoi en cours…">Envoyer la demande</button>
         </form>
+        <p class="modal-alt">Vous préférez regarder d'abord? <a href="https://demo.wampums.app" data-track="sample_unit">Explorez l'unité exemple</a> : en lecture seule, sans inscription.</p>
       </div>
     </div>
 

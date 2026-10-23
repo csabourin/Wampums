@@ -2,7 +2,7 @@
 title: "Le guide complet de la gestion d'un groupe scout en 2026"
 slug: "guide-gestion-groupe-scout"
 date: "2026-02-16"
-updated: "2026-02-16"
+updated: "2026-10-23"
 lang: "fr"
 alternate: "guide-scout-group-management"
 description: "Un guide pratique pour gérer les présences, badges, communications et finances de votre groupe scout, avec des conseils et comparaisons."
@@ -29,7 +29,7 @@ Ce guide couvre tous les aspects de la gestion moderne d'un groupe scout — ce 
 
 Avant de parler de solutions, il est utile de comprendre ce que coûte réellement une mauvaise organisation. Pas en argent — en temps, en énergie et en épuisement bénévole.
 
-En moyenne, un chef scout consacre entre deux et quatre heures par semaine à des tâches administratives qui n'ont rien à voir avec le programme. Cela inclut la resaisie des données de présences à partir de feuilles papier, l'envoi de formulaires de permission et les relances, la gestion de plusieurs tableurs qui dérivent de version en version, et la réponse aux messages WhatsApp qui auraient pu être automatisés.
+Bien des animateurs consacrent des heures chaque semaine à des tâches administratives qui n'ont rien à voir avec le programme. Cela inclut la resaisie des données de présences à partir de feuilles papier, l'envoi de formulaires de permission et les relances, la gestion de plusieurs tableurs qui dérivent de version en version, et la réponse aux messages WhatsApp qui auraient pu être automatisés.
 
 Sur une année scoute d'environ 36 réunions, cela représente entre 72 et 144 heures de charge administrative par chef. Pour un groupe de six bénévoles, on parle de 432 à 864 heures de bénévolat consacrées uniquement à l'administration. Des heures qui auraient pu aller à la planification de programmes, à la formation aux techniques scoutes ou, tout simplement, à profiter des réunions.
 
@@ -146,7 +146,7 @@ La transition vers un nouveau système de gestion de groupe est plus réussie si
 
 **Semaine 4 — Badges et finances** : Importer les registres de badges existants et configurer le budget actuel. Ces modules demandent plus de configuration initiale, mais rapportent rapidement une fois en place.
 
-Après 30 jours, la plupart des groupes constatent qu'ils ont réduit leur temps administratif de 40 à 60 %. Le bénéfice n'est pas seulement les heures économisées — c'est la qualité des données maintenant disponibles. Les tendances de présences, les taux de progression des badges et la santé financière sont visibles d'un coup d'œil au lieu d'être enfouis dans des tableurs.
+Après un mois, le bénéfice n'est pas seulement les heures économisées — c'est la qualité des données maintenant disponibles. Les tendances de présences, les taux de progression des badges et la santé financière sont visibles d'un coup d'œil au lieu d'être enfouis dans des tableurs.
 
 ## Conclusion : la bonne infrastructure administrative permet d'être un meilleur chef
 

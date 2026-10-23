@@ -28,18 +28,21 @@ function load(lang) {
 function fillDemoForm() {
   document.getElementById('name').value = 'Ada Lovelace';
   document.getElementById('email').value = 'ada@example.com';
-  document.getElementById('message').value = 'We are a unit of 24 youth and 6 leaders.';
 }
+
+const submitDemoForm = () => document.getElementById('demoForm').dispatchEvent(new Event('submit', { cancelable: true }));
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 beforeEach(() => {
   global.fetch = jest.fn();
+  window.gtag = jest.fn();
 });
 
 afterEach(() => {
   jest.useRealTimers();
   delete global.fetch;
+  delete window.gtag;
 });
 
 describe('home page feature tabs', () => {
@@ -87,13 +90,62 @@ describe('home page demo request', () => {
   test('missing fields are flagged next to each field and nothing is sent', () => {
     load('fr');
     document.querySelector('[data-open-demo-modal]').click();
-    document.getElementById('demoForm').dispatchEvent(new Event('submit', { cancelable: true }));
+    submitDemoForm();
 
     expect(global.fetch).not.toHaveBeenCalled();
-    ['name', 'email', 'message'].forEach((id) => {
+    ['name', 'email'].forEach((id) => {
       expect(document.getElementById(id).getAttribute('aria-invalid')).toBe('true');
     });
+    expect(document.getElementById('message').getAttribute('aria-invalid')).not.toBe('true');
     expect(document.activeElement.id).toBe('name');
+  });
+
+  test('a name and an email are enough, and the two menus are sent with the request', async () => {
+    jest.useFakeTimers();
+    load('fr');
+    global.fetch.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ success: true }) });
+
+    document.querySelector('[data-open-demo-modal]').click();
+    fillDemoForm();
+    document.getElementById('unitSize').value = '15_30';
+    document.getElementById('currentTool').value = 'scoutstracker';
+    submitDemoForm();
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toMatchObject({
+      message: '', unit_size: '15_30', current_tool: 'scoutstracker',
+    });
+    expect(window.gtag).toHaveBeenCalledWith('event', 'demo_dialog_open', expect.any(Object));
+    expect(window.gtag).toHaveBeenCalledWith('event', 'generate_lead', expect.objectContaining({ unit_size: '15_30' }));
+  });
+
+  test.each(['en', 'fr'])('the %s menus are labelled and start on an empty choice', (lang) => {
+    load(lang);
+    ['unitSize', 'currentTool'].forEach((id) => {
+      const select = document.getElementById(id);
+      expect(document.querySelector(`label[for="${id}"]`).textContent.trim().length).toBeGreaterThan(5);
+      expect(select.value).toBe('');
+      expect(select.required).toBe(false);
+    });
+  });
+
+  test('the button in the header opens the dialog from any scroll position, and Escape returns to it', () => {
+    load('fr');
+    const opener = document.querySelector('.site-header [data-open-demo-modal]');
+    expect(opener.textContent).toMatch(/démo/i);
+    opener.click();
+    expect(document.getElementById('demoModal').hidden).toBe(false);
+
+    document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.activeElement).toBe(opener);
+  });
+
+  test('visitors can explore the sample unit without filling the form', () => {
+    load('en');
+    const links = [...document.querySelectorAll('a[href="https://demo.wampums.app"]')];
+    expect(links.map((link) => link.closest('.hero-actions, .modal-alt') !== null)).toEqual([true, true]);
+    links[0].click();
+    expect(window.gtag).toHaveBeenCalledWith('event', 'sample_unit_click', expect.any(Object));
   });
 
   test('a refused request explains itself in the page language, not with the server message', async () => {
@@ -136,6 +188,36 @@ describe('home page demo request', () => {
     expect((await axe.run(document.body, AXE_OPTIONS)).violations).toEqual([]);
     document.querySelector('[data-open-demo-modal]').click();
     expect((await axe.run(document.getElementById('demoModal'), AXE_OPTIONS)).violations).toEqual([]);
+  });
+});
+
+describe('home page answers', () => {
+  const faq = (lang) => {
+    const html = page(lang);
+    const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)[1]);
+    const questions = ld['@graph'].find((node) => node['@type'] === 'FAQPage').mainEntity.map((item) => item.name);
+    const shown = [...html.matchAll(/<summary>([^<]+)<svg/g)].map((match) => match[1].replace(/&#x27;/g, "'"));
+    return { html, questions, shown };
+  };
+
+  test.each(['en', 'fr'])('the %s questions shown are the ones given to search engines', (lang) => {
+    const { questions, shown } = faq(lang);
+    expect(shown).toEqual(questions);
+  });
+
+  test.each([
+    ['en', /Quebec, at OVHcloud in Beauharnois/, /MyScouts or ScoutsTracker\?/, /export to CSV or print as PDF/],
+    ['fr', /Québec, chez OVHcloud à Beauharnois/, /MyScouts ou ScoutsTracker\?/, /s'exportent en CSV ou s'impriment en PDF/],
+  ])('the %s page says where data lives, how to take it out, and how Wampums relates to Scouts Canada\'s own tools', (lang, ...patterns) => {
+    const { html } = faq(lang);
+    patterns.forEach((pattern) => expect(html).toMatch(pattern));
+  });
+
+  test.each(['en', 'fr'])('the %s hero shows a real screen of the app', (lang) => {
+    load(lang);
+    const shot = document.querySelector('.hero .stage img');
+    expect(shot.getAttribute('src')).toBe(`/images/screenshots/dashboard-${lang}.webp`);
+    expect(shot.getAttribute('alt').length).toBeGreaterThan(40);
   });
 });
 

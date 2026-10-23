@@ -151,6 +151,7 @@ describe('inner pages of the public site', () => {
     expect(html).toContain('<header class="site-header">');
     expect(html).toContain('<footer class="site-footer">');
     expect(html).toContain('id="demoModal"');
+    expect(/<header class="site-header">[\s\S]*?<button type="button" class="btn btn--ember nav-cta" data-open-demo-modal>[\s\S]*?<\/header>/.test(html)).toBe(true);
     expect(html).toContain('<script src="/landing.js" defer></script>');
     expect(html).not.toMatch(/btn-primary|btn-secondary/);
   });
@@ -173,6 +174,9 @@ describe('inner pages of the public site', () => {
     const lang = pagePath.slice(1, 3);
     expect(html).not.toMatch(/screenshot-placeholder|coming soon|bientôt disponible/i);
 
+    // The screen comes first in the page body, not after the long text.
+    expect(/<main id="main" class="page-body">\s*<figure class="app-shot">/.test(html)).toBe(true);
+
     const shots = [...html.matchAll(/<figure class="app-shot">[\s\S]*?<img src="([^"]+)"[^>]*alt="([^"]+)"[\s\S]*?<figcaption>([^<]+)<\/figcaption>/g)];
     expect(shots).toHaveLength(1);
     const [, src, alt, caption] = shots[0];
@@ -187,6 +191,37 @@ describe('inner pages of the public site', () => {
       .map((match) => match[1]);
     expect(links.length).toBeGreaterThan(0);
     expect([...new Set(links)].filter((link) => !fs.existsSync(path.join(LANDING, link)))).toEqual([]);
+  });
+
+  test('the committee and district pages exist in both languages and show the app', () => {
+    expect(PAGES).toEqual(expect.arrayContaining([
+      '/en/administrators/', '/fr/administrateurs/', '/en/districts/', '/fr/districts/',
+      '/en/compare/wampums-vs-scoutstracker/', '/fr/comparer/wampums-vs-scoutstracker/',
+    ]));
+    expect(read('/en/districts/')).toContain('/images/screenshots/district-en.webp');
+    expect(read('/fr/administrateurs/')).toContain('/images/screenshots/reports-fr.webp');
+  });
+
+  test('no page names Scouts Digital, a South African tool, as Scouts Canada\'s', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      expect(read(pagePath)).not.toMatch(/Scouts Digital|scouts-digital/);
+    });
+  });
+
+  test('each comparison with another product dates its facts and names its sources', () => {
+    PAGES.filter((pagePath) => /\/(compare|comparer)\/wampums-vs-(scoutbook|trooptrack|sporteasy|scoutstracker)\//.test(pagePath))
+      .forEach((pagePath) => {
+        const html = read(pagePath);
+        expect(html).toMatch(/as of October 23, 2026|à jour au 23 octobre 2026/);
+        expect(html).toMatch(/<a href="https:\/\/[^"]+">/);
+      });
+  });
+
+  test('no page promises an IP address or a legally equivalent signature', () => {
+    // The privacy policy names the IP addresses kept in server logs, which is true.
+    PAGES.concat(['/en/', '/fr/']).filter((pagePath) => !/privacy|confidentialite/.test(pagePath)).forEach((pagePath) => {
+      expect(read(pagePath)).not.toMatch(/IP address|adresse IP|legally equivalent|valeur juridique complète/i);
+    });
   });
 
   test('every screenshot in the images folder is shown on a page', () => {
@@ -228,6 +263,7 @@ describe('blog pages', () => {
     expect(html).toContain('<footer class="site-footer">');
     expect(html).toContain('<a href="/fr/confidentialite/">Politique de confidentialité</a>');
     expect(html).toContain('id="demoModal"');
+    expect(/<header class="site-header">[\s\S]*?<button type="button" class="btn btn--ember nav-cta" data-open-demo-modal>[\s\S]*?<\/header>/.test(html)).toBe(true);
     expect(html).toContain('<h1>Premier &lt;article&gt;</h1>');
     expect(html).toContain('<a href="/en/blog/first-post/" lang="en-CA" hreflang="en-CA">EN');
 

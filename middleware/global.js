@@ -313,10 +313,15 @@ module.exports = (app) => {
       return res.redirect(301, `${langPrefix}${cleanUrl[2]}/`);
     }
 
-    // Redirect legacy /fr/comparatif/ URLs to canonical /fr/comparer/
+    // Redirect retired URLs: legacy /fr/comparatif/ pages, the comparison that
+    // named "Scouts Digital" (Scouts Canada's tools are MyScouts and ScoutsTracker),
+    // and an old link to the bilingual article.
     const comparatifRedirects = {
       '/fr/comparatif/wampums-vs-scoutbook/': '/fr/comparer/wampums-vs-scoutbook/',
-      '/fr/comparatif/wampums-vs-scouts-digital/': '/fr/comparer/wampums-vs-scouts-digital/',
+      '/fr/comparatif/wampums-vs-scouts-digital/': '/fr/comparer/wampums-vs-scoutstracker/',
+      '/fr/comparer/wampums-vs-scouts-digital/': '/fr/comparer/wampums-vs-scoutstracker/',
+      '/en/compare/wampums-vs-scouts-digital/': '/en/compare/wampums-vs-scoutstracker/',
+      '/en/blog/bilingual-scout-challenges/': '/en/blog/bilingual-scout-group-challenges-canada/',
       '/fr/comparatif/wampums-vs-sporteasy/': '/fr/comparer/wampums-vs-sporteasy/',
       '/fr/comparatif/wampums-vs-spreadsheets/': '/fr/comparer/wampums-vs-tableurs/',
       '/fr/comparatif/wampums-vs-trooptrack/': '/fr/comparer/wampums-vs-trooptrack/',

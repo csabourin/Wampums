@@ -174,6 +174,20 @@ describe('Landing Host Routing - wampums.app', () => {
     });
   });
 
+  describe('Retired pages', () => {
+    test.each([
+      ['/en/compare/wampums-vs-scouts-digital/', '/en/compare/wampums-vs-scoutstracker/'],
+      ['/fr/comparer/wampums-vs-scouts-digital/', '/fr/comparer/wampums-vs-scoutstracker/'],
+      ['/fr/comparatif/wampums-vs-scouts-digital/', '/fr/comparer/wampums-vs-scoutstracker/'],
+      ['/en/blog/bilingual-scout-challenges/', '/en/blog/bilingual-scout-group-challenges-canada/'],
+    ])('%s moves permanently to %s', async (from, to) => {
+      const res = await request(app).get(from).set('Host', 'wampums.app');
+
+      expect(res.status).toBe(301);
+      expect(res.header.location).toBe(to);
+    });
+  });
+
   describe('Canonical trailing slash redirects', () => {
     test('redirects /en to /en/ with 301 permanent redirect', async () => {
       const res = await request(app)

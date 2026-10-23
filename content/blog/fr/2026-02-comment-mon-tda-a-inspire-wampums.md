@@ -2,7 +2,7 @@
 title: "Comment mon TDA a inspiré Wampums, une application scoute"
 slug: "comment-mon-tda-a-inspire-wampums"
 date: "2026-02-17"
-updated: "2026-02-17"
+updated: "2026-10-23"
 lang: "fr"
 alternate: "how-my-adhd-inspired-a-scout-app"
 description: "Comment un animateur scout et programmeur avec un TDA a créé Wampums pour alléger les tâches administratives et redonner du temps aux animateurs."
@@ -111,6 +111,8 @@ Chacun de ces problèmes était concret. Chacun avait une solution numérique. E
 
 C'est de là qu'est née l'application Wampums. (L'histoire du nom, je la conterai une autre fois — elle vaut le détour.)
 
+> **Vous reconnaissez votre unité?** [Explorez l'unité exemple](https://demo.wampums.app) en parent ou en animateur, en lecture seule et sans inscription, ou [voyez tout ce que Wampums fait](/fr/).
+
 ## Deux ans de terrain
 
 Je développe Wampums depuis deux ans. Pas dans un bureau, pas en théorie : sur le terrain. Je la teste à chaque réunion. J'écoute les commentaires des autres animateurs. Un tel me dit que tel bouton n'est pas assez visible. Une autre me signale que le flux de présences pourrait être plus rapide. Je peaufine, j'ajuste, je recommence.
@@ -121,7 +123,7 @@ Aujourd'hui, je me rends compte que Wampums remplace à elle seule un tas d'outi
 
 ## Un outil pour la communauté
 
-Je souhaite partager cette création avec la communauté scoute. En pré-lancement, je l'offre gratuitement, parce que je veux d'abord offrir un produit de qualité qui conviendra au plus grand nombre possible. Je me soucie de l'accessibilité — que chaque animateur, peu importe son aisance avec la technologie, puisse s'y retrouver. Et je me soucie de la possibilité d'utiliser toutes ces données hors-ligne, quand on est en plein bois sans réseau cellulaire.
+Je souhaite partager cette création avec la communauté scoute. En accès anticipé, je l'offre gratuitement, parce que je veux d'abord offrir un produit de qualité qui conviendra au plus grand nombre possible. Je me soucie de l'accessibilité — que chaque animateur, peu importe son aisance avec la technologie, puisse s'y retrouver. Et je me soucie de la possibilité d'utiliser toutes ces données hors-ligne, quand on est en plein bois sans réseau cellulaire.
 
 ## L'ironie de la chose
 
@@ -131,4 +133,4 @@ Je suis parti de problèmes concrets — les miens, ceux de Baloo, de Frère-Gri
 
 Afin d'avoir les scouts au bout des doigts.
 
-[Wampums est gratuit pendant la période de pré-lancement.](https://wampums.app/fr/) Demandez une démo et on configure votre organisation ensemble.
+[Wampums est gratuit pendant l'accès anticipé.](/fr/) Demandez une démo et on configure votre unité ensemble.

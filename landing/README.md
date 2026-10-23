@@ -20,6 +20,53 @@ The allowed sources follow [Google's GA4 CSP guidance](https://developers.google
 When adding a landing page, include the tag once in its head. Coverage lives in
 `test/landing-subpages.test.js` and `test/landing-host.test.js`.
 
+`landing.js` sends three events so each page shows where visitors stop, all with
+the page's `page_path`: `demo_dialog_open` when the demo dialog opens,
+`generate_lead` (with `unit_size` and `current_tool`) when a request is accepted,
+and `sample_unit_click` for links marked `data-track="sample_unit"`. A link marked
+`data-track="x"` sends `x_click`.
+
+## Demo request and sample unit
+
+Every page header has a "Request a demo" button; it reads "Demo" below 640px.
+The form asks only for a name and an email. The unit, phone, number of youth,
+current tool and message are optional; the two menus send fixed values that
+`POST /api/v1/public/contact-demo` checks against `DEMO_UNIT_SIZES` and
+`DEMO_CURRENT_TOOLS` in `routes/public.js`. Keep the options identical in every
+page's dialog and in `views/partials/footer.ejs`.
+
+The sample unit is `https://demo.wampums.app`: a read-only unit that opens
+without a password, as a parent or a leader (migration 039). The home hero and
+every dialog link to it for visitors who would rather look first.
+
+## Claims
+
+Write only what the code does today, and nothing about other units' results
+without a source. The Canadian Path is not preloaded; badges are set up with each
+unit. Carpools: parents place their own children, and leaders holding
+`carpools.manage` place anyone. Reports export to CSV or print as PDF. There is no
+app-store app.
+
+Pricing: a single unit is free until at least 2028; an organization opening several
+units (five or more, say) gets a negotiated monthly price.
+
+A signed permission slip records the name the parent typed, the date and time,
+and the slip's text and authorization. It records no IP address; do not claim one,
+or a "legally equivalent" or certified signature.
+
+Scouts Canada's own tools are MyScouts (registration) and ScoutsTracker (the
+official badge tracker, provided by Dakemi Communications). "Scouts Digital" is
+South African; its old comparison URLs redirect to `wampums-vs-scoutstracker`.
+
+Each comparison page ends with an "About this comparison" card giving the date its
+facts were checked and their sources. Check a fact at its source, and change the
+date, before changing it. Write "we found no …" for what a source does not show,
+never "X cannot …".
+
+The admin (`/en/administrators/`, `/fr/administrateurs/`) and district
+(`/en/districts/`, `/fr/districts/`) pages show the `reports` and `district`
+screenshots, taken by `site-screenshots/take.sh`.
+
 ## Cookie consent
 
 Every static page and the shared blog head load `/consent.js` synchronously before

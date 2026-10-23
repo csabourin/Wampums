@@ -41,6 +41,7 @@
             <a class="nav-pages" href="/en/#compare">Compare</a>
             <a class="nav-pages" href="/en/faq/">FAQ</a>
             <a class="nav-pages" href="/en/blog/">Blog</a>
+            <button type="button" class="btn btn--ember nav-cta" data-open-demo-modal><span class="nav-cta-long">Request a demo</span><span class="nav-cta-short">Demo</span></button>
             <span class="lang-switch">
               <a href="/fr/confidentialite/" lang="fr-CA" hreflang="fr-CA">FR<span class="sr-only"> — Français</span></a>
               <a href="/en/privacy/" lang="en-CA" aria-current="page">EN<span class="sr-only"> — English</span></a>
@@ -84,7 +85,7 @@
         <p>Each unit that uses Wampums decides what information it collects about its members, and why. Wampums hosts and processes that information on the unit's behalf, and only to make the app work.</p>
 
         <h2 id="officer">Person in charge of personal information</h2>
-        <p>Christian Sabourin is the person in charge of the protection of personal information for Wampums. For any question, request or complaint: <a href="mailto:info@christiansabourin.com">info@christiansabourin.com</a>.</p>
+        <p>Christian Sabourin is the person in charge of the protection of personal information for Wampums. For any question, request or complaint: <a href="mailto:hello@wampums.app">hello@wampums.app</a>.</p>
 
         <h2 id="information">Information we handle</h2>
         <h3>In the app</h3>
@@ -138,7 +139,7 @@
         <p>A unit that stops using Wampums can ask for all its data to be deleted.</p>
 
         <h2 id="rights">Your rights</h2>
-        <p>You can ask to see the information about you or your child, have it corrected, withdraw your consent or have it erased. Contact your unit, or write to <a href="mailto:info@christiansabourin.com">info@christiansabourin.com</a>. We answer within 30 days.</p>
+        <p>You can ask to see the information about you or your child, have it corrected, withdraw your consent or have it erased. Contact your unit, or write to <a href="mailto:hello@wampums.app">hello@wampums.app</a>. We answer within 30 days.</p>
         <p>Information about a youth under 14 is collected with the consent of their parent or guardian.</p>
         <p>If our answer does not satisfy you, you can file a complaint with the <a href="https://www.cai.gouv.qc.ca/">Commission d'accès à l'information du Québec</a>.</p>
 
@@ -192,12 +193,14 @@
               <li><a href="/en/compare/wampums-vs-sporteasy/">vs SportEasy</a></li>
               <li><a href="/en/compare/wampums-vs-trooptrack/">vs TroopTrack</a></li>
               <li><a href="/en/compare/wampums-vs-scoutbook/">vs Scoutbook</a></li>
-              <li><a href="/en/compare/wampums-vs-scouts-digital/">vs Scouts Digital</a></li>
+              <li><a href="/en/compare/wampums-vs-scoutstracker/">vs ScoutsTracker</a></li>
             </ul>
           </nav>
           <nav aria-labelledby="footer-learn">
             <h2 id="footer-learn">Learn</h2>
             <ul>
+              <li><a href="/en/administrators/">For administrators</a></li>
+              <li><a href="/en/districts/">For districts</a></li>
               <li><a href="/en/faq/">FAQ</a></li>
               <li><a href="/en/blog/">Blog</a></li>
               <li><a href="/en/privacy/">Privacy policy</a></li>
@@ -220,9 +223,9 @@
             <svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-x" /></svg>
           </button>
         </div>
-        <p class="modal-intro" id="modalIntro">Tell us a little about your unit. We'll write back, and you can try the demo right away.</p>
+        <p class="modal-intro" id="modalIntro">Tell us a little about your unit and we'll write back to set it up. Only your name and email are required.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the demo…</p>
+        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the sample unit, where you can look around as a parent or a leader…</p>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Your request could not be sent. Check your connection and try again, or write to hello@wampums.app." data-busy="Too many requests from this connection. Wait a few minutes and try again."></p>
 
         <form id="demoForm" novalidate>
@@ -245,10 +248,30 @@
             <input type="tel" id="phone" name="phone" autocomplete="tel" />
           </div>
           <div class="form-group">
-            <label for="message">Message</label>
-            <textarea id="message" name="message" required aria-describedby="message-hint message-error"></textarea>
-            <span class="form-hint" id="message-hint">How many youth and leaders, and what you'd like to fix first.</span>
-            <span class="form-error" id="message-error">Write a few words (at least 10 characters).</span>
+            <label for="unitSize">Number of youth <span class="optional">(optional)</span></label>
+            <select id="unitSize" name="unit_size">
+              <option value="">Choose…</option>
+              <option value="under_15">Fewer than 15</option>
+              <option value="15_30">15 to 30</option>
+              <option value="31_60">31 to 60</option>
+              <option value="over_60">More than 60</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="currentTool">What you use today <span class="optional">(optional)</span></label>
+            <select id="currentTool" name="current_tool">
+              <option value="">Choose…</option>
+              <option value="paper">Paper</option>
+              <option value="spreadsheets">Spreadsheets</option>
+              <option value="scoutstracker">ScoutsTracker</option>
+              <option value="other_app">Another app</option>
+              <option value="nothing">Nothing yet</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="message">Message <span class="optional">(optional)</span></label>
+            <textarea id="message" name="message" aria-describedby="message-hint"></textarea>
+            <span class="form-hint" id="message-hint">For example, what you'd like to fix first.</span>
           </div>
           <div class="honeypot" aria-hidden="true">
             <label for="honeypot">Leave this field empty</label>
@@ -256,6 +279,7 @@
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Sending…">Send request</button>
         </form>
+        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: read-only, no sign-up.</p>
       </div>
     </div>
 

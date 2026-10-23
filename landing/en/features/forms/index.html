@@ -103,6 +103,7 @@
             <a class="nav-pages" href="/en/#compare">Compare</a>
             <a class="nav-pages" href="/en/faq/">FAQ</a>
             <a class="nav-pages" href="/en/blog/">Blog</a>
+            <button type="button" class="btn btn--ember nav-cta" data-open-demo-modal><span class="nav-cta-long">Request a demo</span><span class="nav-cta-short">Demo</span></button>
             <span class="lang-switch">
               <a href="/fr/fonctionnalites/formulaires/" lang="fr-CA" hreflang="fr-CA">FR<span class="sr-only"> — Français</span></a>
               <a href="/en/features/forms/" lang="en-CA" aria-current="page">EN<span class="sr-only"> — English</span></a>
@@ -133,6 +134,13 @@ Request a demo
     </div>
 
 <main id="main" class="page-body">
+
+  <figure class="app-shot">
+    <div class="app-shot__phone">
+      <img src="/images/screenshots/forms-en.webp" width="390" height="844" alt="Health form filled in by a parent on a phone: family doctor, health problems, allergies, medication." decoding="async" />
+    </div>
+    <figcaption>Parents fill in the health form themselves, in their own language.</figcaption>
+  </figure>
 
   <section class="section">
     <div class="shell">
@@ -180,20 +188,14 @@ Request a demo
       </article>
 
       <article class="card">
-        <h2>E-Signature &amp; Legal Consent Tracking</h2>
-        <p>An e-signature on a Wampums form is legally equivalent to a handwritten signature in Canadian jurisdictions that recognize electronic signatures under the Uniform Electronic Commerce Act and provincial equivalents. When a parent completes and signs a form, Wampums records the signature timestamp, the IP address of the device used, and the content of the form at the time of signing. This record is kept with the form.</p>
-        <p>For activities with elevated risk — overnight camps, water activities, travel outside the local area — forms can require an explicit consent checkbox in addition to the e-signature, ensuring the parent has acknowledged the specific risk disclosure language. If a form's content is updated after some parents have already signed — for example, when the activity location changes — the system detects the change and re-notifies affected parents to review and re-confirm the updated version, preventing outdated consents from standing for changed conditions.</p>
+        <h2>Electronic Signature &amp; Consent Records</h2>
+        <p>In Quebec, a signature on a digital document can take any form that links the person to the document and shows their consent (Act to establish a legal framework for information technology, s. 39, and Civil Code, art. 2827); the other provinces have similar electronic commerce acts. When a parent signs a permission slip, Wampums records the name they type, the date and time, and the slip’s text and authorization as they were sent. The parent signs from their own account or from the link emailed to them. It is a simple electronic signature, not a certified one: for higher-risk activities, ask your organization or insurer what it requires.</p>
+        <p>Each slip shows the authorization text the leader wrote, so the parent signs that wording and nothing else. If a leader sends a slip again with new details — for example, when the activity location changes — earlier answers are cleared and parents are asked to sign the new version, so an old consent never stands for changed conditions.</p>
       </article>
     </div>
     </div>
   </section>
 
-  <figure class="app-shot">
-    <div class="app-shot__phone">
-      <img src="/images/screenshots/forms-en.webp" width="390" height="844" alt="Health form filled in by a parent on a phone: family doctor, health problems, allergies, medication." loading="lazy" decoding="async" />
-    </div>
-    <figcaption>Parents fill in the health form themselves, in their own language.</figcaption>
-  </figure>
 
   <!-- FAQ -->
   <section class="section" itemscope itemtype="https://schema.org/FAQPage">
@@ -298,12 +300,14 @@ Request a demo
               <li><a href="/en/compare/wampums-vs-sporteasy/">vs SportEasy</a></li>
               <li><a href="/en/compare/wampums-vs-trooptrack/">vs TroopTrack</a></li>
               <li><a href="/en/compare/wampums-vs-scoutbook/">vs Scoutbook</a></li>
-              <li><a href="/en/compare/wampums-vs-scouts-digital/">vs Scouts Digital</a></li>
+              <li><a href="/en/compare/wampums-vs-scoutstracker/">vs ScoutsTracker</a></li>
             </ul>
           </nav>
           <nav aria-labelledby="footer-learn">
             <h2 id="footer-learn">Learn</h2>
             <ul>
+              <li><a href="/en/administrators/">For administrators</a></li>
+              <li><a href="/en/districts/">For districts</a></li>
               <li><a href="/en/faq/">FAQ</a></li>
               <li><a href="/en/blog/">Blog</a></li>
               <li><a href="/en/privacy/">Privacy policy</a></li>
@@ -326,9 +330,9 @@ Request a demo
             <svg class="icon" aria-hidden="true"><use href="/images/icons.svg#i-x" /></svg>
           </button>
         </div>
-        <p class="modal-intro" id="modalIntro">Tell us a little about your unit. We'll write back, and you can try the demo right away.</p>
+        <p class="modal-intro" id="modalIntro">Tell us a little about your unit and we'll write back to set it up. Only your name and email are required.</p>
 
-        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the demo…</p>
+        <p class="form-success" id="formSuccess" role="status" hidden>Thank you, your request is on its way. Taking you to the sample unit, where you can look around as a parent or a leader…</p>
         <p class="form-status" id="formStatus" role="alert" hidden data-generic="Your request could not be sent. Check your connection and try again, or write to hello@wampums.app." data-busy="Too many requests from this connection. Wait a few minutes and try again."></p>
 
         <form id="demoForm" novalidate>
@@ -351,10 +355,30 @@ Request a demo
             <input type="tel" id="phone" name="phone" autocomplete="tel" />
           </div>
           <div class="form-group">
-            <label for="message">Message</label>
-            <textarea id="message" name="message" required aria-describedby="message-hint message-error"></textarea>
-            <span class="form-hint" id="message-hint">How many youth and leaders, and what you'd like to fix first.</span>
-            <span class="form-error" id="message-error">Write a few words (at least 10 characters).</span>
+            <label for="unitSize">Number of youth <span class="optional">(optional)</span></label>
+            <select id="unitSize" name="unit_size">
+              <option value="">Choose…</option>
+              <option value="under_15">Fewer than 15</option>
+              <option value="15_30">15 to 30</option>
+              <option value="31_60">31 to 60</option>
+              <option value="over_60">More than 60</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="currentTool">What you use today <span class="optional">(optional)</span></label>
+            <select id="currentTool" name="current_tool">
+              <option value="">Choose…</option>
+              <option value="paper">Paper</option>
+              <option value="spreadsheets">Spreadsheets</option>
+              <option value="scoutstracker">ScoutsTracker</option>
+              <option value="other_app">Another app</option>
+              <option value="nothing">Nothing yet</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="message">Message <span class="optional">(optional)</span></label>
+            <textarea id="message" name="message" aria-describedby="message-hint"></textarea>
+            <span class="form-hint" id="message-hint">For example, what you'd like to fix first.</span>
           </div>
           <div class="honeypot" aria-hidden="true">
             <label for="honeypot">Leave this field empty</label>
@@ -362,6 +386,7 @@ Request a demo
           </div>
           <button type="submit" class="btn btn--teal btn-submit" data-busy-label="Sending…">Send request</button>
         </form>
+        <p class="modal-alt">Rather look first? <a href="https://demo.wampums.app" data-track="sample_unit">Explore the sample unit</a>: read-only, no sign-up.</p>
       </div>
     </div>
 

@@ -2,10 +2,10 @@
 title: "Application scoute vs tableurs : guide pour les chefs"
 slug: "application-scout-vs-tableurs"
 date: "2026-02-16"
-updated: "2026-02-16"
+updated: "2026-10-23"
 lang: "fr"
 alternate: "scout-app-vs-spreadsheets"
-description: "Pourquoi les groupes scouts canadiens remplacent les tableurs par des applications spécialisées : exemples concrets et avantages au quotidien."
+description: "Ce qui casse quand un groupe scout tourne sur des tableurs, et ce qu'une application spécialisée fait mieux, exemples à l'appui."
 keywords:
   - logiciel gestion scout vs tableurs
   - application scout remplacer tableur
@@ -119,7 +119,7 @@ La préoccupation la plus courante des chefs qui envisagent un changement est l'
 
 **Fonctionnement en parallèle** : La plupart des groupes font fonctionner les deux systèmes en parallèle pendant un ou deux cycles de réunions avant de faire pleinement confiance au nouveau système. C'est prudent — cela vous permet de détecter les écarts avant d'abandonner le tableur.
 
-**Coût total** : Pour la plupart des groupes, la transition complète prend quatre à six semaines de fonctionnement en parallèle et une journée de configuration concentrée. Le retour sur investissement, mesuré en heures de bénévolat économisées, est généralement atteint en trois mois.
+**Coût total** : Prévoyez une journée de configuration concentrée, puis quelques semaines de fonctionnement en parallèle, le temps que l'équipe fasse confiance au nouveau système.
 
 ## Qui devrait encore utiliser des tableurs ?
 
