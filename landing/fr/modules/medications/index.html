@@ -29,7 +29,7 @@
 <meta property="og:locale:alternate" content="en_CA" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Gestion des médicaments scouts — Wampums" />
-<meta name="twitter:description" content="Profils médicaux sécurisés, alertes de distribution et registre complet des doses — même en forêt sans connexion." />
+<meta name="twitter:description" content="Horaire des doses, rappels et registre de chaque dose donnée, consultables en camp même sans réseau." />
 <meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta name="theme-color" content="#0c2a30" />
 <link rel="manifest" href="/manifest.json" />
@@ -66,22 +66,22 @@
         {
           "@type": "Question",
           "name": "Comment les données médicales sont-elles protégées?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Les données médicales circulent en HTTPS et sont hébergées au Québec, au centre de données OVHcloud de Beauharnois, avec des sauvegardes chiffrées. L'accès est limité par rôle — seuls les animateurs et administrateurs autorisés peuvent consulter le profil de santé d'un participant." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Les données médicales circulent en HTTPS et sont hébergées au Québec, au centre de données OVHcloud de Beauharnois, avec des sauvegardes chiffrées. Les courriels partent par Brevo, qui reçoit l'adresse de chaque destinataire et le message, et l'aide à la rédaction par IA, facultative, ne reçoit que le texte qu'un animateur lui soumet. L'accès est limité par rôle : seuls les animateurs et administrateurs autorisés consultent la fiche santé d'un jeune. Pendant un camp préparé, les médicaments et l'horaire des doses sont aussi gardés sur le téléphone des animateurs." }
         },
         {
           "@type": "Question",
           "name": "Plusieurs animateurs peuvent-ils accéder aux dossiers médicaux en camp?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Plusieurs animateurs peuvent consulter les dossiers médicaux simultanément depuis leurs propres appareils. Les permissions par rôle déterminent qui peut voir le profil complet de santé plutôt que l'horaire de distribution seulement. Tous les accès sont enregistrés à des fins de vérification." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Chaque animateur consulte les dossiers depuis son propre téléphone, selon les permissions de son rôle. Une dose consignée sans réseau n'apparaît chez les autres qu'une fois envoyée : convenez de qui donne quelle dose." }
         },
         {
           "@type": "Question",
           "name": "Le module de médicaments fonctionne-t-il sans connexion en camp?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Le mode camp active un stockage local étendu à 10 jours, ce qui permet d'accéder aux profils médicaux et aux horaires de distribution sans aucune connexion pendant toute la durée du séjour. Les distributions enregistrées sans connexion sont synchronisées automatiquement dès le retour du signal." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Oui, si le camp a été préparé avant le départ, avec une connexion : les médicaments, l'horaire des doses et les médicaments reçus restent alors sur le téléphone au moins 10 jours. Les doses consignées sans réseau sont envoyées au retour de la connexion. Les rappels par notification, eux, demandent une connexion." }
         },
         {
           "@type": "Question",
           "name": "Comment les parents mettent-ils à jour les informations médicales de leur enfant?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Les parents mettent à jour les médicaments, les posologies et les allergies via le portail parental en tout temps. Toute modification d'un champ critique déclenche une notification aux administrateurs du groupe, pour qu'aucun changement ne passe inaperçu avant la prochaine réunion." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Les parents mettent à jour la fiche santé de leur enfant depuis leur espace, en tout temps. Wampums n'avise pas l'équipe de chaque changement : relisez les fiches avant un camp, par exemple dans le rapport santé." }
         }
       ]
     }
@@ -123,8 +123,8 @@
       </ol>
     </nav>
         <p class="kicker">Module</p>
-        <h1>Gestion des médicaments scouts — Chaque dose consignée, chaque allergie visible</h1>
-          <p class="hero-lede">Quand un jeune scout prend des médicaments quotidiens ou porte un EpiPen, il n'y a pas de place pour l'improvisation. Wampums offre à votre équipe d'animateurs un système complet et sécurisé — depuis les formulaires de consentement parental jusqu'au registre de distribution en camp éloigné — pour qu'aucune dose ne soit oubliée et qu'aucune allergie ne passe inaperçue au moment critique.</p>
+        <h1>Gestion des médicaments scouts — Chaque dose prévue, chaque dose consignée</h1>
+          <p class="hero-lede">Quand un jeune prend des médicaments chaque jour ou porte un EpiPen, l'équipe doit savoir quoi donner, à qui et quand. Wampums réunit l'horaire des doses, le registre de ce qui a été donné et les médicaments reçus des parents, du formulaire de consentement jusqu'au camp sans réseau. C'est une aide pour l'équipe : la distribution et sa vérification restent la responsabilité des adultes que votre unité désigne.</p>
         <div class="hero-actions">
           <button type="button" class="btn btn--ember" data-open-demo-modal>
 Demander une démo
@@ -149,37 +149,37 @@ Demander une démo
     <div class="cards">
       <article class="card">
         <h2>Profil médical par participant</h2>
-        <p>Chaque participant dispose d'un profil de santé dédié qui consigne les médicaments sur ordonnance et en vente libre, les allergies connues, les contacts d'urgence et les notes du médecin. Les animateurs accèdent à une vue consolidée lors de la préparation d'une réunion ou d'un camp, afin de savoir à l'avance qui a des besoins particuliers avant même l'arrivée des scouts.</p>
-        <p>Les profils permettent de gérer plusieurs médicaments par participant, avec des instructions spécifiques pour chacun : « prendre avec de la nourriture », restrictions horaires, conditions de conservation particulières. Les niveaux de gravité des allergies sont codés par couleur — les informations critiques sautent aux yeux, que vous soyez dans un sous-sol d'église bondé ou sous une tente sombre en forêt.</p>
+        <p>La fiche santé que remplissent les parents rassemble les médicaments, les allergies, les contacts d'urgence et ce que votre formulaire demande d'autre. Le rapport santé de la section signale qui porte un EpiPen, pour que l'équipe sache avant l'arrivée des jeunes qui a des besoins particuliers.</p>
+        <p>Un jeune peut avoir plusieurs médicaments, chacun avec sa posologie, sa voie d'administration, sa fréquence (heures fixes, moments de la journée ou intervalle) et ses consignes, comme « prendre avec de la nourriture ».</p>
       </article>
 
       <article class="card">
-        <h2>Horaire de distribution avec alertes chronométrées</h2>
-        <p>Définissez un horaire de distribution pour chaque médicament — matin, soir ou créneaux précis — et Wampums envoie des alertes directement sur l'appareil de l'animateur responsable. Chaque notification affiche le nom du participant, le médicament, la dose et les consignes particulières. Plus besoin de compter sur la mémoire ou des billets autocollants collés sur un presse-papiers.</p>
-        <p>Les horaires s'adaptent au type d'activité : une réunion régulière du mardi peut n'avoir qu'un seul créneau de distribution, tandis qu'un camp de cinq jours peut avoir un calendrier complet avec différents animateurs assignés à différents quarts. Les animateurs en service reçoivent leurs rappels automatiquement, sans configuration manuelle pour chaque événement.</p>
+        <h2>Horaire des doses et rappels</h2>
+        <p>Définissez l'horaire de chaque médicament, et les doses à venir s'affichent dans Wampums. Pendant une activité en cours, quinze minutes avant une dose, Wampums envoie une notification aux animateurs qui ont accès aux médicaments et qui ont accepté les notifications. Elle nomme le jeune et le médicament.</p>
+        <p>Ce rappel est une aide, pas une garantie. Il demande une connexion, et un téléphone éteint, déchargé, en mode silencieux ou sans réseau ne le recevra pas. En camp, consultez l'horaire des doses dans l'application et gardez la routine de vérification que votre unité a prévue.</p>
       </article>
 
       <article class="card">
         <h2>Registre des distributions — qui, quoi, quand, quelle dose</h2>
-        <p>Chaque distribution est enregistrée avec un horodatage, le nom de l'animateur, le médicament administré et la dose. Ce registre est immuable et consultable, créant un dossier complet pour chaque participant sur l'ensemble des activités. Si un parent ou un médecin demande ce qui a été administré et à quel moment, la réponse est disponible en quelques secondes.</p>
-        <p>Le registre signale également les doses omises ou retardées, avec un champ de raison pour expliquer ce qui s'est passé. Les administrateurs du groupe peuvent exporter les registres en format PDF ou CSV pour les autorités sanitaires, les exigences du conseil ou les besoins d'assurance.</p>
+        <p>Chaque dose donnée est enregistrée avec l'heure, l'animateur qui l'a donnée, le médicament et la dose, ainsi que le nom d'un témoin si vous le notez. Une dose déjà marquée comme donnée ne peut pas l'être une deuxième fois. Si un parent ou un médecin demande ce qui a été donné et à quel moment, la réponse est dans l'historique du jeune.</p>
+        <p>Une dose peut aussi être marquée comme manquée ou annulée, pour que le registre dise aussi ce qui ne s'est pas fait. Le rapport des médicaments s'exporte en CSV ou s'imprime en PDF.</p>
       </article>
 
       <article class="card">
-        <h2>Mode camp — fonctionne sans connexion jusqu'à 10 jours</h2>
-        <p>Les camps éloignés n'ont souvent aucune couverture cellulaire ou WiFi fiable. Le mode camp stocke tous les profils médicaux, les horaires de distribution et les données de santé directement sur l'appareil de chaque animateur pour 10 jours complets. L'ensemble du processus de gestion médicale fonctionne sans aucune connexion pendant toute la durée du séjour.</p>
-        <p>Les distributions enregistrées sans connexion sont conservées dans une file locale et synchronisées automatiquement dès qu'une connexion est détectée — que ce soit en fin de journée depuis le bureau du camp ou seulement au retour du séjour. Rien n'est perdu, et chaque distribution est horodatée précisément au moment où elle s'est produite.</p>
+        <h2>Mode camp — préparé avant de partir, utilisable sans réseau</h2>
+        <p>Les camps éloignés n'ont souvent ni réseau cellulaire ni Wi-Fi fiable. Avant de partir, avec une connexion, un animateur prépare le camp dans Wampums : les médicaments à donner, l'horaire des doses et les médicaments reçus restent alors sur son téléphone au moins 10 jours. Les fiches santé complètes ne font pas partie de ce paquet; imprimez le rapport santé de la section avant le départ.</p>
+        <p>Les doses consignées sans réseau attendent sur le téléphone et sont envoyées dès que la connexion revient, avec l'heure où elles ont été données. D'ici là, les autres animateurs ne les voient pas : convenez de qui donne quelle dose. Si deux téléphones ont marqué la même dose, la seconde est refusée au retour du réseau, et Wampums le signale.</p>
       </article>
 
       <article class="card">
         <h2>Consentement parental et intégration aux formulaires</h2>
-        <p>Wampums relie directement le module médicaments au système de formulaires numériques. Les parents remplissent les fiches de santé et les formulaires de consentement médicamenteux en ligne avant l'activité, et les données alimentent automatiquement les profils des participants. Les animateurs voient clairement quels participants ont soumis leurs formulaires complets et lesquels sont toujours en attente.</p>
-        <p>Les modèles de formulaires sont entièrement bilingues — les parents peuvent les remplir en français ou en anglais — et les signatures numériques sont capturées dans la plateforme. Cela élimine la pile de formulaires papier qui se perd traditionnellement avant un camp, et garantit que les documents de consentement sont conservés de façon sécurisée aux côtés du profil de santé concerné.</p>
+        <p>Les parents remplissent en ligne, avant l'activité, la fiche santé et les formulaires que votre unité demande. Les animateurs voient quels jeunes ont remis leurs formulaires et lesquels sont en attente.</p>
+        <p>Les formulaires existent en français et en anglais, et chaque parent remplit le sien dans sa langue. Ils sont gardés avec le dossier du jeune, plutôt que dans une pile de papier qui se perd avant le camp.</p>
       </article>
 
       <article class="card">
         <h2>Confidentialité des données de santé</h2>
-        <p>Les données médicales comptent parmi les renseignements personnels les plus sensibles qu'un organisme de jeunesse recueille. Wampums héberge les dossiers de santé au Québec, ne les transmet qu'en HTTPS, chiffre ses sauvegardes et limite strictement l'accès selon le rôle de chaque utilisateur — seul le personnel autorisé peut consulter les informations médicales d'un participant.</p>
+        <p>Les données médicales comptent parmi les renseignements les plus sensibles qu'un organisme de jeunesse recueille. Wampums héberge les dossiers de santé au Québec, ne les transmet qu'en HTTPS, chiffre ses sauvegardes et limite l'accès selon le rôle de chaque personne. Pendant un camp préparé, une partie de ces données est aussi gardée sur le téléphone des animateurs : protégez-le par un code, et déconnectez-vous d'un appareil partagé.</p>
         <p>À la demande d'une famille, un animateur peut effacer définitivement le dossier d'un enfant, données de santé comprises.</p>
       </article>
     </div>
@@ -194,25 +194,25 @@ Demander une démo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Comment les données médicales sont-elles protégées?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Les données médicales circulent en HTTPS et sont hébergées au Québec, au centre de données OVHcloud de Beauharnois, avec des sauvegardes chiffrées. L'accès est limité par rôle — seuls les animateurs et administrateurs autorisés peuvent consulter le profil de santé d'un participant.</p>
+          <p itemprop="text">Les données médicales circulent en HTTPS et sont hébergées au Québec, au centre de données OVHcloud de Beauharnois, avec des sauvegardes chiffrées. Les courriels partent par Brevo, qui reçoit l'adresse de chaque destinataire et le message, et l'aide à la rédaction par IA, facultative, ne reçoit que le texte qu'un animateur lui soumet. Les autres fournisseurs sont nommés dans la <a href="/fr/confidentialite/#fournisseurs">politique de confidentialité</a>. L'accès est limité par rôle : seuls les animateurs et administrateurs autorisés consultent la fiche santé d'un jeune. Pendant un camp préparé, les médicaments et l'horaire des doses sont aussi gardés sur le téléphone des animateurs.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Plusieurs animateurs peuvent-ils accéder aux dossiers médicaux en camp?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Oui. Plusieurs animateurs peuvent consulter les dossiers médicaux simultanément depuis leurs propres appareils. Les permissions par rôle contrôlent qui peut voir le profil complet de santé plutôt que l'horaire de distribution seulement. Tous les accès sont enregistrés à des fins de vérification.</p>
+          <p itemprop="text">Oui. Chaque animateur consulte les dossiers depuis son propre téléphone, selon les permissions de son rôle. Une dose consignée sans réseau n'apparaît chez les autres qu'une fois envoyée : convenez de qui donne quelle dose.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Le module de médicaments fonctionne-t-il sans connexion en camp?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Oui. Le mode camp stocke toutes les données localement pour 10 jours complets, ce qui permet d'accéder aux profils médicaux et aux horaires de distribution sans aucune connexion. Les distributions enregistrées sans connexion se synchronisent automatiquement dès le retour du signal cellulaire.</p>
+          <p itemprop="text">Oui, si le camp a été préparé avant le départ, avec une connexion : les médicaments, l'horaire des doses et les médicaments reçus restent alors sur le téléphone au moins 10 jours. Les doses consignées sans réseau sont envoyées au retour de la connexion. Les rappels par notification, eux, demandent une connexion.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Comment les parents mettent-ils à jour les informations médicales de leur enfant?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Les parents mettent à jour les médicaments, les posologies et les allergies via le portail parental en tout temps. Toute modification d'un champ critique déclenche une notification aux administrateurs du groupe, pour qu'aucun changement ne passe inaperçu avant la prochaine réunion ou activité.</p>
+          <p itemprop="text">Les parents mettent à jour la fiche santé de leur enfant depuis leur espace, en tout temps. Wampums n'avise pas l'équipe de chaque changement : relisez les fiches avant un camp, par exemple dans le rapport santé.</p>
         </div>
       </div>
     </div>

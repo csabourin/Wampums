@@ -50,6 +50,20 @@ app-store app.
 Pricing: a single unit is free until at least 2028; an organization opening several
 units (five or more, say) gets a negotiated monthly price.
 
+Offline, only attendance, medication doses and receptions, and badges are queued
+(`SAFE_OFFLINE_MUTATIONS` in `spa/modules/OfflineManager.js`); points, incidents,
+carpools, equipment and messages need a connection. A camp prepared before leaving
+keeps the youth list, attendance, medications and dose schedule, badges and
+carpools on that phone for at least 10 days; health forms and parents' contact
+details are not part of it. Medication reminders are server push notifications,
+sent 15 minutes before a dose while an activity is running: they need a
+connection, and the site presents them as an aid, never a guarantee. Nothing in
+Wampums is an immutable log, and there are no read receipts.
+
+Where a page says data is hosted in Quebec, it also says that emails go through
+Brevo and links to the providers in the privacy policy. Never write that data
+"stays" in Quebec.
+
 A signed permission slip records the name the parent typed, the date and time,
 and the slip's text and authorization. It records no IP address; do not claim one,
 or a "legally equivalent" or certified signature.

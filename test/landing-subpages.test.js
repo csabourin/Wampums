@@ -243,6 +243,30 @@ describe('inner pages of the public site', () => {
     });
   });
 
+  test.each(['/en/modules/medications/', '/fr/modules/medications/'])('%s presents reminders as an aid that needs a connection, not a guarantee', (pagePath) => {
+    const html = read(pagePath);
+    expect(html).not.toMatch(/aucune dose ne soit oubliée|every allergy is visible|alerts work the same way with or without internet/);
+    expect(html).toMatch(/an aid, not a guarantee|une aide, pas une garantie/);
+    expect(html).toMatch(/remain the responsibility of the adults|restent la responsabilité des adultes/);
+  });
+
+  test('no page claims that points, incidents, alerts or health forms work offline', () => {
+    // Offline, only attendance, medication doses and badges are queued (SAFE_OFFLINE_MUTATIONS).
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      expect(read(pagePath)).not.toMatch(/points sync offline|attendance and points (keep working|can be recorded)|présences et (les )?points (fonctionnent|peuvent)|badges, points,? and medication dispensing all work|points de mise à jour hors|alerte se déclenche normalement|accessible offline on the leader's device|contact details are always cached|coordonnées des parents sont toujours disponibles|profils de santé complets sont disponibles sans connexion|immuable|immutable/i);
+    });
+  });
+
+  test('a page that names the Quebec data centre also names the email provider', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      const html = read(pagePath);
+      if (/Beauharnois/.test(html)) {
+        expect(html).toContain('Brevo');
+      }
+      expect(html).not.toMatch(/stays in Quebec|restent au Québec/);
+    });
+  });
+
   test('no page promises an IP address or a legally equivalent signature', () => {
     // The privacy policy names the IP addresses kept in server logs, which is true.
     PAGES.concat(['/en/', '/fr/']).filter((pagePath) => !/privacy|confidentialite/.test(pagePath)).forEach((pagePath) => {

@@ -27,7 +27,7 @@
 <meta property="og:locale:alternate" content="fr_CA" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Scout Medication Tracking &amp; Dispensing App — Wampums" />
-<meta name="twitter:description" content="Medication dispensing for scout groups: timed alerts, dispensing logs, offline camp mode, and health records hosted in Quebec." />
+<meta name="twitter:description" content="Medication for scout groups: dose schedule, reminders and a log of every dose given, readable at camp without a network." />
 <meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
 <meta name="theme-color" content="#0c2a30" />
 <link rel="manifest" href="/manifest.json" />
@@ -64,22 +64,22 @@
         {
           "@type": "Question",
           "name": "How are medication details secured?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Medication data travels over HTTPS and is stored in Quebec, at OVHcloud's Beauharnois data centre, with encrypted backups. Access is restricted by role — only authorized leaders and administrators can view a participant's health profile." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Medication data travels over HTTPS and is stored in Quebec, at OVHcloud's Beauharnois data centre, with encrypted backups. Emails go out through Brevo, which receives each recipient's address and the message, and the optional AI-assisted writing receives only the text a leader submits. Access is restricted by role: only authorized leaders and administrators can open a youth's health form. During a prepared camp, medications and the dose schedule are also kept on the leaders' phones." }
         },
         {
           "@type": "Question",
           "name": "Can multiple leaders access medication records during a camp?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Multiple leaders can access medication records simultaneously, each from their own device. Role-based permissions control which leaders can view full health profiles versus dispensing schedules only." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Each leader opens records from their own phone, as their role's permissions allow. A dose recorded without a network shows up for the others only once it is sent, so agree on who gives which dose." }
         },
         {
           "@type": "Question",
           "name": "Does the medication module work offline at camp?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Camp mode extends the local cache to 10 days, so medication profiles and dispensing schedules remain fully accessible without internet. Dispensing events logged offline are queued and synced automatically when connectivity returns." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes, if the camp was prepared before leaving, with a connection: medications, the dose schedule and the medications received then stay on the phone for at least 10 days. Doses recorded without a network are sent when the connection returns. Reminder notifications, though, need a connection." }
         },
         {
           "@type": "Question",
           "name": "How do parents update their child's medication information?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Parents can update medication details, dosage instructions, and allergy information through the parent portal at any time. Updates are reflected immediately for leaders. Changes to critical fields trigger a notification to group administrators so nothing is missed before the next meeting." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Parents update their child's health form from their own space at any time. Wampums does not alert the team to each change, so review the forms before a camp, for example in the health report." }
         }
       ]
     }
@@ -121,8 +121,8 @@
       </ol>
     </nav>
         <p class="kicker">Module</p>
-        <h1>Scout Medication Tracking — Safe Dispensing at Every Meeting and Camp</h1>
-          <p class="hero-lede">When a scout requires daily medication or carries an EpiPen, there is no room for guesswork. Wampums gives your leadership team a complete, secure medication management system — from parental consent forms through to dispensing logs at a remote campsite — so every dose is recorded and every allergy is visible the moment it matters.</p>
+        <h1>Scout Medication Tracking — Every Dose Planned, Every Dose Recorded</h1>
+          <p class="hero-lede">When a youth takes daily medication or carries an EpiPen, the team needs to know what to give, to whom and when. Wampums brings together the dose schedule, the log of what was given and the medications received from parents, from the consent form to a camp with no network. It is an aid for the team: giving medication and checking it remain the responsibility of the adults your unit designates.</p>
         <div class="hero-actions">
           <button type="button" class="btn btn--ember" data-open-demo-modal>
 Request a demo
@@ -147,37 +147,37 @@ Request a demo
     <div class="cards">
       <article class="card">
         <h2>Medication Profile per Participant</h2>
-        <p>Each participant has a dedicated health profile that captures prescriptions, over-the-counter medications, known allergies, emergency contacts, and physician notes. Leaders see a consolidated view when preparing for a meeting or camp, so they know exactly who requires attention before anyone arrives.</p>
-        <p>Profiles support multiple medications per participant and allow per-medication instructions such as "take with food," time-of-day restrictions, and special storage requirements. Allergy severity levels are colour-coded so critical information is impossible to overlook at a glance, even in a busy hall or a dark tent.</p>
+        <p>The health form parents fill in gathers medications, allergies, emergency contacts and whatever else your form asks. The section's health report flags who carries an EpiPen, so the team knows who has particular needs before the youth arrive.</p>
+        <p>A youth can have several medications, each with its dosage, route, frequency (set times, times of day or an interval) and instructions such as "take with food".</p>
       </article>
 
       <article class="card">
-        <h2>Dispensing Schedule with Timed Alerts</h2>
-        <p>Set up a dispensing schedule for each medication — morning, evening, or specific windows — and Wampums sends timed push notifications to the responsible leader's device. Alerts include the participant's name, medication name, dosage, and any special instructions. No more relying on memory or sticky notes on a clipboard.</p>
-        <p>Schedules can be configured per event type: a regular Tuesday evening meeting may have a single dispensing window, while a five-day summer camp can have a full multi-day schedule with different leaders assigned to different shifts. Leaders on duty receive reminders automatically without manual setup for each event.</p>
+        <h2>Dose Schedule and Reminders</h2>
+        <p>Set up each medication's schedule, and upcoming doses show in Wampums. During an activity in progress, fifteen minutes before a dose, Wampums sends a notification to leaders who can see medications and have accepted notifications. It names the youth and the medication.</p>
+        <p>This reminder is an aid, not a guarantee. It needs a connection, and a phone that is off, flat, silenced or out of range will not receive it. At camp, check the dose schedule in the app and keep the checking routine your unit has set.</p>
       </article>
 
       <article class="card">
         <h2>Dispensing Log — Who Gave What, When, and What Dose</h2>
-        <p>Every dispensing event is recorded with a timestamp, the leader's name, the medication given, and the dose. This log is immutable and searchable, creating a complete audit trail for each participant across all events. If a parent or physician asks what was given and when, the answer is available in seconds.</p>
-        <p>The log also flags skipped doses or delayed administrations with a reason field, so there is a clear record if a scout refused medication or was absent. Group administrators can export dispensing logs as PDF or CSV for health authorities, council requirements, or insurance purposes.</p>
+        <p>Every dose given is recorded with the time, the leader who gave it, the medication and the dose, and a witness's name if you note one. A dose already marked as given cannot be marked again. If a parent or physician asks what was given and when, the answer is in the youth's history.</p>
+        <p>A dose can also be marked as missed or cancelled, so the log also shows what did not happen. The medication report exports to CSV or prints as PDF.</p>
       </article>
 
       <article class="card">
-        <h2>Camp Mode — Extended Offline Cache</h2>
-        <p>Remote camps often have no reliable cellular or WiFi coverage. Camp mode activates an extended 10-day local cache, storing all medication profiles, dispensing schedules, and participant health data directly on each leader's device. The full medication workflow operates without any internet connection throughout the camp.</p>
-        <p>Dispensing events logged offline are stored in the mutation queue and sync automatically the moment a connection becomes available — whether that is at the end of each day from the camp office or only at the end of the trip. Nothing is lost, and every event is timestamped accurately at the time it occurred.</p>
+        <h2>Camp Mode — Prepared Before You Leave, Usable Without a Network</h2>
+        <p>Remote camps often have no reliable cellular or Wi-Fi coverage. Before leaving, with a connection, a leader prepares the camp in Wampums: the medications to give, the dose schedule and the medications received then stay on their phone for at least 10 days. Full health forms are not part of this bundle, so print the section's health report before you go.</p>
+        <p>Doses recorded without a network wait on the phone and are sent as soon as the connection returns, with the time they were given. Until then, other leaders do not see them, so agree on who gives which dose. If two phones marked the same dose, the second is refused when the network returns, and Wampums says so.</p>
       </article>
 
       <article class="card">
         <h2>Parental Consent and Health Form Integration</h2>
-        <p>Wampums connects the medication module directly to the digital forms system. Parents complete health forms and medication consent agreements online before an event, and the data flows automatically into participant health profiles. Leaders see a clear indicator showing which participants have submitted complete health forms and which are still outstanding.</p>
-        <p>Form templates are fully bilingual — parents can complete them in English or French — and digital signatures are captured in the platform. This eliminates the stack of paper forms that traditionally gets lost before camp, and ensures consent documentation is stored securely alongside the health profile it covers.</p>
+        <p>Parents fill in, online and before the activity, the health form and whatever forms your unit asks for. Leaders see which youth have handed in their forms and which are still outstanding.</p>
+        <p>Forms exist in English and French, and each parent fills in theirs in their language. They are kept with the youth's record, rather than in a stack of paper that goes missing before camp.</p>
       </article>
 
       <article class="card">
         <h2>How Health Data Is Handled</h2>
-        <p>Health and medication data is among the most sensitive personal information a youth organization collects. Wampums stores health records in Quebec, sends them only over HTTPS, encrypts its backups, and enforces strict role-based access so only authorized personnel can view a participant's medical information.</p>
+        <p>Health and medication data is among the most sensitive personal information a youth organization collects. Wampums stores health records in Quebec, sends them only over HTTPS, encrypts its backups and limits access by each person's role. During a prepared camp, part of this data is also kept on the leaders' phones: protect them with a passcode, and sign out of a shared device.</p>
         <p>When a family asks, a leader can permanently erase a child's record, health data included.</p>
       </article>
     </div>
@@ -193,25 +193,25 @@ Request a demo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">How are medication details secured?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Medication data travels over HTTPS and is stored in Quebec, at OVHcloud's Beauharnois data centre, with encrypted backups. Access is restricted by role — only authorized leaders and administrators can view a participant's health profile.</p>
+          <p itemprop="text">Medication data travels over HTTPS and is stored in Quebec, at OVHcloud's Beauharnois data centre, with encrypted backups. Emails go out through Brevo, which receives each recipient's address and the message, and the optional AI-assisted writing receives only the text a leader submits. The other providers are listed in the <a href="/en/privacy/#providers">privacy policy</a>. Access is restricted by role: only authorized leaders and administrators can open a youth's health form. During a prepared camp, medications and the dose schedule are also kept on the leaders' phones.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Can multiple leaders access medication records during a camp?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Yes. Multiple leaders can access medication records simultaneously, each from their own device. Role-based permissions control which leaders can view full health profiles versus dispensing schedules only.</p>
+          <p itemprop="text">Yes. Each leader opens records from their own phone, as their role's permissions allow. A dose recorded without a network shows up for the others only once it is sent, so agree on who gives which dose.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Does the medication module work offline at camp?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Yes. Camp mode extends the local cache to 10 days, so medication profiles and dispensing schedules remain fully accessible without internet. Dispensing events logged offline are queued and synced automatically when connectivity returns.</p>
+          <p itemprop="text">Yes, if the camp was prepared before leaving, with a connection: medications, the dose schedule and the medications received then stay on the phone for at least 10 days. Doses recorded without a network are sent when the connection returns. Reminder notifications, though, need a connection.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">How do parents update their child's medication information?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">Parents can update medication details, dosage instructions, and allergy information through the parent portal at any time. Changes to critical fields trigger a notification to group administrators so nothing is missed before the next meeting.</p>
+          <p itemprop="text">Parents update their child's health form from their own space at any time. Wampums does not alert the team to each change, so review the forms before a camp, for example in the health report.</p>
         </div>
       </div>
     </div>
