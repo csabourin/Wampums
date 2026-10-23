@@ -117,7 +117,7 @@
     "spa/modules/forms/FormBuilder.js": 2,
     "spa/modules/forms/FormPermissions.js": 1,
     "spa/modules/fundraising/Calendars.js": 1,
-    "spa/modules/honors/ManageHonors.js": 9,
+    "spa/modules/honors/ManageHonors.js": 8,
     "spa/modules/incident-report/incident-report.js": 2,
     "spa/modules/mailing-list/MailingList.js": 1,
     "spa/modules/medication/MedicationManagement.js": 34,

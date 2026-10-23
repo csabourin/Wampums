@@ -25,7 +25,7 @@ jest.mock('../../spa/config.js', () => ({
   CONFIG: {
     API_BASE_URL: 'http://localhost:3000',
     CACHE_DURATION: { SHORT: 60000, MEDIUM: 300000 },
-    UI: { SYNC_TIMEOUT: 1 }
+    UI: { SYNC_TIMEOUT: 1, OFFLINE_SYNC_RETRY_INTERVAL: 30000 }
   },
   getStorageKey: (key) => key
 }));
@@ -137,14 +137,18 @@ describe('US-OFF-001 — Saving offline says "saved locally", not "error"', () =
     expect(await getOfflineData()).toHaveLength(0);
   });
 
-  it('keeps additive point awards online-only', async () => {
+  it('persists point awards for replay after the network returns', async () => {
     const manager = new OfflineManager();
     manager.isOffline = true;
 
-    await expect(manager.fetchWithOfflineSupport(
+    const response = await manager.fetchWithOfflineSupport(
       'http://localhost:3000/api/v1/points',
-      { method: 'POST', body: JSON.stringify([{ id: 1, points: 5 }]) },
-    )).rejects.toThrow('internet connection');
+      { method: 'POST', body: JSON.stringify([{ type: 'individual', id: 1, points: 5 }]) },
+    );
+    expect(response.status).toBe(202);
+    expect(await getOfflineData()).toHaveLength(1);
+    global.fetch.mockResolvedValue(makeJsonResponse({ success: true }));
+    await manager.handleOnline();
     expect(await getOfflineData()).toHaveLength(0);
   });
 
@@ -526,4 +530,41 @@ describe('US-OFF-008 — A change refused on replay is never reported as saved',
     expect(refused.seen).toEqual([]);
     expect(await getOfflineData()).toHaveLength(1);
   });
+});
+
+
+test('a temporary replay failure leaves later awards queued behind attendance', async () => {
+  const manager = new OfflineManager();
+  await manager.queueMutation('http://localhost:3000/api/v1/attendance', {
+    method: 'POST', body: JSON.stringify({ participant_id: 1, date: '2026-07-15', status: 'present' }),
+  });
+  await manager.queueMutation('http://localhost:3000/api/v1/points', {
+    method: 'POST', body: JSON.stringify([{ type: 'group', id: 1, points: 3 }]),
+    headers: { 'Idempotency-Key': 'original-request-identity' },
+  });
+  global.fetch.mockResolvedValueOnce(makeJsonResponse({ success: false }, { status: 503 }));
+  await manager.replayPendingMutations();
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+  expect(await getOfflineData()).toHaveLength(2);
+  global.fetch.mockResolvedValue(makeJsonResponse({ success: true }));
+  await manager.replayPendingMutations();
+  expect(global.fetch.mock.calls[2][1].headers['Idempotency-Key']).toBe('original-request-identity');
+  expect(await getOfflineData()).toHaveLength(0);
+});
+
+
+test('the open app retries synchronization without needing another online event', () => {
+  jest.useFakeTimers();
+  const manager = new OfflineManager();
+  manager.pendingMutations = [{ key: 'camp-award' }];
+  const sync = jest.spyOn(manager, 'syncPendingData').mockResolvedValue(undefined);
+  jest.spyOn(manager, 'checkPendingMutations').mockResolvedValue(undefined);
+  try {
+    manager.init();
+    jest.advanceTimersByTime(30000);
+    expect(sync).toHaveBeenCalledTimes(1);
+  } finally {
+    window.clearInterval(manager.syncTimer);
+    jest.useRealTimers();
+  }
 });

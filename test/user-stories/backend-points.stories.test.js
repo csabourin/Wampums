@@ -394,3 +394,118 @@ describe('US-PERM-004 — Same auth rules on the points API', () => {
     expect(res.body.isDemo).toBe(true);
   });
 });
+
+describe('retransmitting a point award after a camp', () => {
+  function receiptHandler({ failInsert = false } = {}) {
+    let receipt;
+    let transactionReceipt;
+    let total = 10;
+    return (query, params) => {
+      if (query === 'BEGIN') { transactionReceipt = undefined; }
+      if (query.includes('INSERT INTO point_mutation_receipts')) {
+        if (receipt) { return { rows: [] }; }
+        transactionReceipt = { request_hash: params[3] };
+        return { rows: [{ mutation_key: params[2] }] };
+      }
+      if (query.includes('SELECT request_hash, response_data')) { return { rows: [receipt] }; }
+      if (query.includes('UPDATE point_mutation_receipts')) {
+        transactionReceipt.response_data = JSON.parse(params[3]);
+        return { rows: [] };
+      }
+      if (query === 'COMMIT') { receipt = transactionReceipt; }
+      if (query.includes('SELECT pg.group_id')) { return { rows: [{ group_id: null }] }; }
+      if (query.includes('INSERT INTO points')) {
+        if (failInsert) { throw new Error('fictional database failure'); }
+        total += params[4];
+        return { rows: [] };
+      }
+      if (query.includes('SUM(value)')) { return { rows: [{ total: String(total) }] }; }
+      return undefined;
+    };
+  }
+
+  const award = [{ type: 'individual', id: 1, points: 3 }];
+  const send = (body = award, key = 'camp-award-1') => request(app)
+    .post('/api/v1/points')
+    .set('Authorization', `Bearer ${generateToken()}`)
+    .set('Idempotency-Key', key)
+    .send(body);
+
+  it('returns the original result without inserting points twice', async () => {
+    const recorded = installHandler(receiptHandler());
+    const first = await send().expect(200);
+    const replay = await send().expect(200);
+    expect(replay.body.data).toEqual(first.body.data);
+    expect(replay.body.data.updates[0].totalPoints).toBe(13);
+    expect(queriesMatching(recorded, 'INSERT INTO points')).toHaveLength(1);
+    const claim = queriesMatching(recorded, 'INSERT INTO point_mutation_receipts')[0];
+    expect(claim.params.slice(0, 3)).toEqual([ORG_ID, '550e8400-e29b-41d4-a716-446655440000', 'camp-award-1']);
+  });
+
+  it('refuses reusing an award identity for a different amount', async () => {
+    const recorded = installHandler(receiptHandler());
+    await send().expect(200);
+    await send([{ type: 'individual', id: 1, points: 7 }]).expect(409);
+    expect(queriesMatching(recorded, 'INSERT INTO points')).toHaveLength(1);
+  });
+
+  it('rolls back the receipt together with a failed award', async () => {
+    const recorded = installHandler(receiptHandler({ failInsert: true }));
+    await send().expect(500);
+    expect(queriesMatching(recorded, 'ROLLBACK')).toHaveLength(1);
+    expect(queriesMatching(recorded, 'UPDATE point_mutation_receipts')).toHaveLength(0);
+    expect(queriesMatching(recorded, 'COMMIT')).toHaveLength(0);
+  });
+});
+
+
+test('a point request without a body is a validation error', async () => {
+  installHandler(() => undefined);
+  await request(app).post('/api/v1/points')
+    .set('Authorization', `Bearer ${generateToken()}`)
+    .set('Idempotency-Key', 'empty-request')
+    .expect(400);
+});
+
+test('group awards reach only signed participants who are still present', async () => {
+  const recorded = installHandler((query, params) => {
+    if (query.includes('FROM activities a')) { return { rows: [{ id: 5, requires_permission: true, signed_participant_ids: [1, 2] }] }; }
+    if (query.includes('SELECT participant_id, status, is_on_site')) {
+      return { rows: [{ participant_id: 1, status: 'present' }, { participant_id: 2, status: 'late', is_on_site: false }, { participant_id: 3, status: 'present' }] };
+    }
+    if (query.includes('FROM participants p')) { return { rows: [{ id: 1 }, { id: 2 }, { id: 3 }] }; }
+    if (query.includes('GROUP BY participant_id')) { return { rows: params[1].map((id) => ({ id, total: '3' })) }; }
+    if (query.includes('SUM(value)')) { return { rows: [{ total: '3' }] }; }
+    return undefined;
+  });
+  const result = await request(app).post('/api/v1/points').set('Authorization', `Bearer ${generateToken()}`)
+    .send([{ type: 'group', id: GROUP_ID, points: 3, date: '2026-07-15', activity_id: 5, include_all: false }]).expect(200);
+  expect(result.body.data.updates[0].memberIds).toEqual([1]);
+  const memberInserts = queriesMatching(recorded, 'INSERT INTO points').filter((entry) => !entry.query.includes('VALUES (NULL'));
+  expect(memberInserts).toHaveLength(1);
+  expect(memberInserts[0].params).toEqual([1, GROUP_ID, ORG_ID, ACTIVE_SCOUT_YEAR.id, 3]);
+});
+
+test('an individual award outside the current filter is refused before any point insert', async () => {
+  const recorded = installHandler((query) => {
+    if (query.includes('FROM activities a')) { return { rows: [{ id: 5, requires_permission: true, signed_participant_ids: [1] }] }; }
+    if (query.includes('SELECT participant_id, status, is_on_site')) { return { rows: [] }; }
+    return undefined;
+  });
+  await request(app).post('/api/v1/points').set('Authorization', `Bearer ${generateToken()}`)
+    .send([{ type: 'individual', id: 2, points: 3, date: '2026-07-15', activity_id: 5, include_all: false }]).expect(409);
+  expect(queriesMatching(recorded, 'INSERT INTO points')).toHaveLength(0);
+});
+
+
+test('a group with no eligible members cannot receive points through the filtered action', async () => {
+  const recorded = installHandler((query) => {
+    if (query.includes('FROM activities a')) { return { rows: [{ id: 5, requires_permission: true, signed_participant_ids: [1] }] }; }
+    if (query.includes('SELECT participant_id, status, is_on_site')) { return { rows: [{ participant_id: 1, status: 'absent' }] }; }
+    if (query.includes('FROM participants p')) { return { rows: [{ id: 1 }] }; }
+    return undefined;
+  });
+  await request(app).post('/api/v1/points').set('Authorization', `Bearer ${generateToken()}`)
+    .send([{ type: 'group', id: GROUP_ID, points: 3, date: '2026-07-15', activity_id: 5, include_all: false }]).expect(409);
+  expect(queriesMatching(recorded, 'INSERT INTO points')).toHaveLength(0);
+});

@@ -166,6 +166,7 @@ module.exports = (app, pool) => {
   app.use('/api/v1/points', pointsRoutes);
 
   app.use('/api/v1/attendance', attendanceRoutes);
+  app.use('/api/v1/action-roster', require('./action-roster')(pool));
 
   app.use('/api/v1/public', publicRoutes);
 

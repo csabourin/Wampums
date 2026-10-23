@@ -410,3 +410,16 @@ describe('US-HON-015 — Honors API envelope and org isolation (server)', () => 
     expect(historyParams).toEqual([ORG_ID, '2026-07-01', '1']);
   });
 });
+
+test('an honor cannot bypass the activity authorization filter', async () => {
+  const base = awardHandler({});
+  const recorded = installHandler((query, params) => {
+    if (query.includes('FROM activities a')) { return { rows: [{ id: 5, requires_permission: true, signed_participant_ids: [1] }] }; }
+    if (query.includes('SELECT participant_id, status, is_on_site')) { return { rows: [] }; }
+    return base(query, params);
+  });
+  await request(app).post('/api/v1/honors').set('Authorization', `Bearer ${generateToken()}`)
+    .send([{ participantId: 2, date: '2026-07-15', reason: 'Helped with the tents', activity_id: 5, include_all: false }]).expect(409);
+  expect(queriesMatching(recorded, 'INSERT INTO honors')).toHaveLength(0);
+  expect(queriesMatching(recorded, 'INSERT INTO points')).toHaveLength(0);
+});

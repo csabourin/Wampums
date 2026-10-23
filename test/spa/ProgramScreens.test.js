@@ -17,6 +17,12 @@
 
 import axe from 'axe-core';
 
+jest.mock('../../spa/api/api-action-roster.js', () => ({
+  getActionRoster: jest.fn(() => Promise.resolve({ data: { activities: [], attendance: [] } })),
+  markActivityDeparture: jest.fn(() => Promise.resolve({ success: true })),
+}));
+
+
 jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(),
@@ -30,6 +36,8 @@ jest.mock('../../spa/config.js', () => ({
 }));
 jest.mock('../../spa/indexedDB.js', () => ({
   getCachedData: jest.fn(),
+  getOfflineData: jest.fn(() => Promise.resolve([])),
+  getCachedDataIgnoreExpiration: jest.fn(() => Promise.resolve(null)),
   deleteCachedData: jest.fn(),
   setCachedData: jest.fn(),
 }));

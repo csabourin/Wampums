@@ -1124,7 +1124,7 @@ export async function updateParticipantGroup(
  */
 export async function updatePoints(updates) {
   const result = await API.post('v1/points', updates);
-  await clearPointsRelatedCaches();
+  if (!result?.queued) { await clearPointsRelatedCaches(); }
   return result;
 }
 
@@ -1590,8 +1590,10 @@ export async function updateAttendance(participantId, status, date, previousStat
   });
     // Attendance changes generate point adjustments server-side, so stale
     // points caches would show old totals that "jump" on the next refresh.
-  await clearPointsRelatedCaches();
-  await clearAttendanceRelatedCaches();
+  if (!result?.queued) {
+    await clearPointsRelatedCaches();
+    await clearAttendanceRelatedCaches();
+  }
   return result;
 }
 

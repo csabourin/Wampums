@@ -66,6 +66,8 @@ function isNearDate(value, now) {
 /** How each kind of field is checked. */
 const FIELD_CHECKS = Object.freeze({
   id: isId,
+  nullableId: (value) => value === null || isId(value),
+  boolean: (value) => typeof value === 'boolean',
   ids: (value) => (Array.isArray(value)
     ? value.length >= 1 && value.length <= DEMO_BATCH_LIMIT && value.every(isId)
     : isId(value)),
@@ -87,9 +89,10 @@ const DEMO_SANDBOX = Object.freeze({
   /** POST /api/v1/points: `[{ type, id, points, timestamp, date? }]`, as the points screen sends it */
   points: Object.freeze({
     list: 'required',
-    shape: { type: 'code', id: 'id', points: 'points', timestamp: 'timestamp', date: 'date' },
+    shape: { type: 'code', id: 'id', points: 'points', timestamp: 'timestamp', date: 'date', activity_id: 'nullableId', include_all: 'boolean' },
   }),
   /** POST /api/v1/attendance: one child, one date */
+  attendanceDeparture: Object.freeze({ shape: { participant_id: 'id', date: 'date' } }),
   attendanceMark: Object.freeze({
     shape: { participant_id: 'id', date: 'date', status: 'code', previous_status: 'optionalCode' },
   }),
@@ -102,7 +105,7 @@ const DEMO_SANDBOX = Object.freeze({
   /** POST /api/v1/honors: an honor, but no reason */
   honorAward: Object.freeze({
     list: 'optional',
-    shape: { participantId: 'id', participant_id: 'id', date: 'date', reason: 'blank' },
+    shape: { participantId: 'id', participant_id: 'id', date: 'date', reason: 'blank', activity_id: 'nullableId', include_all: 'boolean' },
   }),
 });
 

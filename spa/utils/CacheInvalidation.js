@@ -85,12 +85,12 @@ const STABLE_PATHS = [
  */
 const DERIVED_RESOURCES = {
   points: ['points', 'groups', 'participants', 'honors', 'reports', 'dashboards'],
-  attendance: ['attendance', 'points', 'participants', 'meetings', 'reports', 'dashboards'],
+  attendance: ['attendance', 'points', 'honors', 'action-roster', 'participants', 'meetings', 'reports', 'dashboards'],
   honors: ['honors', 'points', 'participants', 'reports', 'dashboards'],
   badges: ['badges', 'program-progress', 'participants', 'reports', 'dashboards'],
   'program-progress': ['program-progress', 'badges', 'reports'],
   meetings: ['meetings', 'attendance', 'activities', 'yearly-planner', 'dashboards'],
-  activities: ['activities', 'attendance', 'carpools', 'meetings', 'dashboards'],
+  activities: ['activities', 'attendance', 'points', 'honors', 'action-roster', 'carpools', 'meetings', 'dashboards'],
   carpools: ['carpools', 'activities'],
   forms: ['forms', 'participants', 'medication', 'reports'],
   medication: ['medication', 'reports'],
@@ -100,7 +100,7 @@ const DERIVED_RESOURCES = {
   budget: ['budget', 'expenses', 'revenue'],
   expenses: ['expenses', 'budget'],
   revenue: ['revenue', 'budget'],
-  resources: ['resources', 'activities'],
+  resources: ['resources', 'activities', 'action-roster'],
   // The announcement composer lists the unit's roles.
   roles: ['roles', 'announcements', 'users', 'forms']
 };
@@ -111,6 +111,7 @@ const DERIVED_RESOURCES = {
  * A name ending in "_" or "-" matches every key starting with it.
  */
 const SNAPSHOT_SOURCES = [
+  ['action_roster_', ['action-roster', 'attendance', 'activities', 'resources']],
   ['manage_points_data', ['participants', 'groups', 'points', 'attendance']],
   ['manage_participants_data', ['participants', 'groups', 'users']],
   ['attendance_', ['attendance', 'participants', 'groups', 'activities']],
