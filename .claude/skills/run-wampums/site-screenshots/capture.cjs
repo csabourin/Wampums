@@ -48,6 +48,8 @@ const SHOTS = [
   { name: 'medications', as: 'admin@run.test', route: '/medication-dispensing' },
   { name: 'offline', as: 'admin@run.test', route: '/attendance', offline: true },
   { name: 'parent', as: 'parent@run.test', route: '/parent-dashboard' },
+  { name: 'reports', as: 'admin@run.test', route: '/reports' },
+  { name: 'district', as: 'admin@run.test', route: '/district?tab=roles' },
 ];
 
 const LIB = path.join(process.env.HOME, '.cache/wampums-run/libs/root/usr/lib/x86_64-linux-gnu');

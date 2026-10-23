@@ -49,7 +49,7 @@ const DEMO_UNIT_SIZES = {
 const DEMO_CURRENT_TOOLS = {
   paper: 'Paper',
   spreadsheets: 'Spreadsheets',
-  scouts_digital: 'Scouts Digital',
+  scoutstracker: 'ScoutsTracker',
   other_app: 'Another app',
   nothing: 'Nothing yet',
 };
@@ -280,7 +280,7 @@ module.exports = (pool, logger) => {
    *                 description: Number of youth (optional)
    *               current_tool:
    *                 type: string
-   *                 enum: [paper, spreadsheets, scouts_digital, other_app, nothing]
+   *                 enum: [paper, spreadsheets, scoutstracker, other_app, nothing]
    *                 description: What the unit uses today (optional)
    *               message:
    *                 type: string

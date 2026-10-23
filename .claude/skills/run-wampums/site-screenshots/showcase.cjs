@@ -63,6 +63,11 @@ async function main() {
   await q("UPDATE parents_guardians SET nom = 'Tremblay', prenom = 'Marie', telephone_cellulaire = '514-555-0142' WHERE courriel = 'parent@run.test'");
   await q("UPDATE users SET full_name = 'Akéla (Sophie Roy)' WHERE email = 'admin@run.test'");
   await q("UPDATE users SET full_name = 'Baloo (Marc Dion)' WHERE email = 'leader@run.test'");
+  // Screens that name roles show the pack's titles, not the seed's test role names.
+  await q("UPDATE roles SET display_name = 'Akéla' WHERE role_name = 'run_admin'");
+  await q("UPDATE roles SET display_name = 'Baloo' WHERE role_name = 'run_leader'");
+  await q("UPDATE roles SET organization_id = $1 WHERE role_name IN ('run_admin', 'run_leader', 'parent') AND organization_id IS NULL", [ORG]);
+  await q("UPDATE roles SET display_name = 'Parent' WHERE role_name = 'parent'");
 
   const groupIds = [];
   for (const name of GROUPS) {

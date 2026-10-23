@@ -61,14 +61,14 @@ describe('demo requests from the public site', () => {
       name: 'Ada Lovelace',
       email: 'ada@example.com',
       unit_size: '15_30',
-      current_tool: 'scouts_digital',
+      current_tool: 'scoutstracker',
       message: '',
     });
 
     expect(res.status).toBe(200);
     const [, , text, html] = sendEmail.mock.calls[0];
     expect(text).toContain('Youth: 15 to 30');
-    expect(text).toContain('Uses today: Scouts Digital');
+    expect(text).toContain('Uses today: ScoutsTracker');
     expect(html).toContain('15 to 30');
   });
 

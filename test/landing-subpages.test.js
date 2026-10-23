@@ -193,6 +193,37 @@ describe('inner pages of the public site', () => {
     expect([...new Set(links)].filter((link) => !fs.existsSync(path.join(LANDING, link)))).toEqual([]);
   });
 
+  test('the committee and district pages exist in both languages and show the app', () => {
+    expect(PAGES).toEqual(expect.arrayContaining([
+      '/en/administrators/', '/fr/administrateurs/', '/en/districts/', '/fr/districts/',
+      '/en/compare/wampums-vs-scoutstracker/', '/fr/comparer/wampums-vs-scoutstracker/',
+    ]));
+    expect(read('/en/districts/')).toContain('/images/screenshots/district-en.webp');
+    expect(read('/fr/administrateurs/')).toContain('/images/screenshots/reports-fr.webp');
+  });
+
+  test('no page names Scouts Digital, a South African tool, as Scouts Canada\'s', () => {
+    PAGES.concat(['/en/', '/fr/']).forEach((pagePath) => {
+      expect(read(pagePath)).not.toMatch(/Scouts Digital|scouts-digital/);
+    });
+  });
+
+  test('each comparison with another product dates its facts and names its sources', () => {
+    PAGES.filter((pagePath) => /\/(compare|comparer)\/wampums-vs-(scoutbook|trooptrack|sporteasy|scoutstracker)\//.test(pagePath))
+      .forEach((pagePath) => {
+        const html = read(pagePath);
+        expect(html).toMatch(/as of October 23, 2026|à jour au 23 octobre 2026/);
+        expect(html).toMatch(/<a href="https:\/\/[^"]+">/);
+      });
+  });
+
+  test('no page promises an IP address or a legally equivalent signature', () => {
+    // The privacy policy names the IP addresses kept in server logs, which is true.
+    PAGES.concat(['/en/', '/fr/']).filter((pagePath) => !/privacy|confidentialite/.test(pagePath)).forEach((pagePath) => {
+      expect(read(pagePath)).not.toMatch(/IP address|adresse IP|legally equivalent|valeur juridique complète/i);
+    });
+  });
+
   test('every screenshot in the images folder is shown on a page', () => {
     const shown = new Set(PAGES.flatMap((pagePath) => [...read(pagePath).matchAll(/src="\/images\/screenshots\/([^"]+)"/g)].map((match) => match[1])));
     const files = fs.readdirSync(path.join(LANDING, 'images', 'screenshots'));

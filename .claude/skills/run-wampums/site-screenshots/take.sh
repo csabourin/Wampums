@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Retake the app screenshots shown on wampums.app (landing/images/screenshots).
 #   .claude/skills/run-wampums/site-screenshots/take.sh [name ...]
-# With no names, all 14 screens in both languages; otherwise only those named
+# With no names, all 16 screens in both languages; otherwise only those named
 # (dashboard, attendance, points, badges, announcement, budget, fees, forms,
-# inventory, carpool, fundraiser, medications, offline, parent).
+# inventory, carpool, fundraiser, medications, offline, parent, reports, district).
 # Uses its own database and cache, so the usual run-wampums unit is untouched.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"

@@ -108,12 +108,12 @@ describe('home page demo request', () => {
     document.querySelector('[data-open-demo-modal]').click();
     fillDemoForm();
     document.getElementById('unitSize').value = '15_30';
-    document.getElementById('currentTool').value = 'scouts_digital';
+    document.getElementById('currentTool').value = 'scoutstracker';
     submitDemoForm();
     await jest.advanceTimersByTimeAsync(0);
 
     expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toMatchObject({
-      message: '', unit_size: '15_30', current_tool: 'scouts_digital',
+      message: '', unit_size: '15_30', current_tool: 'scoutstracker',
     });
     expect(window.gtag).toHaveBeenCalledWith('event', 'demo_dialog_open', expect.any(Object));
     expect(window.gtag).toHaveBeenCalledWith('event', 'generate_lead', expect.objectContaining({ unit_size: '15_30' }));
@@ -206,9 +206,9 @@ describe('home page answers', () => {
   });
 
   test.each([
-    ['en', /Quebec, at OVHcloud in Beauharnois/, /Scouts Digital\?/, /export to CSV or print as PDF/],
-    ['fr', /Québec, chez OVHcloud à Beauharnois/, /Scouts Digital\?/, /s'exportent en CSV ou s'impriment en PDF/],
-  ])('the %s page says where data lives, how to take it out, and how Wampums relates to Scouts Digital', (lang, ...patterns) => {
+    ['en', /Quebec, at OVHcloud in Beauharnois/, /MyScouts or ScoutsTracker\?/, /export to CSV or print as PDF/],
+    ['fr', /Québec, chez OVHcloud à Beauharnois/, /MyScouts ou ScoutsTracker\?/, /s'exportent en CSV ou s'impriment en PDF/],
+  ])('the %s page says where data lives, how to take it out, and how Wampums relates to Scouts Canada\'s own tools', (lang, ...patterns) => {
     const { html } = faq(lang);
     patterns.forEach((pattern) => expect(html).toMatch(pattern));
   });

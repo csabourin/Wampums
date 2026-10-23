@@ -45,8 +45,27 @@ Write only what the code does today, and nothing about other units' results
 without a source. The Canadian Path is not preloaded; badges are set up with each
 unit. Carpools: parents place their own children, and leaders holding
 `carpools.manage` place anyone. Reports export to CSV or print as PDF. There is no
-app-store app. Facts about other products on the comparison pages need checking
-and a date before they change.
+app-store app.
+
+Pricing: a single unit is free until at least 2028; an organization opening several
+units (five or more, say) gets a negotiated monthly price.
+
+A signed permission slip records the name the parent typed, the date and time,
+and the slip's text and authorization. It records no IP address; do not claim one,
+or a "legally equivalent" or certified signature.
+
+Scouts Canada's own tools are MyScouts (registration) and ScoutsTracker (the
+official badge tracker, provided by Dakemi Communications). "Scouts Digital" is
+South African; its old comparison URLs redirect to `wampums-vs-scoutstracker`.
+
+Each comparison page ends with an "About this comparison" card giving the date its
+facts were checked and their sources. Check a fact at its source, and change the
+date, before changing it. Write "we found no …" for what a source does not show,
+never "X cannot …".
+
+The admin (`/en/administrators/`, `/fr/administrateurs/`) and district
+(`/en/districts/`, `/fr/districts/`) pages show the `reports` and `district`
+screenshots, taken by `site-screenshots/take.sh`.
 
 ## Cookie consent
 

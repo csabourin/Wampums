@@ -64,12 +64,12 @@
         {
           "@type": "Question",
           "name": "Does TroopTrack support French for Canadian scout groups?",
-          "acceptedAnswer": { "@type": "Answer", "text": "No. TroopTrack is an English-only platform built for the US Boy Scouts of America system. It does not support French-language interfaces or bilingual per-user preferences. Canadian groups with Francophone families cannot use it to communicate with all parents in their preferred language." }
+          "acceptedAnswer": { "@type": "Answer", "text": "No. We found no French version: TroopTrack’s site, pricing and help are in English, and it is built around American programs. Wampums shows every screen, form and message in each person’s language." }
         },
         {
           "@type": "Question",
           "name": "Where does TroopTrack store data, compared with Wampums?",
-          "acceptedAnswer": { "@type": "Answer", "text": "TroopTrack is a US-based platform that stores its data in the United States. Each unit's database and files are hosted in Quebec, at OVHcloud's Beauharnois data centre." }
+          "acceptedAnswer": { "@type": "Answer", "text": "TroopTrack is a US company based in Utah; its pricing page does not say where data is stored. Each unit's database and files are hosted in Quebec, at OVHcloud's Beauharnois data centre." }
         },
         {
           "@type": "Question",
@@ -122,7 +122,7 @@
     </nav>
         <p class="kicker">Comparison</p>
         <h1>Wampums vs TroopTrack: Which Fits a Canadian Scout Group?</h1>
-          <p class="hero-lede">TroopTrack is a long-standing scout management platform with a solid feature set — for American groups. It was built for the Boy Scouts of America system, operates under US data privacy standards, and is English-only throughout. For a Canadian scout group serving families in Quebec, New Brunswick, Northern Ontario, or any other bilingual community, these limitations are not minor inconveniences — they are fundamental mismatches with the operational reality of running a Canadian youth organization. This comparison walks through the six most important differences between TroopTrack and Wampums for Canadian groups.</p>
+          <p class="hero-lede">TroopTrack is a long-standing scout management platform with a solid feature set — for American groups. It was built around American programs (Scouting America troops and packs, American Heritage Girls, Trail Life USA and Girl Scouts), it is run from Utah, and we found no French version of it. For a Canadian scout group serving families in Quebec, New Brunswick, Northern Ontario, or any other bilingual community, these limitations are not minor inconveniences — they are fundamental mismatches with the operational reality of running a Canadian youth organization. This comparison walks through the six most important differences between TroopTrack and Wampums for Canadian groups.</p>
         <div class="hero-actions">
           <button type="button" class="btn btn--ember" data-open-demo-modal>
 Request a demo
@@ -147,14 +147,14 @@ Request a demo
     <div class="cards">
       <article class="card">
         <h2>French Language Support — Built In, Not Bolted On</h2>
-        <p>TroopTrack is an English-only platform. There is no French interface, no French notification templates, and no per-user language preference. For a Canadian scout group with Francophone families — which describes virtually every group in Quebec, Acadian communities, Franco-Ontarian groups, and mixed-language urban groups across the country — this means parents receive communications in a language that is not their own. That is both a practical failure and, in many organizational contexts, a legal and equity concern.</p>
+        <p>We found no French version of TroopTrack: its site, pricing and help are in English. For a Canadian scout group with Francophone families — which describes virtually every group in Quebec, Acadian communities, Franco-Ontarian groups, and mixed-language urban groups across the country — this means parents receive communications in a language that is not their own. That leaves part of the families out.</p>
         <p>Wampums was designed from the first line of code for bilingual Canadian groups. Every interface element, every notification template, every form, and every report is available in both English and French. Each user — leader or parent — sets a language preference during onboarding. From that point forward, the platform delivers a fully French or fully English experience based on their preference. A French-speaking parent and an English-speaking leader can look at the same meeting and see everything in their own language. No workarounds, no manual translation step, no communication in the wrong language.</p>
       </article>
 
       <article class="card">
         <h2>Canadian Privacy Law and Where Data Lives</h2>
-        <p>TroopTrack stores data in the United States under US data privacy frameworks. Canadian organizations that collect personal information about children — which every scout group does — are subject to the Personal Information Protection and Electronic Documents Act (PIPEDA) at the federal level and additional legislation in provinces including Quebec (Law 25), Alberta (PIPA), and British Columbia (PIPA). None of these laws forbids a US platform, but under Law 25, sending personal information outside Quebec means assessing the privacy risks first, and that is work volunteer leaders are rarely equipped to do.</p>
-        <p>Wampums keeps each unit's database and files in Quebec, at OVHcloud's Beauharnois data centre. Everything travels over HTTPS, backups are encrypted, and roles decide which leaders and parents can see each participant's information. When a family asks, a leader can permanently erase a child's record. Emails go out through Brevo, which receives each recipient's address and the message, and the optional AI-assisted writing receives only the text a leader submits. For groups in Quebec, keeping the main records in the province means the Law 25 assessment does not apply to them.</p>
+        <p>TroopTrack is a US company (TroopTrackHQ, in Provo, Utah); its pricing page does not say where data is stored. Canadian organizations that collect personal information about children — which every scout group does — are subject to the Personal Information Protection and Electronic Documents Act (PIPEDA) at the federal level and additional legislation in provinces including Quebec (Law 25), Alberta (PIPA), and British Columbia (PIPA). None of these laws forbids a US platform, but under Law 25, sending personal information outside Quebec means assessing the privacy risks first, and that is work volunteer leaders are rarely equipped to do.</p>
+        <p>Wampums keeps each unit's database and files in Quebec, at OVHcloud's Beauharnois data centre. Everything travels over HTTPS, backups are encrypted, and roles decide which leaders and parents can see each participant's information. When a family asks, a leader can permanently erase a child's record. Emails go out through Brevo, which receives each recipient's address and the message, and the optional AI-assisted writing receives only the text a leader submits. For groups in Quebec, keeping the main records in the province leaves only those listed services to assess, rather than the whole database.</p>
       </article>
 
       <article class="card">
@@ -165,20 +165,24 @@ Request a demo
 
       <article class="card">
         <h2>Offline Capability for Canadian Camps and Remote Locations</h2>
-        <p>Canada has a lot of wilderness. Scout groups regularly run camps in provincial parks, Crown land, and remote locations where cellular data is unavailable and WiFi does not exist. TroopTrack, as a traditional web application, requires an active internet connection for most functionality. Leaders at a remote camp lose access to attendance records, medication schedules, emergency contacts, and carpool assignments the moment they drive out of cell range.</p>
+        <p>Canada has a lot of wilderness. Scout groups regularly run camps in provincial parks, Crown land, and remote locations where cellular data is unavailable and WiFi does not exist. Leaders at a remote camp still need attendance records, medication schedules, emergency contacts and carpool assignments.</p>
         <p>Wampums is built offline-first. Before heading to a camp or remote event, the app caches all critical data to the leader's device — participant roster, medical information, medication schedules, emergency contacts, and carpool assignments. Every action taken without internet is queued locally and synced when connectivity returns. A leader at a campsite in Algonquin Park can take morning attendance, log medication dispensing, and look up a parent's emergency number without a data connection. This offline capability is architectural, not a workaround, and it works across all modules simultaneously.</p>
       </article>
 
       <article class="card">
         <h2>Local Support That Understands Canadian Scouting</h2>
-        <p>TroopTrack's support team is based in the United States and is most familiar with BSA processes, terminology, and the regulatory environment of American youth organizations. When a Canadian group leader needs help understanding how to set up their group's financial reporting for a provincial grant, or how to configure bilingual notification templates for a mixed-language group in New Brunswick, support from a team with no Canadian context is limited in its usefulness.</p>
+        <p>TroopTrack is based in Utah and built around American programs.</p>
         <p>Wampums is built and supported by Christian Sabourin, a scout leader in Quebec whose own unit runs on it. Support is available in English and French. When you have a question, you reach someone who knows what a weekly meeting looks like and why bilingual parent communication matters.</p>
       </article>
 
       <article class="card">
         <h2>All-Inclusive Pricing for Volunteer Organizations</h2>
-        <p>TroopTrack offers tiered pricing that can become significant for larger groups or groups that need access to all modules. For a volunteer-led scout group whose annual budget may be a few thousand dollars in total, paying a recurring software subscription that increases with group size or feature requirements is a real constraint. Budget discussions at the group committee level take time and energy that could be spent on program delivery.</p>
-        <p>Wampums is free during early access for qualifying Canadian scout and youth organizations. Every module — attendance, badge tracking, finance, forms, medications, carpool, and communications — is included at no cost. There is no tiered pricing, no per-participant charges, and no feature gates. The goal is to ensure that every Canadian scout group, from a small rural Beaver colony to a large urban district, has access to the same professional-grade tools regardless of their financial resources. Request a demo to confirm eligibility and get your group set up.</p>
+        <p>TroopTrack costs $10 a month or $99 a year as listed in October 2026 (US prices), after a 30-day free trial. For a volunteer-led scout group whose annual budget may be a few thousand dollars, any recurring subscription is a real constraint.</p>
+        <p>A single unit uses Wampums free until at least 2028. For an organization opening several units (five or more, say), we agree on a competitive monthly price together. Every module — attendance, badges, finance, forms, medications, carpool and communications — is included, with no per-participant charge and no feature held back.</p>
+      </article>
+      <article class="card">
+        <h2>About this comparison</h2>
+        <p>Facts about TroopTrack as of October 23, 2026, from <a href="https://trooptrack.com/pricing">trooptrack.com/pricing</a> and <a href="https://trooptrack.com/">trooptrack.com</a>. Where we write “we found no”, we looked and did not find it; tell us at <a href="mailto:hello@wampums.app">hello@wampums.app</a> if something has changed.</p>
       </article>
     </div>
     </div>
@@ -192,13 +196,13 @@ Request a demo
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Does TroopTrack support French for Canadian scout groups?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">No. TroopTrack is an English-only platform built for the US Boy Scouts of America system. It does not support French-language interfaces or bilingual per-user preferences. Canadian groups with Francophone families cannot use it to communicate with all parents in their preferred language.</p>
+          <p itemprop="text">No. We found no French version: TroopTrack’s site, pricing and help are in English, and it is built around American programs. Wampums shows every screen, form and message in each person’s language.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
         <h3 itemprop="name">Where does TroopTrack store data, compared with Wampums?</h3>
         <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
-          <p itemprop="text">TroopTrack is a US-based platform that stores its data in the United States. Each unit's database and files are hosted in Quebec, at OVHcloud's Beauharnois data centre.</p>
+          <p itemprop="text">TroopTrack is a US company based in Utah; its pricing page does not say where data is stored. Each unit's database and files are hosted in Quebec, at OVHcloud's Beauharnois data centre.</p>
         </div>
       </div>
       <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
@@ -275,12 +279,14 @@ Request a demo
               <li><a href="/en/compare/wampums-vs-sporteasy/">vs SportEasy</a></li>
               <li><a href="/en/compare/wampums-vs-trooptrack/">vs TroopTrack</a></li>
               <li><a href="/en/compare/wampums-vs-scoutbook/">vs Scoutbook</a></li>
-              <li><a href="/en/compare/wampums-vs-scouts-digital/">vs Scouts Digital</a></li>
+              <li><a href="/en/compare/wampums-vs-scoutstracker/">vs ScoutsTracker</a></li>
             </ul>
           </nav>
           <nav aria-labelledby="footer-learn">
             <h2 id="footer-learn">Learn</h2>
             <ul>
+              <li><a href="/en/administrators/">For administrators</a></li>
+              <li><a href="/en/districts/">For districts</a></li>
               <li><a href="/en/faq/">FAQ</a></li>
               <li><a href="/en/blog/">Blog</a></li>
               <li><a href="/en/privacy/">Privacy policy</a></li>
@@ -343,7 +349,7 @@ Request a demo
               <option value="">Choose…</option>
               <option value="paper">Paper</option>
               <option value="spreadsheets">Spreadsheets</option>
-              <option value="scouts_digital">Scouts Digital</option>
+              <option value="scoutstracker">ScoutsTracker</option>
               <option value="other_app">Another app</option>
               <option value="nothing">Nothing yet</option>
             </select>
