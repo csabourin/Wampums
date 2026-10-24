@@ -111,6 +111,11 @@ const DERIVED_RESOURCES = {
  * A name ending in "_" or "-" matches every key starting with it.
  */
 const SNAPSHOT_SOURCES = [
+  // Camp preparation stored the roster and its point totals under these API
+  // read keys without naming their sources; entries already on devices still
+  // need to go when points change.
+  ['participants_v2', ['participants', 'points']],
+  ['groups', ['groups', 'points']],
   ['action_roster_', ['action-roster', 'attendance', 'activities', 'resources']],
   ['manage_points_data', ['participants', 'groups', 'points', 'attendance']],
   ['manage_participants_data', ['participants', 'groups', 'users']],

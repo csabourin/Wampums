@@ -81,6 +81,23 @@ const SCREEN_CACHE_PREFIXES = {
   badges: ['badge_', '/api/badge']
 };
 
+/**
+ * Web Lock that lets one tab at a time replay the outbox. Every tab of the app
+ * shares one IndexedDB outbox; two tabs replaying it together would send each
+ * change twice and could deliver an older attendance status after a newer one.
+ */
+const OUTBOX_REPLAY_LOCK = 'wampums-offline-outbox-replay';
+
+/**
+ * Channel on which the tab that replays the outbox tells the other tabs what
+ * became of each change, so the screen that queued one in another tab still
+ * closes, reloads or reopens for correction.
+ */
+const OUTBOX_CHANNEL = 'wampums-offline-outbox';
+
+/** Outcomes a tab relays to the others, as they are dispatched on its window. */
+const RELAYED_OUTBOX_EVENTS = new Set(['offlineMutationReplayed', 'offlineMutationRejected']);
+
 /** Replay answers that will never succeed: the change is dropped, and said so. */
 const NON_RETRIABLE_STATUSES = new Set([400, 403, 404, 409, 410, 422]);
 
@@ -146,6 +163,7 @@ export class OfflineManager {
 
     // Check for pending mutations on init
     this.checkPendingMutations();
+    this.listenToOtherTabs();
     // A radio can reconnect without a browser online event (or a first replay
     // can fail on a captive portal). Retry while the authenticated SPA is open.
     this.syncTimer ??= window.setInterval(() => {
@@ -447,10 +465,75 @@ export class OfflineManager {
      * `offlineMutationRejected` and its cached resource forgotten, so the
      * screens stop showing what was never saved.
      *
+     * Only one tab replays at a time. While another tab holds the outbox,
+     * this one sends nothing and reports nothing: that tab announces the
+     * outcome, and this one retries on its next sync.
+     *
      * @returns {Promise<{replayed: number, rejected: Array<{url: string, method: string, kind: string, mutationId: string, status: number}>}>}
      *   How many changes the server accepted, and the ones it refused
      */
-  async replayPendingMutations() {
+  replayPendingMutations() {
+    const locks = globalThis.navigator?.locks;
+    if (typeof locks?.request !== 'function') {
+      // Browsers without Web Locks keep the per-tab guard; the server's
+      // receipts and attendance locks still keep a double send harmless.
+      return this.replayOutbox();
+    }
+    return locks.request(OUTBOX_REPLAY_LOCK, { ifAvailable: true }, async (lock) => {
+      if (!lock) {
+        debugLog('OfflineManager: Another tab is replaying the outbox');
+        return { replayed: 0, rejected: [] };
+      }
+      const outcome = await this.replayOutbox();
+      // The tabs that stood aside refresh their counts and screens too.
+      this.outboxChannel?.postMessage({ type: 'outboxReplayFinished' });
+      return outcome;
+    });
+  }
+
+  /**
+   * Hear what the tab replaying the outbox did with the changes this tab
+   * queued: their screens listen on this tab's window.
+   */
+  listenToOtherTabs() {
+    if (this.outboxChannel || typeof globalThis.BroadcastChannel !== 'function') {
+      return;
+    }
+    this.outboxChannel = new globalThis.BroadcastChannel(OUTBOX_CHANNEL);
+    this.outboxChannel.onmessage = (message) => { void this.receiveOutboxEvent(message.data); };
+  }
+
+  /**
+   * Dispatch an outcome on this tab's window and relay it to the other tabs.
+   * @param {string} eventName - offlineMutationReplayed or offlineMutationRejected
+   * @param {Object} detail - The change: url, method, mutationId (and kind, status when refused)
+   */
+  announceOutboxEvent(eventName, detail) {
+    this.dispatchEvent(eventName, detail);
+    this.outboxChannel?.postMessage({ type: eventName, detail });
+  }
+
+  /**
+   * Replay in this tab what another tab's replay announced. Cached copies are
+   * shared, so the replaying tab already cleared them.
+   * @param {{type: string, detail?: Object}} message - Relayed outcome
+   * @returns {Promise<void>}
+   */
+  async receiveOutboxEvent(message) {
+    if (RELAYED_OUTBOX_EVENTS.has(message?.type)) {
+      this.dispatchEvent(message.type, message.detail);
+    } else if (message?.type === 'outboxReplayFinished') {
+      await this.updatePendingCount();
+      this.dispatchEvent('syncStatusChanged', { isSyncing: false });
+    }
+  }
+
+  /**
+   * Send the outbox in order. Call through replayPendingMutations, which
+   * keeps other tabs from sending the same changes at the same time.
+   * @returns {Promise<{replayed: number, rejected: Array<Object>}>} Outcome of the replay
+   */
+  async replayOutbox() {
     const nothing = { replayed: 0, rejected: [] };
     const pendingData = await getOfflineData();
     if (!pendingData || pendingData.length === 0) {
@@ -508,7 +591,7 @@ export class OfflineManager {
             await deleteOfflineData(record.key);
             replayed += 1;
             replayedPoints ||= normalizeApiPath(record.data.url) === '/api/v1/points';
-            this.dispatchEvent('offlineMutationReplayed', {
+            this.announceOutboxEvent('offlineMutationReplayed', {
               url: record.data.url,
               method,
               mutationId: record.data.idempotencyKey
@@ -556,7 +639,7 @@ export class OfflineManager {
     // queued a change recognizes it by its mutationId.
     await Promise.all(rejected.map((change, index) =>
       this.forgetRejectedResource(change, refusedBodies[index], refusedScopes[index])));
-    rejected.forEach((change) => this.dispatchEvent('offlineMutationRejected', change));
+    rejected.forEach((change) => this.announceOutboxEvent('offlineMutationRejected', change));
 
     if (replayedPoints && !await this.hasPendingPoints()) {
       await clearPointsRelatedCaches();
@@ -909,11 +992,13 @@ export class OfflineManager {
     }
     assertScope();
     const cacheKeys = [];
-    const cache = async (key, data, duration) => {
+    // `sources` names the API paths an entry holds, so a later write that
+    // changes them (an award changes every total) clears it like any API read.
+    const cache = async (key, data, duration, sources) => {
       assertScope();
       const scopedKey = buildScopedCacheKey(key);
       // Required writes must reject on quota/storage errors, unlike optional prefetches.
-      await setCachedData(scopedKey, data, duration);
+      await setCachedData(scopedKey, data, duration, sources ? { sources } : undefined);
       cacheKeys.push(scopedKey);
     };
     const preparationKey = activityId || `manual_${startDate}`;
@@ -970,8 +1055,9 @@ export class OfflineManager {
 
       // Step 2: Cache participants and groups
       this.updatePreparationProgress(2, this.getTranslation('offline.cachingParticipants'));
-      await cache('participants_v2', { success: true, data: bulkData.participants }, duration);
-      await cache('groups', { success: true, data: bulkData.groups }, duration);
+      await cache('participants_v2', { success: true, data: bulkData.participants }, duration,
+        ['/api/v1/participants', '/api/v1/points']);
+      await cache('groups', { success: true, data: bulkData.groups }, duration, ['/api/v1/groups', '/api/v1/points']);
       await cache(buildApiCacheKey('v1/participants'), { success: true, data: bulkData.participants }, duration);
       await cache(buildApiCacheKey('v1/groups'), { success: true, data: bulkData.groups }, duration);
 
