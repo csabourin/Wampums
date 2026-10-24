@@ -504,47 +504,34 @@
       }
     },
     {
-      "key": "discovery_cub_presentations",
+      "key": "discovery_hunting_ground_presentation",
       "category": "discovery",
       "branches": ["cubs"],
-      "tags": ["indoor", "calm"],
-      "duration": { "min": 15, "max": 20 },
+      "tags": ["indoor", "outdoor"],
+      "duration": { "min": 15, "max": 30 },
       "supervision": "standard",
       "origin": "units",
-      "review": "to_confirm",
-      "review_note": "Sens exact de « Gibier » dans les unités à confirmer.",
-      "legacy_names": ["Gibier (présentations des louveteaux)"],
+      "review": "draft",
+      "legacy_names": ["Gibier (présentations des louveteaux)", "Proie (présentations spéciales)"],
       "fr": {
-        "name": "Gibier : présentations des louveteaux",
-        "summary": "Des louveteaux présentent au groupe un sujet qu’ils ont préparé (passe-temps, animal, objet).",
-        "material": ["Selon le sujet présenté"]
+        "name": "Gibier ou proie : présenter une réalisation",
+        "summary": "Un louveteau ou une équipe présente au groupe une réalisation liée à l’un des six territoires de chasse (Scouts du Canada) : un sport présenté puis joué, une construction, etc. La réalisation mène à une étoile sur l’un des six badges.",
+        "material": ["Selon la réalisation présentée"],
+        "steps": [
+          "Le jeune choisit à l’avance un territoire de chasse et sa réalisation, avec un animateur.",
+          "Il la présente au groupe et, si c’est possible, la fait essayer aux autres.",
+          "L’animateur note l’étoile méritée sur le badge correspondant."
+        ]
       },
       "en": {
-        "name": "Cub presentations",
-        "summary": "Cubs present a topic they prepared to the group (hobby, animal, object).",
-        "material": ["Depends on the topic"]
-      }
-    },
-    {
-      "key": "discovery_special_presentations",
-      "category": "discovery",
-      "branches": ["cubs"],
-      "tags": ["indoor", "calm"],
-      "duration": { "min": 15, "max": 20 },
-      "supervision": "standard",
-      "origin": "units",
-      "review": "to_confirm",
-      "review_note": "Sens exact de « Proie » dans les unités à confirmer.",
-      "legacy_names": ["Proie (présentations spéciales)"],
-      "fr": {
-        "name": "Proie : présentations spéciales",
-        "summary": "Présentation spéciale par un invité ou un animateur sur un sujet lié au programme.",
-        "material": ["Selon le sujet présenté"]
-      },
-      "en": {
-        "name": "Special presentations",
-        "summary": "A special presentation by a guest or a leader on a topic linked to the programme.",
-        "material": ["Depends on the topic"]
+        "name": "Presenting an achievement",
+        "summary": "A cub or a team presents to the group an achievement linked to one of the six hunting grounds (Scouts Canada): a sport presented then played, a construction, etc. The achievement earns a star on one of the six badges.",
+        "material": ["Depends on the achievement"],
+        "steps": [
+          "The youth chooses a hunting ground and an achievement in advance, with a leader.",
+          "They present it to the group and, when possible, let the others try it.",
+          "The leader records the star earned on the matching badge."
+        ]
       }
     },
     {
@@ -666,25 +653,34 @@
       }
     },
     {
-      "key": "project_topic_hunt",
+      "key": "project_unit_service",
       "category": "project",
       "branches": ["cubs"],
-      "tags": ["indoor", "outdoor", "team"],
-      "duration": { "min": 30, "max": 50 },
+      "tags": ["indoor", "outdoor", "team", "cooperative"],
+      "duration": { "min": 30, "max": 120 },
       "supervision": "standard",
       "origin": "units",
-      "review": "to_confirm",
-      "review_note": "Déroulement de la « Battue » dans les unités à confirmer.",
+      "review": "draft",
       "legacy_names": ["Battue (divers sujets)"],
       "fr": {
-        "name": "Battue (divers sujets)",
-        "summary": "Projet en équipes autour d’un sujet choisi : les jeunes cherchent, préparent puis présentent ce qu’ils ont trouvé.",
-        "material": ["Selon le sujet"]
+        "name": "Battue : réalisation de toute l’unité",
+        "summary": "Comme une proie, mais toute l’unité réalise ensemble un projet, souvent au service des autres : action de bienfaisance, grand ménage, collecte, etc.",
+        "material": ["Selon le projet"],
+        "steps": [
+          "Choisir le projet avec les jeunes (par exemple en conseil).",
+          "Répartir les tâches par équipes et préparer le matériel.",
+          "Réaliser le projet, puis en faire le bilan ensemble."
+        ]
       },
       "en": {
-        "name": "Topic hunt",
-        "summary": "A team project on a chosen topic: the youth research, prepare and present what they found.",
-        "material": ["Depends on the topic"]
+        "name": "Whole-unit project",
+        "summary": "Like an individual achievement, but the whole unit carries out a project together, often in service of others: a charity action, a big clean-up, a collection, etc.",
+        "material": ["Depends on the project"],
+        "steps": [
+          "Choose the project with the youth (for example in council).",
+          "Split the tasks by team and prepare the gear.",
+          "Carry out the project, then review it together."
+        ]
       }
     },
     {
@@ -1648,19 +1644,31 @@
       "duration": { "min": 30, "max": 30 },
       "supervision": "standard",
       "origin": "units",
-      "review": "to_confirm",
-      "review_note": "Règles complètes du « Ballon Ama-jungle » à fournir par les unités.",
+      "review": "draft",
       "legacy_names": ["Jeu : Ballon Ama-jungle"],
       "fr": {
         "name": "Ballon Ama-jungle",
-        "summary": "Chaque équipe protège deux structures de trois boîtes en carton ; si la boîte du dessus d’une structure tombe, l’équipe adverse marque.",
-        "material": ["Ballon mou", "Six boîtes de carton par équipe"]
+        "summary": "Comme le ballon chasseur, mais chaque équipe empile des boîtes de carton à sa guise ; il faut faire toucher le sol à une boîte spéciale de l’équipe adverse.",
+        "material": ["Ballon mou", "Six boîtes de carton par équipe, dont deux marquées comme spéciales"],
+        "steps": [
+          "Chaque équipe reçoit six boîtes, dont deux spéciales, et les empile à sa guise dans son camp ; les boîtes spéciales doivent être sur le dessus.",
+          "On joue comme au ballon chasseur : un joueur touché par le ballon est éliminé.",
+          "Une équipe marque quand une boîte spéciale adverse touche le sol."
+        ],
+        "variants": ["Les familles ont souvent des boîtes de livraison à la maison : on peut les leur demander d’avance."]
       },
       "en": {
         "name": "Box ball",
-        "summary": "Each team guards two stacks of three cardboard boxes; when the top box of a stack falls, the other team scores.",
-        "material": ["Soft ball", "Six cardboard boxes per team"]
-      }
+        "summary": "Like dodgeball, but each team stacks cardboard boxes as it likes; the aim is to make one of the other team’s special boxes touch the floor.",
+        "material": ["Soft ball", "Six cardboard boxes per team, two of them marked as special"],
+        "steps": [
+          "Each team gets six boxes, two of them special, and stacks them as it likes on its side; the special boxes go on top.",
+          "Play as in dodgeball: a player hit by the ball is out.",
+          "A team scores when one of the other team’s special boxes touches the floor."
+        ],
+        "variants": ["Families often have delivery boxes at home: ask them in advance."]
+      },
+      "players": { "min": 10 }
     },
     {
       "key": "game_dodgeball",
@@ -1744,23 +1752,35 @@
       "key": "game_pigeon_ball",
       "category": "game",
       "branches": ["cubs", "scouts"],
-      "tags": ["indoor", "outdoor", "active"],
+      "tags": ["indoor", "active", "team"],
       "duration": { "min": 25, "max": 30 },
       "supervision": "standard",
       "origin": "units",
-      "review": "to_confirm",
-      "review_note": "Règles du « Ballon Pigeon » à préciser par les unités.",
+      "review": "draft",
       "legacy_names": ["Jeu : Ballon Pigeon"],
       "fr": {
         "name": "Ballon pigeon",
-        "summary": "Jeu de précision : toucher des cibles ou des adversaires avec un ballon.",
-        "material": ["Ballon mou", "Cibles"]
+        "summary": "Comme le ballon chasseur, mais trois « pigeons » de chaque équipe se tiennent en équilibre sur un banc de gymnase renversé. La première équipe qui fait tomber ou touche les trois pigeons adverses gagne.",
+        "material": ["Ballon mou", "Deux bancs de gymnase posés à l’envers"],
+        "steps": [
+          "Placer un banc renversé au fond de chaque camp ; trois joueurs de l’équipe s’y tiennent en équilibre.",
+          "On joue comme au ballon chasseur.",
+          "Un pigeon touché par le ballon ou qui tombe du banc est éliminé ; l’équipe qui élimine les trois pigeons adverses gagne."
+        ],
+        "safety": ["Tirs sous les épaules seulement ; ballon mou obligatoire."]
       },
       "en": {
         "name": "Pigeon ball",
-        "summary": "An accuracy game: hit targets or opponents with a ball.",
-        "material": ["Soft ball", "Targets"]
-      }
+        "summary": "Like dodgeball, but three “pigeons” from each team balance on an upturned gym bench. The first team to knock off or hit all three of the other team’s pigeons wins.",
+        "material": ["Soft ball", "Two gym benches turned upside down"],
+        "steps": [
+          "Place an upturned bench at the back of each side; three players from that team balance on it.",
+          "Play as in dodgeball.",
+          "A pigeon hit by the ball or who falls off the bench is out; the team that puts out all three of the other team’s pigeons wins."
+        ],
+        "safety": ["Throws below the shoulders only; a soft ball is required."]
+      },
+      "players": { "min": 10 }
     },
     {
       "key": "game_earth_ball",
@@ -1855,19 +1875,31 @@
       "duration": { "min": 30, "max": 30 },
       "supervision": "standard",
       "origin": "units",
-      "review": "to_confirm",
-      "review_note": "Signification de « DBL » et règles complètes à fournir par les unités.",
+      "review": "draft",
       "legacy_names": ["Jeu : DBL"],
       "fr": {
-        "name": "DBL",
-        "summary": "Jeu de passes où l’on doit respecter des règles précises pour éliminer les adversaires.",
-        "material": ["Ballon"]
+        "name": "DBL (dribble, botte, lance)",
+        "summary": "Jeu de ballon en gymnase : on avance seulement en dribblant, et on marque en bottant ou en lançant le ballon dans le filet adverse, placé face au mur.",
+        "material": ["Ballon", "Deux buts avec filet"],
+        "steps": [
+          "Placer un but de chaque côté du gymnase, à environ 1 m du mur, l’ouverture face au mur.",
+          "On n’a pas le droit de se déplacer avec le ballon, sauf en dribblant.",
+          "On peut dribbler, botter ou lancer pour faire une passe ou tirer.",
+          "On compte les buts marqués dans le filet de l’adversaire."
+        ]
       },
       "en": {
-        "name": "DBL",
-        "summary": "A passing game with specific rules for putting opponents out.",
-        "material": ["Ball"]
-      }
+        "name": "DBL (dribble, kick, throw)",
+        "summary": "A gym ball game: players move only by dribbling and score by kicking or throwing the ball into the other team’s net, which faces the wall.",
+        "material": ["Ball", "Two goals with nets"],
+        "steps": [
+          "Place a goal at each end of the gym, about 1 m from the wall, with the opening facing the wall.",
+          "Players may not move while holding the ball, except by dribbling.",
+          "Players may dribble, kick or throw to pass or shoot.",
+          "Count the goals scored in the other team’s net."
+        ]
+      },
+      "players": { "min": 8 }
     },
     {
       "key": "game_werewolf",
@@ -2220,24 +2252,56 @@
     {
       "key": "game_trollball",
       "category": "game",
-      "branches": ["scouts"],
+      "branches": ["cubs", "scouts"],
       "tags": ["indoor", "outdoor", "active", "team"],
       "duration": { "min": 40, "max": 40 },
       "supervision": "standard",
       "origin": "units",
-      "review": "to_confirm",
-      "review_note": "Règles du Trollball et description du ballon à fournir par les unités.",
+      "review": "draft",
       "legacy_names": ["Jeu : Trollball"],
       "fr": {
         "name": "Trollball",
-        "summary": "Deux équipes s’affrontent pour marquer des points avec un ballon spécial.",
-        "material": ["Ballon de Trollball"]
+        "summary": "Armées d’épées en mousse, deux équipes tentent de faire entrer une tête de troll (un ballon décoré) dans le panier adverse. Un guérisseur ramène les joueurs touchés à la vie.",
+        "material": ["Ballon décoré en tête de troll (cheveux en laine, visage dessiné)", "Épées en mousse", "Deux paniers à linge"],
+        "steps": [
+          "La tête de troll est placée au centre du terrain au début de chaque point.",
+          "On peut courir avec la tête et faire des passes ; il faut la faire entrer dans le panier de l’équipe adverse.",
+          "Un joueur touché par une épée laisse la tête exactement où il a été touché et s’accroupit.",
+          "Chaque équipe a un guérisseur, qui peut sortir des limites du jeu et y entrer. Il prend un joueur accroupi par la main et le ramène derrière le panier de son équipe pour le remettre en vie. Le guérisseur peut lui aussi être touché et mourir.",
+          "Le point continue jusqu’à ce qu’un but soit compté."
+        ],
+        "safety": [
+          "Épées en mousse seulement ; aucun coup à la tête ni au cou.",
+          "On touche, on ne frappe pas : un arbitre retire du jeu un joueur qui frappe fort."
+        ],
+        "variants": [
+          "Samouraï : porte deux épées, mais ne peut pas tenir la tête de troll.",
+          "Immortel : porte une grosse épée ; quand il est touché, il s’accroupit 10 secondes puis repart.",
+          "Thor : porte un marteau qui tue même s’il touche seulement l’épée d’un adversaire."
+        ]
       },
       "en": {
         "name": "Trollball",
-        "summary": "Two teams compete to score points with a special ball.",
-        "material": ["Trollball ball"]
-      }
+        "summary": "Armed with foam swords, two teams try to get a troll head (a decorated ball) into the other team’s basket. A healer brings tagged players back to life.",
+        "material": ["Ball decorated as a troll head (yarn hair, drawn face)", "Foam swords", "Two laundry baskets"],
+        "steps": [
+          "The troll head is placed at the centre of the field at the start of each point.",
+          "Players may run with the head and pass it; the goal is to get it into the other team’s basket.",
+          "A player touched by a sword drops the head exactly where they were touched and crouches.",
+          "Each team has a healer who may leave and re-enter the field. The healer takes a crouching player by the hand and leads them behind their own team’s basket to bring them back to life. The healer can also be touched and die.",
+          "The point goes on until a goal is scored."
+        ],
+        "safety": [
+          "Foam swords only; no hits to the head or neck.",
+          "Touch, don’t strike: a referee removes any player who hits hard."
+        ],
+        "variants": [
+          "Samurai: carries two swords but cannot hold the troll head.",
+          "Immortal: carries a big sword; when touched, crouches for 10 seconds then goes again.",
+          "Thor: carries a hammer that kills even when it only touches an opponent’s sword."
+        ]
+      },
+      "players": { "min": 10 }
     },
     {
       "key": "game_ultimate",
