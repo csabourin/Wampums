@@ -434,6 +434,14 @@ associés au compte et à l’unité. Chaque lot porte un `Idempotency-Key` dès
 envoi : `point_mutation_receipts` et les points sont validés dans la même transaction.
 Une réponse perdue peut donc être retransmise sans doubler les points. Déployer la
 migration `044_point_mutation_receipts.sql` avant le nouveau client.
+Les totaux mis en cache par la préparation sont ceux de l'année scoute active, comme
+`GET /api/v1/points` ; en ligne, l'écran des points recharge toujours les totaux du serveur.
+Une présence verrouille l'inscription du jeune avant de comparer son statut : deux appareils
+qui marquent le même jeune au même moment ne donnent les points de présence qu'une fois.
+`attendance.points_awarded` (migration 047) retient les points qu'une présence a donnés :
+un changement de statut ou une journée supprimée reprend exactement ceux-là (une journée
+reprise de la veille n'en donne aucun). Un niveau de badge donne ses points une seule fois
+(`badge_progress.points_awarded`, migration 048), même approuvé de nouveau.
 
 Les camps des sept prochains jours se préparent automatiquement lorsque la SPA
 est ouverte avec du réseau, pour les comptes ayant `activities.view` et une portée

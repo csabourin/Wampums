@@ -641,6 +641,7 @@ test('a refresh cannot replace queued offline points with older server totals', 
   await saveOfflineData('POST', {
     url: 'http://localhost:3000/api/v1/points', body: '[]', userId: 'leader-1', organizationId: '1',
   });
+  ajax.API.getNoCache.mockClear();
   await page.refreshPointsData({ forceRefresh: true });
   expect(participantTotalText(1)).toBe('15');
   expect(ajax.API.getNoCache).not.toHaveBeenCalled();
@@ -660,5 +661,63 @@ test('an older attendance cache cannot overwrite the shared roster departure', a
   expect(participantTotalText(2)).toBe('5');
   expect(page.store.getParticipantTotal(1)).toBe(10);
   expect(ajax.getAttendance).not.toHaveBeenCalled();
+  page.destroy();
+});
+
+test('opening points online shows the server totals, not totals a camp preparation cached', async () => {
+  seedStandardData();
+  // A preparation cached a total that counted earlier scout years.
+  await setCachedData('manage_points_data', {
+    participants: [{ id: 1, first_name: 'Alex', last_name: 'River', group_id: GROUP_ID, total_points: 43 }],
+    groups: [{ id: GROUP_ID, name: 'Wolves', total_points: 27 }],
+  }, 86400000);
+  ajax.API.getNoCache.mockResolvedValue({
+    success: true,
+    participants: [{ id: 1, first_name: 'Alex', last_name: 'River', group_id: GROUP_ID, total_points: 3 }],
+    groups: [{ id: GROUP_ID, name: 'Wolves', total_points: 2 }],
+  });
+
+  const { page } = await initPage();
+
+  expect(ajax.API.getNoCache).toHaveBeenCalledWith('v1/points');
+  expect(participantTotalText(1)).toBe('3');
+  const header = document.querySelector(`.group-header[data-group-id="${GROUP_ID}"] .group-header__points`);
+  expect(header.textContent).toContain(`${tr('group_points')}: 2`);
+  page.destroy();
+});
+
+test('an award made while the opening refresh is on its way is not overwritten by its older totals', async () => {
+  seedStandardData();
+  const refresh = deferred();
+  ajax.updatePoints.mockResolvedValue({
+    success: true,
+    data: { updates: [{ type: 'individual', id: 1, totalPoints: 15 }] },
+  });
+  // The screen is drawn and usable while the server answers the refresh:
+  // the leader awards +5 in the meantime.
+  ajax.API.getNoCache.mockImplementation(() => {
+    selectParticipant(1);
+    clickPointButton(5);
+    return refresh.promise;
+  });
+
+  const page = new ManagePoints(makeAppStub());
+  const opening = page.init();
+  // IndexedDB answers in macrotasks: let them run until the award is sent.
+  for (let tick = 0; tick < 50 && !ajax.updatePoints.mock.calls.length; tick += 1) {
+    // eslint-disable-next-line no-await-in-loop -- Wait for the award to be sent.
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+  }
+  expect(participantTotalText(1)).toBe('15');
+
+  refresh.resolve({
+    success: true,
+    participants: [{ id: 1, first_name: 'Alex', last_name: 'River', group_id: GROUP_ID, total_points: 10 }],
+    groups: [{ id: GROUP_ID, name: 'Wolves', total_points: 20 }],
+  });
+  await opening;
+  await flushPromises();
+
+  expect(participantTotalText(1)).toBe('15');
   page.destroy();
 });
