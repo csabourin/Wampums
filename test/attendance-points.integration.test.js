@@ -39,7 +39,9 @@ describeWithDatabase('attendance points under simultaneous marking', () => {
       CREATE VIEW participant_groups AS SELECT participant_id, group_id, organization_id FROM participant_group_assignments;
       CREATE TABLE organization_settings (organization_id integer, setting_key text, setting_value jsonb);
       CREATE TABLE points (participant_id integer, group_id integer, organization_id integer, value integer,
-        created_at timestamp DEFAULT now());
+        created_at timestamp DEFAULT now(), scout_year_id integer);
+      CREATE TABLE scout_years (id integer PRIMARY KEY, organization_id integer, start_date date, end_date date);
+      INSERT INTO scout_years VALUES (25, 1, '2025-09-01', '2026-08-31'), (26, 1, '2026-09-01', '2027-08-31');
       CREATE TABLE attendance (id serial PRIMARY KEY, participant_id integer, date date, status varchar(20),
         organization_id integer, is_on_site boolean, departed_at timestamptz,
         UNIQUE (participant_id, date, organization_id));
@@ -127,5 +129,14 @@ describeWithDatabase('attendance points under simultaneous marking', () => {
     const before = await pointsOf(1);
     await deleteDay('2026-07-24');
     expect(await pointsOf(1)).toBe(before - 1);
+  });
+
+  test('deleting a day of an earlier scout year takes its points back in that year', async () => {
+    await mark(2, '2026-06-10', 'present');
+    await deleteDay('2026-06-10');
+    const reversal = await pool.query(
+      'SELECT scout_year_id FROM points WHERE organization_id = 1 AND participant_id = 2 AND value < 0 ORDER BY created_at DESC LIMIT 1'
+    );
+    expect(reversal.rows[0].scout_year_id).toBe(25);
   });
 });

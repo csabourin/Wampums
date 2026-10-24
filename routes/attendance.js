@@ -459,17 +459,21 @@ module.exports = (pool, logger) => {
         );
 
         // A deleted day takes back the attendance points it granted, so taking
-        // the day again cannot award them twice.
+        // the day again cannot award them twice. The reversal counts in the
+        // day's scout year, where the grant was counted, not in today's.
         const pointRules = await getPointSystemRules(client, organizationId);
         const reversals = result.rows
           .map((row) => ({ participantId: row.participant_id, value: -grantedPoints(row, pointRules) }))
           .filter((reversal) => reversal.value !== 0);
         if (reversals.length > 0) {
           await client.query(
-            `INSERT INTO points (participant_id, value, created_at, organization_id)
-             SELECT participant_id, value, NOW(), $3
+            `INSERT INTO points (participant_id, value, created_at, organization_id, scout_year_id)
+             SELECT participant_id, value, NOW(), $3,
+                    (SELECT sy.id FROM scout_years sy
+                      WHERE sy.organization_id = $3 AND $4::date BETWEEN sy.start_date AND sy.end_date
+                      LIMIT 1)
                FROM unnest($1::int[], $2::int[]) AS r(participant_id, value)`,
-            [reversals.map((reversal) => reversal.participantId), reversals.map((reversal) => reversal.value), organizationId]
+            [reversals.map((reversal) => reversal.participantId), reversals.map((reversal) => reversal.value), organizationId, date]
           );
         }
 

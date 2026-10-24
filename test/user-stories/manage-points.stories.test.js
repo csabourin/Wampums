@@ -685,3 +685,39 @@ test('opening points online shows the server totals, not totals a camp preparati
   expect(header.textContent).toContain(`${tr('group_points')}: 2`);
   page.destroy();
 });
+
+test('an award made while the opening refresh is on its way is not overwritten by its older totals', async () => {
+  seedStandardData();
+  const refresh = deferred();
+  ajax.updatePoints.mockResolvedValue({
+    success: true,
+    data: { updates: [{ type: 'individual', id: 1, totalPoints: 15 }] },
+  });
+  // The screen is drawn and usable while the server answers the refresh:
+  // the leader awards +5 in the meantime.
+  ajax.API.getNoCache.mockImplementation(() => {
+    selectParticipant(1);
+    clickPointButton(5);
+    return refresh.promise;
+  });
+
+  const page = new ManagePoints(makeAppStub());
+  const opening = page.init();
+  // IndexedDB answers in macrotasks: let them run until the award is sent.
+  for (let tick = 0; tick < 50 && !ajax.updatePoints.mock.calls.length; tick += 1) {
+    // eslint-disable-next-line no-await-in-loop -- Wait for the award to be sent.
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+  }
+  expect(participantTotalText(1)).toBe('15');
+
+  refresh.resolve({
+    success: true,
+    participants: [{ id: 1, first_name: 'Alex', last_name: 'River', group_id: GROUP_ID, total_points: 10 }],
+    groups: [{ id: GROUP_ID, name: 'Wolves', total_points: 20 }],
+  });
+  await opening;
+  await flushPromises();
+
+  expect(participantTotalText(1)).toBe('15');
+  page.destroy();
+});
