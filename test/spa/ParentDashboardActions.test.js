@@ -41,7 +41,12 @@ jest.mock('../../spa/app.js', () => ({
 jest.mock('../../spa/functions.js', () => ({}));
 jest.mock('../../spa/config.js', () => ({ CONFIG: {} }));
 jest.mock('../../spa/utils/DOMUtils.js', () => ({ setContent: jest.fn(), loadStylesheet: jest.fn() }));
-jest.mock('../../spa/utils/DateUtils.js', () => ({ formatDateShort: (v) => v, parseDate: (v) => v }));
+jest.mock('../../spa/utils/DateUtils.js', () => ({
+  formatDateShort: (v) => v,
+  parseDate: (v) => v,
+  getTodayISO: () => '2026-10-24',
+  isoToDateString: (v) => String(v ?? '').slice(0, 10),
+}));
 jest.mock('../../spa/utils/ActivityDateUtils.js', () => ({}));
 jest.mock('../../spa/utils/FormLabelUtils.js', () => ({ formTypeLabel: (type) => type }));
 jest.mock('../../spa/utils/DialogUtils.js', () => ({
@@ -132,9 +137,9 @@ describe('parent dashboard buttons', () => {
       .toContain('/medication-planning/4');
   });
 
-  test('asks the roster for the medication flags it renders', async () => {
+  test('asks the roster for the account\'s own children with the medication flags it renders', async () => {
     await new ParentDashboard({}).fetchParticipants();
-    expect(ajax.fetchParticipants).toHaveBeenCalledWith(7, { includeMedication: true });
+    expect(ajax.fetchParticipants).toHaveBeenCalledWith(7, { includeMedication: true, ownChildren: true });
   });
 
   test('carpool coordination follows activities.view and carpools.view', () => {

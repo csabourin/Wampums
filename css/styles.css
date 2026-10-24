@@ -1214,6 +1214,11 @@ tr:hover {
   box-shadow: var(--shadow-lg);
 }
 
+/* Filtered out on the parent dashboard: the card's display would outrank [hidden]. */
+.participant-card[hidden] {
+  display: none;
+}
+
 /* Participant Card Header */
 .participant-card__header {
   display: flex;

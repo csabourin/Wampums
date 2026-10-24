@@ -1,83 +1,179 @@
 /*
- * "Forms to review" banner on the parent dashboard.
- * Reassuring rather than alarming: nothing is broken, we are just asking for a
- * re-read, so it uses the informational tone, not the error one.
+ * "To do for your family": one task per thing to do, naming the children it
+ * concerns. The filter's chosen child carries a check mark and a border as
+ * well as its colour, so its state never rests on colour alone.
  */
-
-.form-review {
-  background: var(--surface-info, #eff6ff);
-  border-left: 4px solid var(--primary-color, #2563eb);
-  border-radius: 0.5rem;
-  margin: 1rem 0;
-  padding: 1rem;
+.family-tasks {
+  background: var(--color-surface, #fff);
+  border-radius: var(--radius-lg, 0.75rem);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-md, 1rem);
 }
 
-.form-review__title {
-  font-size: 1.0625rem;
-  margin: 0 0 0.25rem;
+.family-tasks__title {
+  font-size: var(--font-size-lg, 1.125rem);
+  margin: 0 0 var(--space-sm, 0.5rem);
 }
 
-.form-review__description {
-  color: var(--text-muted, #4b5563);
-  font-size: 0.875rem;
-  margin: 0 0 0.75rem;
+.family-tasks__empty {
+  color: var(--color-text-secondary, #4b5563);
+  margin: 0;
 }
 
-.form-review__list {
+.family-tasks__incomplete {
+  margin-block-end: var(--space-md, 1rem);
+}
+
+.family-tasks__incomplete p {
+  margin: 0 0 var(--space-sm, 0.5rem);
+}
+
+.family-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm, 0.5rem);
+  margin-block-end: var(--space-md, 1rem);
+}
+
+.family-filter__option {
+  border: 2px solid var(--color-border, #d1d5db);
+  min-block-size: var(--touch-target-min, 44px);
+}
+
+.family-filter__option[aria-pressed="true"] {
+  border-color: var(--color-primary, #2563eb);
+  font-weight: var(--font-weight-bold, 700);
+}
+
+.family-filter__mark:empty {
+  display: none;
+}
+
+.family-tasks__list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-sm, 0.5rem);
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.form-review__item {
-  background: var(--surface, #fff);
-  border-radius: 0.5rem;
+.family-task {
+  border: 1px solid var(--color-border-light, #e5e7eb);
+  border-inline-start: 4px solid var(--primary-color, #2563eb);
+  border-radius: var(--radius-md, 0.5rem);
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
-  padding: 0.75rem;
+  gap: var(--space-sm, 0.5rem);
+  min-inline-size: 0;
+  padding: var(--space-md, 0.75rem);
 }
 
-.form-review__text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  min-width: 0;
+.family-task--permission,
+.family-task--authorization {
+  border-inline-start-color: var(--warning-color, #f59e0b);
 }
 
-.form-review__actions {
+.family-task__text {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.family-task__kind {
+  color: var(--color-text-secondary, #4b5563);
+  font-size: var(--font-size-sm, 0.875rem);
+  margin: 0;
+}
+
+.family-task__title {
+  font-size: var(--font-size-base, 1rem);
+  margin: 0.125rem 0;
+}
+
+.family-task__when,
+.family-task__children {
+  font-size: var(--font-size-sm, 0.875rem);
+  margin: 0;
+}
+
+.family-task__actions,
+.family-task__row-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-sm, 0.5rem);
 }
 
-.form-review__actions .dashboard-button {
-  flex: 1 1 auto;
-  min-height: 44px;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
+.family-task__actions .button,
+.family-task__row-actions .button,
+.family-task__rows .button {
+  min-block-size: var(--touch-target-min, 44px);
+}
+
+.family-task__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 0.5rem);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.family-task__row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm, 0.5rem);
+  justify-content: space-between;
+  overflow-wrap: anywhere;
+}
+
+.family-task__amount {
+  font-weight: var(--font-weight-bold, 700);
+}
+
+.parent-dashboard__section-title {
+  font-size: var(--font-size-lg, 1.125rem);
+  margin: 0;
+}
+
+.participant-card__summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  font-weight: var(--font-weight-medium, 500);
+  gap: var(--space-sm, 0.5rem);
+  min-block-size: var(--touch-target-min, 44px);
+}
+
+/* display: flex drops the native marker: draw it, turned when open. */
+.participant-card__summary::-webkit-details-marker {
+  display: none;
+}
+
+.participant-card__summary::before {
+  content: "▸";
+  transition: transform var(--transition-fast, 150ms);
+}
+
+.participant-card__details[open] > .participant-card__summary::before {
+  transform: rotate(90deg);
+}
+
+.participant-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md, 1rem);
+  padding-block-start: var(--space-sm, 0.5rem);
 }
 
 @media (min-width: 40rem) {
-  .form-review__item {
+  .family-task {
     align-items: center;
     flex-direction: row;
     justify-content: space-between;
   }
 
-  .form-review__actions .dashboard-button {
-    flex: 0 0 auto;
+  .family-task__rows {
+    flex: 0 1 60%;
   }
-}
-
-/*
- * Signature variant: a stronger accent than the review banner, because this one
- * cannot be dismissed by confirming — it needs a real signature.
- */
-.form-review--signature {
-  background: var(--surface-warning, #fffbeb);
-  border-left-color: var(--warning-color, #f59e0b);
 }

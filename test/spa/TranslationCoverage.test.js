@@ -141,6 +141,13 @@ function loginList(name) {
   return [...source.match(new RegExp(`const ${name} = \\[([^\\]]*)\\]`))[1].matchAll(/'([a-z_]+)'/g)].map((match) => match[1]);
 }
 
+/** @returns {string[]} The kinds of family task the parent dashboard labels, read from its source */
+function familyTaskKinds() {
+  const source = code(path.join(ROOT, 'spa/modules/dashboard/FamilyTasks.js'));
+  const table = source.match(/FAMILY_TASK_KIND = Object\.freeze\(\{([^}]*)\}/)[1];
+  return [...table.matchAll(/: '([a-z_]+)'/g)].map((match) => match[1]);
+}
+
 test('every key built from a state exists for each state the server returns', () => {
   const built = [
     ...['pending', 'expired', 'accepted', 'revoked', 'invalid'].map((s) => [`parent_invitation_state_${s}`, 'ParentInvitations']),
@@ -151,11 +158,15 @@ test('every key built from a state exists for each state the server returns', ()
     ...[...offlineMutationKinds(), 'other'].map((kind) => [`sync.rejected_kind_${kind}`, 'OfflineManager']),
     ...loginList('DEMO_VIEWS').flatMap((view) => [[`demo_view_${view}`, 'Login'], [`demo_view_${view}_text`, 'Login']]),
     ...loginList('DEMO_REFUSALS').map((refusal) => [refusal, 'Login']),
+    ...familyTaskKinds().map((kind) => [`family_tasks_kind_${kind}`, 'FamilyTasks']),
+    ...['one', 'other'].map((form) => [`family_tasks_count_${form}`, 'FamilyTasks']),
+    ...['treatment', 'administration'].map((kind) => [`authorization_kind_${kind}`, 'FamilyTasks']),
   ];
 
   expect(programProgressStatuses().length).toBeGreaterThan(10);
   expect(offlineMutationKinds()).toEqual(expect.arrayContaining(['attendance', 'medication', 'badges']));
   expect(loginList('DEMO_VIEWS')).toEqual(['parent', 'leader']);
+  expect(familyTaskKinds()).toEqual(['permission', 'form', 'review', 'authorization', 'payment']);
 
   expect(missing(built)).toEqual([]);
 });
