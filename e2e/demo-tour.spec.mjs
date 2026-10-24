@@ -48,9 +48,11 @@ test.describe('the parent tour of the sample unit', () => {
 
   test('signing a permission slip in the demo explains it is not available there, and the slip stays pending', async ({ page }) => {
     await openScreen(page, '/parent-dashboard');
-    await page.getByRole('button', { name: 'Signer', exact: true }).click();
-    // DialogUtils' prompt is an alertdialog.
-    const dialog = page.getByRole('alertdialog', { name: 'Nom du signataire' });
+    // The family's tasks come first: the outing's slip is signed from there.
+    const tasks = page.getByRole('region', { name: 'À faire pour votre famille' });
+    await tasks.getByRole('button', { name: 'Signer', exact: true }).click();
+    // DialogUtils' prompt is an alertdialog, titled after the activity.
+    const dialog = page.getByRole('alertdialog', { name: /^Signer : / });
     await dialog.getByRole('textbox').fill('Demo Parent');
     await dialog.getByRole('button', { name: 'OK' }).click();
     await expect(page.locator('#toast-container')).toContainText(READ_ONLY);
