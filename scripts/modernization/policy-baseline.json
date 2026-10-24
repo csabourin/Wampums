@@ -17,7 +17,7 @@
     "routes/announcements.js": 15,
     "routes/attendance.js": 28,
     "routes/auth.js": 62,
-    "routes/badges.js": 68,
+    "routes/badges.js": 65,
     "routes/budgets.js": 134,
     "routes/calendars.js": 13,
     "routes/carpools.js": 62,

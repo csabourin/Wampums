@@ -946,8 +946,6 @@ module.exports = (pool, logger) => {
    *               status:
    *                 type: string
    *                 enum: [approved, rejected, pending]
-   *               reviewer_comments:
-   *                 type: string
    *     responses:
    *       200:
    *         description: Badge status updated successfully
@@ -964,7 +962,6 @@ module.exports = (pool, logger) => {
     const badgeId = Number(req.params.id);
     const {
       status,
-      reviewer_comments,
       etoiles,
       objectif,
       description,
@@ -980,7 +977,6 @@ module.exports = (pool, logger) => {
 
     if (
       status === undefined &&
-      reviewer_comments === undefined &&
       etoiles === undefined &&
       objectif === undefined &&
       description === undefined &&
@@ -1032,11 +1028,6 @@ module.exports = (pool, logger) => {
         } else {
           updateFields.push('approval_date = NULL');
         }
-      }
-
-      if (reviewer_comments !== undefined) {
-        updateFields.push(`reviewer_comments = $${valueIndex++}`);
-        values.push(reviewer_comments || null);
       }
 
       if (etoiles !== undefined) {

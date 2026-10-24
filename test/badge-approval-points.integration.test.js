@@ -99,4 +99,11 @@ describe.skipIf(!DATABASE_URL)('Badge approval points', () => {
     await as('post', '/approve', { badge_id: level }).expect(200);
     expect(await pointsOf(ids.youth)).toBe(before + 5);
   });
+
+  test('a review comment, which badges do not store, no longer breaks an edit', async () => {
+    const level = await pendingLevel(3);
+    await as('put', `/badge-progress/${level}`, { reviewer_comments: 'Bravo' }).expect(400);
+    const edited = await as('put', `/badge-progress/${level}`, { description: 'Bravo', reviewer_comments: 'Bravo' }).expect(200);
+    expect(edited.body.data.description).toBe('Bravo');
+  });
 });
