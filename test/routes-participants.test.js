@@ -206,6 +206,45 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
     expect(queryDidJoinUserParticipants).toBe(true);
   });
 
+  test('a leader who is also a parent can list only their own children', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ user_id: 100, roleNames: ['leader'], permissions: ['participants.view'] });
+    let listQuery = null;
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('FROM participants p') && !query.includes('COUNT(')) {
+        listQuery = { query, params };
+        return Promise.resolve({ rows: [{ id: 50, first_name: 'Ada', last_name: 'Lovelace' }] });
+      }
+      if (query.includes('data_scope')) {
+        return Promise.resolve({ rows: [{ data_scope: 'organization' }] });
+      }
+      if (query.includes('permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'participants.view' }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .get('/api/v1/participants?scope=linked')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(listQuery.query).toContain('JOIN user_participants up');
+    expect(listQuery.query).toContain('up.user_id = $2');
+  });
+
+  test('an unknown list scope is refused as bad input', async () => {
+    const token = generateToken({ roleNames: ['leader'], permissions: ['participants.view'] });
+
+    const res = await request(app)
+      .get('/api/v1/participants?scope=everyone')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
   test('flags children whose health form declares a medication or who have one planned', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({ roleNames: ['parent'], permissions: ['participants.view'] });
