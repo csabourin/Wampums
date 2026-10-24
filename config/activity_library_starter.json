@@ -1,0 +1,2750 @@
+{
+  "version": 1,
+  "branches": {
+    "beavers": { "ages": "7-8", "fr": "Castors", "en": "Beavers" },
+    "cubs": { "ages": "9-11", "fr": "Louveteaux", "en": "Cubs" },
+    "scouts": { "ages": "12-14", "fr": "Éclaireurs", "en": "Scouts" }
+  },
+  "categories": {
+    "game": { "fr": "Jeu", "en": "Game" },
+    "technique": { "fr": "Technique scoute", "en": "Scouting skill" },
+    "discovery": { "fr": "Découverte", "en": "Discovery" },
+    "expression": { "fr": "Expression", "en": "Performing arts" },
+    "discussion": { "fr": "Discussion et conseil", "en": "Discussion and council" },
+    "ceremony": { "fr": "Cérémonie", "en": "Ceremony" },
+    "project": { "fr": "Projet", "en": "Project" },
+    "meeting_block": { "fr": "Bloc de réunion", "en": "Meeting block" }
+  },
+  "tags": {
+    "indoor": { "fr": "Intérieur", "en": "Indoor" },
+    "outdoor": { "fr": "Extérieur", "en": "Outdoor" },
+    "winter": { "fr": "Hiver", "en": "Winter" },
+    "night": { "fr": "Nuit", "en": "Night" },
+    "active": { "fr": "Actif", "en": "Active" },
+    "calm": { "fr": "Calme", "en": "Calm" },
+    "cooperative": { "fr": "Coopératif", "en": "Cooperative" },
+    "team": { "fr": "En équipes", "en": "Team" },
+    "camp": { "fr": "Camp", "en": "Camp" }
+  },
+  "activities": [
+    {
+      "key": "block_arrival",
+      "category": "meeting_block",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 10, "max": 20 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Arrivée des louveteaux"],
+      "fr": {
+        "name": "Arrivée et accueil",
+        "summary": "Moment d’accueil des jeunes et de prise de contact avec les parents à l’arrivée.",
+        "steps": [
+          "Un animateur accueille à la porte, salue chaque jeune par son prénom et note les arrivées.",
+          "Les parents transmettent les informations du jour (médicament, départ hâtif) à l’animateur désigné.",
+          "Les jeunes déjà arrivés font une activité libre et calme en attendant le début."
+        ]
+      },
+      "en": {
+        "name": "Arrival and welcome",
+        "summary": "Welcoming the youth and touching base with parents as they arrive.",
+        "steps": [
+          "A leader greets each youth at the door by name and notes arrivals.",
+          "Parents pass on the day’s information (medication, early pick-up) to the designated leader.",
+          "Youth who have arrived play a free, quiet activity until the start."
+        ]
+      }
+    },
+    {
+      "key": "block_opening",
+      "category": "meeting_block",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 10, "max": 15 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Présence / Loup d'honneur / Prière / Mot de bienvenue / Actualités"],
+      "fr": {
+        "name": "Ouverture : présences, jeune d’honneur, prière et nouvelles",
+        "summary": "Ouverture de la rencontre : présences, jeune d’honneur, prière, mot de bienvenue et actualités.",
+        "steps": [
+          "Rassembler les jeunes en cercle ou par équipes et prendre les présences.",
+          "Nommer le jeune d’honneur de la semaine et dire pourquoi.",
+          "Prière : moment spirituel laïque de recueillement, de gratitude ou d’intention pour la rencontre.",
+          "Mot de bienvenue et annonce du programme et des nouvelles."
+        ]
+      },
+      "en": {
+        "name": "Opening: attendance, youth of honour, prayer and news",
+        "summary": "Opening the meeting: attendance, youth of honour, prayer, welcome and news.",
+        "steps": [
+          "Gather the youth in a circle or by teams and take attendance.",
+          "Name the youth of honour for the week and say why.",
+          "Prayer: a secular, spiritual moment of reflection, gratitude or intention for the meeting.",
+          "Welcome, then announce the programme and the news."
+        ]
+      }
+    },
+    {
+      "key": "block_inspection",
+      "category": "meeting_block",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 10, "max": 15 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Inspection"],
+      "fr": {
+        "name": "Inspection",
+        "summary": "Vérification de la tenue et du matériel demandé, en équipes, de façon encourageante.",
+        "steps": [
+          "Les équipes se placent en rang.",
+          "Un animateur vérifie le foulard, la tenue et le matériel demandé pour la rencontre.",
+          "Souligner ce qui est bien fait ; noter des points d’équipe plutôt que des reproches individuels."
+        ]
+      },
+      "en": {
+        "name": "Inspection",
+        "summary": "An encouraging, team-based check of uniform and the gear asked for.",
+        "steps": [
+          "Teams line up.",
+          "A leader checks neckerchief, uniform and the gear requested for the meeting.",
+          "Point out what is done well; award team points rather than single out individuals."
+        ]
+      }
+    },
+    {
+      "key": "block_water_break",
+      "category": "meeting_block",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 5, "max": 5 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Trève de l'eau"],
+      "fr": {
+        "name": "Trêve de l’eau",
+        "summary": "Courte pause pour boire et aller aux toilettes entre deux activités actives."
+      },
+      "en": {
+        "name": "Water break",
+        "summary": "A short break to drink and use the washroom between two active games."
+      }
+    },
+    {
+      "key": "block_closing",
+      "category": "meeting_block",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 5, "max": 10 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Messages / Prière / Départ"],
+      "fr": {
+        "name": "Clôture : messages, prière et départ",
+        "summary": "Fin de la rencontre : messages pour les parents, prière et départ encadré.",
+        "steps": [
+          "Rappeler la prochaine rencontre et le matériel à apporter.",
+          "Prière : moment spirituel laïque, par exemple un mot de gratitude sur la rencontre.",
+          "Chaque jeune quitte seulement avec un adulte autorisé ; un animateur le note."
+        ]
+      },
+      "en": {
+        "name": "Closing: messages, prayer and departure",
+        "summary": "End of the meeting: messages for parents, prayer and supervised departure.",
+        "steps": [
+          "Remind everyone of the next meeting and what to bring.",
+          "Prayer: a secular, spiritual moment, such as a word of gratitude about the meeting.",
+          "Each youth leaves only with an authorized adult; a leader notes it."
+        ]
+      }
+    },
+    {
+      "key": "block_team_assignment",
+      "category": "meeting_block",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "calm", "team"],
+      "duration": { "min": 15, "max": 20 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Assignation des tanières"],
+      "fr": {
+        "name": "Formation des équipes de l’année",
+        "summary": "Répartir les jeunes dans leurs équipes de l’année et leur laisser le temps de se connaître.",
+        "steps": [
+          "Préparer d’avance des équipes équilibrées (âges, nouveaux et anciens).",
+          "Annoncer les équipes et leur coin de rassemblement.",
+          "Chaque équipe choisit un cri ou un nom et se présente au groupe."
+        ]
+      },
+      "en": {
+        "name": "Forming the year’s teams",
+        "summary": "Placing the youth in their teams for the year and giving them time to get to know each other.",
+        "steps": [
+          "Prepare balanced teams in advance (ages, new and returning youth).",
+          "Announce the teams and their gathering corner.",
+          "Each team picks a cheer or a name and introduces itself."
+        ]
+      }
+    },
+    {
+      "key": "block_how_it_works",
+      "category": "meeting_block",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "calm"],
+      "duration": { "min": 20, "max": 25 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Explication du fonctionnement"],
+      "fr": {
+        "name": "Explication du fonctionnement",
+        "summary": "En début d’année, expliquer aux jeunes comment se déroulent les rencontres, les équipes, les points et les règles de vie."
+      },
+      "en": {
+        "name": "How our meetings work",
+        "summary": "At the start of the year, explain how meetings, teams, points and group rules work."
+      }
+    },
+    {
+      "key": "block_year_overview",
+      "category": "meeting_block",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "calm"],
+      "duration": { "min": 15, "max": 20 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Présentation des activités de l'année"],
+      "fr": {
+        "name": "Présentation des activités de l’année",
+        "summary": "Présenter les camps, sorties et grands moments de l’année, et recueillir les idées des jeunes."
+      },
+      "en": {
+        "name": "Presenting the year’s activities",
+        "summary": "Present the year’s camps, outings and highlights, and gather the youth’s ideas."
+      }
+    },
+    {
+      "key": "block_parent_meeting",
+      "category": "meeting_block",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "calm"],
+      "duration": { "min": 30, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Rencontre de parents"],
+      "fr": {
+        "name": "Rencontre de parents",
+        "summary": "Rencontre avec les parents : présentation de l’équipe, du calendrier, des camps et des besoins en bénévoles.",
+        "steps": [
+          "Présenter l’équipe d’animation et la façon de la joindre.",
+          "Passer le calendrier, les camps à venir et les autorisations à remplir.",
+          "Nommer les besoins en bénévoles et répondre aux questions."
+        ]
+      },
+      "en": {
+        "name": "Parent meeting",
+        "summary": "Meeting the parents: the leader team, the calendar, the camps and volunteer needs.",
+        "steps": [
+          "Introduce the leader team and how to reach it.",
+          "Go over the calendar, upcoming camps and the permission forms to fill in.",
+          "Name the volunteer needs and answer questions."
+        ]
+      }
+    },
+    {
+      "key": "block_progression",
+      "category": "meeting_block",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "calm"],
+      "duration": { "min": 15, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Progression"],
+      "fr": {
+        "name": "Temps de progression",
+        "summary": "Chaque jeune avance dans sa progression personnelle ou un badge, avec l’aide d’un animateur.",
+        "material": ["Badges", "Carnets de progression"],
+        "steps": [
+          "Chaque jeune choisit l’étape ou le badge sur lequel il travaille.",
+          "Les animateurs circulent, valident ce qui est accompli et notent les badges à remettre."
+        ]
+      },
+      "en": {
+        "name": "Progress time",
+        "summary": "Each youth works on their personal progress or a badge, with a leader’s help.",
+        "material": ["Badges", "Progress booklets"],
+        "steps": [
+          "Each youth chooses the step or badge they are working on.",
+          "Leaders move around, sign off what is done and note badges to award."
+        ]
+      }
+    },
+    {
+      "key": "ceremony_badges",
+      "category": "ceremony",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 5, "max": 10 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Remise des badges", "Rocher du conseil / Remise badge pêche"],
+      "fr": {
+        "name": "Remise des badges",
+        "summary": "Remettre devant le groupe les badges et étoiles mérités, en disant ce que chaque jeune a accompli.",
+        "material": ["Badges"]
+      },
+      "en": {
+        "name": "Badge presentation",
+        "summary": "Present earned badges and stars in front of the group, saying what each youth accomplished.",
+        "material": ["Badges"]
+      }
+    },
+    {
+      "key": "ceremony_promise_preparation",
+      "category": "ceremony",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 30, "max": 55 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Préparation promesse", "Pratique de la promesse"],
+      "fr": {
+        "name": "Préparation et pratique de la promesse",
+        "summary": "Expliquer le sens de la promesse et de la loi, puis répéter la cérémonie avec les jeunes qui la feront.",
+        "steps": [
+          "Discuter en petit groupe de ce que veulent dire la promesse et la loi.",
+          "Chaque jeune dit dans ses mots ce qu’il s’engage à faire.",
+          "Répéter le déroulement de la cérémonie : placement, texte, remise du foulard."
+        ]
+      },
+      "en": {
+        "name": "Promise preparation and practice",
+        "summary": "Explain the meaning of the promise and the law, then rehearse the ceremony with the youth who will make it.",
+        "steps": [
+          "Discuss in a small group what the promise and the law mean.",
+          "Each youth says in their own words what they commit to.",
+          "Rehearse the ceremony: positions, words, presenting the neckerchief."
+        ]
+      }
+    },
+    {
+      "key": "discussion_baloo_council",
+      "category": "discussion",
+      "branches": ["cubs"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 30, "max": 35 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Conseil de Baloo"],
+      "fr": {
+        "name": "Conseil de Baloo",
+        "summary": "Rencontre des louveteaux plus vieux avec un animateur pour préparer un projet ou leur rôle de leaders.",
+        "steps": [
+          "Réunir les sizeniers et seconds (ou les plus vieux) à l’écart.",
+          "Faire le bilan des dernières rencontres et préparer la prochaine activité.",
+          "Confier une responsabilité concrète à chacun."
+        ]
+      },
+      "en": {
+        "name": "Baloo’s council",
+        "summary": "The older cubs meet with a leader to prepare a project or their leadership role.",
+        "steps": [
+          "Gather the sixers and seconds (or the oldest) apart.",
+          "Review the last meetings and prepare the next activity.",
+          "Give each one a concrete responsibility."
+        ]
+      }
+    },
+    {
+      "key": "discussion_council_rock",
+      "category": "discussion",
+      "branches": ["cubs"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 25, "max": 35 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Rocher du conseil"],
+      "fr": {
+        "name": "Rocher du conseil",
+        "summary": "Toute la meute en cercle pour discuter de la vie du groupe, prendre des décisions ensemble et souligner les bons coups.",
+        "steps": [
+          "Former le cercle ; un objet de parole circule.",
+          "Chacun peut nommer ce qu’il a aimé, ce qui est à améliorer, et proposer des idées.",
+          "Décider ensemble d’une chose à changer ou à faire."
+        ]
+      },
+      "en": {
+        "name": "Council rock",
+        "summary": "The whole pack in a circle to talk about group life, decide together and celebrate what went well.",
+        "steps": [
+          "Form a circle; a talking object is passed around.",
+          "Each can say what they liked, what to improve, and suggest ideas.",
+          "Decide together on one thing to change or do."
+        ]
+      }
+    },
+    {
+      "key": "discussion_pack",
+      "category": "discussion",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 20, "max": 25 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Discussion de meute"],
+      "fr": {
+        "name": "Discussion de groupe",
+        "summary": "Discussion animée sur un thème (amitié, environnement, sécurité, entraide), avec des questions ouvertes.",
+        "steps": [
+          "Lancer le thème avec une courte histoire, une image ou une question.",
+          "Poser deux ou trois questions ouvertes ; donner la parole à tous.",
+          "Conclure par une idée à retenir ou un geste à faire dans la semaine."
+        ]
+      },
+      "en": {
+        "name": "Group discussion",
+        "summary": "A guided discussion on a theme (friendship, environment, safety, helping others) with open questions.",
+        "steps": [
+          "Introduce the theme with a short story, a picture or a question.",
+          "Ask two or three open questions; let everyone speak.",
+          "Close with one idea to remember or one thing to do during the week."
+        ]
+      }
+    },
+    {
+      "key": "discussion_round_table",
+      "category": "discussion",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 20, "max": 20 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Tour de table: Activité et souvenir"],
+      "fr": {
+        "name": "Tour de table : activité et souvenir",
+        "summary": "Chacun nomme son activité préférée et un souvenir de l’année ou du camp."
+      },
+      "en": {
+        "name": "Round table: activity and memory",
+        "summary": "Everyone names their favourite activity and a memory from the year or the camp."
+      }
+    },
+    {
+      "key": "discussion_patrol_council",
+      "category": "discussion",
+      "branches": ["scouts"],
+      "tags": ["indoor", "outdoor", "calm", "team"],
+      "duration": { "min": 20, "max": 30 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Conseil de patrouille",
+        "summary": "Chaque patrouille fait le bilan de sa dernière activité et planifie la prochaine, avec un minimum d’aide adulte.",
+        "steps": [
+          "Le chef de patrouille anime ; un jeune prend des notes.",
+          "Bilan : ce qui a marché, ce qui est à améliorer.",
+          "Planification : objectif, tâches, responsables et matériel pour la prochaine activité."
+        ]
+      },
+      "en": {
+        "name": "Patrol council",
+        "summary": "Each patrol reviews its last activity and plans the next one, with minimal adult help.",
+        "steps": [
+          "The patrol leader chairs; one youth takes notes.",
+          "Review: what worked, what to improve.",
+          "Planning: goal, tasks, who does what and gear for the next activity."
+        ]
+      }
+    },
+    {
+      "key": "discovery_jungle_book",
+      "category": "discovery",
+      "branches": ["cubs"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 15, "max": 25 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Histoire du Livre de la Jungle"],
+      "fr": {
+        "name": "Histoire du Livre de la Jungle",
+        "summary": "Raconter un chapitre du Livre de la Jungle et faire le lien avec la vie de la meute.",
+        "material": ["Le Livre de la Jungle"],
+        "steps": [
+          "Lire ou raconter un passage court, avec des voix pour les personnages.",
+          "Demander ce que le personnage a appris et ce que ça veut dire pour la meute."
+        ]
+      },
+      "en": {
+        "name": "Jungle Book story",
+        "summary": "Tell a chapter of The Jungle Book and connect it with pack life.",
+        "material": ["The Jungle Book"],
+        "steps": [
+          "Read or tell a short passage, using voices for the characters.",
+          "Ask what the character learned and what it means for the pack."
+        ]
+      }
+    },
+    {
+      "key": "discovery_cub_presentations",
+      "category": "discovery",
+      "branches": ["cubs"],
+      "tags": ["indoor", "calm"],
+      "duration": { "min": 15, "max": 20 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "to_confirm",
+      "review_note": "Sens exact de « Gibier » dans les unités à confirmer.",
+      "legacy_names": ["Gibier (présentations des louveteaux)"],
+      "fr": {
+        "name": "Gibier : présentations des louveteaux",
+        "summary": "Des louveteaux présentent au groupe un sujet qu’ils ont préparé (passe-temps, animal, objet).",
+        "material": ["Selon le sujet présenté"]
+      },
+      "en": {
+        "name": "Cub presentations",
+        "summary": "Cubs present a topic they prepared to the group (hobby, animal, object).",
+        "material": ["Depends on the topic"]
+      }
+    },
+    {
+      "key": "discovery_special_presentations",
+      "category": "discovery",
+      "branches": ["cubs"],
+      "tags": ["indoor", "calm"],
+      "duration": { "min": 15, "max": 20 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "to_confirm",
+      "review_note": "Sens exact de « Proie » dans les unités à confirmer.",
+      "legacy_names": ["Proie (présentations spéciales)"],
+      "fr": {
+        "name": "Proie : présentations spéciales",
+        "summary": "Présentation spéciale par un invité ou un animateur sur un sujet lié au programme.",
+        "material": ["Selon le sujet présenté"]
+      },
+      "en": {
+        "name": "Special presentations",
+        "summary": "A special presentation by a guest or a leader on a topic linked to the programme.",
+        "material": ["Depends on the topic"]
+      }
+    },
+    {
+      "key": "discovery_survival_video",
+      "category": "discovery",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "calm"],
+      "duration": { "min": 25, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Capsule vidéo survie", "Présentation vidéo survie"],
+      "fr": {
+        "name": "Capsule vidéo sur la survie",
+        "summary": "Visionner une courte vidéo sur la survie en forêt, puis discuter de ce qu’on ferait dans la même situation.",
+        "material": ["Projecteur ou écran", "Vidéo choisie d’avance"],
+        "steps": [
+          "Choisir une vidéo adaptée à l’âge et la visionner d’avance.",
+          "Après le visionnement, demander : quelles sont les priorités (abri, eau, chaleur, signaler sa présence) ?"
+        ]
+      },
+      "en": {
+        "name": "Survival video",
+        "summary": "Watch a short video on wilderness survival, then discuss what we would do in the same situation.",
+        "material": ["Projector or screen", "Video chosen in advance"],
+        "steps": [
+          "Choose an age-appropriate video and watch it beforehand.",
+          "Afterwards, ask: what are the priorities (shelter, water, warmth, signalling)?"
+        ]
+      }
+    },
+    {
+      "key": "discovery_birdwatching",
+      "category": "discovery",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 45, "max": 50 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Présentation Ornitologue"],
+      "fr": {
+        "name": "Présentation d’un ornithologue",
+        "summary": "Un ornithologue (ou un animateur) présente les oiseaux de la région, puis les jeunes s’exercent à les reconnaître.",
+        "material": ["Images d’oiseaux", "Jumelles"],
+        "steps": [
+          "Présenter cinq à dix oiseaux communs et leurs chants.",
+          "Jeu d’identification avec les images.",
+          "Si possible, courte sortie d’observation aux jumelles."
+        ]
+      },
+      "en": {
+        "name": "Birdwatcher’s presentation",
+        "summary": "A birdwatcher (or a leader) presents local birds, then the youth practise recognizing them.",
+        "material": ["Bird pictures", "Binoculars"],
+        "steps": [
+          "Present five to ten common birds and their songs.",
+          "Identification game with the pictures.",
+          "If possible, a short observation walk with binoculars."
+        ]
+      }
+    },
+    {
+      "key": "discovery_rocket_launch",
+      "category": "discovery",
+      "branches": ["cubs", "scouts"],
+      "tags": ["outdoor", "active"],
+      "duration": { "min": 20, "max": 20 },
+      "supervision": "close",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Lancement de fusée"],
+      "fr": {
+        "name": "Lancement de fusées",
+        "summary": "Lancer des fusées (à eau ou modèles réduits) construites par les jeunes, et observer ce qui change la hauteur.",
+        "material": ["Fusées", "Système de lancement"],
+        "safety": [
+          "Lancer dans un grand espace dégagé, loin des fils électriques.",
+          "Tous les jeunes derrière une ligne de sécurité ; un seul adulte déclenche.",
+          "Ne jamais s’approcher d’une fusée qui n’est pas partie avant le signal de l’adulte."
+        ]
+      },
+      "en": {
+        "name": "Rocket launch",
+        "summary": "Launch rockets (water or model rockets) built by the youth and see what changes the height.",
+        "material": ["Rockets", "Launch system"],
+        "safety": [
+          "Launch in a large open area, away from power lines.",
+          "All youth behind a safety line; a single adult triggers the launch.",
+          "Never approach a rocket that failed to launch until the adult says so."
+        ]
+      }
+    },
+    {
+      "key": "discovery_other_branch_visit",
+      "category": "discovery",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor"],
+      "duration": { "min": 30, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Visite des castors"],
+      "fr": {
+        "name": "Visite d’une autre branche",
+        "summary": "Les jeunes animent un jeu ou une activité pour une autre branche (par exemple les louveteaux chez les castors), pour préparer le passage.",
+        "steps": [
+          "Préparer avec les jeunes une activité adaptée aux plus petits.",
+          "Les plus vieux expliquent et animent ; les animateurs restent en soutien."
+        ]
+      },
+      "en": {
+        "name": "Visiting another section",
+        "summary": "The youth run a game or activity for another section (for example cubs with beavers), to prepare the move up.",
+        "steps": [
+          "Prepare with the youth an activity suited to the younger ones.",
+          "The older youth explain and lead; leaders stay in support."
+        ]
+      }
+    },
+    {
+      "key": "project_topic_hunt",
+      "category": "project",
+      "branches": ["cubs"],
+      "tags": ["indoor", "outdoor", "team"],
+      "duration": { "min": 30, "max": 50 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "to_confirm",
+      "review_note": "Déroulement de la « Battue » dans les unités à confirmer.",
+      "legacy_names": ["Battue (divers sujets)"],
+      "fr": {
+        "name": "Battue (divers sujets)",
+        "summary": "Projet en équipes autour d’un sujet choisi : les jeunes cherchent, préparent puis présentent ce qu’ils ont trouvé.",
+        "material": ["Selon le sujet"]
+      },
+      "en": {
+        "name": "Topic hunt",
+        "summary": "A team project on a chosen topic: the youth research, prepare and present what they found.",
+        "material": ["Depends on the topic"]
+      }
+    },
+    {
+      "key": "project_cub_cars_build",
+      "category": "project",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor"],
+      "duration": { "min": 40, "max": 55 },
+      "supervision": "close",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Projet : Cub Cars"],
+      "fr": {
+        "name": "Construction des Cub Cars",
+        "summary": "Chaque jeune façonne et décore sa voiture de bois en vue de la course.",
+        "material": ["Trousses Cub Cars", "Papier sablé", "Peinture", "Outils"],
+        "safety": ["Les scies et perceuses sont manipulées par un adulte ou sous sa supervision directe."]
+      },
+      "en": {
+        "name": "Building Cub Cars",
+        "summary": "Each youth shapes and decorates their wooden car for the race.",
+        "material": ["Cub Car kits", "Sandpaper", "Paint", "Tools"],
+        "safety": ["Saws and drills are used by an adult or under direct adult supervision."]
+      }
+    },
+    {
+      "key": "game_cub_cars_race",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor"],
+      "duration": { "min": 30, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Course Cub Cars"],
+      "fr": {
+        "name": "Course de Cub Cars",
+        "summary": "Course des voitures construites par les jeunes, en manches éliminatoires, avec des prix pour la vitesse et le design.",
+        "material": ["Piste Cub Cars", "Voitures", "Feuille de résultats"]
+      },
+      "en": {
+        "name": "Cub Car race",
+        "summary": "A heat-based race of the cars the youth built, with prizes for speed and design.",
+        "material": ["Cub Car track", "Cars", "Score sheet"]
+      }
+    },
+    {
+      "key": "project_paper_tower",
+      "category": "project",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "team", "cooperative"],
+      "players": { "min": 6 },
+      "duration": { "min": 25, "max": 35 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Défi tour de papier",
+        "summary": "Chaque équipe construit la plus haute tour autoportante possible avec du papier et du ruban, en temps limité.",
+        "material": ["Papier journal ou feuilles recyclées", "Ruban adhésif", "Ruban à mesurer"],
+        "steps": [
+          "Donner le même matériel à chaque équipe et cinq minutes de planification sans toucher au matériel.",
+          "Quinze minutes de construction.",
+          "Mesurer ; la tour doit tenir seule dix secondes. Discuter de ce qui a rendu les tours solides."
+        ],
+        "variants": ["Spaghettis et guimauves au lieu du papier.", "La tour doit supporter un objet au sommet."]
+      },
+      "en": {
+        "name": "Paper tower challenge",
+        "summary": "Each team builds the tallest free-standing tower it can from paper and tape, against the clock.",
+        "material": ["Newspaper or scrap paper", "Tape", "Measuring tape"],
+        "steps": [
+          "Give each team the same materials and five minutes to plan without touching them.",
+          "Fifteen minutes to build.",
+          "Measure; the tower must stand alone for ten seconds. Discuss what made towers strong."
+        ],
+        "variants": ["Spaghetti and marshmallows instead of paper.", "The tower must hold an object on top."]
+      }
+    },
+    {
+      "key": "project_outing_planning",
+      "category": "project",
+      "branches": ["scouts"],
+      "tags": ["indoor", "team"],
+      "duration": { "min": 40, "max": 60 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Planifier une sortie de patrouille",
+        "summary": "La patrouille prépare elle-même une sortie : itinéraire, horaire, menu, matériel et budget, puis la présente aux animateurs.",
+        "material": ["Cartes", "Feuilles de planification"],
+        "steps": [
+          "Fixer l’objectif de la sortie et la date.",
+          "Répartir les tâches : itinéraire, menu, matériel, budget.",
+          "Présenter le plan aux animateurs, qui posent des questions de sécurité avant d’approuver."
+        ]
+      },
+      "en": {
+        "name": "Planning a patrol outing",
+        "summary": "The patrol plans its own outing: route, schedule, menu, gear and budget, then presents it to the leaders.",
+        "material": ["Maps", "Planning sheets"],
+        "steps": [
+          "Set the goal and the date.",
+          "Split the tasks: route, menu, gear, budget.",
+          "Present the plan to the leaders, who ask safety questions before approving."
+        ]
+      }
+    },
+    {
+      "key": "expression_songs",
+      "category": "expression",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 10, "max": 20 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Chansons"],
+      "fr": {
+        "name": "Chansons",
+        "summary": "Apprendre et chanter des chansons scoutes et des chansons à répondre, avec gestes.",
+        "material": ["Paroles des chansons"]
+      },
+      "en": {
+        "name": "Songs",
+        "summary": "Learn and sing scout songs and call-and-response songs, with actions.",
+        "material": ["Song lyrics"]
+      }
+    },
+    {
+      "key": "expression_improv",
+      "category": "expression",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "team"],
+      "duration": { "min": 30, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Improvisation"],
+      "fr": {
+        "name": "Improvisation",
+        "summary": "Matchs d’improvisation en équipes sur des thèmes tirés au hasard, avec un arbitre et un vote du public.",
+        "material": ["Accessoires d’impro", "Thèmes écrits sur des cartons"],
+        "steps": [
+          "Expliquer les règles : écouter, accepter les idées des autres, ne pas bloquer la scène.",
+          "Tirer un thème, une catégorie (comparée ou mixte) et une durée.",
+          "Le public vote avec des cartons de couleur."
+        ]
+      },
+      "en": {
+        "name": "Improv",
+        "summary": "Team improv matches on randomly drawn themes, with a referee and an audience vote.",
+        "material": ["Improv props", "Themes written on cards"],
+        "steps": [
+          "Explain the rules: listen, accept others’ ideas, don’t block the scene.",
+          "Draw a theme, a category (compared or mixed) and a length.",
+          "The audience votes with coloured cards."
+        ]
+      }
+    },
+    {
+      "key": "expression_skits",
+      "category": "expression",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "team", "camp"],
+      "duration": { "min": 25, "max": 35 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Sketchs"],
+      "fr": {
+        "name": "Sketchs",
+        "summary": "Chaque équipe prépare et présente un court sketch, par exemple pour la veillée.",
+        "material": ["Accessoires selon les sketchs"]
+      },
+      "en": {
+        "name": "Skits",
+        "summary": "Each team prepares and performs a short skit, for example for the campfire.",
+        "material": ["Props as needed"]
+      }
+    },
+    {
+      "key": "expression_campfire",
+      "category": "expression",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["outdoor", "night", "calm", "camp"],
+      "duration": { "min": 45, "max": 75 },
+      "supervision": "close",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Veillée",
+        "summary": "Soirée autour du feu ou à l’intérieur : chansons, sketchs des équipes, histoires, et un moment calme pour finir.",
+        "material": ["Paroles des chansons", "Lampes frontales"],
+        "steps": [
+          "Préparer un ordre de passage alternant chansons et sketchs.",
+          "Commencer par des chansons énergiques et finir par une chanson douce.",
+          "Terminer par un moment calme (histoire, réflexion) avant le coucher."
+        ],
+        "safety": [
+          "Un adulte est responsable du feu pendant toute la veillée ; seau d’eau à portée.",
+          "Délimiter un cercle que personne ne franchit vers le feu."
+        ]
+      },
+      "en": {
+        "name": "Campfire evening",
+        "summary": "An evening around the fire or indoors: songs, team skits, stories and a quiet moment to finish.",
+        "material": ["Song lyrics", "Headlamps"],
+        "steps": [
+          "Prepare a running order alternating songs and skits.",
+          "Start with lively songs and end with a quiet one.",
+          "Finish with a calm moment (story, reflection) before bedtime."
+        ],
+        "safety": [
+          "One adult is in charge of the fire throughout; a bucket of water is within reach.",
+          "Mark a circle no one crosses towards the fire."
+        ]
+      }
+    },
+    {
+      "key": "expression_halloween_trail",
+      "category": "expression",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "night"],
+      "duration": { "min": 45, "max": 55 },
+      "supervision": "close",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Parcours Halloween"],
+      "fr": {
+        "name": "Parcours d’Halloween",
+        "summary": "Parcours costumé en petits groupes, avec des stations d’épreuves et de devinettes.",
+        "material": ["Décorations", "Costumes", "Lampes de poche"],
+        "safety": [
+          "Adapter l’intensité à l’âge : pour les castors, drôle plutôt qu’effrayant.",
+          "Un jeune qui a peur peut sortir du parcours avec un adulte à tout moment."
+        ]
+      },
+      "en": {
+        "name": "Halloween trail",
+        "summary": "A costumed trail in small groups, with challenge and riddle stations.",
+        "material": ["Decorations", "Costumes", "Flashlights"],
+        "safety": [
+          "Adjust the intensity to age: for beavers, funny rather than scary.",
+          "A frightened youth can leave the trail with an adult at any time."
+        ]
+      }
+    },
+    {
+      "key": "technique_knives",
+      "category": "technique",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 15, "max": 30 },
+      "supervision": "close",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Armes blanches"],
+      "fr": {
+        "name": "Utilisation sécuritaire du couteau",
+        "summary": "Apprendre à ouvrir, tenir, utiliser, fermer et ranger un couteau de poche, puis tailler une branche.",
+        "material": ["Couteaux scouts", "Branches de bois tendre", "Trousse de premiers soins"],
+        "steps": [
+          "Présenter les parties du couteau et les règles : on coupe en s’éloignant du corps, assis, avec un cercle de sécurité d’un bras tendu.",
+          "Démontrer ouvrir, fermer et passer le couteau (fermé, manche en premier).",
+          "Exercice : tailler une pointe ou écorcer une branche."
+        ],
+        "safety": [
+          "Un adulte pour quatre jeunes au maximum.",
+          "Vérifier l’état des couteaux avant l’activité ; trousse de premiers soins à portée.",
+          "Respecter les règles de l’association sur l’âge et la permission d’utiliser un couteau."
+        ]
+      },
+      "en": {
+        "name": "Safe knife use",
+        "summary": "Learn to open, hold, use, close and store a pocket knife, then whittle a stick.",
+        "material": ["Scout knives", "Softwood sticks", "First aid kit"],
+        "steps": [
+          "Present the parts of the knife and the rules: cut away from the body, seated, with an arm’s-length safety circle.",
+          "Demonstrate opening, closing and passing the knife (closed, handle first).",
+          "Exercise: whittle a point or peel a stick."
+        ],
+        "safety": [
+          "At most four youth per adult.",
+          "Check the knives before the activity; first aid kit within reach.",
+          "Follow your association’s rules on age and permission to use a knife."
+        ]
+      }
+    },
+    {
+      "key": "technique_astronomy",
+      "category": "technique",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["outdoor", "night", "calm", "camp"],
+      "duration": { "min": 30, "max": 50 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Astronomie"],
+      "fr": {
+        "name": "Astronomie",
+        "summary": "Reconnaître quelques constellations et trouver l’étoile Polaire pour s’orienter la nuit.",
+        "material": ["Cartes du ciel", "Lampes à lumière rouge", "Télescope si disponible"],
+        "steps": [
+          "Laisser les yeux s’habituer au noir une dizaine de minutes.",
+          "Trouver la Grande Ourse, puis l’étoile Polaire en prolongeant les deux étoiles du bout de la casserole.",
+          "Repérer deux ou trois autres constellations de la saison."
+        ]
+      },
+      "en": {
+        "name": "Astronomy",
+        "summary": "Recognize a few constellations and find the North Star to orient at night.",
+        "material": ["Star charts", "Red-light flashlights", "Telescope if available"],
+        "steps": [
+          "Let eyes adjust to the dark for about ten minutes.",
+          "Find the Big Dipper, then the North Star by extending the two end stars of the dipper.",
+          "Spot two or three other seasonal constellations."
+        ]
+      }
+    },
+    {
+      "key": "technique_paper_planes",
+      "category": "technique",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor"],
+      "duration": { "min": 25, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Avions de papier", "Compétition avions de papier"],
+      "fr": {
+        "name": "Avions de papier : pliage et compétition",
+        "summary": "Apprendre deux pliages d’avion, les tester, puis faire une compétition de distance et de temps de vol.",
+        "material": ["Papier", "Ruban à mesurer", "Chronomètre"],
+        "steps": [
+          "Montrer un pliage simple (dard) et un pliage planeur.",
+          "Essais libres et petits ajustements des ailes.",
+          "Compétition en trois catégories : distance, temps dans les airs, précision sur une cible."
+        ]
+      },
+      "en": {
+        "name": "Paper planes: folding and contest",
+        "summary": "Learn two plane folds, test them, then hold a distance and flight-time contest.",
+        "material": ["Paper", "Measuring tape", "Stopwatch"],
+        "steps": [
+          "Show a simple fold (dart) and a glider fold.",
+          "Free trials and small wing adjustments.",
+          "Contest in three categories: distance, time aloft, accuracy on a target."
+        ]
+      }
+    },
+    {
+      "key": "technique_compass",
+      "category": "technique",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "outdoor"],
+      "duration": { "min": 20, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Boussole"],
+      "fr": {
+        "name": "Boussole",
+        "summary": "Connaître les parties de la boussole, trouver le nord et suivre un azimut.",
+        "material": ["Boussoles", "Cônes ou repères"],
+        "steps": [
+          "Présenter la plaquette, le cadran, l’aiguille et la flèche de direction.",
+          "Trouver le nord, puis les huit points cardinaux.",
+          "Suivre un azimut donné sur 20 pas, puis revenir au départ avec l’azimut inverse."
+        ],
+        "variants": ["Pour les éclaireurs : prendre un azimut sur une carte et marcher jusqu’à une balise."]
+      },
+      "en": {
+        "name": "Compass",
+        "summary": "Know the parts of a compass, find north and follow a bearing.",
+        "material": ["Compasses", "Cones or markers"],
+        "steps": [
+          "Show the baseplate, dial, needle and direction-of-travel arrow.",
+          "Find north, then the eight compass points.",
+          "Follow a given bearing for 20 steps, then return with the back bearing."
+        ],
+        "variants": ["For scouts: take a bearing from a map and walk to a control point."]
+      }
+    },
+    {
+      "key": "technique_lashing",
+      "category": "technique",
+      "branches": ["cubs", "scouts"],
+      "tags": ["outdoor", "team", "camp"],
+      "duration": { "min": 30, "max": 45 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Brêlage"],
+      "fr": {
+        "name": "Brêlage",
+        "summary": "Assembler des perches avec un brêlage carré, puis construire un petit objet utile au camp.",
+        "material": ["Cordes", "Bâtons ou perches"],
+        "steps": [
+          "Rappeler le nœud de cabestan qui commence et termine le brêlage.",
+          "Démontrer le brêlage carré : tours, puis serrages entre les perches.",
+          "En équipes, construire un trépied, un porte-serviette ou une petite table."
+        ]
+      },
+      "en": {
+        "name": "Lashing",
+        "summary": "Join poles with a square lashing, then build a small useful camp item.",
+        "material": ["Ropes", "Sticks or poles"],
+        "steps": [
+          "Review the clove hitch that starts and ends the lashing.",
+          "Demonstrate the square lashing: wraps, then fraps between the poles.",
+          "In teams, build a tripod, a towel rack or a small table."
+        ]
+      }
+    },
+    {
+      "key": "technique_codes",
+      "category": "technique",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 20, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Code"],
+      "fr": {
+        "name": "Codes secrets et morse",
+        "summary": "Découvrir quelques codes (morse, César, pigpen) et s’échanger des messages codés.",
+        "material": ["Tableaux des codes", "Papier et crayons", "Lampes de poche ou sifflets pour le morse"],
+        "steps": [
+          "Présenter deux codes simples avec leur tableau.",
+          "Chaque équipe code un court message pour une autre équipe.",
+          "La première équipe qui décode gagne ; finir avec SOS en morse."
+        ]
+      },
+      "en": {
+        "name": "Secret codes and Morse",
+        "summary": "Discover a few codes (Morse, Caesar, pigpen) and exchange coded messages.",
+        "material": ["Code tables", "Paper and pencils", "Flashlights or whistles for Morse"],
+        "steps": [
+          "Present two simple codes with their tables.",
+          "Each team codes a short message for another team.",
+          "The first team to decode wins; finish with SOS in Morse."
+        ]
+      }
+    },
+    {
+      "key": "technique_sewing",
+      "category": "technique",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "calm"],
+      "duration": { "min": 15, "max": 25 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Couture"],
+      "fr": {
+        "name": "Couture : coudre un badge ou un bouton",
+        "summary": "Enfiler une aiguille, faire un nœud et coudre un bouton ou un badge sur un bout de tissu.",
+        "material": ["Aiguilles", "Fil", "Bouts de tissu", "Boutons", "Enfile-aiguilles"]
+      },
+      "en": {
+        "name": "Sewing: a badge or a button",
+        "summary": "Thread a needle, tie a knot and sew a button or a badge onto a piece of fabric.",
+        "material": ["Needles", "Thread", "Fabric scraps", "Buttons", "Needle threaders"]
+      }
+    },
+    {
+      "key": "technique_fire",
+      "category": "technique",
+      "branches": ["cubs", "scouts"],
+      "tags": ["outdoor", "camp"],
+      "duration": { "min": 20, "max": 40 },
+      "supervision": "close",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Feu ou allumage"],
+      "fr": {
+        "name": "Allumer et éteindre un feu",
+        "summary": "Choisir un emplacement sûr, préparer amadou, petit bois et bûches, allumer un feu puis l’éteindre complètement.",
+        "material": ["Allumettes", "Amadou", "Petit bois", "Bûches", "Seau d’eau"],
+        "steps": [
+          "Choisir un foyer existant ou dégagé, loin des tentes et des branches basses.",
+          "Trier le combustible par taille : amadou, petit bois, bois moyen, bûches.",
+          "Monter un feu en tipi, l’allumer côté vent, l’alimenter progressivement.",
+          "Éteindre : noyer, remuer, noyer encore jusqu’à ce que tout soit froid au toucher."
+        ],
+        "safety": [
+          "Vérifier l’interdiction de feux à ciel ouvert (SOPFEU ou autorité locale) avant l’activité.",
+          "Seau d’eau à portée ; cheveux attachés, vêtements synthétiques amples évités.",
+          "Un adulte présent du début à l’extinction complète."
+        ]
+      },
+      "en": {
+        "name": "Lighting and putting out a fire",
+        "summary": "Choose a safe spot, prepare tinder, kindling and logs, light a fire, then put it out completely.",
+        "material": ["Matches", "Tinder", "Kindling", "Logs", "Bucket of water"],
+        "steps": [
+          "Use an existing fire pit or a cleared spot, away from tents and low branches.",
+          "Sort fuel by size: tinder, kindling, medium wood, logs.",
+          "Build a teepee fire, light it on the windward side, feed it gradually.",
+          "Put it out: drown, stir, drown again until everything is cold to the touch."
+        ],
+        "safety": [
+          "Check for open-fire bans (local fire authority) before the activity.",
+          "Bucket of water within reach; long hair tied back, loose synthetic clothing avoided.",
+          "An adult is present from lighting to complete extinction."
+        ]
+      }
+    },
+    {
+      "key": "technique_winter_clothing",
+      "category": "technique",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "winter", "camp"],
+      "duration": { "min": 15, "max": 20 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Habillement hiver"],
+      "fr": {
+        "name": "S’habiller pour l’hiver",
+        "summary": "Comprendre le principe des trois couches et préparer ses vêtements pour un camp d’hiver.",
+        "material": ["Exemples de vêtements d’hiver (coton, laine, synthétique, coquille)"],
+        "steps": [
+          "Présenter les trois couches : première couche qui évacue l’humidité, couche isolante, coquille contre le vent et la neige.",
+          "Expliquer pourquoi le coton est à éviter : il reste mouillé et refroidit.",
+          "Jeu : habiller un volontaire dans le bon ordre à partir d’une pile de vêtements."
+        ]
+      },
+      "en": {
+        "name": "Dressing for winter",
+        "summary": "Understand the three-layer principle and prepare clothing for a winter camp.",
+        "material": ["Sample winter clothes (cotton, wool, synthetic, shell)"],
+        "steps": [
+          "Present the three layers: a base layer that wicks moisture, an insulating layer, a shell against wind and snow.",
+          "Explain why cotton is to be avoided: it stays wet and chills.",
+          "Game: dress a volunteer in the right order from a pile of clothes."
+        ]
+      }
+    },
+    {
+      "key": "technique_magnetism",
+      "category": "technique",
+      "branches": ["beavers", "cubs"],
+      "tags": ["indoor", "calm"],
+      "duration": { "min": 20, "max": 20 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Magnétisme"],
+      "fr": {
+        "name": "Magnétisme",
+        "summary": "Découvrir ce que les aimants attirent, puis fabriquer une boussole avec une aiguille aimantée.",
+        "material": ["Aimants", "Objets variés (métal, bois, plastique)", "Aiguille", "Bouchon de liège", "Bol d’eau"],
+        "steps": [
+          "Trier les objets : attirés ou non par l’aimant.",
+          "Frotter une aiguille sur l’aimant toujours dans le même sens.",
+          "La poser sur un bouchon flottant : elle pointe vers le nord."
+        ]
+      },
+      "en": {
+        "name": "Magnetism",
+        "summary": "Discover what magnets attract, then make a compass with a magnetized needle.",
+        "material": ["Magnets", "Assorted objects (metal, wood, plastic)", "Needle", "Cork", "Bowl of water"],
+        "steps": [
+          "Sort the objects: attracted by the magnet or not.",
+          "Stroke a needle along the magnet, always in the same direction.",
+          "Lay it on a floating cork: it points north."
+        ]
+      }
+    },
+    {
+      "key": "technique_knots",
+      "category": "technique",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "duration": { "min": 20, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Nœuds"],
+      "fr": {
+        "name": "Nœuds",
+        "summary": "Apprendre des nœuds utiles selon l’âge, puis les utiliser dans un défi.",
+        "material": ["Cordes d’environ 1 m par jeune"],
+        "steps": [
+          "Castors : nœud simple et boucle des lacets.",
+          "Louveteaux : nœud plat, nœud de cabestan, demi-clés.",
+          "Éclaireurs : nœud de chaise, tendeur, nœud de pêcheur.",
+          "Défi : relais où chaque jeune doit faire un nœud correct avant de passer la corde."
+        ]
+      },
+      "en": {
+        "name": "Knots",
+        "summary": "Learn age-appropriate useful knots, then use them in a challenge.",
+        "material": ["Ropes about 1 m long, one per youth"],
+        "steps": [
+          "Beavers: overhand knot and shoelace bow.",
+          "Cubs: reef knot, clove hitch, two half hitches.",
+          "Scouts: bowline, taut-line hitch, fisherman’s knot.",
+          "Challenge: a relay where each youth must tie a correct knot before passing the rope."
+        ]
+      }
+    },
+    {
+      "key": "technique_camp_box",
+      "category": "technique",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "camp"],
+      "duration": { "min": 15, "max": 20 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Préparation du bac de camp", "Technique : Petit four + bagage"],
+      "fr": {
+        "name": "Préparer son bagage de camp",
+        "summary": "À partir de la liste de matériel, apprendre à faire son sac soi-même, au sec, et à retrouver ses affaires.",
+        "material": ["Liste d’équipement", "Sac ou bac", "Sacs étanches"],
+        "steps": [
+          "Lire la liste ensemble et expliquer à quoi sert chaque objet.",
+          "Montrer comment rouler les vêtements et les ranger par sacs (nuit, jour, rechange).",
+          "Le jeune fait lui-même son sac à la maison, avec ses parents : il saura où sont ses affaires."
+        ]
+      },
+      "en": {
+        "name": "Packing for camp",
+        "summary": "Using the gear list, learn to pack one’s own bag, keep things dry and find one’s belongings.",
+        "material": ["Gear list", "Bag or bin", "Dry bags"],
+        "steps": [
+          "Read the list together and explain what each item is for.",
+          "Show how to roll clothes and pack them by bag (night, day, spare).",
+          "The youth packs their own bag at home with their parents, so they know where things are."
+        ]
+      }
+    },
+    {
+      "key": "technique_pulleys",
+      "category": "technique",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "team"],
+      "duration": { "min": 25, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Poulies"],
+      "fr": {
+        "name": "Poulies",
+        "summary": "Constater qu’un palan à plusieurs poulies permet de soulever une charge plus facilement.",
+        "material": ["Poulies", "Cordes", "Seau à remplir de sable ou d’eau"],
+        "safety": ["Ne jamais se placer sous la charge soulevée."]
+      },
+      "en": {
+        "name": "Pulleys",
+        "summary": "See how a block and tackle with several pulleys makes a load easier to lift.",
+        "material": ["Pulleys", "Ropes", "Bucket filled with sand or water"],
+        "safety": ["Never stand under the lifted load."]
+      }
+    },
+    {
+      "key": "technique_first_aid",
+      "category": "technique",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor"],
+      "duration": { "min": 15, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Premiers soins"],
+      "fr": {
+        "name": "Premiers soins",
+        "summary": "Savoir quoi faire devant une blessure selon l’âge : alerter, puis soigner les petites blessures.",
+        "material": ["Trousse de premiers soins", "Pansements d’exercice"],
+        "steps": [
+          "Castors et louveteaux : se protéger, alerter un adulte, composer le 911 et dire où on est.",
+          "Louveteaux : nettoyer une égratignure et poser un pansement.",
+          "Éclaireurs : position latérale de sécurité, saignement, entorse, brûlure."
+        ],
+        "variants": ["Mises en situation : chaque équipe reçoit un scénario et le joue devant les autres."]
+      },
+      "en": {
+        "name": "First aid",
+        "summary": "Know what to do about an injury, by age: get help, then care for small injuries.",
+        "material": ["First aid kit", "Practice bandages"],
+        "steps": [
+          "Beavers and cubs: stay safe, alert an adult, dial 911 and say where you are.",
+          "Cubs: clean a scrape and apply a bandage.",
+          "Scouts: recovery position, bleeding, sprain, burn."
+        ],
+        "variants": ["Role plays: each team gets a scenario and acts it out for the others."]
+      }
+    },
+    {
+      "key": "technique_ham_radio",
+      "category": "technique",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "calm"],
+      "duration": { "min": 40, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Radio amateur"],
+      "fr": {
+        "name": "Radio amateur",
+        "summary": "Avec un radioamateur, découvrir comment fonctionne la radio et parler à une autre station (par exemple pendant le Jamboree sur les ondes).",
+        "material": ["Équipement radio (fourni par le radioamateur)"]
+      },
+      "en": {
+        "name": "Amateur radio",
+        "summary": "With a radio amateur, discover how radio works and talk to another station (for example during Jamboree on the Air).",
+        "material": ["Radio equipment (provided by the radio amateur)"]
+      }
+    },
+    {
+      "key": "technique_trail_signs",
+      "category": "technique",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["outdoor", "team"],
+      "duration": { "min": 15, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Technique : Signes de piste"],
+      "fr": {
+        "name": "Signes de piste",
+        "summary": "Apprendre les signes de piste (direction, danger, message caché, fin de piste), puis suivre la piste d’une autre équipe.",
+        "material": ["Cailloux, bâtons ou craie", "Tableau des signes"],
+        "steps": [
+          "Présenter cinq signes de base.",
+          "Une équipe trace une courte piste pendant que l’autre attend.",
+          "L’autre équipe la suit et retrouve un message caché à la fin."
+        ]
+      },
+      "en": {
+        "name": "Trail signs",
+        "summary": "Learn trail signs (direction, danger, hidden message, end of trail), then follow another team’s trail.",
+        "material": ["Pebbles, sticks or chalk", "Sign chart"],
+        "steps": [
+          "Present five basic signs.",
+          "One team lays a short trail while the other waits.",
+          "The other team follows it and finds a hidden message at the end."
+        ]
+      }
+    },
+    {
+      "key": "technique_fishing",
+      "category": "technique",
+      "branches": ["cubs", "scouts"],
+      "tags": ["outdoor", "calm", "camp"],
+      "duration": { "min": 45, "max": 90 },
+      "supervision": "close",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Initiation à la pêche"],
+      "fr": {
+        "name": "Initiation à la pêche",
+        "summary": "Monter une ligne, lancer, attendre patiemment et remettre le poisson à l’eau avec soin.",
+        "material": ["Cannes à pêche", "Appâts", "Hameçons sans ardillon", "Vestes de flottaison"],
+        "safety": [
+          "Vestes de flottaison au bord de l’eau ; un adulte surveille l’eau sans autre tâche.",
+          "Vérifier les règles de pêche locales (permis, période, remise à l’eau)."
+        ]
+      },
+      "en": {
+        "name": "Introduction to fishing",
+        "summary": "Rig a line, cast, wait patiently and release the fish carefully.",
+        "material": ["Fishing rods", "Bait", "Barbless hooks", "Life jackets"],
+        "safety": [
+          "Life jackets near the water; one adult watches the water with no other task.",
+          "Check local fishing rules (licence, season, catch and release)."
+        ]
+      }
+    },
+    {
+      "key": "technique_orienteering",
+      "category": "technique",
+      "branches": ["scouts"],
+      "tags": ["outdoor", "team", "active"],
+      "duration": { "min": 45, "max": 75 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Course d’orientation",
+        "summary": "En équipes, trouver des balises avec une carte et une boussole, dans un parc ou un bois délimité.",
+        "material": ["Cartes du terrain", "Boussoles", "Balises avec poinçon ou code", "Sifflets"],
+        "steps": [
+          "Placer d’avance les balises et noter leur position sur la carte.",
+          "Expliquer comment orienter la carte et choisir un itinéraire.",
+          "Départs décalés ; heure de retour fixe pour tous."
+        ],
+        "safety": [
+          "Terrain délimité par des repères évidents (chemin, route, cours d’eau).",
+          "Chaque équipe a un sifflet : trois coups en cas de problème. On ne se sépare jamais de son équipe."
+        ]
+      },
+      "en": {
+        "name": "Orienteering",
+        "summary": "In teams, find control points with a map and compass in a defined park or wood.",
+        "material": ["Maps of the area", "Compasses", "Control markers with punch or code", "Whistles"],
+        "steps": [
+          "Place the controls beforehand and mark them on the map.",
+          "Explain how to orient the map and choose a route.",
+          "Staggered starts; a fixed return time for everyone."
+        ],
+        "safety": [
+          "An area bounded by obvious features (trail, road, stream).",
+          "Each team carries a whistle: three blasts for trouble. Never leave your team."
+        ]
+      }
+    },
+    {
+      "key": "technique_shelter",
+      "category": "technique",
+      "branches": ["cubs", "scouts"],
+      "tags": ["outdoor", "team", "camp"],
+      "duration": { "min": 45, "max": 60 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Construire un abri",
+        "summary": "En équipes, construire un abri avec une bâche et des cordes (ou des branches mortes), puis tester s’il protège de la pluie.",
+        "material": ["Bâches", "Cordes", "Piquets"],
+        "steps": [
+          "Choisir un emplacement : sol plat, pas de branches mortes au-dessus, pas dans un creux où l’eau coule.",
+          "Tendre une corde entre deux arbres, y poser la bâche en pente et l’ancrer.",
+          "Test : un arrosoir sur le toit, quelqu’un dessous reste-t-il au sec ?"
+        ],
+        "safety": ["N’utiliser que du bois mort au sol ; ne pas couper d’arbres vivants."]
+      },
+      "en": {
+        "name": "Building a shelter",
+        "summary": "In teams, build a shelter with a tarp and ropes (or dead branches), then test whether it keeps the rain off.",
+        "material": ["Tarps", "Ropes", "Pegs"],
+        "steps": [
+          "Choose a site: flat ground, no dead branches overhead, not in a hollow where water runs.",
+          "Tie a ridgeline between two trees, lay the tarp at an angle and anchor it.",
+          "Test: pour a watering can on the roof; does the person underneath stay dry?"
+        ],
+        "safety": ["Use only dead wood from the ground; never cut living trees."]
+      }
+    },
+    {
+      "key": "technique_stove_cooking",
+      "category": "technique",
+      "branches": ["scouts"],
+      "tags": ["outdoor", "team", "camp"],
+      "duration": { "min": 45, "max": 90 },
+      "supervision": "close",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Cuisine de patrouille sur réchaud",
+        "summary": "Chaque patrouille prépare un repas simple sur un réchaud, du menu jusqu’à la vaisselle.",
+        "material": ["Réchauds et combustible", "Chaudrons", "Ingrédients", "Bac à vaisselle", "Extincteur ou couverture anti-feu"],
+        "steps": [
+          "Revoir le menu et les allergies connues des jeunes qui mangeront le repas.",
+          "Montrer l’installation, l’allumage et l’arrêt du réchaud.",
+          "La patrouille cuisine, mange ensemble et fait la vaisselle."
+        ],
+        "safety": [
+          "Réchaud sur une surface stable, à l’extérieur ou dans un abri aéré, jamais dans une tente.",
+          "Un adulte supervise l’allumage et le remplissage du combustible.",
+          "Respecter les allergies et restrictions alimentaires transmises par les familles."
+        ]
+      },
+      "en": {
+        "name": "Patrol stove cooking",
+        "summary": "Each patrol cooks a simple meal on a stove, from menu to dishes.",
+        "material": ["Stoves and fuel", "Pots", "Ingredients", "Dish basin", "Fire extinguisher or fire blanket"],
+        "steps": [
+          "Review the menu and the known allergies of the youth who will eat.",
+          "Show how to set up, light and turn off the stove.",
+          "The patrol cooks, eats together and does the dishes."
+        ],
+        "safety": [
+          "Stove on a stable surface, outdoors or in a ventilated shelter, never in a tent.",
+          "An adult supervises lighting and refuelling.",
+          "Respect the allergies and dietary restrictions shared by families."
+        ]
+      }
+    },
+    {
+      "key": "technique_geocaching",
+      "category": "technique",
+      "branches": ["scouts"],
+      "tags": ["outdoor", "team", "active"],
+      "duration": { "min": 45, "max": 90 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Géocache et coordonnées GPS",
+        "summary": "Lire des coordonnées GPS et trouver des caches préparées par les animateurs (ou des géocaches publiques).",
+        "material": ["Appareils GPS ou téléphones", "Caches préparées", "Fiche de coordonnées"],
+        "steps": [
+          "Expliquer latitude et longitude et la précision du GPS.",
+          "Chaque équipe reçoit une série de coordonnées.",
+          "Chaque cache contient un indice menant à la suivante."
+        ],
+        "safety": ["Même règles que la course d’orientation : zone délimitée, équipe ensemble, heure de retour."]
+      },
+      "en": {
+        "name": "Geocaching and GPS coordinates",
+        "summary": "Read GPS coordinates and find caches prepared by the leaders (or public geocaches).",
+        "material": ["GPS units or phones", "Prepared caches", "Coordinate sheet"],
+        "steps": [
+          "Explain latitude, longitude and GPS accuracy.",
+          "Each team gets a series of coordinates.",
+          "Each cache holds a clue leading to the next."
+        ],
+        "safety": ["Same rules as orienteering: bounded area, team stays together, return time."]
+      }
+    },
+    {
+      "key": "game_port_starboard",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "active"],
+      "players": { "min": 6 },
+      "duration": { "min": 15, "max": 25 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Babord-Tribord"],
+      "fr": {
+        "name": "Bâbord-Tribord",
+        "summary": "Les joueurs exécutent des commandes de bateau ; le dernier à réagir ou celui qui se trompe aide l’arbitre.",
+        "steps": [
+          "Définir un côté bâbord (gauche) et tribord (droite), la proue (avant) et la poupe (arrière).",
+          "Au signal, courir vers le côté nommé.",
+          "Commandes spéciales : « homme à la mer » (en binômes), « sous-marin » (couché au sol, une jambe en l’air), « capitaine à bord » (salut)."
+        ],
+        "variants": ["Castors : peu de commandes, et personne n’est éliminé."]
+      },
+      "en": {
+        "name": "Port and Starboard",
+        "summary": "Players follow ship commands; the last to react or anyone who gets it wrong helps the referee.",
+        "steps": [
+          "Define port (left), starboard (right), bow (front) and stern (back).",
+          "On the call, run to the named side.",
+          "Special commands: “man overboard” (in pairs), “submarine” (lie down, one leg up), “captain on deck” (salute)."
+        ],
+        "variants": ["Beavers: few commands and no one is out."]
+      }
+    },
+    {
+      "key": "game_box_ball",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "active", "team"],
+      "duration": { "min": 30, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "to_confirm",
+      "review_note": "Règles complètes du « Ballon Ama-jungle » à fournir par les unités.",
+      "legacy_names": ["Jeu : Ballon Ama-jungle"],
+      "fr": {
+        "name": "Ballon Ama-jungle",
+        "summary": "Chaque équipe protège deux structures de trois boîtes en carton ; si la boîte du dessus d’une structure tombe, l’équipe adverse marque.",
+        "material": ["Ballon mou", "Six boîtes de carton par équipe"]
+      },
+      "en": {
+        "name": "Box ball",
+        "summary": "Each team guards two stacks of three cardboard boxes; when the top box of a stack falls, the other team scores.",
+        "material": ["Soft ball", "Six cardboard boxes per team"]
+      }
+    },
+    {
+      "key": "game_dodgeball",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "active", "team"],
+      "players": { "min": 10 },
+      "duration": { "min": 25, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Ballon chasseur"],
+      "fr": {
+        "name": "Ballon chasseur",
+        "summary": "Deux équipes se lancent un ballon mou pour toucher les adversaires ; un joueur touché est éliminé, sauf si un coéquipier attrape le ballon avant qu’il touche le sol.",
+        "material": ["Ballon mou"],
+        "safety": ["Tirs sous les épaules seulement ; ballon mou obligatoire."]
+      },
+      "en": {
+        "name": "Dodgeball",
+        "summary": "Two teams throw a soft ball to tag opponents; a tagged player is out unless a teammate catches the ball before it hits the ground.",
+        "material": ["Soft ball"],
+        "safety": ["Throws below the shoulders only; a soft ball is required."]
+      }
+    },
+    {
+      "key": "game_hand_baseball",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "active", "team"],
+      "players": { "min": 10 },
+      "duration": { "min": 25, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Ballon diamant"],
+      "fr": {
+        "name": "Ballon diamant",
+        "summary": "Comme au baseball, mais on frappe un ballon avec la main et on court autour des buts pendant que l’autre équipe tente de récupérer le ballon pour retirer le coureur.",
+        "material": ["Ballon", "Quatre buts"]
+      },
+      "en": {
+        "name": "Hand baseball",
+        "summary": "Like baseball, but the ball is hit with the hand and players run the bases while the other team tries to field the ball and put the runner out.",
+        "material": ["Ball", "Four bases"]
+      }
+    },
+    {
+      "key": "game_crazy_ball",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "active"],
+      "players": { "min": 8 },
+      "duration": { "min": 25, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Ballon fou"],
+      "fr": {
+        "name": "Ballon fou",
+        "summary": "Chacun pour soi : on lance le ballon pour toucher un adversaire, qui s’accroupit jusqu’à ce qu’il intercepte le ballon et touche un autre joueur.",
+        "material": ["Ballon mou"],
+        "steps": [
+          "Un joueur qui a le ballon ne peut pas se déplacer.",
+          "Un joueur touché s’accroupit sur place ; il revient au jeu s’il attrape un ballon et touche quelqu’un.",
+          "On peut libérer des joueurs accroupis en réussissant des passes sans que le ballon touche le sol."
+        ]
+      },
+      "en": {
+        "name": "Crazy ball",
+        "summary": "Every player for themself: throw the ball to tag someone, who crouches until they intercept the ball and tag another player.",
+        "material": ["Soft ball"],
+        "steps": [
+          "A player holding the ball cannot move.",
+          "A tagged player crouches in place; they come back by catching a ball and tagging someone.",
+          "Crouched players can be freed by completing passes without the ball touching the ground."
+        ]
+      }
+    },
+    {
+      "key": "game_pigeon_ball",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "active"],
+      "duration": { "min": 25, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "to_confirm",
+      "review_note": "Règles du « Ballon Pigeon » à préciser par les unités.",
+      "legacy_names": ["Jeu : Ballon Pigeon"],
+      "fr": {
+        "name": "Ballon pigeon",
+        "summary": "Jeu de précision : toucher des cibles ou des adversaires avec un ballon.",
+        "material": ["Ballon mou", "Cibles"]
+      },
+      "en": {
+        "name": "Pigeon ball",
+        "summary": "An accuracy game: hit targets or opponents with a ball.",
+        "material": ["Soft ball", "Targets"]
+      }
+    },
+    {
+      "key": "game_earth_ball",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "cooperative"],
+      "duration": { "min": 25, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Ballon planète"],
+      "fr": {
+        "name": "Ballon planète",
+        "summary": "Le groupe transporte un ballon géant sans le laisser toucher le sol, en accomplissant des défis (passer sous un obstacle, faire un tour, le passer d’équipe en équipe).",
+        "material": ["Ballon géant"]
+      },
+      "en": {
+        "name": "Earth ball",
+        "summary": "The group carries a giant ball without letting it touch the ground while completing challenges (under an obstacle, around a loop, team to team).",
+        "material": ["Giant ball"]
+      }
+    },
+    {
+      "key": "game_pin_ball",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "active", "team"],
+      "duration": { "min": 30, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Ballon quille"],
+      "fr": {
+        "name": "Ballon-quilles",
+        "summary": "Chaque équipe protège ses quilles et tente de renverser celles de l’autre équipe en lançant un ballon.",
+        "material": ["Ballons mous", "Quilles ou bouteilles"]
+      },
+      "en": {
+        "name": "Pin ball",
+        "summary": "Each team guards its pins and tries to knock over the other team’s by throwing a ball.",
+        "material": ["Soft balls", "Pins or bottles"]
+      }
+    },
+    {
+      "key": "game_den_ball",
+      "category": "game",
+      "branches": ["cubs"],
+      "tags": ["indoor", "outdoor", "active", "team"],
+      "duration": { "min": 15, "max": 20 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "to_confirm",
+      "review_note": "Règles du « Ballon tanières » à préciser par les unités.",
+      "legacy_names": ["Jeu : Ballon tanières"],
+      "fr": {
+        "name": "Ballon-repaires",
+        "summary": "Chaque équipe protège les ballons de son repaire tout en essayant de voler ceux des repaires adverses.",
+        "material": ["Plusieurs ballons", "Cerceaux ou cordes pour les repaires"]
+      },
+      "en": {
+        "name": "Den ball",
+        "summary": "Each team guards the balls in its den while trying to steal balls from the other dens.",
+        "material": ["Several balls", "Hoops or ropes for the dens"]
+      }
+    },
+    {
+      "key": "game_basketball",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "active", "team"],
+      "duration": { "min": 25, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Basketball"],
+      "fr": {
+        "name": "Basketball modifié",
+        "summary": "Basketball adapté : chaque joueur doit avoir touché le ballon avant un tir, pour que tout le monde participe.",
+        "material": ["Ballon de basketball", "Paniers"]
+      },
+      "en": {
+        "name": "Modified basketball",
+        "summary": "Adapted basketball: every player must touch the ball before a shot, so everyone takes part.",
+        "material": ["Basketball", "Hoops"]
+      }
+    },
+    {
+      "key": "game_dbl",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "active", "team"],
+      "duration": { "min": 30, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "to_confirm",
+      "review_note": "Signification de « DBL » et règles complètes à fournir par les unités.",
+      "legacy_names": ["Jeu : DBL"],
+      "fr": {
+        "name": "DBL",
+        "summary": "Jeu de passes où l’on doit respecter des règles précises pour éliminer les adversaires.",
+        "material": ["Ballon"]
+      },
+      "en": {
+        "name": "DBL",
+        "summary": "A passing game with specific rules for putting opponents out.",
+        "material": ["Ball"]
+      }
+    },
+    {
+      "key": "game_werewolf",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "night", "calm", "camp"],
+      "players": { "min": 8 },
+      "duration": { "min": 30, "max": 45 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu de Loup-garou"],
+      "fr": {
+        "name": "Loup-garou",
+        "summary": "Jeu de rôles : les villageois doivent démasquer les loups-garous avant d’être tous éliminés.",
+        "material": ["Cartes de Loup-garou"],
+        "steps": [
+          "Distribuer les cartes en secret ; un animateur est le meneur.",
+          "La nuit, tous ferment les yeux ; les loups-garous choisissent une victime.",
+          "Le jour, le village discute et vote pour éliminer un suspect."
+        ],
+        "variants": ["Peu de rôles spéciaux pour les plus jeunes ; plus de rôles pour les éclaireurs."]
+      },
+      "en": {
+        "name": "Werewolf",
+        "summary": "A role-playing game: villagers must unmask the werewolves before everyone is eliminated.",
+        "material": ["Werewolf cards"],
+        "steps": [
+          "Deal the cards secretly; a leader is the narrator.",
+          "At night, everyone closes their eyes; the werewolves choose a victim.",
+          "By day, the village discusses and votes to eliminate a suspect."
+        ],
+        "variants": ["Few special roles for the younger ones; more roles for scouts."]
+      }
+    },
+    {
+      "key": "game_capture_the_flag",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["outdoor", "active", "team", "camp"],
+      "players": { "min": 10 },
+      "duration": { "min": 30, "max": 45 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Drapeaux"],
+      "fr": {
+        "name": "Ballon-drapeau (capture du drapeau)",
+        "summary": "Chaque équipe tente de capturer le drapeau adverse et de le ramener dans son camp sans se faire toucher.",
+        "material": ["Deux drapeaux ou foulards", "Cônes pour délimiter le terrain"],
+        "steps": [
+          "Partager le terrain en deux ; chaque équipe cache ou place son drapeau dans son camp.",
+          "Un joueur touché dans le camp adverse va en prison ; un coéquipier peut le libérer en le touchant.",
+          "L’équipe qui ramène le drapeau adverse chez elle gagne la manche."
+        ]
+      },
+      "en": {
+        "name": "Capture the flag",
+        "summary": "Each team tries to capture the other team’s flag and bring it home without being tagged.",
+        "material": ["Two flags or neckerchiefs", "Cones to mark the field"],
+        "steps": [
+          "Split the field in two; each team places or hides its flag on its side.",
+          "A player tagged on the other side goes to jail; a teammate can free them with a tag.",
+          "The team that brings the other flag home wins the round."
+        ]
+      }
+    },
+    {
+      "key": "game_star",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "active", "team"],
+      "players": { "min": 12 },
+      "duration": { "min": 30, "max": 60 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Étoile"],
+      "fr": {
+        "name": "L’étoile",
+        "summary": "Chaque équipe en file forme une branche d’étoile autour d’un foulard ; au numéro appelé, les joueurs correspondants courent prendre le foulard, puis répondent à une question.",
+        "material": ["Foulard", "Liste de questions"]
+      },
+      "en": {
+        "name": "The star",
+        "summary": "Each team lines up as a branch of a star around a neckerchief; when a number is called, those players race for the neckerchief, then answer a question.",
+        "material": ["Neckerchief", "List of questions"]
+      }
+    },
+    {
+      "key": "game_floor_hockey",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "winter", "active", "team"],
+      "players": { "min": 8 },
+      "duration": { "min": 25, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Hockey"],
+      "fr": {
+        "name": "Hockey cosom",
+        "summary": "Deux équipes envoient une balle ou une rondelle dans le but adverse avec des bâtons.",
+        "material": ["Bâtons de hockey", "Balle ou rondelle", "Deux buts"],
+        "safety": ["Bâton jamais au-dessus de la taille ; lunettes protectrices si disponibles."]
+      },
+      "en": {
+        "name": "Floor hockey",
+        "summary": "Two teams send a ball or puck into the other goal with sticks.",
+        "material": ["Hockey sticks", "Ball or puck", "Two goals"],
+        "safety": ["Sticks never above the waist; protective glasses if available."]
+      }
+    },
+    {
+      "key": "game_frisbee_hockey",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "active", "team"],
+      "duration": { "min": 30, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Hockey-Frisbee"],
+      "fr": {
+        "name": "Hockey-frisbee",
+        "summary": "Comme le hockey, mais on pousse un frisbee à plat sur le sol avec les bâtons.",
+        "material": ["Frisbee", "Bâtons de hockey", "Deux buts"],
+        "safety": ["Bâton jamais au-dessus de la taille."]
+      },
+      "en": {
+        "name": "Frisbee hockey",
+        "summary": "Like hockey, but a frisbee is pushed flat on the floor with the sticks.",
+        "material": ["Frisbee", "Hockey sticks", "Two goals"],
+        "safety": ["Sticks never above the waist."]
+      }
+    },
+    {
+      "key": "game_kick_the_can",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["outdoor", "active", "camp"],
+      "players": { "min": 8 },
+      "duration": { "min": 20, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Kick la canne"],
+      "fr": {
+        "name": "Kick la canne",
+        "summary": "Cache-cache avec une canne : le gardien cherche les joueurs et les envoie en prison ; un joueur qui botte la canne libère les prisonniers.",
+        "material": ["Canne vide ou contenant"]
+      },
+      "en": {
+        "name": "Kick the can",
+        "summary": "Hide-and-seek with a can: the keeper finds players and sends them to jail; anyone who kicks the can frees the prisoners.",
+        "material": ["Empty can or container"]
+      }
+    },
+    {
+      "key": "game_parachute_pancake",
+      "category": "game",
+      "branches": ["beavers", "cubs"],
+      "tags": ["indoor", "outdoor", "cooperative"],
+      "players": { "min": 8 },
+      "duration": { "min": 15, "max": 25 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : La crêpe"],
+      "fr": {
+        "name": "La crêpe (parachute)",
+        "summary": "Tous tiennent le parachute ; au signal, on le lève et on se déplace ensemble pour lui faire faire un demi-tour avant qu’il retombe.",
+        "material": ["Parachute de jeu"],
+        "variants": ["Le champignon : lever le parachute et s’asseoir dessous.", "Faire rouler une balle autour du bord sans qu’elle tombe."]
+      },
+      "en": {
+        "name": "The pancake (parachute)",
+        "summary": "Everyone holds the parachute; on the signal, lift it and move together to flip it over before it falls.",
+        "material": ["Play parachute"],
+        "variants": ["The mushroom: lift the parachute and sit underneath.", "Roll a ball around the edge without dropping it."]
+      }
+    },
+    {
+      "key": "game_foot_wrestling",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "active"],
+      "players": { "min": 2 },
+      "duration": { "min": 15, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Lutte indienne"],
+      "fr": {
+        "name": "Lutte au pied",
+        "summary": "Deux joueurs couchés sur le dos, côte à côte et tête-bêche, accrochent leurs jambes et tentent de faire basculer l’autre.",
+        "steps": [
+          "Les deux joueurs se couchent sur le dos, épaule contre épaule, la tête du côté des pieds de l’autre.",
+          "Ils lèvent la jambe intérieure trois fois en comptant ; à trois, ils accrochent les jambes et poussent.",
+          "Celui qui fait rouler l’autre gagne la manche."
+        ],
+        "safety": ["Sur tapis ou gazon ; joueurs de taille semblable ; on arrête au premier signe de douleur."]
+      },
+      "en": {
+        "name": "Foot wrestling",
+        "summary": "Two players lie on their backs side by side, head to feet, hook legs and try to roll the other over.",
+        "steps": [
+          "Both players lie on their backs, shoulder to shoulder, each head beside the other’s feet.",
+          "They raise the inside leg three times while counting; on three, they hook legs and push.",
+          "Whoever rolls the other wins the round."
+        ],
+        "safety": ["On mats or grass; players of similar size; stop at the first sign of pain."]
+      }
+    },
+    {
+      "key": "game_polyball",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "active"],
+      "players": { "min": 10 },
+      "duration": { "min": 30, "max": 30 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Polyball"],
+      "fr": {
+        "name": "Polyball",
+        "summary": "Comme le ballon chasseur, mais avec plusieurs ballons mous en jeu en même temps.",
+        "material": ["Quatre à six ballons mous"],
+        "safety": ["Tirs sous les épaules seulement."]
+      },
+      "en": {
+        "name": "Polyball",
+        "summary": "Like dodgeball, but with several soft balls in play at once.",
+        "material": ["Four to six soft balls"],
+        "safety": ["Throws below the shoulders only."]
+      }
+    },
+    {
+      "key": "game_sharks",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "active"],
+      "players": { "min": 8 },
+      "duration": { "min": 15, "max": 25 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Requins"],
+      "fr": {
+        "name": "Les requins",
+        "summary": "Les poissons traversent le terrain sans se faire toucher par les requins du centre ; un poisson touché devient requin.",
+        "variants": ["Castors : un poisson touché devient algue et touche les autres sans bouger les pieds."]
+      },
+      "en": {
+        "name": "Sharks and minnows",
+        "summary": "Minnows cross the field without being tagged by the sharks in the middle; a tagged minnow becomes a shark.",
+        "variants": ["Beavers: a tagged minnow becomes seaweed and tags others without moving their feet."]
+      }
+    },
+    {
+      "key": "game_sardines",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "players": { "min": 6 },
+      "duration": { "min": 25, "max": 25 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Sardine"],
+      "fr": {
+        "name": "Sardines",
+        "summary": "Cache-cache inversé : une personne se cache, et chaque joueur qui la trouve se cache avec elle, jusqu’au dernier.",
+        "safety": ["Délimiter clairement les lieux permis ; pièces fermées et extérieur hors limite."]
+      },
+      "en": {
+        "name": "Sardines",
+        "summary": "Reverse hide-and-seek: one person hides, and each player who finds them hides with them, until the last one.",
+        "safety": ["Clearly mark the allowed area; closed rooms and outdoors are off limits."]
+      }
+    },
+    {
+      "key": "game_soccer",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["outdoor", "active", "team"],
+      "duration": { "min": 25, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Soccer"],
+      "fr": {
+        "name": "Soccer",
+        "summary": "Deux équipes tentent de marquer dans le but adverse ; pour les plus jeunes, sans gardien et sur un petit terrain.",
+        "material": ["Ballon de soccer", "Cônes pour les buts"]
+      },
+      "en": {
+        "name": "Soccer",
+        "summary": "Two teams try to score in the other goal; for the youngest, no goalies and a small field.",
+        "material": ["Soccer ball", "Cones for goals"]
+      }
+    },
+    {
+      "key": "game_kickball",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["outdoor", "active", "team"],
+      "players": { "min": 10 },
+      "duration": { "min": 30, "max": 45 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Soccer baseball"],
+      "fr": {
+        "name": "Soccer-baseball",
+        "summary": "Comme au baseball, mais on botte un ballon de soccer roulé par le lanceur, puis on court autour des buts.",
+        "material": ["Ballon de soccer", "Quatre buts"]
+      },
+      "en": {
+        "name": "Kickball",
+        "summary": "Like baseball, but players kick a soccer ball rolled by the pitcher, then run the bases.",
+        "material": ["Soccer ball", "Four bases"]
+      }
+    },
+    {
+      "key": "game_relay_triathlon",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["outdoor", "active", "team"],
+      "duration": { "min": 30, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "review_note": "Remplace le « triathlon » (course, natation, cyclisme) par trois épreuves faisables dans une rencontre.",
+      "legacy_names": ["Jeu : Triathlon"],
+      "fr": {
+        "name": "Triathlon-relais",
+        "summary": "Relais en trois épreuves : une course, une épreuve d’adresse et un transport d’objet, chaque membre de l’équipe en fait une.",
+        "material": ["Cônes", "Ballons ou sacs de sable", "Seaux"],
+        "variants": ["Au camp d’été, une épreuve de baignade surveillée peut remplacer l’une des trois."]
+      },
+      "en": {
+        "name": "Relay triathlon",
+        "summary": "A three-event relay: a run, a skill event and a carry; each team member does one.",
+        "material": ["Cones", "Balls or beanbags", "Buckets"],
+        "variants": ["At summer camp, a supervised swim can replace one of the three."]
+      }
+    },
+    {
+      "key": "game_trollball",
+      "category": "game",
+      "branches": ["scouts"],
+      "tags": ["indoor", "outdoor", "active", "team"],
+      "duration": { "min": 40, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "to_confirm",
+      "review_note": "Règles du Trollball et description du ballon à fournir par les unités.",
+      "legacy_names": ["Jeu : Trollball"],
+      "fr": {
+        "name": "Trollball",
+        "summary": "Deux équipes s’affrontent pour marquer des points avec un ballon spécial.",
+        "material": ["Ballon de Trollball"]
+      },
+      "en": {
+        "name": "Trollball",
+        "summary": "Two teams compete to score points with a special ball.",
+        "material": ["Trollball ball"]
+      }
+    },
+    {
+      "key": "game_ultimate",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["outdoor", "active", "team"],
+      "players": { "min": 10 },
+      "duration": { "min": 30, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Ultimate Frisbee"],
+      "fr": {
+        "name": "Ultimate frisbee",
+        "summary": "Les équipes se passent un frisbee sans courir avec lui, pour l’attraper dans la zone de but adverse. Sans contact.",
+        "material": ["Frisbee", "Cônes"]
+      },
+      "en": {
+        "name": "Ultimate frisbee",
+        "summary": "Teams pass a frisbee without running with it, to catch it in the other end zone. No contact.",
+        "material": ["Frisbee", "Cones"]
+      }
+    },
+    {
+      "key": "game_pin_snatch",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "active", "team"],
+      "players": { "min": 10 },
+      "duration": { "min": 30, "max": 40 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Vol de quille"],
+      "fr": {
+        "name": "Vol de quilles",
+        "summary": "Chaque équipe garde des quilles au fond de son camp et tente d’aller voler celles de l’autre sans se faire toucher.",
+        "material": ["Quilles ou cônes"]
+      },
+      "en": {
+        "name": "Pin snatch",
+        "summary": "Each team keeps pins at the back of its side and tries to steal the other team’s without being tagged.",
+        "material": ["Pins or cones"]
+      }
+    },
+    {
+      "key": "game_zip_zap",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "players": { "min": 8 },
+      "duration": { "min": 10, "max": 20 },
+      "supervision": "standard",
+      "origin": "units",
+      "review": "draft",
+      "legacy_names": ["Jeu : Zip-Zap"],
+      "fr": {
+        "name": "Zip-Zap",
+        "summary": "En cercle, la personne au centre pointe quelqu’un en disant « Zip » (nommer son voisin de gauche) ou « Zap » (de droite) ; celui qui hésite prend le centre. Idéal pour apprendre les prénoms."
+      },
+      "en": {
+        "name": "Zip Zap",
+        "summary": "In a circle, the person in the middle points at someone saying “Zip” (name your left neighbour) or “Zap” (right); whoever hesitates takes the middle. Great for learning names."
+      }
+    },
+    {
+      "key": "game_kims_game",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm", "team"],
+      "duration": { "min": 10, "max": 20 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Jeu de Kim",
+        "summary": "Observer des objets pendant une minute, les cacher, puis nommer ceux dont on se souvient.",
+        "material": ["Une quinzaine de petits objets", "Un linge pour les couvrir"],
+        "steps": [
+          "Découvrir les objets pendant une minute.",
+          "Les couvrir ; chaque équipe écrit ou nomme ceux qu’elle a retenus.",
+          "Variante : retirer un objet en secret et demander lequel manque."
+        ],
+        "variants": ["Castors : 8 objets. Éclaireurs : 20 objets ou Kim au toucher et à l’odorat."]
+      },
+      "en": {
+        "name": "Kim’s game",
+        "summary": "Look at objects for one minute, hide them, then name the ones you remember.",
+        "material": ["About fifteen small objects", "A cloth to cover them"],
+        "steps": [
+          "Uncover the objects for one minute.",
+          "Cover them; each team writes or names those it remembers.",
+          "Variant: secretly remove one object and ask which is missing."
+        ],
+        "variants": ["Beavers: 8 objects. Scouts: 20 objects, or Kim’s game by touch and smell."]
+      }
+    },
+    {
+      "key": "game_fox_hen_snake",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["outdoor", "active", "team"],
+      "players": { "min": 12 },
+      "duration": { "min": 20, "max": 30 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Poule, renard, vipère",
+        "summary": "Trois équipes : les poules attrapent les vipères, les vipères les renards, les renards les poules. Les prisonniers sont libérés par un coéquipier.",
+        "material": ["Foulards de trois couleurs", "Cônes pour les prisons"],
+        "steps": [
+          "Chaque équipe a un camp et une prison.",
+          "Un joueur touché par son prédateur va dans la prison de celui-ci.",
+          "Un coéquipier libère un prisonnier en le touchant ; l’équipe qui a le plus de prisonniers à la fin gagne."
+        ]
+      },
+      "en": {
+        "name": "Hen, fox, snake",
+        "summary": "Three teams: hens catch snakes, snakes catch foxes, foxes catch hens. Prisoners are freed by a teammate.",
+        "material": ["Neckerchiefs in three colours", "Cones for jails"],
+        "steps": [
+          "Each team has a home and a jail.",
+          "A player tagged by their predator goes to that team’s jail.",
+          "A teammate frees a prisoner with a tag; the team holding the most prisoners at the end wins."
+        ]
+      }
+    },
+    {
+      "key": "game_ninja",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "active"],
+      "players": { "min": 5 },
+      "duration": { "min": 10, "max": 20 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Ninja",
+        "summary": "En cercle, chacun à son tour fait un seul mouvement pour toucher la main d’un voisin ; une main touchée est perdue.",
+        "steps": [
+          "Tous prennent une pose de ninja en cercle.",
+          "À tour de rôle, un joueur fait un seul geste rapide pour toucher la main d’un voisin ; celui-ci peut esquiver d’un seul geste.",
+          "Après deux mains touchées, on sort du cercle ; le dernier ninja gagne."
+        ]
+      },
+      "en": {
+        "name": "Ninja",
+        "summary": "In a circle, each player in turn makes one move to tag a neighbour’s hand; a tagged hand is lost.",
+        "steps": [
+          "Everyone strikes a ninja pose in a circle.",
+          "In turn, a player makes one quick move to tag a neighbour’s hand; the neighbour may dodge with one move.",
+          "After both hands are tagged, you leave the circle; the last ninja wins."
+        ]
+      }
+    },
+    {
+      "key": "game_treasure_keeper",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "players": { "min": 6 },
+      "duration": { "min": 10, "max": 20 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Le gardien du trésor",
+        "summary": "Un gardien aux yeux bandés protège un trésor ; les autres s’approchent en silence pour le prendre. Le gardien pointe ceux qu’il entend.",
+        "material": ["Bandeau", "Un objet trésor (trousseau de clés)"],
+        "variants": ["Bon jeu calme après un jeu actif ou avant le coucher au camp."]
+      },
+      "en": {
+        "name": "Treasure keeper",
+        "summary": "A blindfolded keeper guards a treasure; the others sneak up silently to take it. The keeper points at anyone they hear.",
+        "material": ["Blindfold", "A treasure object (bunch of keys)"],
+        "variants": ["A good calm game after an active one or before bedtime at camp."]
+      }
+    },
+    {
+      "key": "game_orchestra_leader",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "players": { "min": 8 },
+      "duration": { "min": 10, "max": 15 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Le chef d’orchestre",
+        "summary": "Un chef désigné en secret change les gestes du cercle ; un détective au centre doit deviner qui mène."
+      },
+      "en": {
+        "name": "Orchestra leader",
+        "summary": "A secretly chosen leader changes the circle’s movements; a detective in the middle must guess who is leading."
+      }
+    },
+    {
+      "key": "game_treasure_hunt",
+      "category": "game",
+      "branches": ["beavers", "cubs", "scouts"],
+      "tags": ["indoor", "outdoor", "team", "camp"],
+      "duration": { "min": 30, "max": 60 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Chasse au trésor",
+        "summary": "Les équipes suivent une série d’indices jusqu’à un trésor ; la difficulté des indices s’adapte à l’âge.",
+        "material": ["Indices préparés", "Trésor"],
+        "variants": [
+          "Castors : indices en images, parcours court et à vue d’adulte.",
+          "Éclaireurs : indices codés (morse, coordonnées, signes de piste)."
+        ]
+      },
+      "en": {
+        "name": "Treasure hunt",
+        "summary": "Teams follow a series of clues to a treasure; clue difficulty is adjusted to age.",
+        "material": ["Prepared clues", "Treasure"],
+        "variants": [
+          "Beavers: picture clues, a short trail within sight of an adult.",
+          "Scouts: coded clues (Morse, coordinates, trail signs)."
+        ]
+      }
+    },
+    {
+      "key": "game_red_light",
+      "category": "game",
+      "branches": ["beavers"],
+      "tags": ["indoor", "outdoor", "active"],
+      "players": { "min": 4 },
+      "duration": { "min": 10, "max": 15 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "1, 2, 3 soleil",
+        "summary": "Les joueurs avancent vers le meneur dos tourné ; quand il se retourne en disant « soleil », tout le monde fige. Celui qui bouge recule au départ."
+      },
+      "en": {
+        "name": "Red light, green light",
+        "summary": "Players move towards the leader while their back is turned; when the leader turns around, everyone freezes. Anyone caught moving goes back to the start."
+      }
+    },
+    {
+      "key": "game_simon_says",
+      "category": "game",
+      "branches": ["beavers"],
+      "tags": ["indoor", "outdoor", "calm"],
+      "players": { "min": 4 },
+      "duration": { "min": 10, "max": 15 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Jean dit",
+        "summary": "On fait le geste seulement si la consigne commence par « Jean dit ». Celui qui se trompe devient l’assistant du meneur plutôt que d’être éliminé."
+      },
+      "en": {
+        "name": "Simon says",
+        "summary": "Do the action only if the instruction starts with “Simon says”. Whoever slips up becomes the leader’s helper rather than being out."
+      }
+    },
+    {
+      "key": "game_freeze_tag",
+      "category": "game",
+      "branches": ["beavers", "cubs"],
+      "tags": ["indoor", "outdoor", "active"],
+      "players": { "min": 6 },
+      "duration": { "min": 10, "max": 20 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Loup glacé",
+        "summary": "Un joueur touché par le loup fige sur place, jambes écartées ; un coéquipier le dégèle en passant entre ses jambes.",
+        "variants": ["En hiver, dans la neige : on dégèle en donnant une tape dans la main."]
+      },
+      "en": {
+        "name": "Freeze tag",
+        "summary": "A player tagged by the wolf freezes in place, legs apart; a teammate unfreezes them by crawling between their legs.",
+        "variants": ["In winter, in the snow: unfreeze with a high five."]
+      }
+    },
+    {
+      "key": "game_postman",
+      "category": "game",
+      "branches": ["beavers"],
+      "tags": ["indoor", "outdoor", "active"],
+      "players": { "min": 8 },
+      "duration": { "min": 10, "max": 15 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Le facteur n’est pas passé",
+        "summary": "Assis en cercle, les joueurs chantent pendant que le facteur fait le tour et dépose un foulard derrière quelqu’un, qui doit le rattraper avant qu’il prenne sa place.",
+        "material": ["Foulard"]
+      },
+      "en": {
+        "name": "Duck, duck, goose",
+        "summary": "Seated in a circle, players sing while the postman walks around and drops a neckerchief behind someone, who must catch them before they take the empty spot.",
+        "material": ["Neckerchief"]
+      }
+    },
+    {
+      "key": "game_musical_statues",
+      "category": "game",
+      "branches": ["beavers"],
+      "tags": ["indoor", "active"],
+      "players": { "min": 4 },
+      "duration": { "min": 10, "max": 15 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Statues musicales",
+        "summary": "On danse pendant la musique ; quand elle s’arrête, on devient une statue de l’animal nommé par l’animateur.",
+        "material": ["Musique"]
+      },
+      "en": {
+        "name": "Musical statues",
+        "summary": "Dance while the music plays; when it stops, become a statue of the animal the leader names.",
+        "material": ["Music"]
+      }
+    },
+    {
+      "key": "game_animal_relay",
+      "category": "game",
+      "branches": ["beavers"],
+      "tags": ["indoor", "outdoor", "active", "team"],
+      "players": { "min": 6 },
+      "duration": { "min": 15, "max": 20 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Relais des animaux",
+        "summary": "Relais où chaque trajet se fait à la manière d’un animal : sauter comme une grenouille, marcher comme un crabe, nager comme un castor.",
+        "material": ["Cônes"]
+      },
+      "en": {
+        "name": "Animal relay",
+        "summary": "A relay where each leg is done like an animal: hop like a frog, walk like a crab, swim like a beaver.",
+        "material": ["Cones"]
+      }
+    },
+    {
+      "key": "game_nature_bingo",
+      "category": "game",
+      "branches": ["beavers", "cubs"],
+      "tags": ["outdoor", "calm", "team", "camp"],
+      "duration": { "min": 20, "max": 30 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Bingo nature",
+        "summary": "En petits groupes, trouver dans la nature ce qui est illustré sur une carte de bingo (feuille rouge, pomme de pin, plume, roche ronde…).",
+        "material": ["Cartes de bingo illustrées", "Crayons"],
+        "safety": ["On observe sans cueillir les plantes vivantes ni déranger les animaux."]
+      },
+      "en": {
+        "name": "Nature bingo",
+        "summary": "In small groups, find in nature what is pictured on a bingo card (red leaf, pine cone, feather, round stone…).",
+        "material": ["Picture bingo cards", "Pencils"],
+        "safety": ["Look without picking living plants or disturbing animals."]
+      }
+    },
+    {
+      "key": "game_smugglers",
+      "category": "game",
+      "branches": ["scouts"],
+      "tags": ["outdoor", "night", "active", "team", "camp"],
+      "players": { "min": 12 },
+      "duration": { "min": 45, "max": 60 },
+      "supervision": "close",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Les contrebandiers (jeu de nuit)",
+        "summary": "Les contrebandiers font passer des marchandises d’un camp à l’autre ; les douaniers, armés de lampes, les arrêtent en les éclairant.",
+        "material": ["Lampes de poche pour les douaniers", "Cartons « marchandise »", "Bâtons lumineux pour délimiter le terrain"],
+        "steps": [
+          "Délimiter le terrain et les deux camps avec des bâtons lumineux.",
+          "Un contrebandier éclairé et nommé par un douanier remet sa marchandise et retourne au départ.",
+          "Inverser les rôles à mi-temps ; compter les marchandises passées."
+        ],
+        "safety": [
+          "Reconnaître le terrain de jour : pas de trous, ruisseaux ni falaises.",
+          "Un adulte à chaque coin du terrain ; un signal sonore arrête le jeu.",
+          "On marche vite, on ne court pas dans le noir."
+        ]
+      },
+      "en": {
+        "name": "Smugglers (night game)",
+        "summary": "Smugglers carry goods from one camp to the other; customs officers with flashlights stop them by lighting them up.",
+        "material": ["Flashlights for the customs officers", "“Goods” cards", "Glow sticks to mark the area"],
+        "steps": [
+          "Mark the area and the two camps with glow sticks.",
+          "A smuggler lit up and named by an officer hands over the goods and returns to the start.",
+          "Switch roles at half-time; count the goods that got through."
+        ],
+        "safety": [
+          "Walk the area in daylight: no holes, streams or cliffs.",
+          "An adult at each corner; a sound signal stops the game.",
+          "Walk fast; no running in the dark."
+        ]
+      }
+    },
+    {
+      "key": "game_morse_lights",
+      "category": "game",
+      "branches": ["scouts"],
+      "tags": ["outdoor", "night", "team", "camp"],
+      "duration": { "min": 20, "max": 30 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Messages lumineux en morse",
+        "summary": "Deux équipes séparées par une distance s’envoient des messages en morse à la lampe de poche et doivent exécuter les consignes reçues.",
+        "material": ["Lampes de poche", "Tableaux du morse", "Papier et crayons"]
+      },
+      "en": {
+        "name": "Morse light signals",
+        "summary": "Two teams some distance apart send each other Morse messages by flashlight and must carry out the instructions received.",
+        "material": ["Flashlights", "Morse charts", "Paper and pencils"]
+      }
+    },
+    {
+      "key": "game_giant_stratego",
+      "category": "game",
+      "branches": ["cubs", "scouts"],
+      "tags": ["outdoor", "active", "team", "camp"],
+      "players": { "min": 16 },
+      "duration": { "min": 45, "max": 75 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Stratego géant",
+        "summary": "Chaque joueur porte une carte de grade cachée ; quand deux adversaires se touchent, ils comparent et le plus haut grade gagne. Il faut trouver le drapeau adverse.",
+        "material": ["Cartes de grade numérotées", "Deux drapeaux", "Un arbitre par camp"],
+        "steps": [
+          "Distribuer les grades (1 à 10, plus un espion et des bombes qui gardent le drapeau).",
+          "Deux joueurs qui se touchent vont voir l’arbitre ; le perdant retourne à son camp chercher une nouvelle carte.",
+          "L’équipe qui rapporte le drapeau adverse gagne."
+        ]
+      },
+      "en": {
+        "name": "Giant Stratego",
+        "summary": "Each player carries a hidden rank card; when two opponents tag, they compare and the higher rank wins. The goal is the other team’s flag.",
+        "material": ["Numbered rank cards", "Two flags", "One referee per side"],
+        "steps": [
+          "Hand out ranks (1 to 10, plus a spy and bombs guarding the flag).",
+          "Two players who tag go to the referee; the loser returns to base for a new card.",
+          "The team that brings back the other flag wins."
+        ]
+      }
+    },
+    {
+      "key": "game_photo_rally",
+      "category": "game",
+      "branches": ["scouts"],
+      "tags": ["outdoor", "team", "active"],
+      "duration": { "min": 45, "max": 90 },
+      "supervision": "standard",
+      "origin": "new",
+      "review": "draft",
+      "legacy_names": [],
+      "fr": {
+        "name": "Rallye photo",
+        "summary": "Chaque équipe reçoit une liste de défis à photographier (la patrouille en pyramide, un nœud de chaise sur un arbre, un objet rouge…) dans une zone délimitée.",
+        "material": ["Un appareil photo ou téléphone par équipe", "Liste de défis"],
+        "safety": [
+          "Zone délimitée, équipe toujours ensemble, heure de retour fixe.",
+          "Aucune photo de personnes extérieures au groupe."
+        ]
+      },
+      "en": {
+        "name": "Photo rally",
+        "summary": "Each team gets a list of challenges to photograph (the patrol as a pyramid, a bowline on a tree, something red…) within a bounded area.",
+        "material": ["One camera or phone per team", "Challenge list"],
+        "safety": [
+          "Bounded area, team always together, fixed return time.",
+          "No pictures of people outside the group."
+        ]
+      }
+    }
+  ]
+}
