@@ -641,6 +641,7 @@ test('a refresh cannot replace queued offline points with older server totals', 
   await saveOfflineData('POST', {
     url: 'http://localhost:3000/api/v1/points', body: '[]', userId: 'leader-1', organizationId: '1',
   });
+  ajax.API.getNoCache.mockClear();
   await page.refreshPointsData({ forceRefresh: true });
   expect(participantTotalText(1)).toBe('15');
   expect(ajax.API.getNoCache).not.toHaveBeenCalled();
@@ -660,5 +661,27 @@ test('an older attendance cache cannot overwrite the shared roster departure', a
   expect(participantTotalText(2)).toBe('5');
   expect(page.store.getParticipantTotal(1)).toBe(10);
   expect(ajax.getAttendance).not.toHaveBeenCalled();
+  page.destroy();
+});
+
+test('opening points online shows the server totals, not totals a camp preparation cached', async () => {
+  seedStandardData();
+  // A preparation cached a total that counted earlier scout years.
+  await setCachedData('manage_points_data', {
+    participants: [{ id: 1, first_name: 'Alex', last_name: 'River', group_id: GROUP_ID, total_points: 43 }],
+    groups: [{ id: GROUP_ID, name: 'Wolves', total_points: 27 }],
+  }, 86400000);
+  ajax.API.getNoCache.mockResolvedValue({
+    success: true,
+    participants: [{ id: 1, first_name: 'Alex', last_name: 'River', group_id: GROUP_ID, total_points: 3 }],
+    groups: [{ id: GROUP_ID, name: 'Wolves', total_points: 2 }],
+  });
+
+  const { page } = await initPage();
+
+  expect(ajax.API.getNoCache).toHaveBeenCalledWith('v1/points');
+  expect(participantTotalText(1)).toBe('3');
+  const header = document.querySelector(`.group-header[data-group-id="${GROUP_ID}"] .group-header__points`);
+  expect(header.textContent).toContain(`${tr('group_points')}: 2`);
   page.destroy();
 });

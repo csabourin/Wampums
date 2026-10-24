@@ -83,8 +83,11 @@ export class ManagePoints {
       this.unsubscribeStore?.();
       this.unsubscribeStore = this.store.subscribe((changedIds) => this.onStoreChange(changedIds));
       debugLog('ManagePoints initialized');
+      // Online, totals come from the server: a cache written elsewhere (camp
+      // preparation, another screen) only bridges the wait. Queued awards
+      // still keep their local copy (see refreshPointsData).
       if (navigator.onLine) {
-        await this.refreshPointsData();
+        await this.refreshPointsData({ forceRefresh: true });
       }
     } catch (error) {
       debugError('Error initializing manage points:', error);
