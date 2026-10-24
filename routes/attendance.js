@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, allowDemoSandbox, withScoutYear } = require('../middleware/auth');
 const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
-const { allEnrolledInUnit } = require('../services/unitParticipants');
+const { allEnrolledInUnit, lockParticipantsInUnit } = require('../services/unitParticipants');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateDate, validateAttendanceStatus, checkValidation, validateIdQuery, validateDateOptional } = require('../middleware/validation');
 const { getPointSystemRules } = require('../utils');
@@ -13,29 +13,6 @@ const { calculateAttendancePoints, handleOrganizationResolutionError } = require
 const MAX_ACTIVITY_SPAN_DAYS = 31;
 const HTTP_NOT_FOUND = 404;
 const HTTP_CONFLICT = 409;
-
-/**
- * Serialize attendance writes for these youths until the transaction ends.
- * The point adjustment compares the new status with the recorded one; a
- * youth's first mark of the day has no attendance row to lock, so two devices
- * (or two tabs replaying one offline outbox) would both read "no status" and
- * both award the day's points. Locking the enrollment rows, in id order so
- * concurrent batches cannot deadlock, makes the second writer read the first
- * one's status.
- * @param {Object} client - Client inside an open transaction
- * @param {number} organizationId - Unit
- * @param {Array<number|string>} participantIds - Youths about to be marked
- * @returns {Promise<void>}
- */
-async function lockAttendanceParticipants(client, organizationId, participantIds) {
-  await client.query(
-    `SELECT 1 FROM participant_enrollments
-      WHERE organization_id = $1 AND participant_id = ANY($2::int[])
-      ORDER BY participant_id, scout_year_id
-      FOR UPDATE`,
-    [organizationId, participantIds]
-  );
-}
 
 /**
  * Attendance points a status earns under the unit's rules.
@@ -228,7 +205,7 @@ module.exports = (pool, logger) => {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
-        await lockAttendanceParticipants(client, organizationId, [req.body.participant_id]);
+        await lockParticipantsInUnit(client, organizationId, [req.body.participant_id]);
 
         // The recorded status is the authoritative baseline for point adjustments.
         // Client-supplied previous_status is ignored: the individual and group UI
@@ -449,7 +426,7 @@ module.exports = (pool, logger) => {
           'SELECT participant_id FROM attendance WHERE organization_id = $1 AND date = $2::date',
           [organizationId, date]
         );
-        await lockAttendanceParticipants(client, organizationId, marked.rows.map((row) => row.participant_id));
+        await lockParticipantsInUnit(client, organizationId, marked.rows.map((row) => row.participant_id));
 
         const result = await client.query(
           `DELETE FROM attendance
@@ -637,7 +614,7 @@ module.exports = (pool, logger) => {
       try {
         await client.query('BEGIN');
 
-        await lockAttendanceParticipants(client, organizationId, participantIds);
+        await lockParticipantsInUnit(client, organizationId, participantIds);
         // Get point system rules for this organization
         const pointRules = await getPointSystemRules(client, organizationId);
         const pointUpdates = [];
