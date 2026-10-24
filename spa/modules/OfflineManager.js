@@ -992,11 +992,13 @@ export class OfflineManager {
     }
     assertScope();
     const cacheKeys = [];
-    const cache = async (key, data, duration) => {
+    // `sources` names the API paths an entry holds, so a later write that
+    // changes them (an award changes every total) clears it like any API read.
+    const cache = async (key, data, duration, sources) => {
       assertScope();
       const scopedKey = buildScopedCacheKey(key);
       // Required writes must reject on quota/storage errors, unlike optional prefetches.
-      await setCachedData(scopedKey, data, duration);
+      await setCachedData(scopedKey, data, duration, sources ? { sources } : undefined);
       cacheKeys.push(scopedKey);
     };
     const preparationKey = activityId || `manual_${startDate}`;
@@ -1053,8 +1055,9 @@ export class OfflineManager {
 
       // Step 2: Cache participants and groups
       this.updatePreparationProgress(2, this.getTranslation('offline.cachingParticipants'));
-      await cache('participants_v2', { success: true, data: bulkData.participants }, duration);
-      await cache('groups', { success: true, data: bulkData.groups }, duration);
+      await cache('participants_v2', { success: true, data: bulkData.participants }, duration,
+        ['/api/v1/participants', '/api/v1/points']);
+      await cache('groups', { success: true, data: bulkData.groups }, duration, ['/api/v1/groups', '/api/v1/points']);
       await cache(buildApiCacheKey('v1/participants'), { success: true, data: bulkData.participants }, duration);
       await cache(buildApiCacheKey('v1/groups'), { success: true, data: bulkData.groups }, duration);
 
