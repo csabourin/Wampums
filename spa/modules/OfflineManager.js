@@ -81,6 +81,13 @@ const SCREEN_CACHE_PREFIXES = {
   badges: ['badge_', '/api/badge']
 };
 
+/**
+ * Web Lock that lets one tab at a time replay the outbox. Every tab of the app
+ * shares one IndexedDB outbox; two tabs replaying it together would send each
+ * change twice and could deliver an older attendance status after a newer one.
+ */
+const OUTBOX_REPLAY_LOCK = 'wampums-offline-outbox-replay';
+
 /** Replay answers that will never succeed: the change is dropped, and said so. */
 const NON_RETRIABLE_STATUSES = new Set([400, 403, 404, 409, 410, 422]);
 
@@ -447,10 +454,35 @@ export class OfflineManager {
      * `offlineMutationRejected` and its cached resource forgotten, so the
      * screens stop showing what was never saved.
      *
+     * Only one tab replays at a time. While another tab holds the outbox,
+     * this one sends nothing and reports nothing: that tab announces the
+     * outcome, and this one retries on its next sync.
+     *
      * @returns {Promise<{replayed: number, rejected: Array<{url: string, method: string, kind: string, mutationId: string, status: number}>}>}
      *   How many changes the server accepted, and the ones it refused
      */
-  async replayPendingMutations() {
+  replayPendingMutations() {
+    const locks = globalThis.navigator?.locks;
+    if (typeof locks?.request !== 'function') {
+      // Browsers without Web Locks keep the per-tab guard; the server's
+      // receipts and attendance locks still keep a double send harmless.
+      return this.replayOutbox();
+    }
+    return locks.request(OUTBOX_REPLAY_LOCK, { ifAvailable: true }, (lock) => {
+      if (!lock) {
+        debugLog('OfflineManager: Another tab is replaying the outbox');
+        return { replayed: 0, rejected: [] };
+      }
+      return this.replayOutbox();
+    });
+  }
+
+  /**
+   * Send the outbox in order. Call through replayPendingMutations, which
+   * keeps other tabs from sending the same changes at the same time.
+   * @returns {Promise<{replayed: number, rejected: Array<Object>}>} Outcome of the replay
+   */
+  async replayOutbox() {
     const nothing = { replayed: 0, rejected: [] };
     const pendingData = await getOfflineData();
     if (!pendingData || pendingData.length === 0) {

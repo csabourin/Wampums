@@ -647,3 +647,86 @@ describe('Camp preparation keeps a trustworthy snapshot on this device', () => {
     expect(manager.preparedActivities.size).toBe(0);
   });
 });
+
+describe('Several open tabs share one outbox', () => {
+  /** A browser LockManager: one holder per name; ifAvailable answers null while held. */
+  function installWebLocks() {
+    const held = new Set();
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        async request(name, _options, callback) {
+          if (held.has(name)) {
+            return callback(null);
+          }
+          held.add(name);
+          try {
+            return await callback({ name });
+          } finally {
+            held.delete(name);
+          }
+        },
+      },
+    });
+  }
+
+  afterEach(() => {
+    delete navigator.locks;
+  });
+
+  it('sends each queued change once when two tabs sync at the same moment, in the order it was made', async () => {
+    installWebLocks();
+    const firstTab = new OfflineManager();
+    const secondTab = new OfflineManager();
+    firstTab.isOffline = true;
+    await firstTab.queueMutation('http://localhost:3000/api/v1/attendance', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participant_id: 1, date: '2026-07-15', status: 'present' }),
+    });
+    await firstTab.queueMutation('http://localhost:3000/api/v1/attendance', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participant_id: 1, date: '2026-07-15', status: 'absent' }),
+    });
+    global.fetch.mockImplementation(() => Promise.resolve(makeJsonResponse({ success: true })));
+
+    const [first, second] = await Promise.all([
+      firstTab.replayPendingMutations(),
+      secondTab.replayPendingMutations(),
+    ]);
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(global.fetch.mock.calls.map(([, init]) => JSON.parse(init.body).status)).toEqual(['present', 'absent']);
+    expect(first.replayed + second.replayed).toBe(2);
+    expect(await getOfflineData()).toHaveLength(0);
+  });
+
+  it('a tab that finds the outbox busy announces nothing', async () => {
+    installWebLocks();
+    const firstTab = new OfflineManager();
+    const secondTab = new OfflineManager();
+    firstTab.isOffline = true;
+    await firstTab.queueMutation('http://localhost:3000/api/v1/attendance', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participant_id: 1, date: '2026-07-15', status: 'present' }),
+    });
+    let answer;
+    global.fetch.mockImplementation(() => new Promise((resolve) => { answer = resolve; }));
+    firstTab.isOffline = false;
+    secondTab.isOffline = false;
+    const toasts = captureWindowEvents('showToast');
+
+    const firstSync = firstTab.syncPendingData();
+    for (let tick = 0; tick < 50 && !answer; tick += 1) {
+      // eslint-disable-next-line no-await-in-loop -- Wait until the first tab is sending.
+      await new Promise((resolve) => { setTimeout(resolve, 0); });
+    }
+    await secondTab.syncPendingData();
+    expect(toasts.seen).toEqual([]);
+
+    answer(makeJsonResponse({ success: true }));
+    await firstSync;
+    toasts.stop();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(toasts.seen).toHaveLength(1);
+  });
+});
