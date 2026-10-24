@@ -1,11 +1,14 @@
 /**
- * Real PostgreSQL transactions: when two devices (or two tabs replaying the same
- * offline outbox) mark the same youth at the same moment, the day's attendance
- * points are awarded once.
+ * Real PostgreSQL transactions: a day's attendance points are granted once.
+ * Two devices (or two tabs replaying the same offline outbox) marking the same
+ * youth at the same moment award them once, and deleting a day takes back
+ * exactly what it granted, so taking the day again cannot award them twice.
  */
 const express = require('express');
 const request = require('supertest');
 const { Pool } = require('pg');
+const { readFileSync } = require('node:fs');
+const path = require('node:path');
 
 jest.mock('../middleware/auth', () => ({
   authenticate: (req, _res, next) => { req.user = { id: '550e8400-e29b-41d4-a716-446655440000' }; next(); },
@@ -43,6 +46,7 @@ describeWithDatabase('attendance points under simultaneous marking', () => {
       INSERT INTO participant_enrollments VALUES (1, 1, 1, 'active'), (2, 1, 1, 'active'), (3, 1, 1, 'active');
       INSERT INTO participant_group_assignments VALUES (1, 1, 7), (2, 1, 7), (3, 1, 7);
     `);
+    await pool.query(readFileSync(path.join(__dirname, '../migrations/047_attendance_points_awarded.sql'), 'utf8'));
     app = express();
     app.use(express.json());
     app.use('/api/v1/attendance', require('../routes/attendance')(pool, logger));
@@ -87,6 +91,41 @@ describeWithDatabase('attendance points under simultaneous marking', () => {
       request(app).post('/api/v1/attendance').send({ participant_id: 1, date: '2026-07-17', status: 'absent' }),
       request(app).post('/api/v1/attendance').send({ participant_id: 1, date: '2026-07-17', status: 'absent' }),
     ]);
+    expect(await pointsOf(1)).toBe(before - 1);
+  });
+
+  const mark = (participantId, date, status) => request(app).post('/api/v1/attendance')
+    .send({ participant_id: participantId, date, status }).expect(201);
+  const deleteDay = (date) => request(app).delete(`/api/v1/attendance?date=${date}`).expect(200);
+
+  test('deleting a day and taking it again leaves the day\'s point counted once', async () => {
+    const before = await pointsOf(2);
+    await mark(2, '2026-07-20', 'present');
+    await deleteDay('2026-07-20');
+    expect(await pointsOf(2)).toBe(before);
+    await mark(2, '2026-07-20', 'present');
+    expect(await pointsOf(2)).toBe(before + 1);
+  });
+
+  test('a carried-forward day grants nothing, so deleting or changing it takes nothing back', async () => {
+    await mark(3, '2026-07-21', 'present');
+    const before = await pointsOf(3);
+    await request(app).post('/api/v1/attendance/carry-forward')
+      .send({ fromDate: '2026-07-21', toDate: '2026-07-22' }).expect(200);
+    await request(app).post('/api/v1/attendance/carry-forward')
+      .send({ fromDate: '2026-07-21', toDate: '2026-07-23' }).expect(200);
+    expect(await pointsOf(3)).toBe(before);
+
+    await mark(3, '2026-07-22', 'absent');
+    await deleteDay('2026-07-23');
+    expect(await pointsOf(3)).toBe(before);
+  });
+
+  test('a day recorded before the ledger existed takes back its status\'s points when deleted', async () => {
+    await pool.query("INSERT INTO attendance (participant_id, date, status, organization_id) VALUES (1, '2026-07-24', 'present', 1)");
+    await pool.query('INSERT INTO points (participant_id, organization_id, value) VALUES (1, 1, 1)');
+    const before = await pointsOf(1);
+    await deleteDay('2026-07-24');
     expect(await pointsOf(1)).toBe(before - 1);
   });
 });

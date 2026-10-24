@@ -45,6 +45,7 @@ describeWithDatabase('points replay receipts in PostgreSQL', () => {
       CREATE TABLE permission_slips (activity_id integer, organization_id integer, participant_id integer, status text);
       CREATE TABLE reunion_preparations (organization_id integer, date date);
       CREATE TABLE year_plan_meetings (organization_id integer, meeting_date date, activity_id integer);
+      CREATE TABLE organization_settings (organization_id integer, setting_key text, setting_value jsonb);
       INSERT INTO activities VALUES (5, 1, 'Camp des Érables', '2026-07-15', '2026-07-20', true),
         (6, 1, 'Jeux du parc', '2026-07-15', '2026-07-15', true), (99, 2, 'Other unit', '2026-07-15', '2026-07-20', true);
       INSERT INTO permission_slips VALUES (5, 1, 1, 'signed'), (5, 1, 2, 'pending');
@@ -55,6 +56,7 @@ describeWithDatabase('points replay receipts in PostgreSQL', () => {
     await pool.query('INSERT INTO users VALUES ($1)', [USER_ID]);
     await pool.query(readFileSync(path.join(__dirname, '../migrations/044_point_mutation_receipts.sql'), 'utf8'));
     await pool.query(readFileSync(path.join(__dirname, '../migrations/045_attendance_on_site.sql'), 'utf8'));
+    await pool.query(readFileSync(path.join(__dirname, '../migrations/047_attendance_points_awarded.sql'), 'utf8'));
     app = express();
     app.use(express.json());
     app.use('/api/v1/points', require('../routes/points')(pool, { info: () => {} }));
