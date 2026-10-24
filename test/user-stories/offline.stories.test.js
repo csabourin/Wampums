@@ -670,8 +670,32 @@ describe('Several open tabs share one outbox', () => {
     });
   }
 
+  /** BroadcastChannel between tabs: a message reaches every other member of the channel. */
+  function installBroadcastChannel() {
+    const members = new Set();
+    global.BroadcastChannel = class BroadcastChannel {
+      constructor(name) {
+        this.name = name;
+        members.add(this);
+      }
+
+      postMessage(data) {
+        members.forEach((member) => {
+          if (member !== this && member.name === this.name) {
+            queueMicrotask(() => member.onmessage?.({ data }));
+          }
+        });
+      }
+
+      close() {
+        members.delete(this);
+      }
+    };
+  }
+
   afterEach(() => {
     delete navigator.locks;
+    delete global.BroadcastChannel;
   });
 
   it('sends each queued change once when two tabs sync at the same moment, in the order it was made', async () => {
@@ -728,5 +752,39 @@ describe('Several open tabs share one outbox', () => {
     toasts.stop();
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(toasts.seen).toHaveLength(1);
+  });
+
+  it('the tab that queued a change hears whether another tab\'s replay saved or refused it', async () => {
+    installWebLocks();
+    installBroadcastChannel();
+    const queuingTab = new OfflineManager();
+    const replayingTab = new OfflineManager();
+    queuingTab.listenToOtherTabs();
+    replayingTab.listenToOtherTabs();
+    queuingTab.isOffline = true;
+    const saved = await queuingTab.queueMutation('http://localhost:3000/api/v1/attendance', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participant_id: 1, date: '2026-07-15', status: 'present' }),
+    });
+    const refused = await queuingTab.queueMutation('http://localhost:3000/api/v1/badges/history', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participant_id: 1, entries: [] }),
+    });
+    global.fetch.mockImplementation((url) => Promise.resolve(url.endsWith('/badges/history')
+      ? makeJsonResponse({ success: false }, { status: 400 })
+      : makeJsonResponse({ success: true })));
+    const heard = jest.spyOn(queuingTab, 'dispatchEvent');
+
+    await replayingTab.replayPendingMutations();
+    await flushPromises();
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+
+    expect(heard).toHaveBeenCalledWith('offlineMutationReplayed', expect.objectContaining({ mutationId: saved }));
+    expect(heard).toHaveBeenCalledWith('offlineMutationRejected', expect.objectContaining({ mutationId: refused, kind: 'badges', status: 400 }));
+    // Its screens refresh and its pending count empties once the other tab is done.
+    expect(heard).toHaveBeenCalledWith('syncStatusChanged', { isSyncing: false });
+    expect(queuingTab.pendingMutations).toHaveLength(0);
+    queuingTab.outboxChannel.close();
+    replayingTab.outboxChannel.close();
   });
 });

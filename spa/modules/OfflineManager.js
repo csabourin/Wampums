@@ -88,6 +88,16 @@ const SCREEN_CACHE_PREFIXES = {
  */
 const OUTBOX_REPLAY_LOCK = 'wampums-offline-outbox-replay';
 
+/**
+ * Channel on which the tab that replays the outbox tells the other tabs what
+ * became of each change, so the screen that queued one in another tab still
+ * closes, reloads or reopens for correction.
+ */
+const OUTBOX_CHANNEL = 'wampums-offline-outbox';
+
+/** Outcomes a tab relays to the others, as they are dispatched on its window. */
+const RELAYED_OUTBOX_EVENTS = new Set(['offlineMutationReplayed', 'offlineMutationRejected']);
+
 /** Replay answers that will never succeed: the change is dropped, and said so. */
 const NON_RETRIABLE_STATUSES = new Set([400, 403, 404, 409, 410, 422]);
 
@@ -153,6 +163,7 @@ export class OfflineManager {
 
     // Check for pending mutations on init
     this.checkPendingMutations();
+    this.listenToOtherTabs();
     // A radio can reconnect without a browser online event (or a first replay
     // can fail on a captive portal). Retry while the authenticated SPA is open.
     this.syncTimer ??= window.setInterval(() => {
@@ -468,13 +479,53 @@ export class OfflineManager {
       // receipts and attendance locks still keep a double send harmless.
       return this.replayOutbox();
     }
-    return locks.request(OUTBOX_REPLAY_LOCK, { ifAvailable: true }, (lock) => {
+    return locks.request(OUTBOX_REPLAY_LOCK, { ifAvailable: true }, async (lock) => {
       if (!lock) {
         debugLog('OfflineManager: Another tab is replaying the outbox');
         return { replayed: 0, rejected: [] };
       }
-      return this.replayOutbox();
+      const outcome = await this.replayOutbox();
+      // The tabs that stood aside refresh their counts and screens too.
+      this.outboxChannel?.postMessage({ type: 'outboxReplayFinished' });
+      return outcome;
     });
+  }
+
+  /**
+   * Hear what the tab replaying the outbox did with the changes this tab
+   * queued: their screens listen on this tab's window.
+   */
+  listenToOtherTabs() {
+    if (this.outboxChannel || typeof globalThis.BroadcastChannel !== 'function') {
+      return;
+    }
+    this.outboxChannel = new globalThis.BroadcastChannel(OUTBOX_CHANNEL);
+    this.outboxChannel.onmessage = (message) => { void this.receiveOutboxEvent(message.data); };
+  }
+
+  /**
+   * Dispatch an outcome on this tab's window and relay it to the other tabs.
+   * @param {string} eventName - offlineMutationReplayed or offlineMutationRejected
+   * @param {Object} detail - The change: url, method, mutationId (and kind, status when refused)
+   */
+  announceOutboxEvent(eventName, detail) {
+    this.dispatchEvent(eventName, detail);
+    this.outboxChannel?.postMessage({ type: eventName, detail });
+  }
+
+  /**
+   * Replay in this tab what another tab's replay announced. Cached copies are
+   * shared, so the replaying tab already cleared them.
+   * @param {{type: string, detail?: Object}} message - Relayed outcome
+   * @returns {Promise<void>}
+   */
+  async receiveOutboxEvent(message) {
+    if (RELAYED_OUTBOX_EVENTS.has(message?.type)) {
+      this.dispatchEvent(message.type, message.detail);
+    } else if (message?.type === 'outboxReplayFinished') {
+      await this.updatePendingCount();
+      this.dispatchEvent('syncStatusChanged', { isSyncing: false });
+    }
   }
 
   /**
@@ -540,7 +591,7 @@ export class OfflineManager {
             await deleteOfflineData(record.key);
             replayed += 1;
             replayedPoints ||= normalizeApiPath(record.data.url) === '/api/v1/points';
-            this.dispatchEvent('offlineMutationReplayed', {
+            this.announceOutboxEvent('offlineMutationReplayed', {
               url: record.data.url,
               method,
               mutationId: record.data.idempotencyKey
@@ -588,7 +639,7 @@ export class OfflineManager {
     // queued a change recognizes it by its mutationId.
     await Promise.all(rejected.map((change, index) =>
       this.forgetRejectedResource(change, refusedBodies[index], refusedScopes[index])));
-    rejected.forEach((change) => this.dispatchEvent('offlineMutationRejected', change));
+    rejected.forEach((change) => this.announceOutboxEvent('offlineMutationRejected', change));
 
     if (replayedPoints && !await this.hasPendingPoints()) {
       await clearPointsRelatedCaches();

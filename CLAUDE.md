@@ -440,6 +440,9 @@ Une présence verrouille l'inscription du jeune avant de comparer son statut : d
 qui marquent le même jeune au même moment ne donnent les points de présence qu'une fois.
 Les onglets ouverts partagent une seule file : un seul à la fois la rejoue (Web Lock
 `wampums-offline-outbox-replay`), les autres n'envoient rien et réessaient plus tard.
+L'onglet qui rejoue relaie `offlineMutationReplayed` / `offlineMutationRejected` aux autres
+(BroadcastChannel `wampums-offline-outbox`) : l'écran qui a mis un changement en file
+l'apprend même si un autre onglet l'a envoyé.
 `attendance.points_awarded` (migration 047) retient les points qu'une présence a donnés :
 un changement de statut ou une journée supprimée reprend exactement ceux-là (une journée
 reprise de la veille n'en donne aucun). Un niveau de badge donne ses points une seule fois
