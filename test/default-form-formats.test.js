@@ -10,11 +10,12 @@ const english = require('../lang/en.json');
 const french = require('../lang/fr.json');
 
 describe('standard form catalog', () => {
-  test('contains the five Railway template formats with usable fields', () => {
+  test('contains the template formats and the unit information form, with usable fields', () => {
     expect(defaultFormCatalog.forms.map((form) => form.form_type).sort()).toEqual([
       'acceptation_risque',
       'fiche_sante',
       'incident_report',
+      'organization_info',
       'parent_guardian',
       'participant_registration',
     ]);
@@ -50,6 +51,19 @@ describe('standard form catalog', () => {
       .toMatchObject({ can_view: true, can_submit: true, can_edit: true, can_approve: true });
     expect(permissions.find((permission) => permission.role_name === 'demoadmin'))
       .toMatchObject({ can_view: true, can_submit: false, can_edit: false, can_approve: false });
+  });
+
+  test('the unit information form is for staff only and asks for a logo address, not a file', () => {
+    expect(getDefaultPermissionPolicy('organization_info')
+      .some((permission) => permission.role_name === 'parent')).toBe(false);
+
+    const form = defaultFormCatalog.forms.find((entry) => entry.form_type === 'organization_info');
+    expect(form.status).toBe('published');
+    expect(form.display_context).not.toContain('participant');
+    const fields = Object.fromEntries(form.form_structure.fields.map((field) => [field.name, field]));
+    expect(fields.logo).toMatchObject({ type: 'text' });
+    expect(fields.logo.required).toBeFalsy();
+    expect(fields.name).toMatchObject({ required: true });
   });
 
   test('every standard form label is translated in English and French', () => {

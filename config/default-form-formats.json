@@ -2149,6 +2149,100 @@
           "can_approve": true
         }
       ]
+    },
+    {
+      "form_type": "organization_info",
+      "display_type": null,
+      "display_name": null,
+      "description": null,
+      "instructions": null,
+      "category": null,
+      "status": "published",
+      "is_required": false,
+      "display_order": 0,
+      "tags": null,
+      "display_context": [
+        "organization",
+        "admin_panel",
+        "form_builder"
+      ],
+      "form_structure": {
+        "fields": [
+          {
+            "name": "name",
+            "type": "text",
+            "label": "Name",
+            "required": true
+          },
+          {
+            "name": "unit",
+            "type": "text",
+            "label": "Unit",
+            "required": true
+          },
+          {
+            "name": "endroit",
+            "type": "text",
+            "label": "Location",
+            "required": true
+          },
+          {
+            "name": "district",
+            "type": "text",
+            "label": "District",
+            "required": true
+          },
+          {
+            "name": "meeting_day",
+            "type": "select",
+            "label": "Meeting Day",
+            "options": [
+              {
+                "label": "Monday",
+                "value": "Monday"
+              },
+              {
+                "label": "Tuesday",
+                "value": "Tuesday"
+              },
+              {
+                "label": "Wednesday",
+                "value": "Wednesday"
+              },
+              {
+                "label": "Thursday",
+                "value": "Thursday"
+              },
+              {
+                "label": "Friday",
+                "value": "Friday"
+              },
+              {
+                "label": "Saturday",
+                "value": "Saturday"
+              },
+              {
+                "label": "Sunday",
+                "value": "Sunday"
+              }
+            ],
+            "required": true
+          },
+          {
+            "name": "animateur_responsable",
+            "type": "text",
+            "label": "Responsible Animator",
+            "required": true
+          },
+          {
+            "name": "logo",
+            "type": "text",
+            "label": "unit_settings_logo_url"
+          }
+        ]
+      },
+      "versions": [],
+      "permissions": []
     }
   ]
 }

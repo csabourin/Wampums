@@ -5,6 +5,8 @@ const defaultFormCatalog = require('../config/default-form-formats.json');
 const APPROVER_ROLES = ['district', 'unitadmin', 'admin', 'administration'];
 const STAFF_EDITOR_ROLES = ['leader', 'animation'];
 const INSTALLED_DISPLAY_TYPE = 'public';
+/** Formats about the unit or its staff, never about a family's child. */
+const STAFF_ONLY_FORM_TYPES = new Set(['incident_report', 'organization_info']);
 
 /**
  * Choose versions for a format that has no version history. Preserved tenant
@@ -37,7 +39,7 @@ function getInitialVersions(form, installedStructure, preservedExisting) {
  * @returns {Array<Object>} Permission rows keyed by role name
  */
 function getDefaultPermissionPolicy(formType) {
-  const isParticipantForm = formType !== 'incident_report';
+  const isParticipantForm = !STAFF_ONLY_FORM_TYPES.has(formType);
   const permissions = [
     ...APPROVER_ROLES.map((roleName) => ({
       role_name: roleName,
@@ -92,17 +94,22 @@ function getDefaultPermissionPolicy(formType) {
  *
  * @param {Object} client - Connected PostgreSQL client
  * @param {number} organizationId - Target organization
+ * @param {Object} [options]
+ * @param {string[]} [options.formTypes] - Install only these catalog formats
  * @returns {Promise<{created: number, preserved: number}>} Install summary
  */
-async function installDefaultFormFormats(client, organizationId) {
+async function installDefaultFormFormats(client, organizationId, { formTypes } = {}) {
   if (!Number.isSafeInteger(Number(organizationId)) || Number(organizationId) < 0) {
     throw new Error('A valid organization ID is required to install default forms');
   }
 
   let created = 0;
   let preserved = 0;
+  const forms = Array.isArray(formTypes)
+    ? defaultFormCatalog.forms.filter((form) => formTypes.includes(form.form_type))
+    : defaultFormCatalog.forms;
 
-  for (const form of defaultFormCatalog.forms) {
+  for (const form of forms) {
     const existing = await client.query(
       `SELECT id, current_version_id, form_structure
        FROM organization_form_formats

@@ -909,15 +909,19 @@ module.exports = (pool, logger) => {
    *         description: Unauthorized
    */
   router.post('/', authenticate, blockDemoRoles, requirePermission('org.create'), asyncHandler(async (req, res) => {
-    const client = await pool.connect();
-
-    const { name, ...otherData } = req.body;
-    const userId = req.user.id;
-
-    if (!name) {
-      client.release();
-      return res.status(400).json({ success: false, message: 'Organization name is required' });
+    const input = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+      ? req.body
+      : {};
+    // The same rules as Unit Settings: only known fields, a logo that is a URL.
+    const validation = validateOrganizationInfo(input);
+    if (validation.errors.length > 0) {
+      return errorResponse(res, 'Invalid organization settings', 400, validation.errors);
     }
+
+    const orgInfo = validation.value;
+    const { name } = orgInfo;
+    const userId = req.user.id;
+    const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
@@ -946,7 +950,6 @@ module.exports = (pool, logger) => {
       await installDefaultFormFormats(client, newOrganizationId);
 
       // Insert organization settings
-      const orgInfo = { name, ...otherData };
       await client.query(
         `INSERT INTO organization_settings (organization_id, setting_key, setting_value)
          VALUES ($1, 'organization_info', $2)`,

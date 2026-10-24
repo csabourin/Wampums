@@ -190,6 +190,85 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
     expect(response.status).toBe(400);
   });
 
+  test('a new unit receives the unit information form, closed to parents', async () => {
+    const response = await create('Unité avec fiche d’unité');
+    const organizationId = response.body.organization_id;
+
+    const format = await pool.query(
+      `SELECT id, status, display_context, current_version_id
+       FROM organization_form_formats
+       WHERE organization_id = $1 AND form_type = 'organization_info'`,
+      [organizationId]
+    );
+    expect(format.rows).toHaveLength(1);
+    expect(format.rows[0]).toMatchObject({ status: 'published', current_version_id: expect.any(Number) });
+    expect(format.rows[0].display_context).toEqual(expect.arrayContaining(['organization']));
+
+    const parentAccess = await one(
+      `SELECT COUNT(*)::int FROM form_permissions fp JOIN roles r ON r.id = fp.role_id
+       WHERE fp.form_format_id = $1 AND r.role_name = 'parent'`,
+      [format.rows[0].id]
+    );
+    expect(parentAccess).toBe(0);
+  });
+
+  test('keeps only the unit fields it knows, and refuses a logo that is not a web address', async () => {
+    const refused = await request(app).post('/api/v1/organizations')
+      .send({ name: 'Unité au logo local', logo: 'C:\\fakepath\\logo.png' });
+    expect(refused.status).toBe(400);
+    expect(refused.body.errors).toEqual([expect.objectContaining({ field: 'logo' })]);
+    expect(await one("SELECT COUNT(*)::int FROM organizations WHERE name = 'Unité au logo local'")).toBe(0);
+
+    const response = await request(app).post('/api/v1/organizations').send({
+      name: '  Unité complète  ',
+      unit: '12e Saint-Bivouac',
+      meeting_day: 'Tuesday',
+      logo: 'https://example.test/logo.png',
+      program_sections: ['not', 'a', 'unit', 'field'],
+    });
+    ids.created.push(response.body.organization_id);
+    expect(response.status).toBe(201);
+
+    const info = await one(
+      `SELECT setting_value FROM organization_settings
+       WHERE organization_id = $1 AND setting_key = 'organization_info'`,
+      [response.body.organization_id]
+    );
+    expect(info).toEqual({
+      name: 'Unité complète',
+      unit: '12e Saint-Bivouac',
+      meeting_day: 'Tuesday',
+      logo: 'https://example.test/logo.png',
+    });
+  });
+
+  test('the migration gives a unit its missing information form without restoring a form it removed', async () => {
+    const response = await create('Unité sans fiche d’unité');
+    const organizationId = response.body.organization_id;
+    await pool.query(
+      `DELETE FROM organization_form_formats
+       WHERE organization_id = $1 AND form_type IN ('organization_info', 'acceptation_risque')`,
+      [organizationId]
+    );
+
+    const migration = require('../migrations/046_install_organization_info_format');
+    const client = await pool.connect();
+    try {
+      await migration.up(client, { organizationIds: [organizationId] });
+      await migration.up(client, { organizationIds: [organizationId] });
+    } finally {
+      client.release();
+    }
+
+    const formTypes = await pool.query(
+      'SELECT form_type FROM organization_form_formats WHERE organization_id = $1 ORDER BY form_type',
+      [organizationId]
+    );
+    const types = formTypes.rows.map((row) => row.form_type);
+    expect(types.filter((type) => type === 'organization_info')).toHaveLength(1);
+    expect(types).not.toContain('acceptation_risque');
+  });
+
   test('deletes cleanly, which the RESTRICT side used to block', async () => {
     const response = await create('Unité éphémère');
     const organizationId = response.body.organization_id;
