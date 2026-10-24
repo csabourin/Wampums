@@ -881,15 +881,20 @@ export async function linkUserToParticipants(participantIds, userId = null) {
  * the request always goes to the network; offline, the cached copy is the
  * fallback.
  *
+ * With `ownChildren`, only the children linked to the account are listed, even
+ * for a leader who sees the whole unit elsewhere: the family dashboard.
+ *
  * @param {number} organizationId - Unit
- * @param {{includeMedication?: boolean}} [options] - Add per-child medication flags
+ * @param {{includeMedication?: boolean, ownChildren?: boolean}} [options] - Add per-child
+ *   medication flags; keep to the account's own children
  * @returns {Promise<Array<Object>>} Participants
  */
-export async function fetchParticipants(organizationId, { includeMedication = false } = {}) {
+export async function fetchParticipants(organizationId, { includeMedication = false, ownChildren = false } = {}) {
   const response = await API.get('v1/participants', {
     organization_id: organizationId,
     limit: 1000, // High limit to get all participants
-    ...(includeMedication ? { include: 'medication' } : {}) // per-child flags, parent dashboard only
+    ...(includeMedication ? { include: 'medication' } : {}), // per-child flags, parent dashboard only
+    ...(ownChildren ? { scope: 'linked' } : {}),
   }, { forceRefresh: includeMedication });
 
   // Extract data array from paginated response

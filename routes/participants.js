@@ -4,6 +4,7 @@ const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, getUserDataScope, withScoutYear } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { validateIdParam, validateIdQuery, validateNickname, checkValidation } = require('../middleware/validation');
+const { query: queryParam } = require('express-validator');
 const { ensureActiveScoutYear, flagRequiredFormsForReview } = require('../services/scoutYear');
 const {
   ACCESS_SOURCE,
@@ -16,6 +17,11 @@ const { isCalendarDate } = require('../utils/calendar-date');
 const { declaresMedication } = require('../utils/health-form');
 /** `GET /participants?include=medication` adds the per-child medication flags. */
 const MEDICATION_FLAGS_INCLUDE = 'medication';
+/**
+ * `GET /participants?scope=linked` lists only the caller's own children, even
+ * for a leader: the family dashboard of a leader who is also a parent.
+ */
+const LINKED_SCOPE = 'linked';
 const BAD_REQUEST_STATUS = 400;
 const NOT_FOUND_STATUS = 404;
 const DEFAULT_PAGE_SIZE = 50;
@@ -25,6 +31,7 @@ const validateListQuery = [
   validateIdQuery('page'),
   validateIdQuery('limit'),
   validateIdQuery('group_id'),
+  queryParam('scope').optional().isIn([LINKED_SCOPE]),
   checkValidation
 ];
 const { eraseParticipant } = require('../services/erasure');
@@ -213,11 +220,12 @@ module.exports = (pool) => {
     // Use data scope instead of hardcoded role checks
     // This eliminates technical debt of hardcoding role names
     const dataScope = await getUserDataScope(req, pool);
+    const linkedOnly = dataScope !== 'organization' || req.query.scope === LINKED_SCOPE;
 
     let query, params, countQuery, countParams;
 
-    // Organization-scoped users (staff): show ALL participants
-    if (dataScope === 'organization') {
+    // Organization-scoped users (staff): show ALL participants, unless they ask for their own
+    if (!linkedOnly) {
       // PERFORMANCE FIX: Use LEFT JOINs with aggregation to avoid correlated subqueries
       query = `
         SELECT p.*, pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
@@ -359,7 +367,7 @@ module.exports = (pool) => {
     // it (the parent dashboard) pay for the lookups.
     if (req.query.include === MEDICATION_FLAGS_INCLUDE) {
       const participantIds = participants.map((participant) => participant.id);
-      const readsWholeUnit = dataScope !== 'organization'
+      const readsWholeUnit = linkedOnly
         || (req.userPermissions || []).includes('medication.view');
       const readableIds = readsWholeUnit
         ? participantIds

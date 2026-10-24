@@ -1,0 +1,179 @@
+/*
+ * "To do for your family": one task per thing to do, naming the children it
+ * concerns. The filter's chosen child carries a check mark and a border as
+ * well as its colour, so its state never rests on colour alone.
+ */
+.family-tasks {
+  background: var(--color-surface, #fff);
+  border-radius: var(--radius-lg, 0.75rem);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-md, 1rem);
+}
+
+.family-tasks__title {
+  font-size: var(--font-size-lg, 1.125rem);
+  margin: 0 0 var(--space-sm, 0.5rem);
+}
+
+.family-tasks__empty {
+  color: var(--color-text-secondary, #4b5563);
+  margin: 0;
+}
+
+.family-tasks__incomplete {
+  margin-block-end: var(--space-md, 1rem);
+}
+
+.family-tasks__incomplete p {
+  margin: 0 0 var(--space-sm, 0.5rem);
+}
+
+.family-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm, 0.5rem);
+  margin-block-end: var(--space-md, 1rem);
+}
+
+.family-filter__option {
+  border: 2px solid var(--color-border, #d1d5db);
+  min-block-size: var(--touch-target-min, 44px);
+}
+
+.family-filter__option[aria-pressed="true"] {
+  border-color: var(--color-primary, #2563eb);
+  font-weight: var(--font-weight-bold, 700);
+}
+
+.family-filter__mark:empty {
+  display: none;
+}
+
+.family-tasks__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 0.5rem);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.family-task {
+  border: 1px solid var(--color-border-light, #e5e7eb);
+  border-inline-start: 4px solid var(--primary-color, #2563eb);
+  border-radius: var(--radius-md, 0.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 0.5rem);
+  min-inline-size: 0;
+  padding: var(--space-md, 0.75rem);
+}
+
+.family-task--permission,
+.family-task--authorization {
+  border-inline-start-color: var(--warning-color, #f59e0b);
+}
+
+.family-task__text {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.family-task__kind {
+  color: var(--color-text-secondary, #4b5563);
+  font-size: var(--font-size-sm, 0.875rem);
+  margin: 0;
+}
+
+.family-task__title {
+  font-size: var(--font-size-base, 1rem);
+  margin: 0.125rem 0;
+}
+
+.family-task__when,
+.family-task__children {
+  font-size: var(--font-size-sm, 0.875rem);
+  margin: 0;
+}
+
+.family-task__actions,
+.family-task__row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm, 0.5rem);
+}
+
+.family-task__actions .button,
+.family-task__row-actions .button,
+.family-task__rows .button {
+  min-block-size: var(--touch-target-min, 44px);
+}
+
+.family-task__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 0.5rem);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.family-task__row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm, 0.5rem);
+  justify-content: space-between;
+  overflow-wrap: anywhere;
+}
+
+.family-task__amount {
+  font-weight: var(--font-weight-bold, 700);
+}
+
+.parent-dashboard__section-title {
+  font-size: var(--font-size-lg, 1.125rem);
+  margin: 0;
+}
+
+.participant-card__summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  font-weight: var(--font-weight-medium, 500);
+  gap: var(--space-sm, 0.5rem);
+  min-block-size: var(--touch-target-min, 44px);
+}
+
+/* display: flex drops the native marker: draw it, turned when open. */
+.participant-card__summary::-webkit-details-marker {
+  display: none;
+}
+
+.participant-card__summary::before {
+  content: "▸";
+  transition: transform var(--transition-fast, 150ms);
+}
+
+.participant-card__details[open] > .participant-card__summary::before {
+  transform: rotate(90deg);
+}
+
+.participant-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md, 1rem);
+  padding-block-start: var(--space-sm, 0.5rem);
+}
+
+@media (min-width: 40rem) {
+  .family-task {
+    align-items: center;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .family-task__rows {
+    flex: 0 1 60%;
+  }
+}

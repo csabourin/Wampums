@@ -1,4 +1,4 @@
-import formReviewStylesheetUrl from '../../../css/form-review.css?url';
+import familyTasksStylesheetUrl from '../../../css/family-tasks.css?url';
 import {
   getCurrentOrganizationId,
   getAuthHeader,
@@ -39,11 +39,18 @@ import { offerAppInstall } from '../install/InstallAppDialog.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { CarpoolQuickAccessModal } from '../modals/CarpoolQuickAccessModal.js';
 import { isParent, hasPermission, canViewBadges, canApproveBadges, canViewReports, canViewActivities, canViewCarpools } from '../../utils/PermissionUtils.js';
-import { parseDate } from '../../utils/DateUtils.js';
+import { getTodayISO, parseDate } from '../../utils/DateUtils.js';
 import {
   confirm as confirmDialog,
   prompt as promptDialog,
 } from '../../utils/DialogUtils.js';
+import {
+  ALL_CHILDREN,
+  buildFamilyTasks,
+  renderFamilyFilter,
+  renderFamilyTaskList,
+  taskChildNames,
+} from './FamilyTasks.js';
 
 // Safari cancels a download whose object URL is revoked in the same task as the click.
 const CALENDAR_URL_REVOKE_DELAY_MS = 1000;
@@ -61,6 +68,12 @@ export class ParentDashboard {
     this.authorizationsToSign = [];
     this.hiddenButtons = new Set();
     this.participantsFailed = false;
+    // Something the family tasks are built from did not load: say so, never "nothing to do".
+    this.taskSourcesFailed = false;
+    this.childFilter = ALL_CHILDREN;
+    this.familyTasks = [];
+    // Delegated listeners on #app, which outlives this screen: released in destroy().
+    this.listeners = new AbortController();
     this.destroyed = false;
   }
 
@@ -79,6 +92,7 @@ export class ParentDashboard {
     this.renderLoading();
     let hasErrors = false;
     this.participantsFailed = false;
+    this.taskSourcesFailed = false;
     // Run one step; a failure (thrown or rejected) is logged and the page
     // still renders with what the other steps loaded.
     const attempt = (step, message) => Promise.resolve()
@@ -124,6 +138,7 @@ export class ParentDashboard {
     } else {
       debugError('Error fetching forms to review:', reviewResult.reason);
       this.formsToReview = [];
+      this.taskSourcesFailed = true;
     }
 
     if (signatureResult.status === 'fulfilled') {
@@ -134,11 +149,10 @@ export class ParentDashboard {
         signatureResult.reason,
       );
       this.authorizationsToSign = [];
+      this.taskSourcesFailed = true;
     }
 
-    if (this.formsToReview.length || this.authorizationsToSign.length) {
-      await loadStylesheet(formReviewStylesheetUrl);
-    }
+    await loadStylesheet(familyTasksStylesheetUrl);
     // #app outlives this screen: a late answer must not draw over the next one.
     if (this.destroyed) {
       return;
@@ -251,8 +265,9 @@ export class ParentDashboard {
 
   async fetchParticipants() {
     try {
+      // Only the account's own children, even for a leader who sees the whole unit elsewhere.
       const response = await fetchParticipants(
-        getCurrentOrganizationId(), { includeMedication: true },
+        getCurrentOrganizationId(), { includeMedication: true, ownChildren: true },
       );
 
       // Use a Map to store unique participants
@@ -322,6 +337,7 @@ export class ParentDashboard {
         'Unable to load participant statement',
         error,
       );
+      this.taskSourcesFailed = true;
     }
 
     return null;
@@ -357,6 +373,7 @@ export class ParentDashboard {
     } catch (error) {
       debugError('Error loading permission slips', error);
       this.permissionSlips.set(participantId, []);
+      this.taskSourcesFailed = true;
       return [];
     }
   }
@@ -514,11 +531,10 @@ export class ParentDashboard {
                                         <p class="parent-dashboard__subtitle">${escapeHTML(organizationName)}</p>
                                 </header>
 
-                                ${this.renderAuthorizationsToSign()}
-                                ${this.renderFormsToReview()}
+                                ${this.renderFamilySection()}
 
                                 <section class="parent-dashboard__participants">
-                                        <h2 class="visually-hidden">${translate('participants_list')}</h2>
+                                        <h2 class="${this.participants.length > 1 ? 'parent-dashboard__section-title' : 'visually-hidden'}">${translate('participants_list')}</h2>
                                         ${this.renderParticipantsList()}
                                 </section>
 
@@ -561,127 +577,224 @@ export class ParentDashboard {
                         </div>
                 `;
     setContent(document.getElementById('app'), content);
+    this.applyChildFilter();
     this.bindStatementHandlers();
     this.bindPermissionSlipHandlers();
-    this.bindFormReviewHandlers();
+    this.bindFamilyTaskHandlers();
   }
 
   /**
-         * Banner listing the medication authorizations awaiting a new signature.
-         *
-         * Deliberately separate from the "forms to review" banner, and
-         * deliberately without a "confirm without change" button: an
-         * authorization to give medication carries a signature and a legal
-         * responsibility, so it cannot be settled by saying nothing changed. The
-         * only way out is to sign again.
-         *
-         * @returns {string} Banner markup, or an empty string when nothing is due
-         */
-  renderAuthorizationsToSign() {
-    if (!this.authorizationsToSign.length) {
-      return '';
-    }
-
-    const items = this.authorizationsToSign
-      .map((authorization) => {
-        const child = escapeHTML(
-          `${authorization.first_name} ${authorization.last_name}`,
-        );
-        const kind =
-                                        authorization.kind === 'treatment'
-                                          ? translate(
-                                            'authorization_kind_treatment',
-                                          )
-                                          : translate(
-                                            'authorization_kind_administration',
-                                          );
-        return `
-                                        <li class="form-review__item">
-                                                <div class="form-review__text">
-                                                        <strong>${escapeHTML(kind)}</strong>
-                                                        <span class="muted-text">${child}</span>
-                                                </div>
-                                                <div class="form-review__actions">
-                                                        <a href="/medication-authorizations/${authorization.participant_id}"
-                                                           class="dashboard-button dashboard-button--primary">
-                                                                ${translate('authorization_sign_again')}
-                                                        </a>
-                                                </div>
-                                        </li>`;
-      })
-      .join('');
-
-    return `
-                        <section class="parent-dashboard__form-review form-review form-review--signature" aria-live="polite">
-                                <h2 class="form-review__title">${translate('authorization_signature_title')}</h2>
-                                <p class="form-review__description">${translate('authorization_signature_description')}</p>
-                                <ul class="form-review__list">${items}</ul>
-                        </section>`;
+   * What the family tasks are built from, as loaded.
+   *
+   * @returns {Object} Data for buildFamilyTasks
+   */
+  familyTaskData() {
+    return {
+      participants: this.participantsFailed ? [] : this.participants,
+      permissionSlips: this.permissionSlips,
+      formFormats: this.formFormats,
+      formMeta: this.formMeta,
+      formsToReview: this.formsToReview,
+      authorizationsToSign: this.authorizationsToSign,
+      statements: this.participantStatements,
+      today: getTodayISO(),
+    };
   }
 
   /**
-         * Banner listing the required forms waiting for a parent to re-read them.
-         *
-         * The content of those forms was kept across the year transition; what is
-         * asked here is a confirmation that it is still accurate. Confirming
-         * without changing anything is a legitimate answer, so it gets a button of
-         * its own next to the one that opens the form for editing.
-         *
-         * @returns {string} Banner markup, or an empty string when nothing is due
-         */
-  renderFormsToReview() {
-    if (!this.formsToReview.length) {
-      return '';
+   * The filter and task list, for the current filter.
+   *
+   * @returns {string} Markup
+   */
+  renderFamilyContent() {
+    const data = this.familyTaskData();
+    const known = data.participants.some((child) => String(child.id) === String(this.childFilter));
+    if (!known) {
+      this.childFilter = ALL_CHILDREN;
     }
-
-    const items = this.formsToReview
-      .map((form) => {
-        const child = escapeHTML(
-          `${form.first_name} ${form.last_name}`,
-        );
-        const label = escapeHTML(
-          formTypeLabel(
-            form.form_type,
-            form.display_name,
-          ),
-        );
-        return `
-                                        <li class="form-review__item" data-submission-id="${form.id}">
-                                                <div class="form-review__text">
-                                                        <strong>${label}</strong>
-                                                        <span class="muted-text">${child}</span>
-                                                </div>
-                                                <div class="form-review__actions">
-                                                        <button type="button"
-                                                                class="dashboard-button dashboard-button--secondary js-confirm-review"
-                                                                data-submission-id="${form.id}">
-                                                                ${translate('form_review_confirm')}
-                                                        </button>
-                                                        <a href="/dynamic-form/${encodeURIComponent(form.form_type)}/${form.participant_id}"
-                                                           class="dashboard-button dashboard-button--primary">
-                                                                ${translate('form_review_update')}
-                                                        </a>
-                                                </div>
-                                        </li>`;
-      })
-      .join('');
-
+    this.familyTasks = buildFamilyTasks(data, this.childFilter);
+    const counts = new Map(data.participants.map((child) => [
+      Number(child.id),
+      buildFamilyTasks(data, Number(child.id)).length,
+    ]));
+    if (this.participantsFailed) {
+      return `<p class="family-tasks__empty">${translate('family_tasks_children_failed')}</p>`;
+    }
     return `
-                        <section class="parent-dashboard__form-review form-review" aria-live="polite">
-                                <h2 class="form-review__title">${translate('form_review_title')}</h2>
-                                <p class="form-review__description">${translate('form_review_description')}</p>
-                                <ul class="form-review__list">${items}</ul>
-                        </section>`;
+      ${renderFamilyFilter(data.participants, this.childFilter, counts)}
+      ${renderFamilyTaskList(this.familyTasks, {
+    lang: this.app?.language || CONFIG.DEFAULT_LANG || 'en',
+    formatDate: (value) => this.formatDateSafe(value),
+    formatMoney: (amount) => this.formatCurrency(amount),
+    financeHidden: this.hiddenButtons.has('finances'),
+    incomplete: this.taskSourcesFailed,
+  })}`;
   }
 
-  bindFormReviewHandlers() {
-    document
-      .querySelectorAll('.js-confirm-review')
+  /**
+   * "To do for your family": one task per thing to do, naming the children
+   * it concerns, with a filter for one child when there are several.
+   *
+   * @returns {string} Markup
+   */
+  renderFamilySection() {
+    return `
+      <section class="parent-dashboard__family-tasks family-tasks" aria-labelledby="family-tasks-title">
+        <h2 class="family-tasks__title" id="family-tasks-title" tabindex="-1">${translate('family_tasks_title')}</h2>
+        <div id="family-tasks-content">${this.renderFamilyContent()}</div>
+      </section>`;
+  }
+
+  /**
+   * Redraw the tasks after a filter change or an answer, keeping focus on
+   * the control that was used, or on the section's heading once it is gone.
+   */
+  refreshFamilyView() {
+    const container = document.getElementById('family-tasks-content');
+    if (!container || this.destroyed) {
+      return;
+    }
+    const active = document.activeElement;
+    const focusedFilter = container.contains(active) ? active?.dataset?.familyFilter : undefined;
+    const hadFocus = container.contains(active);
+    setContent(container, this.renderFamilyContent());
+    this.applyChildFilter();
+    if (focusedFilter !== undefined) {
+      [...container.querySelectorAll('[data-family-filter]')]
+        .find((option) => option.dataset.familyFilter === focusedFilter)?.focus();
+    } else if (hadFocus) {
+      document.getElementById('family-tasks-title')?.focus();
+    }
+  }
+
+  /**
+   * Show every child's file, or only the chosen child's, opened.
+   */
+  applyChildFilter() {
+    const single = this.participants.length === 1;
+    document.querySelectorAll('[data-child-card]').forEach((card) => {
+      const chosen = this.childFilter !== ALL_CHILDREN && card.dataset.childCard === String(this.childFilter);
+      // eslint-disable-next-line no-param-reassign -- toggling the card's own state
+      card.hidden = this.childFilter !== ALL_CHILDREN && !chosen;
+      const details = card.querySelector('details');
+      if (details && (chosen || single)) {
+        details.open = true;
+      }
+    });
+  }
+
+  /**
+   * One listener for the tasks' controls, released when the screen goes:
+   * #app outlives this screen.
+   */
+  bindFamilyTaskHandlers() {
+    if (this.familyTaskHandlerBound) {
+      return;
+    }
+    const appContainer = document.getElementById('app');
+    if (!appContainer) {
+      return;
+    }
+    this.familyTaskHandlerBound = true;
+    appContainer.addEventListener('click', (event) => {
+      const filter = event.target.closest('[data-family-filter]');
+      if (filter) {
+        this.childFilter = filter.dataset.familyFilter === ALL_CHILDREN
+          ? ALL_CHILDREN
+          : Number(filter.dataset.familyFilter);
+        this.refreshFamilyView();
+        return;
+      }
+      const respond = event.target.closest('.js-family-sign, .js-family-decline');
+      if (respond) {
+        this.respondToEvent(respond.dataset.taskKey, respond.classList.contains('js-family-decline'));
+        return;
+      }
+      const review = event.target.closest('.js-confirm-review');
+      if (review) {
+        this.handleConfirmReview(review);
+        return;
+      }
+      const statement = event.target.closest('.js-family-statement');
+      if (statement) {
+        this.showStatementModal(statement.dataset.participantId);
+        return;
+      }
+      if (event.target.closest('#family-tasks-retry')) {
+        this.init();
+      }
+    }, { signal: this.listeners.signal });
+  }
+
+  /**
+   * Sign or decline an event's permission slips for every child the task
+   * names, with one signer name. Each child's own file still answers one slip.
+   *
+   * @param {string} taskKey - The task's key
+   * @param {boolean} isDecline - Decline rather than sign
+   * @returns {Promise<void>}
+   */
+  async respondToEvent(taskKey, isDecline) {
+    const task = this.familyTasks.find((candidate) => candidate.key === taskKey);
+    if (!task || this.responding) {
+      return;
+    }
+    const lang = this.app?.language || CONFIG.DEFAULT_LANG || 'en';
+    const children = taskChildNames(task, lang);
+    const title = task.title || translate('permission_slip_section_title');
+    const signerName = (await promptDialog({
+      title: translate(isDecline ? 'family_tasks_decline_title' : 'family_tasks_sign_title').replace('{activity}', title),
+      message: translate('family_tasks_signer_prompt').replace('{children}', children),
+    }))?.trim();
+    if (!signerName) {
+      return;
+    }
+    if (isDecline && !(await confirmDialog({
+      message: translate('family_tasks_decline_confirm').replace('{children}', children),
+      danger: true,
+    }))) {
+      return;
+    }
+
+    this.responding = true;
+    [...document.querySelectorAll('.family-task')]
+      .filter((item) => item.dataset.taskKey === taskKey)
+      .flatMap((item) => [...item.querySelectorAll('button')])
       .forEach((button) => {
-        button.addEventListener('click', () =>
-          this.handleConfirmReview(button),
-        );
+        // eslint-disable-next-line no-param-reassign -- busy while the answers are sent
+        button.disabled = true;
       });
+    const results = await Promise.allSettled(task.rows.map((row) => (isDecline
+      ? declinePermissionSlip(row.slipId, { declined_by: signerName })
+      : signPermissionSlip(row.slipId, { signed_by: signerName, signature_hash: `signed-${Date.now()}` }))));
+    this.responding = false;
+
+    const failedRows = task.rows.filter((_row, index) => results[index].status === 'rejected');
+    const failures = results.filter((result) => result.status === 'rejected').map((result) => result.reason);
+    failures.forEach((failure) => debugError('Error responding to permission slip', failure));
+    const queued = results.some((result) => result.status === 'fulfilled' && result.value?.queued);
+
+    if (!failures.length) {
+      this.app.showMessage(
+        translate(queued ? 'family_tasks_response_queued' : (isDecline ? 'permission_slip_declined' : 'permission_slip_signed')),
+        queued ? 'info' : 'success',
+      );
+    } else if (failures.every((failure) => apiErrorMessageKey(failure) === 'api_error_conflict')) {
+      this.app.showMessage(translate('permission_slip_already_answered'), 'warning');
+    } else if (failedRows.length < task.rows.length) {
+      const failedNames = taskChildNames({ rows: failedRows }, lang);
+      this.app.showMessage(translate('family_tasks_partial_failure').replace('{children}', failedNames), 'error');
+    } else {
+      this.app.showMessage(apiErrorMessage(failures[0], 'error_saving'), 'error');
+    }
+
+    const childIds = [...new Set(task.rows.map((row) => row.participantId))];
+    await Promise.all(childIds.map((participantId) => this.loadPermissionSlips(participantId, true)));
+    if (this.destroyed) {
+      return;
+    }
+    childIds.forEach((participantId) => this.refreshPermissionSlipSection(participantId));
+    this.refreshFamilyView();
   }
 
   /**
@@ -691,8 +804,8 @@ export class ParentDashboard {
          * @returns {Promise<void>}
          */
   async handleConfirmReview(button) {
-    const submissionId = parseInt(button.dataset.submissionId, 10);
-    if (Number.isNaN(submissionId)) {
+    const submissionId = Number(button.dataset.submissionId);
+    if (!Number.isInteger(submissionId) || submissionId < 1) {
       return;
     }
 
@@ -701,19 +814,18 @@ export class ParentDashboard {
     try {
       await confirmFormReview(submissionId);
       this.formsToReview = this.formsToReview.filter(
-        (form) => form.id !== submissionId,
+        (form) => Number(form.id) !== submissionId,
       );
       this.app.showMessage(
         translate('form_review_confirmed'),
         'success',
       );
-      this.render();
-      this.attachEventListeners();
+      this.refreshFamilyView();
     } catch (error) {
       debugError('Failed to confirm form review:', error);
       button.disabled = false;
       this.app.showMessage(
-        translate('form_review_failed'),
+        apiErrorMessage(error, 'form_review_failed'),
         'error',
       );
     }
@@ -811,19 +923,27 @@ export class ParentDashboard {
         const statementLink =
                                         this.renderStatementLink(participant);
 
+        // The full file opens on demand: the family tasks above carry what is due.
         return `
-                        <article class="participant-card">
+                        <article class="participant-card" data-child-card="${Number(participant.id)}">
                                 <header class="participant-card__header">
                                         <h3 class="participant-card__name">${participantName}</h3>
                                         <a href="/formulaire-inscription/${participant.id}" class="participant-card__edit-btn">
-                                                ${translate('modifier')}
+                                                ${translate('modifier')}<span class="visually-hidden"> — ${participantName}</span>
                                         </a>
                                 </header>
-                                <div class="participant-card__forms">
-                                        ${this.renderFormButtons(participant)}
-                                </div>
-                                ${statementLink ? `<div class="participant-card__section">${statementLink}</div>` : ''}
-                                ${this.renderPermissionSlipSection(participant)}
+                                <details class="participant-card__details">
+                                        <summary class="participant-card__summary">
+                                                ${translate('family_child_file_show')}<span class="visually-hidden"> — ${participantName}</span>
+                                        </summary>
+                                        <div class="participant-card__body">
+                                                <div class="participant-card__forms">
+                                                        ${this.renderFormButtons(participant)}
+                                                </div>
+                                                ${statementLink ? `<div class="participant-card__section">${statementLink}</div>` : ''}
+                                                ${this.renderPermissionSlipSection(participant)}
+                                        </div>
+                                </details>
                         </article>
                 `;
       })
@@ -1120,6 +1240,7 @@ export class ParentDashboard {
          */
   destroy() {
     this.destroyed = true;
+    this.listeners.abort();
     this.stopInstallWatch?.();
     this.stopInstallWatch = null;
   }
@@ -1312,7 +1433,8 @@ export class ParentDashboard {
           );
         }
       }
-    });
+      this.refreshFamilyView();
+    }, { signal: this.listeners.signal });
 
     this.permissionSlipHandlerBound = true;
   }
