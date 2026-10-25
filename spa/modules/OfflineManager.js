@@ -64,6 +64,9 @@ const SAFE_OFFLINE_MUTATIONS = [
   { method: 'DELETE', path: /^\/api\/v1\/medication\/receptions\/\d+$/, kind: 'medication' },
   // Replaying badge history is safe: the server skips levels already recorded.
   { method: 'POST', path: /^\/api\/v1\/badges\/history$/, kind: 'badges' },
+  // A handout replays once (Idempotency-Key receipt); a return is a count.
+  { method: 'POST', path: /^\/api\/v1\/equipment-loans$/, kind: 'equipment_loans' },
+  { method: 'PATCH', path: /^\/api\/v1\/equipment-loans\/\d+$/, kind: 'equipment_loans' },
 ];
 
 /**
@@ -400,6 +403,9 @@ export class OfflineManager {
 
   /** Arrivals cannot overtake a departure still waiting in the outbox. */
   hasPendingAttendance() { return this.hasPendingResource('/api/v1/attendance'); }
+
+  /** A loan's newer return cannot overtake an older one still in the outbox. */
+  hasPendingEquipmentLoans() { return this.hasPendingResource('/api/v1/equipment-loans'); }
 
   /** Match the authenticated account, unit and resource, including subpaths. */
   async hasPendingResource(resource) {

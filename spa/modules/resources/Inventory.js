@@ -643,7 +643,7 @@ export class Inventory {
 
         :is(.inventory-page, .inventory-dialog) .equipment-card-detail-label {
           font-size: 0.75rem;
-          color: var(--text-muted, #888);
+          color: var(--color-text-muted, #5d7369);
           text-transform: uppercase;
         }
 

@@ -298,6 +298,16 @@ export const DASHBOARD_TILES = [
     domain: 'logistics',
     gate: { any: ['inventory.view', 'inventory.manage', 'inventory.reserve', 'inventory.value'] },
   },
+  {
+    featureKey: 'equipment_loans',
+    href: '/equipment-loans',
+    icon: 'fa-people-carry-box',
+    label: 'tile_equipment_loans',
+    aliases: 'tile_equipment_loans_aliases',
+    moment: 'tools',
+    domain: 'logistics',
+    gate: { permission: 'inventory.view' },
+  },
 
   // ---------------------------------------------------------------
   // ARGENT — the three `?tab=` duplicates of /finance are gone; the

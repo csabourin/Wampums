@@ -1,0 +1,216 @@
+/*
+ * Who has the equipment: the handout after an activity and the loans still out.
+ *
+ * Every rule is scoped to the screen's root (or its partial-return dialog), so
+ * nothing here restyles another page. Mobile first: one column; the handout
+ * settings sit side by side once there is room.
+ */
+
+:is(.equipment-loans, #equipment-loans-partial-modal) {
+  --equipment-loans-gap: 0.75rem;
+}
+
+.equipment-loans {
+  max-width: 48rem;
+  margin-inline: auto;
+}
+
+.equipment-loans .card {
+  margin-block-end: var(--equipment-loans-gap);
+}
+
+:is(.equipment-loans, #equipment-loans-partial-modal) .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-block-end: var(--equipment-loans-gap);
+  min-inline-size: 0;
+}
+
+:is(.equipment-loans, #equipment-loans-partial-modal) :is(input, select) {
+  min-block-size: var(--touch-target-min);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  inline-size: 100%;
+  box-sizing: border-box;
+  background: var(--color-surface);
+}
+
+.equipment-loans__settings {
+  display: grid;
+  gap: 0 var(--equipment-loans-gap);
+}
+
+@media (min-width: 40rem) {
+  .equipment-loans__settings {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+}
+
+/* One item to hand out ------------------------------------------------- */
+
+.equipment-loans__items {
+  display: grid;
+  gap: var(--equipment-loans-gap);
+  margin-block-end: var(--equipment-loans-gap);
+}
+
+.equipment-loans__item {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  margin: 0;
+  min-inline-size: 0;
+}
+
+.equipment-loans__item legend {
+  font-weight: 600;
+  padding-inline: 0.25rem;
+}
+
+.equipment-loans__facts,
+.equipment-loans__loan-details {
+  color: var(--color-text-muted);
+  margin-block: 0 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.equipment-loans__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 var(--equipment-loans-gap);
+  align-items: end;
+  padding-block-end: 0.5rem;
+  border-block-end: 1px dashed var(--color-border);
+  margin-block-end: 0.5rem;
+}
+
+@media (min-width: 40rem) {
+  .equipment-loans__row {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  }
+
+  .equipment-loans__row > .button {
+    margin-block-end: var(--equipment-loans-gap);
+  }
+}
+
+.equipment-loans__stepper {
+  display: grid;
+  grid-template-columns: var(--touch-target-min) minmax(3.5rem, 1fr) var(--touch-target-min);
+  gap: 0.25rem;
+}
+
+.equipment-loans__stepper .button {
+  min-inline-size: var(--touch-target-min);
+  min-block-size: var(--touch-target-min);
+  padding: 0;
+  font-size: 1.25rem;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.equipment-loans__stepper input {
+  text-align: center;
+}
+
+.equipment-loans__remaining {
+  font-weight: 600;
+  margin-block: 0.25rem 0.5rem;
+}
+
+.equipment-loans__remaining.is-over {
+  color: var(--color-error);
+}
+
+.equipment-loans .field-error:empty {
+  display: none;
+}
+
+/* Loans out ---------------------------------------------------------- */
+
+.equipment-loans__filter {
+  max-inline-size: 16rem;
+}
+
+.equipment-loans__group {
+  border-block-start: 1px solid var(--color-border);
+  padding-block-start: 0.5rem;
+}
+
+.equipment-loans__group-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.equipment-loans__group-header h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.equipment-loans__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.equipment-loans__loan {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem var(--equipment-loans-gap);
+  justify-content: space-between;
+  padding-block: 0.5rem;
+}
+
+.equipment-loans__loan + .equipment-loans__loan {
+  border-block-start: 1px dashed var(--color-border);
+}
+
+.equipment-loans__loan-text {
+  flex: 1 1 14rem;
+  min-inline-size: 0;
+}
+
+.equipment-loans__loan-name {
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.equipment-loans__count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Overdue is said in words; the border only repeats it. */
+.equipment-loans__loan.is-overdue {
+  border-inline-start: 4px solid var(--color-error);
+  padding-inline-start: 0.5rem;
+}
+
+.equipment-loans__overdue {
+  display: inline-block;
+  margin-inline-start: 0.25rem;
+  padding: 0 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--color-error);
+  color: #ffffff;
+  font-size: 0.875rem;
+}
+
+.equipment-loans__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.equipment-loans__empty {
+  color: var(--color-text-muted);
+}

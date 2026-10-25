@@ -203,6 +203,15 @@ describe('writes that do not change the roster', () => {
     expect(planInvalidation('v1/ai/ask')).toBeNull();
   });
 
+  test('reserving equipment refreshes the handout, and lending refreshes the inventory', () => {
+    const reservation = planInvalidation('v1/resources/equipment/reservations/bulk');
+    expect(reservation.matchesPath('/api/v1/equipment-loans/handout')).toBe(true);
+
+    const loan = planInvalidation('v1/equipment-loans');
+    expect(loan.matchesPath('/api/v1/resources/equipment')).toBe(true);
+    expect(loan.matchesPath('/api/v1/participants')).toBe(false);
+  });
+
   test("changing one's own profile does not flush the roster", () => {
     const plan = planInvalidation('v1/users/me/language');
 

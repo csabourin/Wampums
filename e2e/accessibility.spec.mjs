@@ -40,7 +40,7 @@ const SCREENS = {
     '/external-revenue', '/revenue-dashboard', '/roles?tab=formulaires', '/district',
     '/parent-contact-list', '/view-participant-documents', '/account-info',
     '/time-since-registration', '/formulaire-inscription', `/carpool/${seededActivityId()}`,
-    '/material-management',
+    '/material-management', '/equipment-loans',
     '/medication-dispensing', '/medication-reception',
     '/create-organization',
     `/badge-form/${seededParticipantId()}`,
