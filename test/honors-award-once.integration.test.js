@@ -29,8 +29,8 @@ describe.skipIf(!DATABASE_URL)('Awarding an honor', () => {
     return Object.values(result.rows[0] || {})[0];
   }
 
-  function award(body) {
-    const token = signJWTToken({ user_id: ids.leader, organizationId: ids.unit });
+  function award(body, unit = ids.unit, leader = ids.leader) {
+    const token = signJWTToken({ user_id: leader, organizationId: unit });
     return request(app).post('/api/v1/honors').set('Authorization', `Bearer ${token}`).send(body);
   }
 
@@ -45,27 +45,40 @@ describe.skipIf(!DATABASE_URL)('Awarding an honor', () => {
     return id;
   }
 
-  beforeAll(async () => {
-    pool = new Pool({ connectionString: DATABASE_URL });
+  async function unit(name) {
     // The unit and its section reference each other; the check is deferred to COMMIT.
     const client = await pool.connect();
+    let id;
     try {
       await client.query('BEGIN');
-      ids.unit = (await client.query("INSERT INTO organizations (name) VALUES ('Honors unit') RETURNING id")).rows[0].id;
-      await client.query("INSERT INTO organization_program_sections (organization_id, section_key, display_name) VALUES ($1, 'general', 'General')", [ids.unit]);
+      id = (await client.query('INSERT INTO organizations (name) VALUES ($1) RETURNING id', [name])).rows[0].id;
+      await client.query("INSERT INTO organization_program_sections (organization_id, section_key, display_name) VALUES ($1, 'general', 'General')", [id]);
       await client.query('COMMIT');
     } finally {
       client.release();
     }
-    await pool.query("INSERT INTO scout_years (organization_id, label, start_date, end_date, status) VALUES ($1, '2026-2027', '2026-09-01', '2027-08-31', 'active')", [ids.unit]);
+    await pool.query("INSERT INTO scout_years (organization_id, label, start_date, end_date, status) VALUES ($1, '2026-2027', '2026-09-01', '2027-08-31', 'active')", [id]);
+    return id;
+  }
+
+  async function leaderOf(unitId, roleId) {
+    const id = await one('INSERT INTO users (email, password, full_name) VALUES ($1, \'x\', \'Léa Tremblay\') RETURNING id',
+      [`${randomUUID()}@example.test`]);
+    await pool.query("INSERT INTO user_organizations (user_id, organization_id, role_ids, status) VALUES ($1, $2, $3::jsonb, 'active')",
+      [id, unitId, JSON.stringify([roleId])]);
+    return id;
+  }
+
+  beforeAll(async () => {
+    pool = new Pool({ connectionString: DATABASE_URL });
+    ids.unit = await unit('Honors unit');
+    ids.otherUnit = await unit('Other honors unit');
     const roleId = await one('INSERT INTO roles (role_name, display_name, data_scope) VALUES ($1, $1, \'organization\') RETURNING id',
       [`honors_${randomUUID()}`]);
     await pool.query('INSERT INTO role_permissions (role_id, permission_id) SELECT $1, id FROM permissions WHERE permission_key = ANY($2::text[])',
       [roleId, ['honors.view', 'honors.create']]);
-    ids.leader = await one('INSERT INTO users (email, password, full_name) VALUES ($1, \'x\', \'Léa Tremblay\') RETURNING id',
-      [`${randomUUID()}@example.test`]);
-    await pool.query("INSERT INTO user_organizations (user_id, organization_id, role_ids, status) VALUES ($1, $2, $3::jsonb, 'active')",
-      [ids.leader, ids.unit, JSON.stringify([roleId])]);
+    ids.leader = await leaderOf(ids.unit, roleId);
+    ids.otherLeader = await leaderOf(ids.otherUnit, roleId);
 
     app = express();
     app.use(express.json());
@@ -104,5 +117,16 @@ describe.skipIf(!DATABASE_URL)('Awarding an honor', () => {
 
     expect(await honorsOf(max)).toBe(1);
     expect(await pointsOf(max)).toBe(5);
+  });
+
+  test('a youth enrolled in two units can be honored by each on the same day', async () => {
+    const zoe = await youth('Zoé');
+    await pool.query('INSERT INTO participant_organizations (participant_id, organization_id) VALUES ($1, $2)', [zoe, ids.otherUnit]);
+
+    await award({ participant_id: zoe, date: HONOR_DATE }).expect(200);
+    const elsewhere = await award({ participant_id: zoe, date: HONOR_DATE }, ids.otherUnit, ids.otherLeader).expect(200);
+
+    expect(elsewhere.body.data.results).toEqual([expect.objectContaining({ action: 'awarded' })]);
+    expect(await one('SELECT COUNT(*)::int FROM honors WHERE participant_id = $1', [zoe])).toBe(2);
   });
 });
