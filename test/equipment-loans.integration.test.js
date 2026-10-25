@@ -461,4 +461,49 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
       .find((row) => row.id === created.body.data.loans[0].id);
     expect(loan).toMatchObject({ holder_name: null, holder_type: null, outstanding_quantity: 1 });
   });
+
+  describe('reservations and loans of one item, written at the same time', () => {
+    const reservedOn = (equipmentId) => one(
+      'SELECT COALESCE(SUM(reserved_quantity), 0)::int FROM equipment_reservations WHERE equipment_id = $1', [equipmentId]);
+    const reserve = (equipmentId, quantity) => as(ids.leader).post('/api/v1/resources/equipment/reservations', {
+      equipment_id: equipmentId, date_from: '2099-10-02', date_to: '2099-10-03', reserved_quantity: quantity,
+      reserved_for: `Sortie ${Math.random()}`,
+    });
+
+    test('a batch with one item short of stock reserves nothing at all', async () => {
+      const stoves = await item(ids.unit, 'Réchaud double', 4);
+      const pots = await item(ids.unit, 'Chaudron', 1);
+      const refused = await as(ids.leader).post('/api/v1/resources/equipment/reservations/bulk', {
+        date_from: '2099-10-02', date_to: '2099-10-03', reserved_for: 'Camp d\'octobre',
+        items: [{ equipment_id: stoves, quantity: 2 }, { equipment_id: pots, quantity: 3 }],
+      });
+
+      expect(refused.status).toBe(400);
+      expect(await reservedOn(stoves)).toBe(0);
+      expect(await reservedOn(pots)).toBe(0);
+    });
+
+    test('two leaders reserving the last tents at the same moment never reserve more than exist', async () => {
+      const tents = await item(ids.unit, 'Tente de patrouille', 4);
+      const results = await Promise.all(Array.from({ length: SIMULTANEOUS_HANDOUTS }, () => reserve(tents, 4)));
+
+      expect(results.filter((result) => result.status === 201)).toHaveLength(1);
+      expect(await reservedOn(tents)).toBe(4);
+    });
+
+    test('a reservation and a handout of the last tents at the same moment never promise them twice', async () => {
+      const tents = await item(ids.unit, 'Tente canot', 3);
+      const handout = () => as(ids.leader).post('/api/v1/equipment-loans', {
+        loans: [{ equipment_id: tents, quantity: 3, participant_id: ids.ada }],
+      });
+      const results = await Promise.all([
+        reserve(tents, 3), handout(), reserve(tents, 3), handout(), reserve(tents, 3), handout(),
+      ]);
+
+      const accepted = results.filter((result) => result.status === 201);
+      expect(accepted).toHaveLength(1);
+      const lent = await one('SELECT COALESCE(SUM(quantity), 0)::int FROM equipment_loans WHERE equipment_id = $1', [tents]);
+      expect(await reservedOn(tents) + lent).toBe(3);
+    });
+  });
 });
