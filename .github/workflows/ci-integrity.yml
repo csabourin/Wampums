@@ -226,8 +226,13 @@ jobs:
           ssh_options=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15)
           target="$OVH_USER@$OVH_HOST"
           release="/opt/wampums/releases/$GITHUB_SHA"
-          ssh "${ssh_options[@]}" -p "$OVH_SSH_PORT" "$target" "mkdir -p '$release'"
-          scp "${ssh_options[@]}" -P "$OVH_SSH_PORT" deploy/ovh/{compose.yml,Caddyfile,deploy.sh,image.tar.gz} "$target:$release/"
+          archive_bytes="$(stat -c %s deploy/ovh/image.tar.gz)"
+          ssh "${ssh_options[@]}" -p "$OVH_SSH_PORT" "$target" "bash -s -- '$GITHUB_SHA' '$archive_bytes'" < deploy/ovh/prepare-upload.sh
+          if ! scp "${ssh_options[@]}" -P "$OVH_SSH_PORT" deploy/ovh/{compose.yml,Caddyfile,deploy.sh,image.tar.gz} "$target:$release/"; then
+            echo 'Release upload failed. Check free space, inodes, deployment-account quotas and destination permissions.' >&2
+            ssh "${ssh_options[@]}" -p "$OVH_SSH_PORT" "$target" "df -h '$release'; df -i '$release'; ls -ld '$release'; ls -l '$release/image.tar.gz'" || true
+            exit 1
+          fi
           ssh "${ssh_options[@]}" -p "$OVH_SSH_PORT" "$target" "bash '$release/deploy.sh' '$GITHUB_SHA'"
 
       - name: Remove the SSH private key
