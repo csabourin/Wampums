@@ -13,14 +13,11 @@ Both settings use the existing tenant-scoped `organization_settings` table:
 - `dashboard_configuration` stores `hidden_tile_keys`. Feature keys are stable
   semantic identifiers defined in `config/unit_customization.json` rather than
   page URLs or translated labels.
-- `dashboard_configuration.enabled_option_keys` lists the occasional tools the
-  unit turns on (`dashboardOptionKeys`): today `scout_year_selector`, the year
-  selector above every screen. They are off unless listed, including for a
-  configuration saved before they existed. With the selector off, a year
-  already being consulted keeps its notice and its way back.
-- The dashboard colour theme is a personal, per-device choice made on
-  `/display-settings`, from the "Display" tile beside "My account". Like any
-  tile, the unit may hide it (`display_settings`).
+- The dashboard colour theme and the scout year selector are personal,
+  per-device choices made on `/display-settings`, from the "Display" tile
+  beside "My account". Like any tile, the unit may hide it
+  (`display_settings`). The year selector is off until asked for; with it
+  off, a year already being consulted keeps its notice and its way back.
 
 The organization's `program_section` is updated when a built-in vocabulary
 profile is selected. This lets new groups and meeting preparation use the same

@@ -841,6 +841,16 @@ body.cmd-palette-open {
   line-height: 1.3;
 }
 
+.display-settings__section {
+  margin-block-end: var(--space-lg);
+}
+
+.display-settings__section h2 {
+  margin: 0 0 var(--space-sm);
+  text-align: start;
+  font-size: 1.15rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dash-settings__palette {
     transition: none;

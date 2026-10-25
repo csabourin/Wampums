@@ -36,7 +36,6 @@ import {
   canManageForms,
 } from '../../utils/PermissionUtils.js';
 import { DASHBOARD_TILES, TOOL_GROUP_ORDER } from '../../config/dashboard-tiles.js';
-import { DASHBOARD_OPTIONS, isUnitDashboardOptionEnabled } from '../../utils/UnitDashboardOptions.js';
 import {
   PARENT_DASHBOARD_BUTTONS,
   PARENT_DASHBOARD_BUTTON_SECTIONS,
@@ -82,7 +81,7 @@ export class UnitSettings extends BaseModule {
     this.canViewOrg = false;
     this.activeTab = 'general';
     this.vocabulary = createVocabularyFromProfile('cubs');
-    this.dashboardConfiguration = { version: 1, hidden_tile_keys: [], enabled_option_keys: [] };
+    this.dashboardConfiguration = { version: 1, hidden_tile_keys: [] };
     this.parentDashboardConfiguration = { version: 1, hidden_button_keys: [] };
     this.localGroups = [];
     this.localGroupMemberships = [];
@@ -151,9 +150,6 @@ export class UnitSettings extends BaseModule {
       version: UNIT_CUSTOMIZATION_CONFIG.version,
       hidden_tile_keys: Array.isArray(data.dashboard_configuration?.hidden_tile_keys)
         ? [...data.dashboard_configuration.hidden_tile_keys]
-        : [],
-      enabled_option_keys: Array.isArray(data.dashboard_configuration?.enabled_option_keys)
-        ? [...data.dashboard_configuration.enabled_option_keys]
         : [],
     };
     this.parentDashboardConfiguration = {
@@ -436,39 +432,12 @@ export class UnitSettings extends BaseModule {
         <p class="unit-dashboard-note">${escapeHTML(translate('unit_dashboard_visibility_note'))}</p>
         ${!this.canEditOrg ? `<p class="unit-settings-read-only">${translate('unit_settings_read_only')}</p>` : ''}
         <form id="unit-dashboard-form" class="unit-settings-form">
-          ${this.renderDashboardOptions()}
           <div class="unit-dashboard-groups">${groups}</div>
           ${this.canEditOrg ? `<button type="submit" id="save-dashboard-btn" class="button button--primary">
             ${escapeHTML(translate('save'))}
           </button>` : ''}
         </form>
       </section>`;
-  }
-
-  /**
-   * Render the switches for occasional tools, off until the unit turns them on,
-   * such as consulting an earlier scout year.
-   *
-   * @returns {string} HTML
-   */
-  renderDashboardOptions() {
-    const enabled = new Set(this.dashboardConfiguration.enabled_option_keys || []);
-    const options = UNIT_CUSTOMIZATION_CONFIG.dashboardOptionKeys.map((optionKey) => `
-            <label class="unit-dashboard-toggle" for="dashboard-option-${optionKey}">
-              <span>
-                <strong>${escapeHTML(translate(`unit_dashboard_option_${optionKey}`))}</strong>
-                <small id="dashboard-option-${optionKey}-hint">${escapeHTML(translate(`unit_dashboard_option_${optionKey}_hint`))}</small>
-              </span>
-              <input type="checkbox" role="switch" class="unit-dashboard-option"
-                id="dashboard-option-${optionKey}" data-option-key="${optionKey}"
-                aria-describedby="dashboard-option-${optionKey}-hint"
-                ${enabled.has(optionKey) ? 'checked' : ''} ${this.canEditOrg ? '' : 'disabled'}>
-            </label>`).join('');
-    return `
-          <fieldset class="unit-dashboard-group unit-dashboard-group--options">
-            <legend>${escapeHTML(translate('unit_dashboard_options_title'))}</legend>
-            ${options}
-          </fieldset>`;
   }
 
   /**
@@ -1092,13 +1061,9 @@ export class UnitSettings extends BaseModule {
     const hiddenTileKeys = Array.from(document.querySelectorAll('.unit-dashboard-feature'))
       .filter((input) => !input.checked && !input.disabled)
       .map((input) => input.dataset.featureKey);
-    const enabledOptionKeys = Array.from(document.querySelectorAll('.unit-dashboard-option'))
-      .filter((input) => input.checked)
-      .map((input) => input.dataset.optionKey);
     const payload = {
       version: UNIT_CUSTOMIZATION_CONFIG.version,
       hidden_tile_keys: hiddenTileKeys,
-      enabled_option_keys: enabledOptionKeys,
     };
 
     btn.disabled = true;
@@ -1113,7 +1078,6 @@ export class UnitSettings extends BaseModule {
         };
       }
       this.app?.showMessage?.(translate('unit_dashboard_saved'), 'success');
-      this.refreshScoutYearBanner();
     } catch (error) {
       debugError('Failed to save dashboard configuration:', error);
       this.app?.showMessage?.(this.getLocalizedSaveError(error), 'error');
@@ -1121,23 +1085,6 @@ export class UnitSettings extends BaseModule {
       btn.disabled = false;
       btn.textContent = translate('save');
     }
-  }
-
-  /**
-   * The year selector lives outside the page; show or hide it at once rather
-   * than at the next visit. A failure here leaves the saved setting standing.
-   *
-   * @returns {void}
-   */
-  refreshScoutYearBanner() {
-    import('../scout-year/ScoutYearBanner.js')
-      .then(({ initScoutYearBanner }) => initScoutYearBanner({
-        enabled: isUnitDashboardOptionEnabled(
-          { dashboard_configuration: this.dashboardConfiguration },
-          DASHBOARD_OPTIONS.SCOUT_YEAR_SELECTOR,
-        ),
-      }))
-      .catch((error) => debugError('Failed to refresh the scout year selector:', error));
   }
 
   async handleSaveParentDashboard(event) {

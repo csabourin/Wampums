@@ -627,8 +627,8 @@ them when another action screen opens offline. Apply migration 045 before the cl
   signed-in person the server takes it from the token and ignores anything else.
 
 #### Scout years and archives
-- ✅ A leader may consult an archived scout year (`spa/modules/scout-year/`) once the unit turns the year
-  selector on (Unit settings › Dashboard, `enabled_option_keys`). The API layer then sends
+- ✅ A leader may consult an archived scout year (`spa/modules/scout-year/`) once they turn the year
+  selector on under Display (`/display-settings`, a per-device preference). The API layer then sends
   the year with every read and refuses every write, and `ArchiveReadOnly` disables every control in
   `#app`. Mark a control used to browse (date picker, filter, search) with `data-archive-safe`.
 - ✅ Lists of youth are the roster of the year being consulted, not every participant ever enrolled.

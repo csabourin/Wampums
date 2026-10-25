@@ -4377,9 +4377,6 @@
   "family_tasks_response_queued": "Your answer will be sent when the connection returns.",
   "family_tasks_partial_failure": "The answer could not be saved for {children}. Please try again.",
   "family_child_file_show": "Full file",
-  "unit_dashboard_options_title": "Occasional tools",
-  "unit_dashboard_option_scout_year_selector": "Consult earlier scout years",
-  "unit_dashboard_option_scout_year_selector_hint": "Shows the year selector at the top of every screen, for leaders who may consult the year history.",
   "attendance_guest_youth_title": "A new child",
   "attendance_guest_youth_hint": "Add this child to the unit's list: attendance, points and honors follow at once, and their parent receives an invitation.",
   "attendance_guest_adult_title": "An adult visitor",
@@ -4392,5 +4389,10 @@
   "display_settings_title": "Display",
   "display_settings_intro": "These choices apply to this device only.",
   "display_settings_palette_applied": "{name} theme applied.",
-  "display_settings_reset_done": "Dashboard preferences reset."
+  "display_settings_reset_done": "Dashboard preferences reset.",
+  "display_settings_scout_year_title": "Earlier years",
+  "display_settings_scout_year_label": "Show the year selector at the top of every screen",
+  "display_settings_scout_year_hint": "To look back at the attendance, points or reports of an earlier year. An archived year is read-only.",
+  "display_settings_scout_year_shown": "The year selector is shown.",
+  "display_settings_scout_year_hidden": "The year selector is hidden."
 }

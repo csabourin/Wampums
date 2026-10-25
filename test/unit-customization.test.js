@@ -40,7 +40,7 @@ describe('unit customization validation', () => {
     expect(validateDashboardConfiguration({
       hidden_tile_keys: ['points', 'honors']
     })).toEqual({
-      value: { version: 1, hidden_tile_keys: ['honors', 'points'], enabled_option_keys: [] },
+      value: { version: 1, hidden_tile_keys: ['honors', 'points'] },
       errors: []
     });
 
@@ -54,7 +54,7 @@ describe('unit customization validation', () => {
     expect(validateDashboardConfiguration({
       hidden_tile_keys: ['incident_reports', 'parent_preview']
     })).toEqual({
-      value: { version: 1, hidden_tile_keys: ['incident_reports', 'parent_preview'], enabled_option_keys: [] },
+      value: { version: 1, hidden_tile_keys: ['incident_reports', 'parent_preview'] },
       errors: []
     });
 
@@ -69,30 +69,6 @@ describe('unit customization validation', () => {
       expect(validateDashboardConfiguration({ hidden_tile_keys: hiddenTileKeys }).errors)
         .toEqual([{ field: 'hidden_tile_keys', msg: 'Hidden tile keys must be an array' }]);
     });
-  });
-
-  test('the year selector stays off until the unit turns it on', () => {
-    expect(validateDashboardConfiguration({ hidden_tile_keys: [] }).value.enabled_option_keys).toEqual([]);
-
-    expect(validateDashboardConfiguration({
-      hidden_tile_keys: [],
-      enabled_option_keys: ['scout_year_selector', 'scout_year_selector']
-    })).toEqual({
-      value: { version: 1, hidden_tile_keys: [], enabled_option_keys: ['scout_year_selector'] },
-      errors: []
-    });
-  });
-
-  test('an unknown dashboard option or a non-array option list is refused', () => {
-    expect(validateDashboardConfiguration({
-      hidden_tile_keys: [],
-      enabled_option_keys: ['not_an_option']
-    }).errors).toEqual([{ field: 'enabled_option_keys', msg: 'Unknown dashboard option: not_an_option' }]);
-
-    expect(validateDashboardConfiguration({
-      hidden_tile_keys: [],
-      enabled_option_keys: 'scout_year_selector'
-    }).errors).toEqual([{ field: 'enabled_option_keys', msg: 'Enabled option keys must be an array' }]);
   });
 
   test('accepts known parent dashboard buttons and rejects the ones that always stay', () => {

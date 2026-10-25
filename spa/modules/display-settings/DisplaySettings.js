@@ -1,9 +1,10 @@
 /**
- * Display — how the dashboard looks on this device: its colour theme (among
- * them high contrast and colorblind-safe), and a way back to the defaults.
+ * Display — how the app looks on this device: the dashboard's colour theme
+ * (among them high contrast and colorblind-safe), the scout year selector for
+ * those who may consult earlier years, and a way back to the defaults.
  *
  * Reached from the "Display" tile beside "My account" under Administration.
- * The choice is stored on the device; nothing is sent to the server.
+ * The choices are stored on the device; nothing is sent to the server.
  *
  * @module spa/modules/display-settings/DisplaySettings
  */
@@ -14,10 +15,12 @@ import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { hasPermission } from '../../utils/PermissionUtils.js';
 import { PALETTES } from '../../config/dashboard-customization.js';
 import {
   getDashboardPrefs,
   setPaletteId,
+  setShowScoutYearSelector,
   resetDashboardPrefs,
 } from '../../utils/DashboardPreferences.js';
 
@@ -65,9 +68,33 @@ export class DisplaySettings {
       </label>`;
   }
 
+  /**
+   * The switch for the year selector, offered to whoever may consult the
+   * year history: looking back is occasional, so it is off until asked for.
+   *
+   * @param {boolean} shown - The selector is shown now
+   * @returns {string} HTML, empty without the permission
+   */
+  renderScoutYearSection(shown) {
+    if (!hasPermission('scout_year.view')) {
+      return '';
+    }
+    return `
+        <section class="display-settings__section" aria-labelledby="display-scout-year-title">
+          <h2 id="display-scout-year-title">${translate('display_settings_scout_year_title')}</h2>
+          <div class="form-group form-group--single-checkbox">
+            <input type="checkbox" id="display-scout-year-selector" aria-describedby="display-scout-year-hint"
+              ${shown ? 'checked' : ''}>
+            <label for="display-scout-year-selector">${translate('display_settings_scout_year_label')}</label>
+          </div>
+          <p class="dash-settings__hint" id="display-scout-year-hint">${translate('display_settings_scout_year_hint')}</p>
+        </section>`;
+  }
+
   /** @returns {void} */
   render() {
-    const currentId = getDashboardPrefs().paletteId;
+    const prefs = getDashboardPrefs();
+    const currentId = prefs.paletteId;
     const cards = Object.values(PALETTES).map((palette) => this.renderPalette(palette, currentId)).join('');
     setContent(this.root(), `
       <section class="page display-settings">
@@ -80,6 +107,7 @@ export class DisplaySettings {
           <p class="dash-settings__hint">${translate('dashboard_palette_hint')}</p>
           <div class="dash-settings__palettes">${cards}</div>
         </fieldset>
+        ${this.renderScoutYearSection(prefs.showScoutYearSelector)}
         <button type="button" class="button button--secondary" id="display-settings-reset">
           ${translate('reset_to_defaults')}
         </button>
@@ -94,6 +122,9 @@ export class DisplaySettings {
     // The markup was just replaced, so these listeners never stack.
     root.querySelectorAll('input[name="display_palette"]').forEach((input) => {
       input.addEventListener('change', () => this.choose(input.value));
+    });
+    document.getElementById('display-scout-year-selector')?.addEventListener('change', (event) => {
+      this.showScoutYearSelector(event.target.checked);
     });
     document.getElementById('display-settings-reset')?.addEventListener('click', () => this.reset());
   }
@@ -111,6 +142,31 @@ export class DisplaySettings {
     this.announce(translate('display_settings_palette_applied').replace('{name}', translate(palette.label)));
   }
 
+  /**
+   * Show or hide the year selector at once, above every screen.
+   *
+   * @param {boolean} show - True to show it
+   * @returns {void}
+   */
+  showScoutYearSelector(show) {
+    const shown = setShowScoutYearSelector(show);
+    this.refreshScoutYearBanner(shown);
+    this.announce(translate(shown ? 'display_settings_scout_year_shown' : 'display_settings_scout_year_hidden'));
+  }
+
+  /**
+   * The selector lives outside the page; a failure to redraw it leaves the
+   * stored choice standing for the next visit.
+   *
+   * @param {boolean} enabled - The selector is wanted
+   * @returns {void}
+   */
+  refreshScoutYearBanner(enabled) {
+    import('../scout-year/ScoutYearBanner.js')
+      .then(({ initScoutYearBanner }) => initScoutYearBanner({ enabled }))
+      .catch((error) => debugError('Failed to refresh the scout year selector:', error));
+  }
+
   /** @returns {void} */
   reset() {
     resetDashboardPrefs();
@@ -119,6 +175,11 @@ export class DisplaySettings {
     const input = document.getElementById(`display-palette-${current}`);
     if (input) {
       input.checked = true;
+    }
+    const yearSwitch = document.getElementById('display-scout-year-selector');
+    if (yearSwitch?.checked) {
+      yearSwitch.checked = false;
+      this.refreshScoutYearBanner(false);
     }
     this.announce(translate('display_settings_reset_done'));
   }

@@ -6,8 +6,8 @@
  *
  * It lives outside `#app` so it survives every route change: the pages render
  * into `#app` and would otherwise wipe it on each navigation. It only appears
- * for someone who can consult the year history, once the unit has turned the
- * selector on (Unit settings › Dashboard — looking back is occasional work),
+ * for someone who can consult the year history, once they asked for it under
+ * Display (looking back is occasional work),
  * and only once the unit actually has more than one year to look at — a unit
  * in its first season has no reason to see a year picker. An archived year
  * already in effect always keeps its notice and its way out.
@@ -82,7 +82,7 @@ function render() {
   if (!offerSelector || years.length < MIN_YEARS_TO_OFFER_SWITCH) {
     // With an archived year in effect, the list being short means the year
     // request failed — not that there is nothing to switch between — or the
-    // unit turned the selector off meanwhile. Read-only mode and the write
+    // selector was turned off meanwhile. Read-only mode and the write
     // guard are still on, so clearing the banner here would strand the user in
     // an archive with no way back. The exit stays, without the selector.
     if (selected) {
@@ -145,11 +145,11 @@ function handleSelection(value) {
 }
 
 /**
- * Mount the banner. Safe to call more than once: call it again when the unit
- * turns the selector on or off.
+ * Mount the banner. Safe to call more than once: call it again when the
+ * selector is turned on or off.
  *
  * @param {Object} [options]
- * @param {boolean} [options.enabled=false] - The unit offers the year selector
+ * @param {boolean} [options.enabled=false] - The person asked for the selector
  * @returns {Promise<void>}
  */
 export async function initScoutYearBanner({ enabled = false } = {}) {

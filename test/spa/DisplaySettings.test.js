@@ -15,6 +15,14 @@ jest.mock('../../spa/config.js', () => ({ CONFIG: { ROLES: {} } }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn(), debugInfo: jest.fn(),
 }));
+const mockPermissions = new Set(['scout_year.view']);
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({
+  hasPermission: (permission) => mockPermissions.has(permission),
+}));
+const mockInitScoutYearBanner = jest.fn(() => Promise.resolve());
+jest.mock('../../spa/modules/scout-year/ScoutYearBanner.js', () => ({
+  initScoutYearBanner: (...args) => mockInitScoutYearBanner(...args),
+}));
 jest.mock('../../spa/utils/DOMUtils.js', () => ({
   setContent: (element, html) => { element.innerHTML = html; },
   loadStylesheet: jest.fn(() => Promise.resolve()),
@@ -36,7 +44,12 @@ async function openScreen() {
   return screen;
 }
 
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 beforeEach(() => {
+  mockPermissions.clear();
+  mockPermissions.add('scout_year.view');
+  mockInitScoutYearBanner.mockClear();
   localStorage.clear();
   document.body.innerHTML = '<div id="app"></div>';
 });
@@ -84,6 +97,44 @@ test('the reset returns to the default theme and announces it', async () => {
   expect(getDashboardPrefs().paletteId).toBe(DEFAULT_PALETTE_ID);
   expect(document.querySelector('input:checked').value).toBe(DEFAULT_PALETTE_ID);
   expect(document.getElementById('display-settings-status').textContent).toBe('display_settings_reset_done');
+});
+
+test('the year selector is off until asked for, then shown at once and remembered', async () => {
+  await openScreen();
+  const yearSwitch = document.getElementById('display-scout-year-selector');
+  expect(yearSwitch.checked).toBe(false);
+  expect(yearSwitch.labels[0].textContent).toBe('display_settings_scout_year_label');
+  expect(document.getElementById(yearSwitch.getAttribute('aria-describedby')).textContent)
+    .toBe('display_settings_scout_year_hint');
+
+  yearSwitch.click();
+  await flush();
+
+  expect(getDashboardPrefs().showScoutYearSelector).toBe(true);
+  expect(mockInitScoutYearBanner).toHaveBeenCalledWith({ enabled: true });
+  expect(document.getElementById('display-settings-status').textContent).toBe('display_settings_scout_year_shown');
+
+  await openScreen();
+  expect(document.getElementById('display-scout-year-selector').checked).toBe(true);
+});
+
+test('the reset hides the year selector again', async () => {
+  await openScreen();
+  document.getElementById('display-scout-year-selector').click();
+  await flush();
+
+  document.getElementById('display-settings-reset').click();
+  await flush();
+
+  expect(getDashboardPrefs().showScoutYearSelector).toBe(false);
+  expect(document.getElementById('display-scout-year-selector').checked).toBe(false);
+  expect(mockInitScoutYearBanner).toHaveBeenLastCalledWith({ enabled: false });
+});
+
+test('someone who may not consult earlier years is not offered the year selector', async () => {
+  mockPermissions.clear();
+  await openScreen();
+  expect(document.getElementById('display-scout-year-selector')).toBeNull();
 });
 
 test('the screen has no WCAG A/AA violations', async () => {
