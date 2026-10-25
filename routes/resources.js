@@ -21,6 +21,7 @@ const {
   buildPermissionSlipLeaderCopyContent,
 } = require('../utils/permission-slip-email');
 const { listActivityLeaderContacts } = require('../services/unitLeaders');
+const { EQUIPMENT_CATEGORIES } = require('../services/equipmentCategories');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { findTestRecipient, markAsTestEmail } = require('../utils/test-email');
@@ -532,9 +533,19 @@ module.exports = (pool, logger) => {
     '/equipment',
     authenticate,
     requirePermission('inventory.view'),
+    // Dates to reserve for: each item then says how many are free for them,
+    // counted as a reservation of those dates is (reservations and loans).
+    query('date_from').optional().isISO8601({ strict: true }),
+    query('date_to').optional().isISO8601({ strict: true }),
+    validateIdQuery('activity_id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
+        const datesFrom = req.query.date_from ? parseDate(req.query.date_from) : null;
+        const datesTo = req.query.date_to ? parseDate(req.query.date_to) : null;
+        const forDates = datesFrom && datesTo && datesFrom <= datesTo;
+        const activityId = req.query.activity_id ? Number(req.query.activity_id) : null;
         // Settle lapsed reservations first: their held quantity is what the
         // availability sum below reports as unavailable.
         await expireLapsedReservations(pool, organizationId, req.log || null);
@@ -581,11 +592,22 @@ module.exports = (pool, logger) => {
                       AND ${activeReservationPredicate('er')}
                   ), 0) AS reserved_quantity,
                   equipment_loaned_quantity(e.id, CURRENT_DATE) AS loaned_quantity,
+                  CASE WHEN $2::date IS NULL THEN NULL ELSE GREATEST(0,
+                    COALESCE(e.quantity_total, 0)
+                    - COALESCE((
+                        SELECT SUM(er.reserved_quantity)
+                          FROM equipment_reservations er
+                         WHERE er.equipment_id = e.id
+                           AND er.status IN ('reserved', 'confirmed')
+                           AND er.date_from <= $3::date AND er.date_to >= $2::date
+                      ), 0)
+                    - equipment_loans_beyond_reservations(e.id, $2::date, $3::date, $4::int)
+                  )::int END AS available_for_dates,
                   COALESCE(shared_visibility.shared_organizations, '{}'::text[]) AS shared_organizations
              FROM accessible_equipment e
              LEFT JOIN shared_visibility ON shared_visibility.equipment_id = e.id
              ORDER BY e.category NULLS LAST, e.name`,
-          [organizationId],
+          [organizationId, forDates ? datesFrom : null, forDates ? datesTo : null, forDates ? activityId : null],
         );
 
         const equipment = await Promise.all(
@@ -608,7 +630,7 @@ module.exports = (pool, logger) => {
     requirePermission('inventory.manage'),
     [
       check('name').isString().trim().isLength({ min: 2, max: 150 }),
-      check('category').optional().isString().trim().isLength({ max: 100 }),
+      check('category').optional({ values: 'falsy' }).isIn(EQUIPMENT_CATEGORIES),
       check('description').optional().isString().trim().isLength({ max: 2000 }),
       check('quantity_total').optional().isInt({ min: 0 }),
       check('quantity_available').optional().isInt({ min: 0 }),
@@ -641,7 +663,6 @@ module.exports = (pool, logger) => {
         const organizationId = await getOrganizationId(req, pool);
         const {
           name,
-          category,
           description,
           quantity_total = 1,
           quantity_available,
@@ -709,7 +730,8 @@ module.exports = (pool, logger) => {
           [
             organizationId,
             name,
-            category,
+            // An item put in no category goes in Other.
+            req.body.category || 'other',
             description,
             quantity_total,
             available,
@@ -756,7 +778,7 @@ module.exports = (pool, logger) => {
     [
       validateIdParam('id'),
       check('name').optional().isString().trim().isLength({ min: 2, max: 150 }),
-      check('category').optional().isString().trim().isLength({ max: 100 }),
+      check('category').optional().isIn(EQUIPMENT_CATEGORIES),
       check('description').optional().isString().trim().isLength({ max: 2000 }),
       check('quantity_total').optional().isInt({ min: 0 }),
       check('quantity_available').optional().isInt({ min: 0 }),
@@ -1740,7 +1762,7 @@ module.exports = (pool, logger) => {
         // If activity_id is provided, fetch activity details and use its date
         if (activity_id) {
           const activityResult = await pool.query(
-            `SELECT id, name, activity_date FROM activities
+            `SELECT id, name, activity_date, activity_start_date, activity_end_date FROM activities
              WHERE id = $1 AND organization_id = $2 AND is_active = TRUE`,
             [activity_id, organizationId]
           );
@@ -1751,8 +1773,9 @@ module.exports = (pool, logger) => {
 
           const activity = activityResult.rows[0];
           activityName = activity.name;
-          normalizedDateFrom = parseDate(activity.activity_date);
-          normalizedDateTo = parseDate(activity.activity_date);
+          // The whole activity, as the picker counts availability for it.
+          normalizedDateFrom = parseDate(activity.activity_start_date || activity.activity_date);
+          normalizedDateTo = parseDate(activity.activity_end_date || activity.activity_date || activity.activity_start_date);
         } else {
           // If no activity_id, dates are required
           if (!date_from || !date_to) {

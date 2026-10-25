@@ -239,6 +239,32 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
     }).expect(409);
   });
 
+  test('the inventory says how many are free for the dates asked, counted as a reservation of them is', async () => {
+    const tents = await item(ids.unit, 'Tente patrouille', 6);
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      due_date: '2099-09-01', loans: [{ equipment_id: tents, quantity: 2, participant_id: ids.ada }],
+    }).expect(201);
+    await as(ids.leader).post('/api/v1/resources/equipment/reservations', {
+      equipment_id: tents, date_from: '2099-09-10', date_to: '2099-09-12', reserved_quantity: 3, reserved_for: 'Sortie septembre',
+    }).expect(201);
+    const freeFor = async (from, to) => {
+      const response = await as(ids.leader).get(`/api/v1/resources/equipment?date_from=${from}&date_to=${to}`).expect(200);
+      return response.body.data.equipment.find((row) => row.id === tents).available_for_dates;
+    };
+
+    // Lent until the 1st, reserved from the 10th.
+    expect(await freeFor('2099-08-25', '2099-08-26')).toBe(4);
+    expect(await freeFor('2099-09-10', '2099-09-11')).toBe(3);
+    const both = await freeFor('2099-08-31', '2099-09-10');
+    await as(ids.leader).post('/api/v1/resources/equipment/reservations', {
+      equipment_id: tents, date_from: '2099-08-31', date_to: '2099-09-10', reserved_quantity: both + 1, reserved_for: 'Trop',
+    }).expect(400);
+
+    const undated = await as(ids.leader).get('/api/v1/resources/equipment').expect(200);
+    expect(undated.body.data.equipment.find((row) => row.id === tents).available_for_dates).toBeNull();
+    await as(ids.leader).get('/api/v1/resources/equipment?date_from=demain&date_to=2099-09-10').expect(400);
+  });
+
   test('a camp under way whose tents went home counts them once, as loans', async () => {
     const tents = await item(ids.unit, 'Tente prospecteur', 6);
     const campId = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
@@ -481,6 +507,23 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
       expect(refused.status).toBe(400);
       expect(await reservedOn(stoves)).toBe(0);
       expect(await reservedOn(pots)).toBe(0);
+    });
+
+    test('reserving for a weekend activity holds the equipment for the whole weekend', async () => {
+      const canoes = await item(ids.unit, 'Canot', 2);
+      const weekend = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+          meeting_time_going, departure_time_going, activity_start_date, activity_start_time, activity_end_date, activity_end_time)
+        VALUES ($1, $2, 'Fin de semaine canot', '2099-11-06', 'Local', '08:00', '08:15', '2099-11-06', '08:00', '2099-11-08', '16:00')
+        RETURNING id`, [ids.unit, ids.leader]);
+
+      await as(ids.leader).post('/api/v1/resources/equipment/reservations/bulk', {
+        activity_id: weekend, reserved_for: 'Fin de semaine canot', items: [{ equipment_id: canoes, quantity: 2 }],
+      }).expect(201);
+
+      const held = await pool.query(
+        "SELECT to_char(date_from, 'YYYY-MM-DD') AS date_from, to_char(date_to, 'YYYY-MM-DD') AS date_to FROM equipment_reservations WHERE equipment_id = $1",
+        [canoes]);
+      expect(held.rows).toEqual([{ date_from: '2099-11-06', date_to: '2099-11-08' }]);
     });
 
     test('two leaders reserving the last tents at the same moment never reserve more than exist', async () => {
