@@ -4,7 +4,9 @@
  * those who may consult earlier years, and a way back to the defaults.
  *
  * Reached from the "Display" tile beside "My account" under Administration.
- * The choices are stored on the device; nothing is sent to the server.
+ * The choices are stored on the device; nothing is sent to the server, so the
+ * page stays usable while an archived year is consulted (`data-archive-safe`):
+ * high contrast, or hiding the selector, must never be locked away.
  *
  * @module spa/modules/display-settings/DisplaySettings
  */
@@ -97,7 +99,7 @@ export class DisplaySettings {
     const currentId = prefs.paletteId;
     const cards = Object.values(PALETTES).map((palette) => this.renderPalette(palette, currentId)).join('');
     setContent(this.root(), `
-      <section class="page display-settings">
+      <section class="page display-settings" data-archive-safe>
         ${renderBackLink()}
         <h1>${translate('display_settings_title')}</h1>
         <p>${translate('display_settings_intro')}</p>

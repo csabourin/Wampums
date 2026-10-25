@@ -137,6 +137,26 @@ test('someone who may not consult earlier years is not offered the year selector
   expect(document.getElementById('display-scout-year-selector')).toBeNull();
 });
 
+test('while an archived year is consulted, every display choice stays usable', async () => {
+  const { initArchiveReadOnly } = jest.requireActual('../../spa/modules/scout-year/ArchiveReadOnly.js');
+  const { setSelectedScoutYear, clearSelectedScoutYear } = jest.requireActual('../../spa/modules/scout-year/ScoutYearContext.js');
+  setSelectedScoutYear({ id: 4, label: '2024-2025', status: 'closed' });
+  try {
+    await openScreen();
+    initArchiveReadOnly();
+    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    const controls = Array.from(document.querySelectorAll('#app input, #app button'));
+    expect(controls.length).toBeGreaterThan(Object.keys(PALETTES).length);
+    controls.forEach((control) => expect(control.disabled).toBe(false));
+
+    document.getElementById('display-palette-highContrast').click();
+    expect(getDashboardPrefs().paletteId).toBe('highContrast');
+  } finally {
+    clearSelectedScoutYear();
+  }
+});
+
 test('the screen has no WCAG A/AA violations', async () => {
   await openScreen();
   expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
