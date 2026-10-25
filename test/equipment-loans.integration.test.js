@@ -239,6 +239,32 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
     }).expect(409);
   });
 
+  test('the inventory says how many are free for the dates asked, counted as a reservation of them is', async () => {
+    const tents = await item(ids.unit, 'Tente patrouille', 6);
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      due_date: '2099-09-01', loans: [{ equipment_id: tents, quantity: 2, participant_id: ids.ada }],
+    }).expect(201);
+    await as(ids.leader).post('/api/v1/resources/equipment/reservations', {
+      equipment_id: tents, date_from: '2099-09-10', date_to: '2099-09-12', reserved_quantity: 3, reserved_for: 'Sortie septembre',
+    }).expect(201);
+    const freeFor = async (from, to) => {
+      const response = await as(ids.leader).get(`/api/v1/resources/equipment?date_from=${from}&date_to=${to}`).expect(200);
+      return response.body.data.equipment.find((row) => row.id === tents).available_for_dates;
+    };
+
+    // Lent until the 1st, reserved from the 10th.
+    expect(await freeFor('2099-08-25', '2099-08-26')).toBe(4);
+    expect(await freeFor('2099-09-10', '2099-09-11')).toBe(3);
+    const both = await freeFor('2099-08-31', '2099-09-10');
+    await as(ids.leader).post('/api/v1/resources/equipment/reservations', {
+      equipment_id: tents, date_from: '2099-08-31', date_to: '2099-09-10', reserved_quantity: both + 1, reserved_for: 'Trop',
+    }).expect(400);
+
+    const undated = await as(ids.leader).get('/api/v1/resources/equipment').expect(200);
+    expect(undated.body.data.equipment.find((row) => row.id === tents).available_for_dates).toBeNull();
+    await as(ids.leader).get('/api/v1/resources/equipment?date_from=demain&date_to=2099-09-10').expect(400);
+  });
+
   test('a camp under way whose tents went home counts them once, as loans', async () => {
     const tents = await item(ids.unit, 'Tente prospecteur', 6);
     const campId = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,

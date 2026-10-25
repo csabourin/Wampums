@@ -533,9 +533,19 @@ module.exports = (pool, logger) => {
     '/equipment',
     authenticate,
     requirePermission('inventory.view'),
+    // Dates to reserve for: each item then says how many are free for them,
+    // counted as a reservation of those dates is (reservations and loans).
+    query('date_from').optional().isISO8601({ strict: true }),
+    query('date_to').optional().isISO8601({ strict: true }),
+    validateIdQuery('activity_id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
+        const datesFrom = req.query.date_from ? parseDate(req.query.date_from) : null;
+        const datesTo = req.query.date_to ? parseDate(req.query.date_to) : null;
+        const forDates = datesFrom && datesTo && datesFrom <= datesTo;
+        const activityId = req.query.activity_id ? Number(req.query.activity_id) : null;
         // Settle lapsed reservations first: their held quantity is what the
         // availability sum below reports as unavailable.
         await expireLapsedReservations(pool, organizationId, req.log || null);
@@ -582,11 +592,22 @@ module.exports = (pool, logger) => {
                       AND ${activeReservationPredicate('er')}
                   ), 0) AS reserved_quantity,
                   equipment_loaned_quantity(e.id, CURRENT_DATE) AS loaned_quantity,
+                  CASE WHEN $2::date IS NULL THEN NULL ELSE GREATEST(0,
+                    COALESCE(e.quantity_total, 0)
+                    - COALESCE((
+                        SELECT SUM(er.reserved_quantity)
+                          FROM equipment_reservations er
+                         WHERE er.equipment_id = e.id
+                           AND er.status IN ('reserved', 'confirmed')
+                           AND er.date_from <= $3::date AND er.date_to >= $2::date
+                      ), 0)
+                    - equipment_loans_beyond_reservations(e.id, $2::date, $3::date, $4::int)
+                  )::int END AS available_for_dates,
                   COALESCE(shared_visibility.shared_organizations, '{}'::text[]) AS shared_organizations
              FROM accessible_equipment e
              LEFT JOIN shared_visibility ON shared_visibility.equipment_id = e.id
              ORDER BY e.category NULLS LAST, e.name`,
-          [organizationId],
+          [organizationId, forDates ? datesFrom : null, forDates ? datesTo : null, forDates ? activityId : null],
         );
 
         const equipment = await Promise.all(
