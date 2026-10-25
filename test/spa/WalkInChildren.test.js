@@ -109,6 +109,17 @@ test('lists the children waiting for a parent, with where each invitation stands
   expect(document.querySelector('[data-invite="7"]').textContent.trim()).toBe('walk_in_change_email');
 });
 
+test('opened from attendance to welcome a visitor, the back link returns to attendance', async () => {
+  window.history.replaceState({}, '', '/walk-in-children?from=attendance');
+  await new WalkInChildren({}).init();
+  expect(document.querySelector('#app a.button--ghost').getAttribute('href')).toBe('/attendance');
+
+  window.history.replaceState({}, '', '/walk-in-children?from=__proto__');
+  await new WalkInChildren({}).init();
+  expect(document.querySelector('#app a.button--ghost').getAttribute('href')).toBe('/dashboard');
+  window.history.replaceState({}, '', '/');
+});
+
 test('checks the child and the address before sending anything', async () => {
   await new WalkInChildren({}).init();
 

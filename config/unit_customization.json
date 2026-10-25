@@ -137,6 +137,7 @@
     "budgets",
     "reports",
     "account_info",
+    "display_settings",
     "role_management",
     "district",
     "create_organization"

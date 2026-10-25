@@ -475,6 +475,18 @@ export const DASHBOARD_TILES = [
     priority: 0,
   },
   {
+    // How the dashboard looks on this device: colour theme, high contrast.
+    featureKey: 'display_settings',
+    href: '/display-settings',
+    icon: 'fa-palette',
+    label: 'tile_display_settings',
+    aliases: 'tile_display_settings_aliases',
+    moment: 'tools',
+    domain: 'system',
+    priority: 1,
+    gate: { check: 'member' },
+  },
+  {
     featureKey: 'district',
     // Merged destination: "Espace district" + "Unités du district".
     href: '/district',

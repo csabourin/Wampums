@@ -6,7 +6,7 @@ jest.mock('../../spa/modules/OfflineManager.js', () => ({ offlineManager: {} }))
 jest.mock('../../spa/indexedDB.js', () => ({ getCachedData: jest.fn() }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugError: jest.fn() }));
 import { CampPreparation, campPreparation } from '../../spa/modules/offline/CampPreparation.js';
-import { renderCampReadiness, renderCampReadinessSummary } from '../../spa/modules/offline/CampReadiness.js';
+import { renderCampReadiness, renderCampReadinessSummary, isCampReadinessDue } from '../../spa/modules/offline/CampReadiness.js';
 import { getCachedData } from '../../spa/indexedDB.js';
 import { buildScopedCacheKey } from '../../spa/utils/OfflineCacheKeys.js';
 
@@ -126,10 +126,34 @@ test('the shared device status is escaped and accessible with a route to verify 
   jest.useRealTimers();
   const previous = { states: campPreparation.states, scope: campPreparation.scope, allowed: campPreparation.allowed, activities: campPreparation.activities };
   Object.assign(campPreparation, { states: new Map([['7', { status: 'ready', preparedAt: Date.now() }]]), scope: buildScopedCacheKey(''), allowed: () => true, activities: [CAMP] });
-  document.body.innerHTML = `<main>${renderCampReadinessSummary('fr')}${renderCampReadiness(7, 'fr')}</main>`;
+  document.body.innerHTML = `<main>${renderCampReadinessSummary('fr', new Date('2026-10-25T08:00:00'))}${renderCampReadiness(7, 'fr')}</main>`;
   expect(document.querySelector('img')).toBeNull();
   expect(document.querySelector('a').getAttribute('href')).toBe('/prepare-offline');
   expect(document.body.textContent).toContain('camp_device_ready');
   expect((await axe.run(document.querySelector('main'), { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([]);
+  Object.assign(campPreparation, previous);
+});
+
+test('the dashboard speaks of a camp from a day before it starts until it ends', () => {
+  const camp = { ...CAMP, activity_start_time: '18:00:00', activity_end_time: '15:00:00' };
+  expect(isCampReadinessDue(camp, new Date('2026-10-24T17:59:00'))).toBe(false);
+  expect(isCampReadinessDue(camp, new Date('2026-10-24T18:00:00'))).toBe(true);
+  expect(isCampReadinessDue(camp, new Date('2026-10-26T12:00:00'))).toBe(true);
+  expect(isCampReadinessDue(camp, new Date('2026-10-27T15:00:00'))).toBe(true);
+  expect(isCampReadinessDue(camp, new Date('2026-10-27T15:01:00'))).toBe(false);
+});
+
+test('without times, a camp counts from midnight the day before until the end of its last day', () => {
+  expect(isCampReadinessDue(CAMP, new Date('2026-10-23T23:59:00'))).toBe(false);
+  expect(isCampReadinessDue(CAMP, new Date('2026-10-24T00:00:00'))).toBe(true);
+  expect(isCampReadinessDue(CAMP, new Date('2026-10-27T23:00:00'))).toBe(true);
+  expect(isCampReadinessDue(CAMP, new Date('2026-10-28T00:00:00'))).toBe(false);
+});
+
+test('a camp still days away is prepared in the background but not shown on the dashboard', () => {
+  const previous = { states: campPreparation.states, allowed: campPreparation.allowed, activities: campPreparation.activities };
+  Object.assign(campPreparation, { states: new Map(), allowed: () => true, activities: [CAMP] });
+  expect(renderCampReadinessSummary('fr', new Date('2026-10-22T12:00:00'))).toBe('');
+  expect(renderCampReadinessSummary('fr', new Date('2026-10-24T12:00:00'))).toContain('camp_device_title');
   Object.assign(campPreparation, previous);
 });

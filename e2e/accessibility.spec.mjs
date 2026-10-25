@@ -26,7 +26,7 @@ const SCREENS = {
     `/medication-authorizations/${seededParticipantId()}`,
   ],
   leader: [
-    '/dashboard', '/attendance', '/manage-points', '/progression', '/walk-in-children',
+    '/dashboard', '/attendance', '/manage-points', '/progression', '/walk-in-children', '/display-settings',
     '/activities', '/manageHonors', '/reunions',
     '/progression?tab=programme', '/reunions?tab=preparation',
   ],
@@ -316,28 +316,20 @@ test.describe('keyboard', () => {
       expect(await focusProblemsWhileTabbing(page, 15)).toEqual([]);
     });
 
-    test('the dashboard settings dialog keeps focus inside, closes with Escape, and returns focus', async ({ page }) => {
+    test('the display tile opens the theme choice, which the arrow keys change', async ({ page }) => {
       await openScreen(page, '/dashboard');
-      const opener = page.locator('#dashboard-settings-btn');
-      await opener.focus();
+      await page.locator('#app a[href="/display-settings"]').first().focus();
       await page.keyboard.press('Enter');
+      await page.waitForURL('**/display-settings');
+      await settleScreen(page);
 
-      const dialog = page.getByRole('dialog');
-      await expect(dialog).toBeVisible();
-      await expect(dialog.locator(':focus')).toHaveCount(1);
-
-      for (let step = 0; step < 25; step += 1) {
-        // eslint-disable-next-line no-await-in-loop -- each key press moves on from the previous one
-        await page.keyboard.press('Tab');
-        // eslint-disable-next-line no-await-in-loop -- checked after every press
-        await expect(dialog.locator(':focus'), 'Tab stays in the dialog').toHaveCount(1);
-      }
-
+      const checked = page.locator('input[name="display_palette"]:checked');
+      const before = await checked.getAttribute('value');
+      await checked.focus();
+      await page.keyboard.press('ArrowDown');
+      await expect(checked).not.toHaveAttribute('value', before);
+      await expect(page.locator('#display-settings-status')).not.toBeEmpty();
       expect(await axeViolations(page)).toEqual([]);
-
-      await page.keyboard.press('Escape');
-      await expect(dialog).toHaveCount(0);
-      await expect(opener).toBeFocused();
     });
   });
 

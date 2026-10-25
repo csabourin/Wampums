@@ -461,6 +461,8 @@ un ancien indicateur sans preuve ne suffit pas. Les données sont actualisées c
 heure et après synchronisation, avec une nouvelle tentative chaque minute en cas
 d'échec. Une file locale non vide reporte le téléchargement pour préserver les
 modifications. Les camps futurs n'activent le mode camp qu'à leur début.
+Le tableau de bord n'affiche la disponibilité hors ligne d'un camp que de 24 heures avant son début
+jusqu'à sa fin (`isCampReadinessDue`) ; la préparation, elle, commence plus tôt en arrière-plan.
 « Vérifier la disponibilité hors ligne » permet une actualisation manuelle depuis
 les activités ou la préparation hors ligne ; vérifier chaque appareil avant de partir.
 Les totaux locaux restent
@@ -629,7 +631,8 @@ them when another action screen opens offline. Apply migration 045 before the cl
   signed-in person the server takes it from the token and ignores anything else.
 
 #### Scout years and archives
-- ✅ A leader may consult an archived scout year (`spa/modules/scout-year/`). The API layer then sends
+- ✅ A leader may consult an archived scout year (`spa/modules/scout-year/`) once they turn the year
+  selector on under Display (`/display-settings`, a per-device preference). The API layer then sends
   the year with every read and refuses every write, and `ArchiveReadOnly` disables every control in
   `#app`. Mark a control used to browse (date picker, filter, search) with `data-archive-safe`.
 - ✅ Lists of youth are the roster of the year being consulted, not every participant ever enrolled.

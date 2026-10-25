@@ -14,6 +14,7 @@
 
 require('fake-indexeddb/auto');
 const { IDBFactory } = require('fake-indexeddb');
+const axe = require('axe-core');
 
 jest.mock('../../spa/api/api-action-roster.js', () => ({
   getActionRoster: jest.fn(async (date) => {
@@ -467,6 +468,88 @@ describe('US-ATT-011 — Add a visiting guest', () => {
     expect(document.getElementById('guestList').textContent).toContain('Visiting Vic');
     expect(document.getElementById('guestName').value).toBe('');
     expect(appStub.showMessage).toHaveBeenCalledWith(tr('guest_added_successfully'), 'success');
+  });
+});
+
+describe('US-ATT-011b — Someone not on the list: a new child or an adult visitor', () => {
+  const permissions = mockGlobalApp.userPermissions;
+  afterEach(() => { mockGlobalApp.userPermissions = permissions; });
+
+  it('offers to welcome a new child onto the roster, returning to attendance afterwards', async () => {
+    mockGlobalApp.userPermissions = [...permissions, 'participants.walk_in'];
+    seedStandardData();
+    await initPage();
+
+    const link = document.querySelector('a[href="/walk-in-children?from=attendance"]');
+    expect(link.textContent.trim()).toBe(tr('tile_walk_in_children'));
+    expect(link.closest('.guest-entry__option').querySelector('h3').textContent).toBe(tr('attendance_guest_youth_title'));
+  });
+
+  it('does not offer to welcome a child to someone who may not add one', async () => {
+    seedStandardData();
+    await initPage();
+
+    expect(document.querySelector('a[href^="/walk-in-children"]')).toBeNull();
+    expect(document.getElementById('attendance-guest-form')).not.toBeNull();
+  });
+
+  it('notes an adult visitor for the date on screen, from labelled fields and a submit button', async () => {
+    seedStandardData();
+    const { appStub } = await initPage();
+
+    expect(document.getElementById('attendance-guest-hint').textContent)
+      .toContain(formatDate(TODAY, 'en'));
+    document.getElementById('guestName').value = 'Ada Lovelace';
+    document.getElementById('attendance-guest-form')
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    expect(ajax.saveGuest).toHaveBeenCalledWith({ name: 'Ada Lovelace', email: '', attendance_date: TODAY });
+    expect(appStub.showMessage).toHaveBeenCalledWith(tr('guest_added_successfully'), 'success');
+    expect(document.getElementById('guestList').textContent).toContain('Ada Lovelace');
+  });
+
+  it('an empty name marks the field and keeps focus on it', async () => {
+    seedStandardData();
+    const { page } = await initPage();
+
+    await page.addGuest();
+    const name = document.getElementById('guestName');
+    expect(name.getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(name);
+    name.value = 'A';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(name.hasAttribute('aria-invalid')).toBe(false);
+  });
+
+  it('a visitor kept on the device while offline is not reported as saved', async () => {
+    seedStandardData();
+    ajax.saveGuest.mockResolvedValue({ success: true, queued: true });
+    const { page, appStub } = await initPage();
+
+    document.getElementById('guestName').value = 'Léa Tremblay';
+    await page.addGuest();
+
+    expect(appStub.showMessage).toHaveBeenCalledWith(tr('attendance_guest_queued'), 'info');
+    expect(appStub.showMessage).not.toHaveBeenCalledWith(tr('guest_added_successfully'), 'success');
+  });
+
+  it('a visitor name is shown as text, and the section has no WCAG A/AA violations', async () => {
+    mockGlobalApp.userPermissions = [...permissions, 'participants.walk_in'];
+    seedStandardData();
+    ajax.getGuestsByDate.mockResolvedValue({ success: true, data: [
+      { name: '<img src=x onerror=alert(1)>', email: null, attendance_date: TODAY },
+    ] });
+    await initPage();
+
+    const section = document.querySelector('.guest-entry');
+    expect(section.querySelector('img')).toBeNull();
+    expect(section.textContent).toContain('<img src=x onerror=alert(1)>');
+    const results = await axe.run(section, {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
   });
 });
 

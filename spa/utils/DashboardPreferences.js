@@ -1,6 +1,7 @@
 /**
  * User-controlled dashboard preferences, persisted in localStorage.
- * Single source of truth for: palette choice, hidden tiles, FAB pinned actions.
+ * Single source of truth for: palette choice, hidden tiles, FAB pinned actions,
+ * and whether the scout year selector is shown.
  *
  * Applies the active palette by writing CSS custom properties to :root,
  * scoped under [data-dashboard-palette] on documentElement.
@@ -34,6 +35,8 @@ const DEFAULT_PREFS = Object.freeze({
   pinnedActions: [],
   collapsedToolGroups: DEFAULT_COLLAPSED_TOOL_GROUPS,
   toolGroupsTouched: false,
+  // Consulting an earlier year is occasional: the selector waits to be asked for.
+  showScoutYearSelector: false,
 });
 
 function readPrefs() {
@@ -228,6 +231,19 @@ export function applyPalette(paletteId = null) {
   });
 
   root.dataset.dashboardPalette = palette.id;
+}
+
+/**
+ * Show or hide the scout year selector above every screen, on this device.
+ *
+ * @param {boolean} show - True to show it
+ * @returns {boolean} The stored choice
+ */
+export function setShowScoutYearSelector(show) {
+  const prefs = readPrefs();
+  prefs.showScoutYearSelector = show === true;
+  writePrefs(prefs);
+  return prefs.showScoutYearSelector;
 }
 
 /**
