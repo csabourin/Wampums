@@ -348,6 +348,21 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
     await as(ids.leader).patch(`/api/v1/equipment-loans/${loanId}`, { due_date: '2099-06-30' }).expect(200);
   });
 
+  test('moving a due date into the past keeps the loan out with no end, so it is checked again', async () => {
+    const tarps = await item(ids.unit, 'Bâche 4 x 5 m', 2);
+    const created = await as(ids.leader).post('/api/v1/equipment-loans', {
+      due_date: '2099-09-01', loans: [{ equipment_id: tarps, quantity: 2, participant_id: ids.ada }],
+    }).expect(201);
+    const loanId = created.body.data.loans[0].id;
+    await pool.query('UPDATE equipment_loans SET loaned_on = CURRENT_DATE - 10 WHERE id = $1', [loanId]);
+    await as(ids.leader).post('/api/v1/resources/equipment/reservations', {
+      equipment_id: tarps, date_from: '2099-09-10', date_to: '2099-09-11', reserved_quantity: 2, reserved_for: 'Sortie septembre',
+    }).expect(201);
+    const yesterday = await one('SELECT (CURRENT_DATE - 1)::text');
+
+    await as(ids.leader).patch(`/api/v1/equipment-loans/${loanId}`, { due_date: yesterday }).expect(409);
+  });
+
   test('a handout replayed from the offline outbox is recorded once', async () => {
     const body = { loans: [{ equipment_id: ids.tarps, quantity: 1, participant_id: ids.max }] };
     const first = await as(ids.leader).post('/api/v1/equipment-loans', body, 'camp-handout-1').expect(201);

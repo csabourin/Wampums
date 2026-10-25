@@ -100,7 +100,8 @@ const DERIVED_RESOURCES = {
   budget: ['budget', 'expenses', 'revenue'],
   expenses: ['expenses', 'budget'],
   revenue: ['revenue', 'budget'],
-  resources: ['resources', 'activities', 'action-roster'],
+  // The handout lists what an activity reserved, and what is left to lend.
+  resources: ['resources', 'activities', 'action-roster', 'equipment-loans'],
   // What is out on loan is what the inventory shows as unavailable.
   'equipment-loans': ['equipment-loans', 'resources'],
   // The announcement composer lists the unit's roles.

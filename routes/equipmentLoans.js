@@ -45,6 +45,8 @@ const HANDOUT_PAST_DAYS = 30;
 const HANDOUT_UPCOMING_DAYS = 7;
 const MAX_HANDOUT_ACTIVITIES = 20;
 const IDEMPOTENCY_KEY_PATTERN = /^[a-zA-Z0-9-]{1,128}$/;
+/** Sorts after every real date: a loan out with no end. */
+const OPEN_ENDED = '9999-12-31';
 /** Characters of YYYY-MM-DD at the start of an ISO 8601 date. */
 const ISO_DATE_LENGTH = 10;
 
@@ -630,12 +632,14 @@ module.exports = (pool) => {
           return error(res, 'equipment_loan_due_date_past', HTTP_BAD_REQUEST);
         }
 
-        // Taking units back out, or keeping them out longer (a later due date,
-        // or none), can collide with reservations; check the stock again.
+        // Taking units back out, or keeping them out longer, can collide with
+        // reservations; check the stock again. A due date that is none, or
+        // already past, keeps the units out with no end, as the checks count it.
         const goingBackOut = returnedQuantity < Number(loan.returned_quantity);
         const stillOut = returnedQuantity < Number(loan.quantity);
-        const keptLonger = has('due_date') && stillOut && loan.due_date !== null
-          && (dueDate === null || dueDate > loan.due_date);
+        const today = await databaseToday(client);
+        const holdsUntil = (date) => (!date || date < today ? OPEN_ENDED : date);
+        const keptLonger = has('due_date') && stillOut && holdsUntil(dueDate) > holdsUntil(loan.due_date);
         if (goingBackOut || keptLonger) {
           // The loan is checked in its own place: what it keeps out, until
           // its new due date, against everything else.
