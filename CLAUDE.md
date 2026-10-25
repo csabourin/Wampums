@@ -286,6 +286,10 @@ router.delete('/data', authenticate, blockDemoRoles, requirePermission('data.del
 - ✅ Use `getOrganizationId(req, pool)` helper to get organization context
 - ✅ Organization ID from the JWT token **always takes precedence** over `x-organization-id` header and `organization_id` body field — never trust client-supplied org IDs for authenticated requests
 - ✅ For unauthenticated public routes, the `x-organization-id` header (validated against `organization_domains` table) is used
+- ✅ **What one unit records never refuses or changes another's.** A youth may be enrolled in several
+  units; each records attendance, honors and points for them independently. A uniqueness constraint on
+  a youth's records includes `organization_id` (migration 049 dropped the last one that did not, on
+  `honors`), and a lock taken for one unit's write locks that unit's rows only.
 ```javascript
 const { getOrganizationId } = require('../middleware/auth');
 const organizationId = await getOrganizationId(req, pool);

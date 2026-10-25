@@ -776,8 +776,13 @@ describe('Several open tabs share one outbox', () => {
     const heard = jest.spyOn(queuingTab, 'dispatchEvent');
 
     await replayingTab.replayPendingMutations();
-    await flushPromises();
-    await new Promise((resolve) => { setTimeout(resolve, 0); });
+    // The relayed end of replay makes the queuing tab re-read IndexedDB, which
+    // answers in macrotasks: wait for it rather than for a fixed number of turns.
+    const relayed = () => heard.mock.calls.some(([name]) => name === 'syncStatusChanged');
+    for (let tick = 0; tick < 200 && !relayed(); tick += 1) {
+      // eslint-disable-next-line no-await-in-loop -- Wait for the other tab to finish.
+      await new Promise((resolve) => { setTimeout(resolve, 0); });
+    }
 
     expect(heard).toHaveBeenCalledWith('offlineMutationReplayed', expect.objectContaining({ mutationId: saved }));
     expect(heard).toHaveBeenCalledWith('offlineMutationRejected', expect.objectContaining({ mutationId: refused, kind: 'badges', status: 400 }));

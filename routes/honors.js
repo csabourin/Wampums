@@ -16,7 +16,7 @@ const router = express.Router();
 const { getPointSystemRules } = require('../utils/api-helpers');
 const { authenticate, requirePermission, blockDemoRoles, allowDemoSandbox, getOrganizationId, withScoutYear } = require('../middleware/auth');
 const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
-const { allEnrolledInUnit } = require('../services/unitParticipants');
+const { allEnrolledInUnit, lockParticipantsInUnit } = require('../services/unitParticipants');
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 
@@ -190,9 +190,15 @@ module.exports = (pool, logger) => {
           }
         }
 
-        // Fetch existing honors in one query
+        // Two leaders awarding the same honor at once: the second waits here,
+        // then finds the first one's honor below instead of failing on the
+        // unique constraint.
+        await lockParticipantsInUnit(client, organizationId, participantIds);
+
+        // Fetch existing honors in one query. Dates come back as text so they
+        // compare with the dates the request names.
         const existingHonorsResult = await client.query(
-          `SELECT participant_id, date 
+          `SELECT participant_id, date::text AS date
            FROM honors 
            WHERE organization_id = $1 
              AND participant_id = ANY($2::int[])
@@ -201,7 +207,7 @@ module.exports = (pool, logger) => {
         );
         
         const existingHonorsSet = new Set(
-          existingHonorsResult.rows.map(row => `${row.participant_id}-${row.date}`)
+          existingHonorsResult.rows.map(row => `${Number(row.participant_id)}-${row.date}`)
         );
 
         // Fetch all participant groups in one query
@@ -229,10 +235,12 @@ module.exports = (pool, logger) => {
             continue;
           }
 
-          const honorKey = `${participantId}-${honorDate}`;
+          const honorKey = `${Number(participantId)}-${honorDate}`;
           if (existingHonorsSet.has(honorKey)) {
             results.push({ participantId, success: true, action: 'already_awarded' });
           } else {
+            // A batch naming the same youth twice for a day awards one honor.
+            existingHonorsSet.add(honorKey);
             newHonors.push({ participantId, honorDate, reason });
           }
         }
