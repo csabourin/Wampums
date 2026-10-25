@@ -298,6 +298,21 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
     await as(ids.leader).patch(`/api/v1/resources/equipment/reservations/${reservationId}`, { status: 'confirmed' }).expect(200);
   });
 
+  test('reopening an overdue loan whose tents were lent again since is refused', async () => {
+    const tents = await item(ids.unit, 'Tente ultra-légère', 2);
+    const created = await as(ids.leader).post('/api/v1/equipment-loans', {
+      loans: [{ equipment_id: tents, quantity: 2, participant_id: ids.ada }],
+    }).expect(201);
+    const loanId = created.body.data.loans[0].id;
+    await pool.query('UPDATE equipment_loans SET loaned_on = CURRENT_DATE - 10, due_date = CURRENT_DATE - 3 WHERE id = $1', [loanId]);
+    await as(ids.leader).patch(`/api/v1/equipment-loans/${loanId}`, { returned_quantity: 2 }).expect(200);
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      loans: [{ equipment_id: tents, quantity: 2, participant_id: ids.max }],
+    }).expect(201);
+
+    await as(ids.leader).patch(`/api/v1/equipment-loans/${loanId}`, { returned_quantity: 0 }).expect(409);
+  });
+
   test('keeping a loan out past a reservation is refused, and bringing the date back is not', async () => {
     const tarps = await item(ids.unit, 'Bâche 2 x 3 m', 2);
     const created = await as(ids.leader).post('/api/v1/equipment-loans', {

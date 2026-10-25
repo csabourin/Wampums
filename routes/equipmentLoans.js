@@ -149,7 +149,7 @@ async function peakWithLoan(db, wanted, { until, activityId, exceptLoanId }) {
         WHERE r.equipment_id = ANY($1::int[])
           AND r.status IN ('reserved', 'confirmed')
           AND COALESCE(r.date_to, r.meeting_date) >= CURRENT_DATE
-          AND ($2::date IS NULL OR COALESCE(r.date_from, r.meeting_date) <= $2::date)
+          AND ($2::date IS NULL OR $2::date < CURRENT_DATE OR COALESCE(r.date_from, r.meeting_date) <= $2::date)
        UNION ALL
        SELECT l.equipment_id, 'loan',
               COALESCE('activity:' || l.activity_id, 'loan:' || l.id),
@@ -165,7 +165,8 @@ async function peakWithLoan(db, wanted, { until, activityId, exceptLoanId }) {
               COALESCE('activity:' || $3::int, 'new loan'),
               n.quantity,
               CURRENT_DATE,
-              COALESCE($2::date, 'infinity'::date)
+              -- Like the loans above: a due date already past has no end.
+              CASE WHEN $2::date IS NULL OR $2::date < CURRENT_DATE THEN 'infinity'::date ELSE $2::date END
          FROM new_loan n
      ),
      days AS (
