@@ -130,7 +130,6 @@
     "spa/modules/points/PointActionBar.js": 8,
     "spa/modules/reports/Reports.js": 4,
     "spa/modules/resources/Inventory.js": 7,
-    "spa/modules/resources/MaterialManagement.js": 1,
     "spa/modules/roles/RoleManagement.js": 1,
     "spa/modules/scout-year/ScoutYearTransition.js": 1,
     "spa/modules/session/Login.js": 4,

@@ -1,4 +1,5 @@
 import { translate } from '../../app.js';
+import { equipmentCategoryLabel } from '../../utils/EquipmentCategoryUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
@@ -212,7 +213,7 @@ export class ResourceDashboard {
         (item) => `
                         <tr>
                           <td>${escapeHTML(item.name)}</td>
-                          <td>${escapeHTML(item.category || '-')}</td>
+                          <td>${escapeHTML(equipmentCategoryLabel(item.category))}</td>
                           <td>${escapeHTML(String(item.quantity_total ?? 0))}</td>
                           <td>${escapeHTML(String(item.reserved_quantity ?? 0))}</td>
                           <td>${escapeHTML((item.shared_organizations || []).join(', ') || '-')}</td>

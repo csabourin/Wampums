@@ -1,4 +1,5 @@
 import { translate } from '../../app.js';
+import { EQUIPMENT_CATEGORIES, equipmentCategoryLabel, equipmentCategoryOptions } from '../../utils/EquipmentCategoryUtils.js';
 import { debugError, debugLog, debugWarn } from '../../utils/DebugUtils.js';
 import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
@@ -259,7 +260,7 @@ export class Inventory {
               </label>
               <label class="stacked">
                 <span>${escapeHTML(translate('equipment_category'))}</span>
-                <input type="text" name="category" id="equipment_category" maxlength="100" />
+                <select name="category" id="equipment_category">${equipmentCategoryOptions()}</select>
               </label>
             </div>
 
@@ -776,7 +777,7 @@ export class Inventory {
             </div>
             <div class="equipment-card-content">
               <h3 class="equipment-card-title">${escapeHTML(item.name)}</h3>
-              ${item.category ? `<div class="equipment-card-category">${escapeHTML(item.category)}</div>` : ''}
+              <div class="equipment-card-category">${escapeHTML(equipmentCategoryLabel(item.category))}</div>
               <div class="equipment-card-details">
                 <div class="equipment-card-detail">
                   <span class="equipment-card-detail-label">${escapeHTML(translate('equipment_quantity_total'))}</span>
@@ -858,7 +859,7 @@ export class Inventory {
 }
                 </td>
                 <td data-label="${escapeAttribute(translate('equipment_name'))}">${escapeHTML(item.name)}</td>
-                <td data-label="${escapeAttribute(translate('equipment_category'))}">${escapeHTML(item.category || '-')}</td>
+                <td data-label="${escapeAttribute(translate('equipment_category'))}">${escapeHTML(equipmentCategoryLabel(item.category))}</td>
                 <td data-label="${escapeAttribute(translate('equipment_location'))}">${escapeHTML(this.formatLocation(item))}</td>
                 <td data-label="${escapeAttribute(translate('equipment_quantity_total'))}">${escapeHTML(String(item.quantity_total ?? 0))}</td>
                 <td data-label="${escapeAttribute(translate('equipment_item_value'))}">${escapeHTML(this.formatCurrency(item.item_value))}</td>
@@ -1409,7 +1410,7 @@ export class Inventory {
           </label>
           <label class="stacked">
             <span>${escapeHTML(translate('equipment_category'))}</span>
-            <input type="text" name="category" id="modal_equipment_category" maxlength="100" />
+            <select name="category" id="modal_equipment_category">${equipmentCategoryOptions()}</select>
           </label>
         </div>
 
@@ -1727,7 +1728,9 @@ export class Inventory {
     // Populate modal form
     document.getElementById('modal_equipment_id').value = equipment.id;
     document.getElementById('modal_equipment_name').value = equipment.name || '';
-    document.getElementById('modal_equipment_category').value = equipment.category || '';
+    document.getElementById('modal_equipment_category').value = EQUIPMENT_CATEGORIES.includes(equipment.category)
+      ? equipment.category
+      : 'other';
     document.getElementById('modal_equipment_quantity_total').value = equipment.quantity_total || 1;
     document.getElementById('modal_equipment_quantity_available').value = equipment.quantity_available || '';
     document.getElementById('modal_equipment_item_value').value = equipment.item_value || '';
@@ -1787,7 +1790,7 @@ export class Inventory {
       // Field is named equipment_name: DOMPurify strips name="name" inside a form
       // to prevent DOM clobbering of HTMLFormElement.name
       name: formData.get('equipment_name')?.trim() || '',
-      category: formData.get('category')?.trim() || null,
+      category: formData.get('category') || 'other',
       description: formData.get('description')?.trim() || null,
       quantity_total: parseInt(formData.get('quantity_total'), 10) || 1,
       quantity_available: formData.get('quantity_available') ? parseInt(formData.get('quantity_available'), 10) : null,
@@ -1849,7 +1852,7 @@ export class Inventory {
       // Field is named equipment_name: DOMPurify strips name="name" inside a form
       // to prevent DOM clobbering of HTMLFormElement.name
       name: formData.get('equipment_name')?.trim() || '',
-      category: formData.get('category')?.trim() || null,
+      category: formData.get('category') || 'other',
       description: formData.get('description')?.trim() || null,
       quantity_total: parseInt(formData.get('quantity_total'), 10) || 1,
       quantity_available: formData.get('quantity_available') ? parseInt(formData.get('quantity_available'), 10) : null,

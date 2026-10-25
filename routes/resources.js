@@ -21,6 +21,7 @@ const {
   buildPermissionSlipLeaderCopyContent,
 } = require('../utils/permission-slip-email');
 const { listActivityLeaderContacts } = require('../services/unitLeaders');
+const { EQUIPMENT_CATEGORIES } = require('../services/equipmentCategories');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { findTestRecipient, markAsTestEmail } = require('../utils/test-email');
@@ -579,7 +580,7 @@ module.exports = (pool, logger) => {
     requirePermission('inventory.manage'),
     [
       check('name').isString().trim().isLength({ min: 2, max: 150 }),
-      check('category').optional().isString().trim().isLength({ max: 100 }),
+      check('category').optional({ values: 'falsy' }).isIn(EQUIPMENT_CATEGORIES),
       check('description').optional().isString().trim().isLength({ max: 2000 }),
       check('quantity_total').optional().isInt({ min: 0 }),
       check('quantity_available').optional().isInt({ min: 0 }),
@@ -612,7 +613,6 @@ module.exports = (pool, logger) => {
         const organizationId = await getOrganizationId(req, pool);
         const {
           name,
-          category,
           description,
           quantity_total = 1,
           quantity_available,
@@ -680,7 +680,8 @@ module.exports = (pool, logger) => {
           [
             organizationId,
             name,
-            category,
+            // An item put in no category goes in Other.
+            req.body.category || 'other',
             description,
             quantity_total,
             available,
@@ -727,7 +728,7 @@ module.exports = (pool, logger) => {
     [
       validateIdParam('id'),
       check('name').optional().isString().trim().isLength({ min: 2, max: 150 }),
-      check('category').optional().isString().trim().isLength({ max: 100 }),
+      check('category').optional().isIn(EQUIPMENT_CATEGORIES),
       check('description').optional().isString().trim().isLength({ max: 2000 }),
       check('quantity_total').optional().isInt({ min: 0 }),
       check('quantity_available').optional().isInt({ min: 0 }),

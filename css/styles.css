@@ -11020,8 +11020,52 @@ details p {
    MATERIAL MANAGEMENT & INVENTORY PAGES
    ============================================================================ */
 
-/* Equipment Selection */
-.equipment-selection {
+/* Equipment Selection: search, filters, then the items, grouped by category.
+   Mobile first: one column; the filters sit side by side once there is room. */
+.material-picker-controls {
+  display: grid;
+  gap: 0 var(--space-sm);
+}
+
+@media (min-width: 40rem) {
+  .material-picker-controls {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+}
+
+.material-picker-controls :is(input, select) {
+  min-block-size: var(--touch-target-min);
+  inline-size: 100%;
+  box-sizing: border-box;
+}
+
+/* Stays in view while the list scrolls, so the selection is always known. */
+.material-selected-count {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: var(--space-sm) 0;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 600;
+}
+
+.material-result-count,
+.material-no-match {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.material-category-group h3 {
+  margin: var(--space-md) 0 var(--space-xs);
+  font-size: var(--font-size-base, 1rem);
+}
+
+.material-equipment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
@@ -11039,35 +11083,83 @@ details p {
   background: var(--color-surface-secondary);
 }
 
+.material-item-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* A small photo, opened large on a tap; an icon when there is none. */
+.material-thumb {
+  flex: 0 0 auto;
+  inline-size: var(--touch-target-min);
+  block-size: var(--touch-target-min);
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-secondary);
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+}
+
+button.material-thumb {
+  cursor: zoom-in;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.material-thumb img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
 .equipment-checkbox {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
   cursor: pointer;
   font-weight: 500;
+  min-block-size: var(--touch-target-min);
 }
 
 .equipment-checkbox input[type="checkbox"] {
-  width: 20px;
-  height: 20px;
+  inline-size: 24px;
+  block-size: 24px;
+  flex: 0 0 auto;
   cursor: pointer;
 }
 
 .equipment-name {
   font-weight: 600;
   color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.material-item-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-sm);
+  margin: var(--space-xs) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 
 .equipment-category {
   color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  margin-left: var(--space-xs);
 }
 
 .equipment-available {
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  margin-left: auto;
+}
+
+/* Said in words; the weight only repeats it. */
+.equipment-available.is-unavailable {
+  font-weight: 600;
+  color: var(--color-error);
 }
 
 .quantity-input {
@@ -11075,11 +11167,25 @@ details p {
   align-items: center;
   gap: var(--space-xs);
   margin-top: var(--space-xs);
-  margin-left: var(--space-lg);
 }
 
 .quantity-input input[type="number"] {
   width: 80px;
+  min-block-size: var(--touch-target-min);
+}
+
+.conflict-warning {
+  margin-top: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-light);
+  color: var(--color-warning-text);
+  font-size: var(--font-size-sm);
+}
+
+.conflict-warning ul {
+  margin: var(--space-xs) 0 0 var(--space-lg);
+  padding: 0;
 }
 
 .selected-items-list {
@@ -11097,20 +11203,8 @@ details p {
   border-bottom: none;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .equipment-checkbox {
-    flex-wrap: wrap;
-  }
-
-  .equipment-available {
-    margin-left: 0;
-    width: 100%;
-  }
-
-  .quantity-input {
-    margin-left: var(--space-md);
-  }
+.material-dates {
+  margin-bottom: var(--space-md);
 }
 
 /* ================================================

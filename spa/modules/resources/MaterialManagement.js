@@ -1,6 +1,8 @@
 import { translate } from '../../app.js';
 import { debugError } from '../../utils/DebugUtils.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeHTML, escapeAttribute, sanitizeURL } from '../../utils/SecurityUtils.js';
+import { EQUIPMENT_CATEGORIES, equipmentCategoryLabel } from '../../utils/EquipmentCategoryUtils.js';
+import { openModal } from '../../utils/ModalUtils.js';
 import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
 import {
   formatActivityDateRange,
@@ -9,6 +11,7 @@ import {
 } from '../../utils/ActivityDateUtils.js';
 import {
   getEquipmentInventory,
+  getEquipmentPhotoUrl,
   getEquipmentReservations,
   saveBulkReservations,
   updateEquipmentReservation,
@@ -43,6 +46,23 @@ const RESERVATION_ACTIONS = {
     { status: 'returned', labelKey: 'reservation_action_return', variant: 'primary' }
   ]
 };
+
+/** How the picker can be sorted. */
+const MATERIAL_SORTS = ['category', 'name', 'available'];
+
+/**
+ * Text as the search compares it: lower case, accents removed.
+ * @param {string} text
+ * @returns {string}
+ */
+function normalizeSearch(text) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 const LOCATION_TYPES = [
   { value: 'local_scout_hall', labelKey: 'location_type_local_scout_hall' },
@@ -84,6 +104,15 @@ export class MaterialManagement {
     this.activities = [];
     this.selectedItems = new Map(); // Map of equipment_id -> quantity
     this.selectedActivityId = null;
+    // The form and the picker keep their state, so redrawing either never
+    // loses what was typed or chosen.
+    this.dateFrom = getTodayISO();
+    this.dateTo = getTodayISO();
+    this.reservedFor = '';
+    this.notes = '';
+    this.search = '';
+    this.categoryFilter = 'all';
+    this.sortOrder = 'category';
     // Checking gear in and out is the same right as reserving it, and only the
     // unit that owns a reservation may do either.
     this.canReserve = hasPermission('inventory.reserve');
@@ -273,22 +302,66 @@ export class MaterialManagement {
     await this.reload();
   }
 
-  render() {
-    const container = document.getElementById('app');
-    if (!container) {
-      return;
-    }
+  /**
+   * Units of an item free for the dates chosen: what the unit owns, less what
+   * other reservations of those dates hold and what is out on loan.
+   *
+   * @param {Object} item - Equipment row
+   * @returns {number}
+   */
+  availableFor(item) {
+    const reserved = this.getConflictingReservations(item.id, this.dateFrom, this.dateTo)
+      .reduce((total, reservation) => total + (Number(reservation.reserved_quantity) || 0), 0);
+    return Math.max(0, (Number(item.quantity_total) || 0) - reserved - (Number(item.loaned_quantity) || 0));
+  }
 
-    const selectedItemsList = Array.from(this.selectedItems.entries())
+  /**
+   * The equipment shown in the picker: matching the search and the category
+   * chosen, sorted as asked. The search ignores case and accents and looks at
+   * the name, the category and the place it is kept.
+   *
+   * @returns {Array<Object>}
+   */
+  visibleEquipment() {
+    const terms = normalizeSearch(this.search).split(' ').filter(Boolean);
+    const matches = this.equipment.filter((item) => {
+      if (this.categoryFilter !== 'all' && (item.category || 'other') !== this.categoryFilter) {
+        return false;
+      }
+      const haystack = normalizeSearch(
+        `${item.name} ${equipmentCategoryLabel(item.category)} ${this.formatLocation(item)} ${item.description || ''}`,
+      );
+      return terms.every((term) => haystack.includes(term));
+    });
+    const byName = (a, b) => String(a.name).localeCompare(String(b.name), this.app.lang || 'fr');
+    const sorters = {
+      category: (a, b) => equipmentCategoryLabel(a.category).localeCompare(equipmentCategoryLabel(b.category)) || byName(a, b),
+      name: byName,
+      available: (a, b) => this.availableFor(b) - this.availableFor(a) || byName(a, b),
+    };
+    return [...matches].sort(sorters[this.sortOrder] || sorters.category);
+  }
+
+  /** @returns {Array<Object>} The selected equipment, with the quantity chosen */
+  selectedEquipment() {
+    return Array.from(this.selectedItems.entries())
       .map(([equipmentId, quantity]) => {
-        const equipment = this.equipment.find(e => e.id === parseInt(equipmentId));
+        const equipment = this.equipment.find((item) => item.id === Number(equipmentId));
         return equipment ? { ...equipment, selectedQuantity: quantity } : null;
       })
-      .filter(item => item !== null);
+      .filter((item) => item !== null);
+  }
 
-    // Get current date values for checking conflicts
-    const dateFrom = document.getElementById('reservationDateFrom')?.value || getTodayISO();
-    const dateTo = document.getElementById('reservationDateTo')?.value || getTodayISO();
+  render() {
+    const container = document.getElementById('app');
+    if (!container || this.destroyed) {
+      return;
+    }
+    const categoryOptions = EQUIPMENT_CATEGORIES
+      .filter((key) => this.equipment.some((item) => (item.category || 'other') === key))
+      .map((key) => ({ key, label: equipmentCategoryLabel(key) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    const readonly = this.selectedActivityId ? 'readonly' : '';
 
     setContent(container, `
       ${renderBackLink()}
@@ -305,103 +378,68 @@ export class MaterialManagement {
               <span>${escapeHTML(translate('select_activity_optional'))}</span>
               <select id="activitySelect">
                 <option value="">${escapeHTML(translate('manual_date_entry'))}</option>
-                ${this.activities.map(activity => `
-                  <option value="${activity.id}" ${this.selectedActivityId === activity.id ? 'selected' : ''}>
-                    ${escapeHTML(activity.name)} - ${formatActivityDateRange(activity, this.app.lang || 'fr')}
+                ${this.activities.map((activity) => `
+                  <option value="${Number(activity.id)}" ${this.selectedActivityId === activity.id ? 'selected' : ''}>
+                    ${escapeHTML(activity.name)} - ${escapeHTML(formatActivityDateRange(activity, this.app.lang || 'fr'))}
                   </option>
                 `).join('')}
               </select>
             </label>
-            <div class="grid grid-2" style="margin-bottom: 1.5rem;">
+            <div class="grid grid-2 material-dates">
               <label class="stacked">
                 <span>${escapeHTML(translate('date_from'))}</span>
-                <input type="date" id="reservationDateFrom" value="${escapeHTML(dateFrom)}" ${this.selectedActivityId ? 'readonly' : ''} required />
+                <input type="date" id="reservationDateFrom" value="${escapeAttribute(this.dateFrom)}" ${readonly} required />
               </label>
               <label class="stacked">
                 <span>${escapeHTML(translate('date_to'))}</span>
-                <input type="date" id="reservationDateTo" value="${escapeHTML(dateTo)}" ${this.selectedActivityId ? 'readonly' : ''} required />
+                <input type="date" id="reservationDateTo" value="${escapeAttribute(this.dateTo)}" ${readonly} required />
               </label>
             </div>
             <label class="stacked">
               <span>${escapeHTML(translate('activity_name'))}</span>
-              <input type="text" name="reserved_for" id="reservedFor" maxlength="200" ${this.selectedActivityId ? 'readonly' : ''} required />
+              <input type="text" name="reserved_for" id="reservedFor" maxlength="200" value="${escapeAttribute(this.reservedFor)}" ${readonly} required />
             </label>
             <label class="stacked">
               <span>${escapeHTML(translate('reservation_notes'))}</span>
-              <textarea name="notes" rows="2" maxlength="2000"></textarea>
+              <textarea name="notes" id="reservationNotes" rows="2" maxlength="2000">${escapeHTML(this.notes)}</textarea>
             </label>
-            <button type="submit" class="button button--primary" ${selectedItemsList.length === 0 ? 'disabled' : ''}>${escapeHTML(translate('reserve_selected'))}</button>
+            <button type="submit" class="button button--primary" id="material-reserve-submit" ${this.selectedItems.size === 0 ? 'disabled' : ''}>${escapeHTML(translate('reserve_selected'))}</button>
           </form>
         </div>
 
         <div class="card">
-          <h2>${escapeHTML(translate('select_equipment'))}</h2>
-          <div class="equipment-selection">
-            ${this.equipment.length === 0
-    ? `<p>${escapeHTML(translate('no_data_available'))}</p>`
-    : this.equipment.map((item) => {
-      const conflicts = this.getConflictingReservations(item.id, dateFrom, dateTo);
-      const isChecked = this.selectedItems.has(item.id);
-      return `
-                  <div class="equipment-item ${isChecked && conflicts.length > 0 ? 'has-conflicts' : ''}" data-equipment-id="${item.id}">
-                    <label class="equipment-checkbox">
-                      <input
-                        type="checkbox"
-                        class="equipment-selector"
-                        data-equipment-id="${item.id}"
-                        ${isChecked ? 'checked' : ''}
-                      />
-                      <span class="equipment-name">${escapeHTML(item.name)}</span>
-                      <span class="equipment-category">${escapeHTML(item.category || '')}</span>
-                      <span class="equipment-available">(${escapeHTML(translate('equipment_available'))}: ${item.quantity_total ?? 0})</span>
-                      <span class="equipment-location">${escapeHTML(this.formatLocation(item))}</span>
-                    </label>
-                    ${isChecked ? `
-                      <label class="quantity-input">
-                        <span>${escapeHTML(translate('reserved_quantity'))}</span>
-                        <input
-                          type="number"
-                          min="1"
-                          max="${item.quantity_total ?? 1}"
-                          value="${this.selectedItems.get(item.id)}"
-                          class="equipment-quantity"
-                          data-equipment-id="${item.id}"
-                        />
-                      </label>
-                      ${conflicts.length > 0 ? `
-                        <div class="conflict-warning" style="color: #d97706; font-size: 0.9em; margin-top: 0.5rem; padding: 0.5rem; background: #fef3c7; border-radius: 4px;">
-                          ⚠️ <strong>${escapeHTML(translate('existing_reservations'))}:</strong>
-                          <ul style="margin: 0.25rem 0 0 1.5rem; padding: 0;">
-                            ${conflicts.map(conflict => {
-    const conflictDateRange = conflict.date_from && conflict.date_to
-      ? `${formatDate(conflict.date_from, this.app.lang || 'en')} - ${formatDate(conflict.date_to, this.app.lang || 'en')}`
-      : formatDate(conflict.meeting_date, this.app.lang || 'en');
-    return `<li>${escapeHTML(conflictDateRange)} - ${escapeHTML(conflict.reserved_for || '-')} (${escapeHTML(conflict.organization_name || translate('unknown'))}, qty: ${conflict.reserved_quantity})</li>`;
-  }).join('')}
-                          </ul>
-                        </div>
-                      ` : ''}
-                    ` : ''}
-                  </div>
-                `;
-    }).join('')}
+          <h2 id="material-select-title">${escapeHTML(translate('select_equipment'))}</h2>
+          <div class="material-picker-controls" role="search" aria-labelledby="material-select-title">
+            <label class="stacked material-search">
+              <span>${escapeHTML(translate('material_search_label'))}</span>
+              <input type="search" id="material-search" value="${escapeAttribute(this.search)}"
+                autocomplete="off" aria-describedby="material-result-count" data-archive-safe />
+            </label>
+            <label class="stacked">
+              <span>${escapeHTML(translate('material_category_filter'))}</span>
+              <select id="material-category-filter" data-archive-safe>
+                <option value="all">${escapeHTML(translate('material_all_categories'))}</option>
+                ${categoryOptions.map(({ key, label }) => `
+                  <option value="${escapeAttribute(key)}" ${this.categoryFilter === key ? 'selected' : ''}>${escapeHTML(label)}</option>
+                `).join('')}
+              </select>
+            </label>
+            <label class="stacked">
+              <span>${escapeHTML(translate('material_sort_label'))}</span>
+              <select id="material-sort" data-archive-safe>
+                ${MATERIAL_SORTS.map((sort) => `
+                  <option value="${sort}" ${this.sortOrder === sort ? 'selected' : ''}>${escapeHTML(translate(`material_sort_${sort}`))}</option>
+                `).join('')}
+              </select>
+            </label>
           </div>
+          <p class="material-selected-count" id="material-selected-count" role="status">${escapeHTML(this.selectedCountText())}</p>
+          <div id="material-equipment-list">${this.equipmentListMarkup()}</div>
         </div>
 
         <div class="card">
           <h2>${escapeHTML(translate('selected_items'))}</h2>
-          ${selectedItemsList.length === 0
-    ? `<p>${escapeHTML(translate('no_items_selected'))}</p>`
-    : `
-              <ul class="selected-items-list">
-                ${selectedItemsList.map(item => `
-                  <li>
-                    <strong>${escapeHTML(item.name)}</strong> -
-                    ${escapeHTML(translate('reserved_quantity'))}: ${item.selectedQuantity}
-                  </li>
-                `).join('')}
-              </ul>
-            `}
+          <div id="material-selected-items">${this.selectedItemsMarkup()}</div>
         </div>
 
         <div class="card">
@@ -448,6 +486,187 @@ export class MaterialManagement {
     `);
   }
 
+  /** @returns {string} "3 items selected" / "12 items shown" in the reader's language */
+  selectedCountText() {
+    return translate('material_selected_count').replace('{count}', String(this.selectedItems.size));
+  }
+
+  /**
+   * The picker list: grouped under their category when sorted by category.
+   * An item none of which is free for the dates cannot be picked.
+   *
+   * @returns {string} HTML
+   */
+  equipmentListMarkup() {
+    if (this.equipment.length === 0) {
+      return `<p>${escapeHTML(translate('no_data_available'))}</p>`;
+    }
+    const items = this.visibleEquipment();
+    const count = `<p class="material-result-count" id="material-result-count">${escapeHTML(
+      translate('material_result_count').replace('{count}', String(items.length)))}</p>`;
+    if (items.length === 0) {
+      return `${count}<p class="material-no-match">${escapeHTML(translate('material_no_match'))}</p>`;
+    }
+    if (this.sortOrder !== 'category') {
+      return `${count}<ul class="material-equipment-list">${items.map((item) => this.equipmentItemMarkup(item)).join('')}</ul>`;
+    }
+    const groups = [];
+    items.forEach((item) => {
+      const label = equipmentCategoryLabel(item.category);
+      const last = groups[groups.length - 1];
+      if (last && last.label === label) {
+        last.items.push(item);
+      } else {
+        groups.push({ label, items: [item] });
+      }
+    });
+    return `${count}${groups.map((group) => `
+      <section class="material-category-group">
+        <h3>${escapeHTML(group.label)}</h3>
+        <ul class="material-equipment-list">${group.items.map((item) => this.equipmentItemMarkup(item)).join('')}</ul>
+      </section>`).join('')}`;
+  }
+
+  /** @param {Object} item @returns {string} One item of the picker */
+  equipmentItemMarkup(item) {
+    const id = Number(item.id);
+    const isChecked = this.selectedItems.has(id);
+    const available = this.availableFor(item);
+    const total = Number(item.quantity_total) || 0;
+    const conflicts = isChecked ? this.getConflictingReservations(id, this.dateFrom, this.dateTo) : [];
+    const photo = item.photo_url ? sanitizeURL(item.photo_url) : '';
+    const thumbnail = photo
+      ? `<button type="button" class="material-thumb" data-photo-equipment="${id}"
+           aria-label="${escapeAttribute(translate('material_view_photo').replace('{name}', item.name))}">
+           <img src="${escapeAttribute(photo)}" alt="" loading="lazy" width="48" height="48" />
+         </button>`
+      : '<span class="material-thumb material-thumb--empty" aria-hidden="true"><i class="fa-solid fa-box"></i></span>';
+    const availability = translate('material_available_for_dates')
+      .replace('{available}', String(available))
+      .replace('{total}', String(total));
+    const availabilityText = available === 0 ? translate('material_none_available') : availability;
+    const lang = this.app.lang || 'en';
+
+    return `
+      <li class="equipment-item ${isChecked && conflicts.length > 0 ? 'has-conflicts' : ''}" data-equipment-id="${id}">
+        <div class="material-item-row">
+          ${thumbnail}
+          <label class="equipment-checkbox">
+            <input type="checkbox" class="equipment-selector" id="material-select-${id}" data-equipment-id="${id}"
+              ${isChecked ? 'checked' : ''} ${!isChecked && available === 0 ? 'disabled' : ''} />
+            <span class="equipment-name">${escapeHTML(item.name)}</span>
+          </label>
+        </div>
+        <p class="material-item-details">
+          <span class="equipment-category">${escapeHTML(equipmentCategoryLabel(item.category))}</span>
+          <span class="equipment-available ${available === 0 ? 'is-unavailable' : ''}">${escapeHTML(availabilityText)}</span>
+          <span class="equipment-location">${escapeHTML(this.formatLocation(item))}</span>
+        </p>
+        ${isChecked ? `
+          <label class="quantity-input">
+            <span>${escapeHTML(translate('reserved_quantity'))}</span>
+            <input type="number" min="1" max="${Math.max(1, available)}" value="${Number(this.selectedItems.get(id)) || 1}"
+              class="equipment-quantity" id="material-quantity-${id}" data-equipment-id="${id}" />
+          </label>
+          ${conflicts.length > 0 ? `
+            <div class="conflict-warning">
+              <span aria-hidden="true">⚠️</span> <strong>${escapeHTML(translate('existing_reservations'))}:</strong>
+              <ul>
+                ${conflicts.map((conflict) => {
+    const conflictDateRange = conflict.date_from && conflict.date_to
+      ? `${formatDate(conflict.date_from, lang)} - ${formatDate(conflict.date_to, lang)}`
+      : formatDate(conflict.meeting_date, lang);
+    return `<li>${escapeHTML(conflictDateRange)} - ${escapeHTML(conflict.reserved_for || '-')} (${escapeHTML(conflict.organization_name || translate('unknown'))}, ${escapeHTML(translate('reserved_quantity'))}: ${Number(conflict.reserved_quantity) || 0})</li>`;
+  }).join('')}
+              </ul>
+            </div>
+          ` : ''}
+        ` : ''}
+      </li>`;
+  }
+
+  /** @returns {string} The selected items, with their quantity */
+  selectedItemsMarkup() {
+    const items = this.selectedEquipment();
+    if (items.length === 0) {
+      return `<p>${escapeHTML(translate('no_items_selected'))}</p>`;
+    }
+    return `<ul class="selected-items-list">${items.map((item) => `
+      <li><strong>${escapeHTML(item.name)}</strong> - ${escapeHTML(translate('reserved_quantity'))}: ${Number(item.selectedQuantity) || 1}</li>
+    `).join('')}</ul>`;
+  }
+
+  /**
+   * Redraw the picker and what depends on the selection, leaving the rest of
+   * the page (and what is typed in it) alone.
+   *
+   * @param {string|null} focusId - Element to focus afterwards
+   */
+  refreshEquipmentList(focusId = null) {
+    const list = document.getElementById('material-equipment-list');
+    if (!list) {
+      return;
+    }
+    setContent(list, this.equipmentListMarkup());
+    this.updateSelectionSummary();
+    if (focusId) {
+      document.getElementById(focusId)?.focus();
+    }
+  }
+
+  /** Update the count, the selected list and the submit button. */
+  updateSelectionSummary() {
+    const count = document.getElementById('material-selected-count');
+    if (count) {
+      count.textContent = this.selectedCountText();
+    }
+    const selected = document.getElementById('material-selected-items');
+    if (selected) {
+      setContent(selected, this.selectedItemsMarkup());
+    }
+    const submit = document.getElementById('material-reserve-submit');
+    if (submit) {
+      submit.disabled = this.selectedItems.size === 0;
+    }
+  }
+
+  /**
+   * Show an item's photo large. The stored address may have expired, so a
+   * fresh one is asked for first; the one shown in the list is the fallback.
+   *
+   * @param {number} equipmentId
+   * @param {HTMLElement} opener - Where focus returns when it closes
+   */
+  async openPhoto(equipmentId, opener) {
+    const item = this.equipment.find((entry) => entry.id === equipmentId);
+    if (!item) {
+      return;
+    }
+    let url = item.photo_url;
+    try {
+      const response = await getEquipmentPhotoUrl(equipmentId);
+      url = response?.data?.photo_url || url;
+    } catch (error) {
+      debugError('Failed to renew equipment photo:', error);
+    }
+    const safe = sanitizeURL(url || '');
+    if (!safe || this.destroyed) {
+      return;
+    }
+    const { overlay } = openModal({
+      id: 'material-photo-modal',
+      title: escapeHTML(item.name),
+      size: 'large',
+      className: 'modal-image-preview',
+      body: '<div class="image-preview-body"><img id="material-photo-img" alt="" /></div>',
+      initialFocus: '.modal-close',
+      returnFocus: opener,
+    });
+    const image = overlay.querySelector('#material-photo-img');
+    image.setAttribute('src', safe);
+    image.setAttribute('alt', translate('material_photo_alt').replace('{name}', item.name));
+  }
+
   attachEventHandlers() {
     document.querySelectorAll('.js-reservation-action').forEach((button) => {
       button.addEventListener('click', (event) => {
@@ -460,185 +679,121 @@ export class MaterialManagement {
       });
     });
 
-    // Handle activity selection
-    const activitySelect = document.getElementById('activitySelect');
-    if (activitySelect) {
-      activitySelect.addEventListener('change', (event) => {
-        const activityId = event.target.value ? parseInt(event.target.value) : null;
-        this.selectedActivityId = activityId;
+    document.getElementById('activitySelect')?.addEventListener('change', (event) => {
+      const activityId = event.target.value ? Number(event.target.value) : null;
+      this.selectedActivityId = activityId;
+      const activity = activityId ? this.activities.find((entry) => entry.id === activityId) : null;
+      if (activity) {
+        this.dateFrom = getActivityStartDate(activity);
+        this.dateTo = getActivityEndDate(activity);
+        this.reservedFor = activity.name;
+      }
+      this.render();
+      this.attachEventHandlers();
+      document.getElementById('activitySelect')?.focus();
+    });
 
-        if (activityId) {
-          // Auto-populate fields from selected activity
-          const activity = this.activities.find(a => a.id === activityId);
-          if (activity) {
-            document.getElementById('reservationDateFrom').value = getActivityStartDate(activity);
-            document.getElementById('reservationDateTo').value = getActivityEndDate(activity);
-            document.getElementById('reservedFor').value = activity.name;
-          }
-        }
+    // Availability depends on the dates: the picker is redrawn, not the page.
+    document.getElementById('reservationDateFrom')?.addEventListener('change', (event) => {
+      this.dateFrom = event.target.value;
+      this.refreshEquipmentList();
+    });
+    document.getElementById('reservationDateTo')?.addEventListener('change', (event) => {
+      this.dateTo = event.target.value;
+      this.refreshEquipmentList();
+    });
+    document.getElementById('reservedFor')?.addEventListener('input', (event) => {
+      this.reservedFor = event.target.value;
+    });
+    document.getElementById('reservationNotes')?.addEventListener('input', (event) => {
+      this.notes = event.target.value;
+    });
 
-        this.render();
-        this.attachEventHandlers();
-      });
-    }
+    document.getElementById('material-search')?.addEventListener('input', (event) => {
+      this.search = event.target.value;
+      this.refreshEquipmentList();
+    });
+    document.getElementById('material-category-filter')?.addEventListener('change', (event) => {
+      this.categoryFilter = event.target.value;
+      this.refreshEquipmentList();
+    });
+    document.getElementById('material-sort')?.addEventListener('change', (event) => {
+      this.sortOrder = MATERIAL_SORTS.includes(event.target.value) ? event.target.value : 'category';
+      this.refreshEquipmentList();
+    });
 
-    // Handle date changes - re-render to update conflict warnings
-    const dateFromInput = document.getElementById('reservationDateFrom');
-    const dateToInput = document.getElementById('reservationDateTo');
-
-    if (dateFromInput) {
-      dateFromInput.addEventListener('change', () => {
-        this.render();
-        this.attachEventHandlers();
-      });
-    }
-
-    if (dateToInput) {
-      dateToInput.addEventListener('change', () => {
-        this.render();
-        this.attachEventHandlers();
-      });
-    }
-
-    // Handle equipment selection checkboxes
-    // Note: We re-render to update the quantity inputs visibility and selected items list
-    const checkboxes = document.querySelectorAll('.equipment-selector');
-    checkboxes.forEach(checkbox => {
-      checkbox.addEventListener('change', (event) => {
-        const equipmentId = parseInt(event.target.dataset.equipmentId);
-        if (event.target.checked) {
-          this.selectedItems.set(equipmentId, 1); // Default quantity of 1
+    // The list is redrawn as filters change, so its controls are delegated.
+    const list = document.getElementById('material-equipment-list');
+    list?.addEventListener('change', (event) => {
+      const { target } = event;
+      if (target.classList.contains('equipment-selector')) {
+        const equipmentId = Number(target.dataset.equipmentId);
+        if (target.checked) {
+          this.selectedItems.set(equipmentId, 1);
         } else {
           this.selectedItems.delete(equipmentId);
         }
-        this.render();
-        this.attachEventHandlers();
-      });
+        this.refreshEquipmentList(target.id);
+      } else if (target.classList.contains('equipment-quantity')) {
+        this.selectedItems.set(Number(target.dataset.equipmentId), Math.max(1, Math.trunc(Number(target.value)) || 1));
+        this.updateSelectionSummary();
+      }
+    });
+    list?.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-photo-equipment]');
+      if (button) {
+        this.openPhoto(Number(button.dataset.photoEquipment), button);
+      }
     });
 
-    // Handle quantity changes
-    const quantityInputs = document.querySelectorAll('.equipment-quantity');
-    quantityInputs.forEach(input => {
-      input.addEventListener('change', (event) => {
-        const equipmentId = parseInt(event.target.dataset.equipmentId);
-        const quantity = parseInt(event.target.value) || 1;
-        this.selectedItems.set(equipmentId, quantity);
-        // Update the selected items list to reflect the new quantity
-        this.updateSelectedItemsList();
-      });
-    });
-
-    // Handle bulk reservation form submission
     const bulkForm = document.getElementById('bulkReservationForm');
-    if (bulkForm) {
-      bulkForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const formData = new FormData(bulkForm);
-
-        // Get dates from the top inputs
-        const dateFrom = document.getElementById('reservationDateFrom')?.value;
-        const dateTo = document.getElementById('reservationDateTo')?.value;
-
-        if (!dateFrom || !dateTo) {
-          this.app.showMessage(translate('date_required'), 'error');
-          return;
-        }
-
-        const payload = {
-          reserved_for: formData.get('reserved_for'),
-          notes: formData.get('notes') || '',
-          items: Array.from(this.selectedItems.entries()).map(([equipment_id, quantity]) => ({
-            equipment_id,
-            quantity
-          }))
-        };
-
-        // Add activity_id if selected, otherwise add dates
-        if (this.selectedActivityId) {
-          payload.activity_id = this.selectedActivityId;
-        } else {
-          payload.date_from = dateFrom;
-          payload.date_to = dateTo;
-        }
-
-        try {
-          // Optimistic update: Add reservations to local state immediately
-          const optimisticReservations = payload.items.map(item => {
-            const equipment = this.equipment.find(e => e.id === item.equipment_id);
-            return {
-              id: `temp-${Date.now()}-${item.equipment_id}`,
-              equipment_id: item.equipment_id,
-              equipment_name: equipment?.name || 'Unknown',
-              reserved_quantity: item.quantity,
-              reserved_for: payload.reserved_for,
-              date_from: payload.date_from,
-              date_to: payload.date_to,
-              status: 'reserved',
-              notes: payload.notes
-            };
-          });
-
-          // Add to local reservations array
-          this.reservations = [...optimisticReservations, ...this.reservations];
-
-          // Update equipment reserved quantities optimistically
-          payload.items.forEach(item => {
-            const equipment = this.equipment.find(e => e.id === item.equipment_id);
-            if (equipment) {
-              equipment.reserved_quantity = (equipment.reserved_quantity || 0) + item.quantity;
-            }
-          });
-
-          // Re-render with optimistic data
-          this.render();
-          this.attachEventHandlers();
-
-          // Save to backend
-          const response = await saveBulkReservations(payload);
-
-          if (response.success) {
-            this.app.showMessage(translate('bulk_reservation_saved'), 'success');
-            this.selectedItems.clear();
-
-            // Invalidate cache to ensure fresh data on next load
-            await deleteCachedData('v1/resources/equipment');
-            await deleteCachedData('v1/resources/equipment/reservations');
-
-            // Refresh from server to get actual IDs and updated quantities
-            await this.reload();
-          } else {
-            throw new Error(response.message || 'Failed to save reservations');
-          }
-        } catch (error) {
-          debugError('Error saving bulk reservations', error);
-          this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
-
-          // Revert optimistic update on error
-          await this.reload();
-        }
-      });
-    }
+    bulkForm?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      this.submitReservation();
+    });
   }
 
-  /**
-   * Update only the selected items list without full re-render
-   */
-  updateSelectedItemsList() {
-    const selectedItemsList = Array.from(this.selectedItems.entries())
-      .map(([equipmentId, quantity]) => {
-        const equipment = this.equipment.find(e => e.id === parseInt(equipmentId));
-        return equipment ? { ...equipment, selectedQuantity: quantity } : null;
-      })
-      .filter(item => item !== null);
-
-    const listContainer = document.querySelector('.selected-items-list');
-    if (listContainer && selectedItemsList.length > 0) {
-      setContent(listContainer, selectedItemsList.map(item => `
-        <li>
-          <strong>${escapeHTML(item.name)}</strong> - 
-          ${escapeHTML(translate('reserved_quantity'))}: ${item.selectedQuantity}
-        </li>
-      `).join(''));
+  /** Reserve the selected equipment for the activity or the dates chosen. */
+  async submitReservation() {
+    if (!this.dateFrom || !this.dateTo) {
+      this.app.showMessage(translate('date_required'), 'error');
+      return;
     }
+
+    const payload = {
+      reserved_for: this.reservedFor,
+      notes: this.notes || '',
+      items: Array.from(this.selectedItems.entries()).map(([equipmentId, quantity]) => ({
+        equipment_id: equipmentId,
+        quantity,
+      })),
+    };
+    if (this.selectedActivityId) {
+      payload.activity_id = this.selectedActivityId;
+    } else {
+      payload.date_from = this.dateFrom;
+      payload.date_to = this.dateTo;
+    }
+
+    let response;
+    try {
+      response = await saveBulkReservations(payload);
+    } catch (error) {
+      debugError('Error saving bulk reservations', error);
+      this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
+      return;
+    }
+    if (!response?.success) {
+      this.app.showMessage(translate('error_saving'), 'error');
+      return;
+    }
+
+    // Saved: the selection is done with, whatever the reload below brings.
+    this.app.showMessage(translate('bulk_reservation_saved'), 'success');
+    this.selectedItems.clear();
+    this.notes = '';
+    await deleteCachedData('v1/resources/equipment');
+    await deleteCachedData('v1/resources/equipment/reservations');
+    await this.reload();
   }
 }
