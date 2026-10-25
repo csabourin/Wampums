@@ -84,3 +84,43 @@ AS $$
      AND (due_date IS NULL OR due_date >= p_from OR due_date < CURRENT_DATE)
      AND (p_activity_id IS NULL OR activity_id IS DISTINCT FROM p_activity_id);
 $$;
+
+-- What loans add to the reservations a reservation check already sums, over
+-- p_from..p_to: a loan made for an activity is that activity's reservation
+-- leaving the shelf, so each activity counts only the loans beyond what its
+-- own overlapping reservations hold (the larger of the two, never both).
+-- Loans without an activity count in full. Loans of p_activity_id are the
+-- reservation being checked leaving the shelf, and p_except_reservation_id is
+-- that reservation, left out of what its activity is taken to hold.
+CREATE OR REPLACE FUNCTION equipment_loans_beyond_reservations(
+  p_equipment_id INTEGER,
+  p_from DATE,
+  p_to DATE,
+  p_activity_id INTEGER DEFAULT NULL,
+  p_except_reservation_id INTEGER DEFAULT NULL
+)
+RETURNS INTEGER
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT COALESCE(SUM(GREATEST(0, loans.outstanding - COALESCE((
+           SELECT SUM(r.reserved_quantity)
+             FROM equipment_reservations r
+            WHERE loans.activity_id IS NOT NULL
+              AND r.activity_id = loans.activity_id
+              AND r.equipment_id = p_equipment_id
+              AND r.status IN ('reserved', 'confirmed')
+              AND COALESCE(r.date_from, r.meeting_date) <= p_to
+              AND COALESCE(r.date_to, r.meeting_date) >= p_from
+              AND (p_except_reservation_id IS NULL OR r.id <> p_except_reservation_id)
+         ), 0))), 0)::integer
+    FROM (
+      SELECT activity_id, SUM(quantity - returned_quantity) AS outstanding
+        FROM equipment_loans
+       WHERE equipment_id = p_equipment_id
+         AND returned_at IS NULL
+         AND (due_date IS NULL OR due_date >= p_from OR due_date < CURRENT_DATE)
+         AND (p_activity_id IS NULL OR activity_id IS DISTINCT FROM p_activity_id)
+       GROUP BY activity_id
+    ) AS loans;
+$$;

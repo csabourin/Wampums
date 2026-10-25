@@ -298,6 +298,26 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
     await as(ids.leader).patch(`/api/v1/resources/equipment/reservations/${reservationId}`, { status: 'confirmed' }).expect(200);
   });
 
+  test('another outing can reserve the tents a camp under way did not take, its handed-out tents counted once', async () => {
+    const tents = await item(ids.unit, 'Tente familiale', 6);
+    const camp = await activity('Camp A', -1, 2);
+    await reserveFor(camp, tents, 3, -1, 2, 'confirmed');
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      activity_id: camp, loans: [{ equipment_id: tents, quantity: 3, participant_id: ids.ada }],
+    }).expect(201);
+    const outing = await activity('Sortie B', 1, 2);
+
+    await as(ids.leader).post('/api/v1/resources/equipment/reservations/bulk', {
+      activity_id: outing, reserved_for: 'Sortie B', items: [{ equipment_id: tents, quantity: 3 }],
+    }).expect(201);
+    // Tomorrow: three at the camp (reserved and handed out), three for the outing.
+    const tomorrow = await one('SELECT (CURRENT_DATE + 1)::text');
+    const tooMany = await as(ids.leader).post('/api/v1/resources/equipment/reservations', {
+      equipment_id: tents, date_from: tomorrow, date_to: tomorrow, reserved_quantity: 1, reserved_for: 'De trop',
+    });
+    expect(tooMany.status).toBe(400);
+  });
+
   test('reopening an overdue loan whose tents were lent again since is refused', async () => {
     const tents = await item(ids.unit, 'Tente ultra-légère', 2);
     const created = await as(ids.leader).post('/api/v1/equipment-loans', {
