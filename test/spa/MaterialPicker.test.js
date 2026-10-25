@@ -119,11 +119,29 @@ test('a category filter and a sort by name narrow and order the list', async () 
   expect(names()).toEqual(['Boîtes à savon', 'Cerceaux', 'Cuisinières', HOSTILE, 'Passoires'].sort((a, b) => a.localeCompare(b, 'fr')));
 });
 
-test('what is free counts the reservations of the dates and what is out on loan', async () => {
+// What the server counts free for the dates asked (reservations and loans).
+const FREE_TODAY = { 1: 3, 2: 0, 3: 10, 4: 9, 5: 1 };
+
+function inventoryFor(params = {}) {
+  return {
+    data: {
+      equipment: EQUIPMENT.map((item) => ({
+        ...item,
+        available_for_dates: params.date_from === TODAY ? FREE_TODAY[item.id] : item.quantity_total,
+      })),
+    },
+  };
+}
+
+test('what is free for the chosen dates is what the server counts for those dates', async () => {
+  api.getEquipmentInventory.mockImplementation((params) => Promise.resolve(inventoryFor(params)));
   await openScreen();
 
-  const hoops = page().querySelector('[data-equipment-id="3"] .equipment-available');
-  expect(hoops.textContent).toBe('material_available_for_dates');
+  expect(api.getEquipmentInventory).toHaveBeenCalledWith({ date_from: TODAY, date_to: TODAY });
+  const hoops = page().querySelector('[data-equipment-id="3"]');
+  expect(hoops.querySelector('.equipment-available').textContent).toBe('material_available_for_dates');
+  document.getElementById('material-select-3').click();
+  expect(document.getElementById('material-quantity-3').getAttribute('max')).toBe('10');
   const stoves = page().querySelector('[data-equipment-id="2"]');
   expect(stoves.querySelector('.equipment-available').textContent).toBe('material_none_available');
   expect(stoves.querySelector('.equipment-selector').disabled).toBe(true);
@@ -131,7 +149,41 @@ test('what is free counts the reservations of the dates and what is out on loan'
   // Another day, the stoves are free again.
   type('reservationDateFrom', '2099-01-01', 'change');
   type('reservationDateTo', '2099-01-02', 'change');
+  await flush();
+  expect(api.getEquipmentInventory).toHaveBeenLastCalledWith({ date_from: '2099-01-01', date_to: '2099-01-02' });
   expect(page().querySelector('[data-equipment-id="2"] .equipment-selector').disabled).toBe(false);
+  expect(document.getElementById('material-quantity-3').getAttribute('max')).toBe('12');
+});
+
+test('until the server has counted new dates, reservations sent as timestamps still hold their days', async () => {
+  api.getEquipmentReservations.mockResolvedValue({ data: { reservations: [
+    { ...RESERVATIONS[0], date_from: '2099-01-01T00:00:00.000Z', date_to: '2099-01-02T00:00:00.000Z' },
+  ] } });
+  await openScreen();
+  api.getEquipmentInventory.mockReturnValue(new Promise(() => {}));
+
+  // Ending the day the reservation starts.
+  type('reservationDateFrom', '2098-12-31', 'change');
+  type('reservationDateTo', '2099-01-01', 'change');
+  await flush();
+
+  expect(page().querySelector('[data-equipment-id="2"] .equipment-selector').disabled).toBe(true);
+});
+
+test('an answer for dates no longer chosen does not replace the count for the new ones', async () => {
+  await openScreen();
+  let answerOld;
+  api.getEquipmentInventory
+    .mockReturnValueOnce(new Promise((resolve) => { answerOld = resolve; }))
+    .mockImplementation((params) => Promise.resolve(inventoryFor(params)));
+
+  type('reservationDateFrom', '2099-01-01', 'change');
+  type('reservationDateFrom', TODAY, 'change');
+  await flush();
+  answerOld(inventoryFor({ date_from: '2099-01-01' }));
+  await flush();
+
+  expect(page().querySelector('[data-equipment-id="2"] .equipment-selector').disabled).toBe(true);
 });
 
 test('choosing an item keeps focus on it, counts it, and keeps what was typed in the form', async () => {

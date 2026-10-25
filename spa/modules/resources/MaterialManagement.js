@@ -3,7 +3,7 @@ import { debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML, escapeAttribute, sanitizeURL } from '../../utils/SecurityUtils.js';
 import { EQUIPMENT_CATEGORIES, equipmentCategoryLabel } from '../../utils/EquipmentCategoryUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
-import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
+import { formatDate, getTodayISO, isoToDateString } from '../../utils/DateUtils.js';
 import {
   formatActivityDateRange,
   getActivityEndDate,
@@ -113,6 +113,10 @@ export class MaterialManagement {
     this.search = '';
     this.categoryFilter = 'all';
     this.sortOrder = 'category';
+    // The dates the server last counted availability for, and which request
+    // is the latest, so a slow answer for older dates is dropped.
+    this.availabilityKey = null;
+    this.availabilityRequest = 0;
     // Checking gear in and out is the same right as reserving it, and only the
     // unit that owns a reservation may do either.
     this.canReserve = hasPermission('inventory.reserve');
@@ -172,15 +176,68 @@ export class MaterialManagement {
 
 
   async refreshData() {
+    const key = this.currentAvailabilityKey();
     const [equipmentResponse, reservationResponse, activitiesResponse] = await Promise.all([
-      getEquipmentInventory(),
+      getEquipmentInventory(this.availabilityParams()),
       getEquipmentReservations(),
       getActivities()
     ]);
 
     this.equipment = equipmentResponse?.data?.equipment || equipmentResponse?.equipment || [];
+    this.availabilityKey = key;
     this.reservations = reservationResponse?.data?.reservations || reservationResponse?.reservations || [];
     this.activities = activitiesResponse?.data?.activities || activitiesResponse?.activities || [];
+  }
+
+  /**
+   * The dates (and activity) a reservation would be made for, as the
+   * equipment list asks the server to count availability for them.
+   *
+   * @returns {Object} Query parameters
+   */
+  availabilityParams() {
+    if (!this.dateFrom || !this.dateTo || this.dateFrom > this.dateTo) {
+      return {};
+    }
+    const params = { date_from: this.dateFrom, date_to: this.dateTo };
+    if (this.selectedActivityId) {
+      params.activity_id = this.selectedActivityId;
+    }
+    return params;
+  }
+
+  /** @returns {string} What the availability counted by the server depends on */
+  currentAvailabilityKey() {
+    return JSON.stringify(this.availabilityParams());
+  }
+
+  /**
+   * Ask the server how many of each item are free for the dates now chosen,
+   * then redraw the picker. A failure keeps the estimate made here: the
+   * server checks the stock again when the reservation is sent.
+   *
+   * @returns {Promise<void>}
+   */
+  async loadAvailability() {
+    const key = this.currentAvailabilityKey();
+    if (key === this.availabilityKey) {
+      this.refreshEquipmentList();
+      return;
+    }
+    this.refreshEquipmentList();
+    this.availabilityRequest += 1;
+    const request = this.availabilityRequest;
+    try {
+      const response = await getEquipmentInventory(this.availabilityParams());
+      if (this.destroyed || request !== this.availabilityRequest) {
+        return;
+      }
+      this.equipment = response?.data?.equipment || response?.equipment || this.equipment;
+      this.availabilityKey = key;
+      this.refreshEquipmentList();
+    } catch (error) {
+      debugError('Error loading equipment availability:', error);
+    }
   }
 
   /**
@@ -201,9 +258,9 @@ export class MaterialManagement {
         return false;
       }
 
-      // Check for date overlap
-      const resFrom = reservation.date_from || reservation.meeting_date;
-      const resTo = reservation.date_to || reservation.meeting_date;
+      // Check for date overlap, on calendar days: the API sends timestamps.
+      const resFrom = isoToDateString(reservation.date_from || reservation.meeting_date);
+      const resTo = isoToDateString(reservation.date_to || reservation.meeting_date);
 
       // Reservations overlap if: res.date_from <= selected.date_to AND res.date_to >= selected.date_from
       return resFrom <= dateTo && resTo >= dateFrom;
@@ -303,16 +360,22 @@ export class MaterialManagement {
   }
 
   /**
-   * Units of an item free for the dates chosen: what the unit owns, less what
-   * other reservations of those dates hold and what is out on loan.
+   * Units of an item free for the dates chosen, as the server counts them
+   * when a reservation is made: what the unit owns, less the reservations of
+   * those dates and the loans they do not already cover. Until the server has
+   * counted the dates now chosen, an estimate from the reservations alone.
    *
    * @param {Object} item - Equipment row
    * @returns {number}
    */
   availableFor(item) {
+    const counted = item.available_for_dates;
+    if (this.availabilityKey === this.currentAvailabilityKey() && counted !== null && counted !== undefined) {
+      return Math.max(0, Number(counted) || 0);
+    }
     const reserved = this.getConflictingReservations(item.id, this.dateFrom, this.dateTo)
       .reduce((total, reservation) => total + (Number(reservation.reserved_quantity) || 0), 0);
-    return Math.max(0, (Number(item.quantity_total) || 0) - reserved - (Number(item.loaned_quantity) || 0));
+    return Math.max(0, (Number(item.quantity_total) || 0) - reserved);
   }
 
   /**
@@ -691,16 +754,17 @@ export class MaterialManagement {
       this.render();
       this.attachEventHandlers();
       document.getElementById('activitySelect')?.focus();
+      this.loadAvailability();
     });
 
     // Availability depends on the dates: the picker is redrawn, not the page.
     document.getElementById('reservationDateFrom')?.addEventListener('change', (event) => {
       this.dateFrom = event.target.value;
-      this.refreshEquipmentList();
+      this.loadAvailability();
     });
     document.getElementById('reservationDateTo')?.addEventListener('change', (event) => {
       this.dateTo = event.target.value;
-      this.refreshEquipmentList();
+      this.loadAvailability();
     });
     document.getElementById('reservedFor')?.addEventListener('input', (event) => {
       this.reservedFor = event.target.value;
