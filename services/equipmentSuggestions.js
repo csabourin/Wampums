@@ -23,8 +23,9 @@ const MAX_SUGGESTED_ITEMS = 25;
 const MAX_REASON_LENGTH = 200;
 
 /**
- * The equipment the unit may use, with what is free from dateFrom to dateTo:
- * the total, less the reservations of those dates and what is out on loan.
+ * The equipment the unit may use that is free from dateFrom to dateTo: the
+ * total, less the reservations of those dates and the loans they do not
+ * already cover, as a reservation of those dates is checked.
  *
  * @param {Object} pool - Database pool
  * @param {number} organizationId - Unit
@@ -37,21 +38,27 @@ async function availableEquipment(pool, organizationId, dateFrom, dateTo) {
   if (ids.length === 0) {
     return [];
   }
+  // Counted as a reservation of these dates is, and only what is free: the
+  // cap on what is sent applies to items that can be chosen.
   const result = await pool.query(
-    `SELECT ei.id, ei.name, ei.category,
-            GREATEST(0, ei.quantity_total
-              - COALESCE((
-                  SELECT SUM(er.reserved_quantity)
-                    FROM equipment_reservations er
-                   WHERE er.equipment_id = ei.id
-                     AND er.status IN ('reserved', 'confirmed')
-                     AND COALESCE(er.date_from, er.meeting_date) <= $3::date
-                     AND COALESCE(er.date_to, er.meeting_date) >= $2::date
-                ), 0)
-              - equipment_loaned_quantity(ei.id, $2::date))::int AS available
-       FROM equipment_items ei
-      WHERE ei.id = ANY($1::int[])
-      ORDER BY ei.category, ei.name
+    `SELECT id, name, category, available
+       FROM (
+         SELECT ei.id, ei.name, ei.category,
+                GREATEST(0, ei.quantity_total
+                  - COALESCE((
+                      SELECT SUM(er.reserved_quantity)
+                        FROM equipment_reservations er
+                       WHERE er.equipment_id = ei.id
+                         AND er.status IN ('reserved', 'confirmed')
+                         AND COALESCE(er.date_from, er.meeting_date) <= $3::date
+                         AND COALESCE(er.date_to, er.meeting_date) >= $2::date
+                    ), 0)
+                  - equipment_loans_beyond_reservations(ei.id, $2::date, $3::date))::int AS available
+           FROM equipment_items ei
+          WHERE ei.id = ANY($1::int[])
+       ) AS counted
+      WHERE available > 0
+      ORDER BY category, name
       LIMIT $4`,
     [ids, dateFrom, dateTo, MAX_EQUIPMENT_SENT],
   );

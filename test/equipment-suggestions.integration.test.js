@@ -98,4 +98,38 @@ describe.skipIf(!DATABASE_URL)('Equipment suggestions', () => {
     expect(result.items).toEqual([]);
     expect(generateText).not.toHaveBeenCalled();
   });
+
+  test('a loan due back before the dates leaves its items offered; one still out hides them', async () => {
+    const tarps = await item(ids.unit, 'Bâche', 'camping', 3);
+    const lanterns = await item(ids.unit, 'Lanterne', 'lighting', 2);
+    await pool.query(`INSERT INTO equipment_loans (organization_id, equipment_id, quantity, due_date)
+      VALUES ($1, $2, 3, '2099-01-05'), ($1, $3, 2, NULL)`, [ids.unit, tarps, lanterns]);
+    generateText.mockResolvedValue({ data: { items: [] }, usage: {} });
+
+    await ask();
+
+    const offered = generateText.mock.calls[0][1].equipment;
+    expect(offered).toContainEqual({ id: tarps, name: 'Bâche', category: 'camping', available: 3 });
+    expect(offered.map((entry) => entry.id)).not.toContain(lanterns);
+  });
+
+  test('items an outing reserved and already took home are counted once', async () => {
+    const pots = await item(ids.unit, 'Gamelle', 'kitchen', 4);
+    const leader = await one("INSERT INTO users (email, password, full_name) VALUES ($1, 'x', 'Léa Tremblay') RETURNING id",
+      [`${randomUUID()}@example.test`]);
+    const campId = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+        meeting_time_going, departure_time_going, activity_start_date, activity_start_time, activity_end_date, activity_end_time)
+      VALUES ($1, $2, 'Camp d''hiver', '2099-01-10', 'Local', '08:00', '08:15', '2099-01-10', '08:00', '2099-01-12', '16:00')
+      RETURNING id`, [ids.unit, leader]);
+    await pool.query(`INSERT INTO equipment_reservations (organization_id, equipment_id, activity_id, meeting_date, date_from, date_to,
+        reserved_quantity, reserved_for, status)
+      VALUES ($1, $2, $3, '2099-01-10', '2099-01-10', '2099-01-12', 2, 'Camp d''hiver', 'confirmed')`, [ids.unit, pots, campId]);
+    await pool.query(`INSERT INTO equipment_loans (organization_id, equipment_id, activity_id, quantity, due_date)
+      VALUES ($1, $2, $3, 2, '2099-01-12')`, [ids.unit, pots, campId]);
+    generateText.mockResolvedValue({ data: { items: [] }, usage: {} });
+
+    await ask();
+
+    expect(generateText.mock.calls[0][1].equipment).toContainEqual({ id: pots, name: 'Gamelle', category: 'kitchen', available: 2 });
+  });
 });
