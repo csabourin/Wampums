@@ -105,6 +105,17 @@ test('a lost points response is queued with the identity used by the first attem
   expect(global.fetch).toHaveBeenCalledTimes(1);
 });
 
+test('a lost equipment handout response is queued with the identity used by the first attempt', async () => {
+  const { offlineManager } = require('../../spa/modules/OfflineManager.js');
+  global.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+  offlineManager.queueMutation.mockResolvedValue('queued-handout');
+  const result = await API.post('v1/equipment-loans', { loans: [{ equipment_id: 3, quantity: 2, participant_id: 11 }] });
+  expect(result).toMatchObject({ success: true, queued: true });
+  const sentKey = global.fetch.mock.calls[0][1].headers['Idempotency-Key'];
+  expect(sentKey).toEqual(expect.any(String));
+  expect(offlineManager.queueMutation.mock.calls[0][1].headers['Idempotency-Key']).toBe(sentKey);
+});
+
 test('new points wait behind awards already queued even when the radio is online', async () => {
   const { offlineManager } = require('../../spa/modules/OfflineManager.js');
   offlineManager.hasPendingPoints.mockResolvedValueOnce(true);

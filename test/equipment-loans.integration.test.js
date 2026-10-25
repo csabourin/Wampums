@@ -187,6 +187,24 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
     expect(await outstanding(ids.tents)).toBe(TENTS);
   });
 
+  test('equipment reserved for an outing to come is not lent past that outing', async () => {
+    const stoves = await item(ids.unit, 'Réchaud', 2);
+    await as(ids.leader).post('/api/v1/resources/equipment/reservations', {
+      equipment_id: stoves, date_from: '2099-05-01', date_to: '2099-05-02', reserved_quantity: 2, reserved_for: 'Sortie printemps',
+    }).expect(201);
+
+    const openEnded = await as(ids.leader).post('/api/v1/equipment-loans', {
+      loans: [{ equipment_id: stoves, quantity: 1, participant_id: ids.ada }],
+    });
+    expect(openEnded.status).toBe(409);
+    expect(openEnded.body.errors).toEqual([{ equipment_id: stoves, available: 0, requested: 1 }]);
+
+    // Due back before the outing, the stove can go.
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      due_date: '2099-04-30', loans: [{ equipment_id: stoves, quantity: 1, participant_id: ids.ada }],
+    }).expect(201);
+  });
+
   test('a handout replayed from the offline outbox is recorded once', async () => {
     const body = { loans: [{ equipment_id: ids.tarps, quantity: 1, participant_id: ids.max }] };
     const first = await as(ids.leader).post('/api/v1/equipment-loans', body, 'camp-handout-1').expect(201);

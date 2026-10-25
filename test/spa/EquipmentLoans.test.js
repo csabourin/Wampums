@@ -40,6 +40,7 @@ jest.mock('../../spa/utils/DOMUtils.js', () => {
 
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   hasAllPermissions: jest.fn(() => true),
+  hasPermission: jest.fn(() => true),
 }));
 
 jest.mock('../../spa/utils/DialogUtils.js', () => ({
@@ -58,7 +59,7 @@ jest.mock('../../spa/api/api-equipment-loans.js', () => ({
 
 import axe from 'axe-core';
 import * as api from '../../spa/api/api-equipment-loans.js';
-import { hasAllPermissions } from '../../spa/utils/PermissionUtils.js';
+import { hasAllPermissions, hasPermission } from '../../spa/utils/PermissionUtils.js';
 import { confirmDestructive } from '../../spa/utils/DialogUtils.js';
 import { closeAllModals } from '../../spa/utils/ModalUtils.js';
 import { EquipmentLoans } from '../../spa/modules/resources/EquipmentLoans.js';
@@ -149,6 +150,7 @@ beforeEach(() => {
   window.history.replaceState({}, '', '/equipment-loans');
   jest.clearAllMocks();
   hasAllPermissions.mockReturnValue(true);
+  hasPermission.mockReturnValue(true);
   app = { lang: 'fr', showMessage: jest.fn() };
   api.getEquipmentLoans.mockResolvedValue({ data: { loans: OPEN_LOANS } });
   api.getEquipmentHandout.mockResolvedValue(handout());
@@ -359,8 +361,46 @@ test('deleting a loan asks first, and declining changes nothing', async () => {
   expect(api.deleteEquipmentLoan).toHaveBeenCalledWith(22);
 });
 
+test('a handout under way survives recording a return below it', async () => {
+  await openScreen();
+  addPerson(3);
+  choose(document.getElementById('equipment-loans-holder-3-0'), 'p:11');
+  document.querySelector('[data-step="1"][data-equipment="3"][data-index="0"]').click();
+
+  document.querySelector('[data-return="22"]').click();
+  await flush();
+
+  expect(api.getEquipmentLoans).toHaveBeenLastCalledWith({ status: 'open' }, { forceRefresh: true });
+  expect(document.getElementById('equipment-loans-holder-3-0').value).toBe('p:11');
+  expect(document.getElementById('equipment-loans-quantity-3-0').value).toBe('2');
+});
+
+test('a reload keeps "No activity" when the leader chose it', async () => {
+  await openScreen();
+  choose(document.getElementById('equipment-loans-activity'), '');
+  await flush();
+  expect(api.getEquipmentHandout).toHaveBeenLastCalledWith(null, {});
+
+  document.querySelector('[data-return="22"]').click();
+  await flush();
+  expect(api.getEquipmentHandout).toHaveBeenLastCalledWith(null, { forceRefresh: true });
+  expect(document.getElementById('equipment-loans-activity').value).toBe('');
+});
+
+test('someone who may lend but not see the roster checks loans back in without the handout', async () => {
+  hasAllPermissions.mockReturnValue(false);
+  await openScreen();
+
+  expect(api.getEquipmentHandout).not.toHaveBeenCalled();
+  expect(document.getElementById('equipment-loans-handout-form')).toBeNull();
+  document.querySelector('[data-return="22"]').click();
+  await flush();
+  expect(api.updateEquipmentLoan).toHaveBeenCalledWith(22, { returned_quantity: 1 });
+});
+
 test('someone who may only look sees the loans without the handout or the buttons', async () => {
   hasAllPermissions.mockReturnValue(false);
+  hasPermission.mockReturnValue(false);
   await openScreen();
 
   expect(api.getEquipmentHandout).not.toHaveBeenCalled();

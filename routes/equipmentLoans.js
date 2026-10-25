@@ -128,17 +128,49 @@ async function outstandingByEquipment(db, equipmentIds) {
 }
 
 /**
- * Lock the items about to be lent and check the unit owns enough of each.
+ * Units of each item that reservations still to come will need while a loan
+ * is out: those still holding stock and starting by its due date (any start,
+ * for a loan with no due date). This mirrors equipment_loaned_quantity(), which
+ * the reservation checks count, so neither side can promise the same tents
+ * twice. The reservations of the activity being handed out are what the loan
+ * fulfils, so they are left out.
+ *
+ * @param {Object} db - Pool or client
+ * @param {number[]} equipmentIds - Items
+ * @param {string|null} until - The loan's due date; null when open-ended
+ * @param {number|null} activityId - Activity the loan comes from
+ * @returns {Promise<Map<number, number>>} Reserved units by item
+ */
+async function reservedDuringLoan(db, equipmentIds, until, activityId) {
+  const result = await db.query(
+    `SELECT equipment_id, COALESCE(SUM(reserved_quantity), 0)::int AS reserved
+       FROM equipment_reservations
+      WHERE equipment_id = ANY($1::int[])
+        AND status IN ('reserved', 'confirmed')
+        AND COALESCE(date_to, meeting_date) >= CURRENT_DATE
+        AND ($2::date IS NULL OR COALESCE(date_from, meeting_date) <= $2::date)
+        AND ($3::int IS NULL OR activity_id IS DISTINCT FROM $3::int)
+      GROUP BY equipment_id`,
+    [equipmentIds, until, activityId],
+  );
+  return new Map(result.rows.map((row) => [Number(row.equipment_id), Number(row.reserved)]));
+}
+
+/**
+ * Lock the items about to be lent and check the unit has enough of each: what
+ * it owns, less what is already out and what reservations will need before
+ * the loan is due back.
  *
  * Locking the item rows, in id order, makes two devices lending the same tents
  * at once wait for each other, so together they never lend more than exist.
  *
  * @param {Object} client - Client inside an open transaction
  * @param {Map<number, number>} wanted - Units to lend now, by item
+ * @param {{until: (string|null), activityId: (number|null)}} loan - The loan's due date and activity
  * @returns {Promise<Array<{equipment_id: number, available: number, requested: number}>>}
  *   The items there are not enough of; empty when the loan fits
  */
-async function findShortages(client, wanted) {
+async function findShortages(client, wanted, { until, activityId }) {
   const ids = [...wanted.keys()].sort((a, b) => a - b);
   const items = await client.query(
     `SELECT id, quantity_total FROM equipment_items
@@ -147,11 +179,15 @@ async function findShortages(client, wanted) {
       FOR UPDATE`,
     [ids],
   );
-  const outstanding = await outstandingByEquipment(client, ids);
+  const [outstanding, reserved] = await Promise.all([
+    outstandingByEquipment(client, ids),
+    reservedDuringLoan(client, ids, until, activityId),
+  ]);
   return items.rows
     .map((item) => {
       const id = Number(item.id);
-      const available = Math.max(0, Number(item.quantity_total) - (outstanding.get(id) || 0));
+      const taken = (outstanding.get(id) || 0) + (reserved.get(id) || 0);
+      const available = Math.max(0, Number(item.quantity_total) - taken);
       return { equipment_id: id, available, requested: wanted.get(id) };
     })
     .filter((item) => item.requested > item.available);
@@ -443,7 +479,7 @@ module.exports = (pool) => {
           return error(res, 'equipment_loan_holder_not_in_unit', HTTP_BAD_REQUEST);
         }
 
-        const shortages = await findShortages(client, wanted);
+        const shortages = await findShortages(client, wanted, { until: dueDate, activityId });
         if (shortages.length > 0) {
           await client.query('ROLLBACK');
           return error(res, 'equipment_loan_exceeds_stock', HTTP_CONFLICT, shortages);
@@ -524,7 +560,8 @@ module.exports = (pool) => {
       try {
         await client.query('BEGIN');
         const current = await client.query(
-          `SELECT id, equipment_id, quantity, returned_quantity, loaned_on::text AS loaned_on
+          `SELECT id, equipment_id, activity_id, quantity, returned_quantity,
+                  loaned_on::text AS loaned_on, due_date::text AS due_date
              FROM equipment_loans
             WHERE id = $1 AND organization_id = $2
             FOR UPDATE`,
@@ -553,7 +590,10 @@ module.exports = (pool) => {
           // This loan's own outstanding units are counted already; add only the
           // units it takes back out.
           const extra = Number(loan.returned_quantity) - returnedQuantity;
-          const shortages = await findShortages(client, new Map([[Number(loan.equipment_id), extra]]));
+          const shortages = await findShortages(client, new Map([[Number(loan.equipment_id), extra]]), {
+            until: has('due_date') ? dueDate : loan.due_date,
+            activityId: loan.activity_id,
+          });
           if (shortages.length > 0) {
             await client.query('ROLLBACK');
             return error(res, 'equipment_loan_exceeds_stock', HTTP_CONFLICT, shortages);

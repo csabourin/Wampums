@@ -19,7 +19,7 @@ import { setContent, withFormBusy, loadStylesheet } from '../../utils/DOMUtils.j
 import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
-import { hasAllPermissions } from '../../utils/PermissionUtils.js';
+import { hasAllPermissions, hasPermission } from '../../utils/PermissionUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { pageLoadingMarkup, pageErrorMarkup } from '../../utils/PageStateUtils.js';
@@ -57,8 +57,10 @@ export class EquipmentLoans {
     this.destroyed = false;
     this.listeners = new AbortController();
     // The handout lists the unit's youths and leaders, which its endpoint
-    // guards with participants.view as well as the right to lend.
+    // guards with participants.view as well as the right to lend. Checking
+    // loans back in takes only the right to lend, as its endpoints do.
     this.canLend = hasAllPermissions('inventory.reserve', 'participants.view');
+    this.canReturn = hasPermission('inventory.reserve');
     this.loans = [];
     this.status = 'open';
     this.handout = null;
@@ -93,6 +95,9 @@ export class EquipmentLoans {
     });
     const requested = Number(new URLSearchParams(window.location.search).get('activity_id'));
     this.activityId = Number.isInteger(requested) && requested > 0 ? requested : null;
+    this.handout = null;
+    this.listeners.abort();
+    this.listeners = new AbortController();
     this.listenForReplays();
 
     setContent(this.root(), pageLoadingMarkup(this.pageOptions()));
@@ -107,9 +112,10 @@ export class EquipmentLoans {
   }
 
   /**
-   * Load the loans and, for someone who may lend, the handout. Without an
-   * activity in the address, the handout opens on the latest activity that
-   * reserved equipment and has started: the camp just over.
+   * Load the loans and, for someone who may lend, the handout. On first
+   * opening without an activity in the address, the handout opens on the
+   * latest activity that reserved equipment and has started: the camp just
+   * over. Later reloads keep the activity chosen, "No activity" included.
    *
    * @param {{forceRefresh?: boolean}} [options]
    * @returns {Promise<void>}
@@ -117,7 +123,7 @@ export class EquipmentLoans {
   async load(options = {}) {
     const [loansResponse] = await Promise.all([
       getEquipmentLoans({ status: this.status }, options),
-      this.canLend ? this.loadHandout(options, this.activityId === null) : Promise.resolve(),
+      this.canLend ? this.loadHandout(options, this.activityId === null && this.handout === null) : Promise.resolve(),
     ]);
     this.loans = Array.isArray(loansResponse?.data?.loans) ? loansResponse.data.loans : [];
   }
@@ -146,7 +152,14 @@ export class EquipmentLoans {
       adults: Array.isArray(data.holders?.adults) ? data.holders.adults : [],
       reasons: Array.isArray(data.reasons) && data.reasons.length ? data.reasons : ['drying'],
     };
-    this.assignments = new Map();
+    // A reload (after a return, or once the outbox sends something) keeps the
+    // handout under way; only items no longer offered lose their people.
+    const offered = new Set(this.handout.items.map((item) => Number(item.equipment_id)));
+    [...this.assignments.keys()].forEach((equipmentId) => {
+      if (!offered.has(equipmentId)) {
+        this.assignments.delete(equipmentId);
+      }
+    });
   }
 
   /**
@@ -485,11 +498,14 @@ export class EquipmentLoans {
       }
     }
     this.activityId = value ? Number(value) : null;
+    const abandoned = this.assignments;
+    this.assignments = new Map();
     try {
       await this.loadHandout();
     } catch (error) {
       debugError('Failed to load handout:', error);
       this.activityId = previous;
+      this.assignments = abandoned;
       this.app.showMessage(apiErrorMessage(error, 'error_loading_data'), 'error');
       return;
     }
@@ -645,7 +661,7 @@ export class EquipmentLoans {
 
   groupMarkup(group) {
     const open = group.loans.filter((loan) => !loan.returned_at);
-    const returnAll = this.canLend && open.length > 1 ? `
+    const returnAll = this.canReturn && open.length > 1 ? `
       <button type="button" class="button button--secondary button--small" data-return-all="${escapeAttribute(group.key)}">
         ${escapeHTML(translate('equipment_loans_return_all'))}
         <span class="visually-hidden">${escapeHTML(group.name)}</span>
@@ -678,7 +694,7 @@ export class EquipmentLoans {
     }
     const label = `${loan.equipment_name}, ${holderName}`;
     const count = loan.returned_at ? Number(loan.quantity) : outstanding;
-    const actions = !this.canLend ? '' : loan.returned_at ? `
+    const actions = !this.canReturn ? '' : loan.returned_at ? `
         <button type="button" class="button button--ghost button--small" data-reopen="${Number(loan.id)}"
           aria-label="${escapeAttribute(translate('equipment_loans_reopen_for').replace('{item}', label))}">
           ${escapeHTML(translate('equipment_loans_reopen'))}

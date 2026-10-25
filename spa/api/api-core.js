@@ -185,6 +185,13 @@ import { isLiveSyncActive } from '../modules/live-sync/LiveDataSync.js';
 const LIVE_SYNC_CLIENT_HEADER = 'X-Live-Sync-Client';
 
 /**
+ * Writes whose server keeps an Idempotency-Key receipt. The key is set before
+ * the first attempt, so a request that committed but lost its response, then
+ * queued and replayed, is recognized instead of applied a second time.
+ */
+const IDEMPOTENT_POSTS = new Set(['/api/v1/points', '/api/v1/equipment-loans']);
+
+/**
  * Drop cached reads for the resource a mutation just changed.
  *
  * Screens cache GET responses for 30 minutes, so without this a create,
@@ -306,8 +313,9 @@ async function sendApiRequest(endpoint, options = {}) {
   }
 
   const requestPath = normalizeApiPath(endpoint);
-  // Keep the same identity from the first attempt through every offline replay.
-  if (method === 'POST' && requestPath === '/api/v1/points') {
+  // Keep the same identity from the first attempt through every offline replay:
+  // the server keeps a receipt for these, so a lost response is never applied twice.
+  if (method === 'POST' && IDEMPOTENT_POSTS.has(requestPath)) {
     requestConfig.headers['Idempotency-Key'] ||= crypto.randomUUID();
   }
   const requiresOnline = !queueOffline || (CONFIG.ONLINE_REQUIRED_MUTATION_RESOURCES || []).some((resource) =>
