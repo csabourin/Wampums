@@ -54,6 +54,8 @@ CREATE INDEX IF NOT EXISTS idx_equipment_loans_activity
 
 -- Offline handouts at the end of a camp replay with an Idempotency-Key: the
 -- receipt commits with the loans, so a lost response never lends twice.
+-- response_data holds only the loan ids ({"loan_ids": [...]}): a replay reads
+-- the loans as they are now, so no name outlives an erasure here.
 CREATE TABLE IF NOT EXISTS equipment_loan_receipts (
   organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

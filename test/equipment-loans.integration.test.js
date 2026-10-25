@@ -205,12 +205,47 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
     }).expect(201);
   });
 
+  test('two separate weekends of three tents each leave three free, not none', async () => {
+    const tents = await item(ids.unit, 'Tente 2 places', 6);
+    const reserve = (from, to) => as(ids.leader).post('/api/v1/resources/equipment/reservations', {
+      equipment_id: tents, date_from: from, date_to: to, reserved_quantity: 3, reserved_for: `Sortie ${from}`,
+    }).expect(201);
+    await reserve('2099-06-05', '2099-06-07');
+    await reserve('2099-06-12', '2099-06-14');
+
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      loans: [{ equipment_id: tents, quantity: 3, participant_id: ids.ada }],
+    }).expect(201);
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      loans: [{ equipment_id: tents, quantity: 1, participant_id: ids.max }],
+    }).expect(409);
+  });
+
+  test('keeping a loan out past a reservation is refused, and bringing the date back is not', async () => {
+    const tarps = await item(ids.unit, 'Bâche 2 x 3 m', 2);
+    const created = await as(ids.leader).post('/api/v1/equipment-loans', {
+      due_date: '2099-07-01', loans: [{ equipment_id: tarps, quantity: 2, participant_id: ids.ada }],
+    }).expect(201);
+    await as(ids.leader).post('/api/v1/resources/equipment/reservations', {
+      equipment_id: tarps, date_from: '2099-07-04', date_to: '2099-07-05', reserved_quantity: 2, reserved_for: 'Sortie juillet',
+    }).expect(201);
+    const loanId = created.body.data.loans[0].id;
+
+    await as(ids.leader).patch(`/api/v1/equipment-loans/${loanId}`, { due_date: '2099-07-10' }).expect(409);
+    await as(ids.leader).patch(`/api/v1/equipment-loans/${loanId}`, { due_date: null }).expect(409);
+    await as(ids.leader).patch(`/api/v1/equipment-loans/${loanId}`, { due_date: '2099-06-30' }).expect(200);
+  });
+
   test('a handout replayed from the offline outbox is recorded once', async () => {
     const body = { loans: [{ equipment_id: ids.tarps, quantity: 1, participant_id: ids.max }] };
     const first = await as(ids.leader).post('/api/v1/equipment-loans', body, 'camp-handout-1').expect(201);
     const replay = await as(ids.leader).post('/api/v1/equipment-loans', body, 'camp-handout-1').expect(201);
 
     expect(replay.body.data).toEqual(first.body.data);
+    // The receipt names no one: only the loans it recorded.
+    const receipt = await one('SELECT response_data FROM equipment_loan_receipts WHERE user_id = $1 AND mutation_key = $2',
+      [ids.leader, 'camp-handout-1']);
+    expect(receipt).toEqual({ loan_ids: first.body.data.loans.map((loan) => loan.id) });
     expect(await one('SELECT COUNT(*)::int FROM equipment_loans WHERE equipment_id = $1 AND holder_participant_id = $2',
       [ids.tarps, ids.max])).toBe(1);
     await as(ids.leader).post('/api/v1/equipment-loans', { loans: [{ ...body.loans[0], quantity: 2 }] }, 'camp-handout-1').expect(409);

@@ -128,12 +128,16 @@ async function outstandingByEquipment(db, equipmentIds) {
 }
 
 /**
- * Units of each item that reservations still to come will need while a loan
- * is out: those still holding stock and starting by its due date (any start,
- * for a loan with no due date). This mirrors equipment_loaned_quantity(), which
- * the reservation checks count, so neither side can promise the same tents
- * twice. The reservations of the activity being handed out are what the loan
- * fulfils, so they are left out.
+ * Units of each item that reservations still to come will need at once while
+ * a loan is out: among those still holding stock and starting by its due date
+ * (any start, for a loan with no due date), the most that overlap on any one
+ * day. Two separate weekends of three tents each need three, not six. This
+ * mirrors equipment_loaned_quantity(), which the reservation checks count, so
+ * neither side can promise the same tents twice. The reservations of the
+ * activity being handed out are what the loan fulfils, so they are left out.
+ *
+ * The busiest day is always a day some reservation starts (or today, for one
+ * already under way), so only those days are summed.
  *
  * @param {Object} db - Pool or client
  * @param {number[]} equipmentIds - Items
@@ -143,14 +147,26 @@ async function outstandingByEquipment(db, equipmentIds) {
  */
 async function reservedDuringLoan(db, equipmentIds, until, activityId) {
   const result = await db.query(
-    `SELECT equipment_id, COALESCE(SUM(reserved_quantity), 0)::int AS reserved
-       FROM equipment_reservations
-      WHERE equipment_id = ANY($1::int[])
-        AND status IN ('reserved', 'confirmed')
-        AND COALESCE(date_to, meeting_date) >= CURRENT_DATE
-        AND ($2::date IS NULL OR COALESCE(date_from, meeting_date) <= $2::date)
-        AND ($3::int IS NULL OR activity_id IS DISTINCT FROM $3::int)
-      GROUP BY equipment_id`,
+    `WITH upcoming AS (
+       SELECT equipment_id, reserved_quantity AS quantity,
+              GREATEST(COALESCE(date_from, meeting_date), CURRENT_DATE) AS starts,
+              COALESCE(date_to, meeting_date) AS ends
+         FROM equipment_reservations
+        WHERE equipment_id = ANY($1::int[])
+          AND status IN ('reserved', 'confirmed')
+          AND COALESCE(date_to, meeting_date) >= CURRENT_DATE
+          AND ($2::date IS NULL OR COALESCE(date_from, meeting_date) <= $2::date)
+          AND ($3::int IS NULL OR activity_id IS DISTINCT FROM $3::int)
+     )
+     SELECT day.equipment_id, MAX(day.total)::int AS reserved
+       FROM (
+         SELECT start_day.equipment_id,
+                (SELECT SUM(other.quantity) FROM upcoming other
+                  WHERE other.equipment_id = start_day.equipment_id
+                    AND other.starts <= start_day.starts AND other.ends >= start_day.starts) AS total
+           FROM upcoming start_day
+       ) AS day
+      GROUP BY day.equipment_id`,
     [equipmentIds, until, activityId],
   );
   return new Map(result.rows.map((row) => [Number(row.equipment_id), Number(row.reserved)]));
@@ -165,7 +181,8 @@ async function reservedDuringLoan(db, equipmentIds, until, activityId) {
  * at once wait for each other, so together they never lend more than exist.
  *
  * @param {Object} client - Client inside an open transaction
- * @param {Map<number, number>} wanted - Units to lend now, by item
+ * @param {Map<number, number>} wanted - Units to lend now, by item (0 to check a
+ *   loan already out against a longer period)
  * @param {{until: (string|null), activityId: (number|null)}} loan - The loan's due date and activity
  * @returns {Promise<Array<{equipment_id: number, available: number, requested: number}>>}
  *   The items there are not enough of; empty when the loan fits
@@ -187,10 +204,11 @@ async function findShortages(client, wanted, { until, activityId }) {
     .map((item) => {
       const id = Number(item.id);
       const taken = (outstanding.get(id) || 0) + (reserved.get(id) || 0);
-      const available = Math.max(0, Number(item.quantity_total) - taken);
-      return { equipment_id: id, available, requested: wanted.get(id) };
+      const total = Number(item.quantity_total);
+      return { equipment_id: id, available: Math.max(0, total - taken), requested: wanted.get(id), fits: wanted.get(id) + taken <= total };
     })
-    .filter((item) => item.requested > item.available);
+    .filter((item) => !item.fits)
+    .map(({ fits: _fits, ...shortage }) => shortage);
 }
 
 /**
@@ -433,11 +451,16 @@ module.exports = (pool) => {
                 WHERE organization_id = $1 AND user_id = $2 AND mutation_key = $3`,
               [organizationId, req.user.id, idempotencyKey],
             );
-            await client.query('ROLLBACK');
             if (existing.rows[0].request_hash !== requestHash) {
+              await client.query('ROLLBACK');
               return error(res, 'idempotency_key_reused', HTTP_CONFLICT);
             }
-            return success(res, existing.rows[0].response_data, 'Equipment loans recorded', HTTP_CREATED);
+            // The receipt keeps only loan ids: the answer is read from the
+            // loans as they are now, so an erased holder stays erased.
+            const loanIds = existing.rows[0].response_data?.loan_ids || [];
+            const replayed = await client.query(LOANS_BY_IDS_SQL, [loanIds]);
+            await client.query('ROLLBACK');
+            return success(res, { loans: replayed.rows, count: replayed.rows.length }, 'Equipment loans recorded', HTTP_CREATED);
           }
         }
 
@@ -517,7 +540,7 @@ module.exports = (pool) => {
           await client.query(
             `UPDATE equipment_loan_receipts SET response_data = $4::jsonb
               WHERE organization_id = $1 AND user_id = $2 AND mutation_key = $3`,
-            [organizationId, req.user.id, idempotencyKey, JSON.stringify(responseData)],
+            [organizationId, req.user.id, idempotencyKey, JSON.stringify({ loan_ids: loanIds })],
           );
         }
         await client.query('COMMIT');
@@ -585,11 +608,16 @@ module.exports = (pool) => {
           return error(res, 'equipment_loan_due_date_past', HTTP_BAD_REQUEST);
         }
 
+        // Taking units back out, or keeping them out longer (a later due date,
+        // or none), can collide with reservations; check the stock again.
         const goingBackOut = returnedQuantity < Number(loan.returned_quantity);
-        if (goingBackOut) {
+        const stillOut = returnedQuantity < Number(loan.quantity);
+        const keptLonger = has('due_date') && stillOut && loan.due_date !== null
+          && (dueDate === null || dueDate > loan.due_date);
+        if (goingBackOut || keptLonger) {
           // This loan's own outstanding units are counted already; add only the
           // units it takes back out.
-          const extra = Number(loan.returned_quantity) - returnedQuantity;
+          const extra = goingBackOut ? Number(loan.returned_quantity) - returnedQuantity : 0;
           const shortages = await findShortages(client, new Map([[Number(loan.equipment_id), extra]]), {
             until: has('due_date') ? dueDate : loan.due_date,
             activityId: loan.activity_id,
