@@ -4380,13 +4380,17 @@
   "unit_dashboard_options_title": "Outils occasionnels",
   "unit_dashboard_option_scout_year_selector": "Consulter les années précédentes",
   "unit_dashboard_option_scout_year_selector_hint": "Affiche le choix de l’année consultée en haut de chaque écran, pour les responsables qui ont accès à l’historique.",
-  "unit_dashboard_option_palette_picker": "Choisir les couleurs du tableau de bord",
-  "unit_dashboard_option_palette_picker_hint": "Affiche le bouton des palettes de couleurs, dont les palettes à contraste élevé et adaptées au daltonisme. Une palette déjà choisie sur un appareil reste appliquée.",
   "attendance_guest_youth_title": "Un nouvel enfant",
   "attendance_guest_youth_hint": "Ajoutez cet enfant à la liste de l’unité : ses présences, ses points et ses honneurs suivent aussitôt, et son parent reçoit une invitation.",
   "attendance_guest_adult_title": "Un adulte de passage",
   "attendance_guest_adult_hint": "Parent, bénévole ou animateur invité : sa présence est notée pour le {date}.",
   "attendance_guests_noted": "Visiteurs notés à cette date",
   "attendance_guests_none": "Aucun visiteur noté à cette date pour l’instant.",
-  "attendance_guest_queued": "Visiteur enregistré sur cet appareil : il sera envoyé au retour de la connexion."
+  "attendance_guest_queued": "Visiteur enregistré sur cet appareil : il sera envoyé au retour de la connexion.",
+  "tile_display_settings": "Affichage",
+  "tile_display_settings_aliases": "couleurs, thème, contraste, contraste élevé, daltonisme, apparence",
+  "display_settings_title": "Affichage",
+  "display_settings_intro": "Ces choix s’appliquent à cet appareil seulement.",
+  "display_settings_palette_applied": "Thème « {name} » appliqué.",
+  "display_settings_reset_done": "Préférences du tableau de bord réinitialisées."
 }

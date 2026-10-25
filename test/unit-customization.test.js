@@ -71,14 +71,14 @@ describe('unit customization validation', () => {
     });
   });
 
-  test('the year selector and colour choice stay off until the unit turns them on', () => {
+  test('the year selector stays off until the unit turns it on', () => {
     expect(validateDashboardConfiguration({ hidden_tile_keys: [] }).value.enabled_option_keys).toEqual([]);
 
     expect(validateDashboardConfiguration({
       hidden_tile_keys: [],
-      enabled_option_keys: ['scout_year_selector', 'palette_picker', 'palette_picker']
+      enabled_option_keys: ['scout_year_selector', 'scout_year_selector']
     })).toEqual({
-      value: { version: 1, hidden_tile_keys: [], enabled_option_keys: ['palette_picker', 'scout_year_selector'] },
+      value: { version: 1, hidden_tile_keys: [], enabled_option_keys: ['scout_year_selector'] },
       errors: []
     });
   });

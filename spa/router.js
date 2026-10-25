@@ -143,6 +143,7 @@ const lazyModules = {
   ParentOnboarding: () => import('./modules/parent-onboarding/ParentOnboarding.js').then(m => m.ParentOnboarding),
   FamilyAccess: () => import('./modules/family-access/FamilyAccess.js').then(m => m.FamilyAccess),
   WalkInChildren: () => import('./modules/walk-in/WalkInChildren.js').then(m => m.WalkInChildren),
+  DisplaySettings: () => import('./modules/display-settings/DisplaySettings.js').then(m => m.DisplaySettings),
   Messages: () => import('./modules/messages/Messages.js').then(m => m.Messages)
 };
 
@@ -227,6 +228,7 @@ const routes = {
   '/permission-slips/:id': 'permissionSlipDashboardActivity',
   '/permission-slip/:token': 'permissionSlipSign',
   '/account-info': 'accountInfo',
+  '/display-settings': 'displaySettings',
   '/form-builder': 'formBuilder',
   '/activities': 'activities',
   '/carpool': 'carpoolLanding',
@@ -969,6 +971,10 @@ export class Router {
           break;
         case 'accountInfo':
           await this.loadAccountInfo();
+          break;
+        case 'displaySettings':
+          // Stored on this device only: open to every signed-in member.
+          await this.loadModuleInstance('DisplaySettings');
           break;
         case 'formBuilder':
           if (!guard(canManageForms())) {

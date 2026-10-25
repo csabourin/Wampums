@@ -93,7 +93,6 @@ jest.mock('../../spa/modules/CommandPalette.js', () => ({
     setTiles: jest.fn(),
   })),
 }));
-jest.mock('../../spa/modules/display-settings/DisplaySettings.js', () => ({ DashboardSettingsModal: jest.fn() }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({ offlineManager: {} }));
 
 import { Dashboard } from '../../spa/modules/dashboard/Dashboard.js';
@@ -201,9 +200,10 @@ describe('tool groups separate weekly work from unit set-up', () => {
     expect(tiles[0].gate).toEqual({ permission: 'users.invite' });
   });
 
-  test('"Administration" holds my account first, then district and system tools', () => {
+  test('"Administration" holds my account and display first, then district and system tools', () => {
     const tiles = DASHBOARD_TILES.filter((tile) => tile.domain === 'system');
-    expect(tiles.map((tile) => tile.href)).toEqual(['/account-info', '/district', '/create-organization']);
+    expect(tiles.map((tile) => tile.href))
+      .toEqual(['/account-info', '/display-settings', '/district', '/create-organization']);
     expect(tiles.every((tile) => tile.href === '/account-info' || tile.gate)).toBe(true);
   });
 
@@ -233,10 +233,10 @@ describe('tiles follow the permissions their page acts on', () => {
     return { group, has };
   };
 
-  test('an ordinary leader sees only "Mon compte" under Administration', () => {
+  test('an ordinary leader sees only "Mon compte" and "Affichage" under Administration', () => {
     const { group } = renderAs(['participants.view', 'reports.view'], { adminPanel: false });
     const links = Array.from(group('system').querySelectorAll('a')).map((a) => a.getAttribute('href'));
-    expect(links).toEqual(['/account-info']);
+    expect(links).toEqual(['/account-info', '/display-settings']);
     expect(group('people').querySelector('a[href="/reports"]')).not.toBeNull();
   });
 
@@ -358,19 +358,15 @@ describe('tool groups stay accessible', () => {
     expect(document.querySelector('#app h1').textContent).toBe('dashboard_title');
   });
 
-  test('the colour choice is hidden until the unit turns it on', () => {
+  test('the colour choice is a tile beside "Mon compte", not a button in the page header', () => {
     const dashboard = renderAdmin();
-    expect(document.getElementById('dashboard-settings-btn')).toBeNull();
+    expect(document.querySelector('.dashboard-v2__topbar button')).toBeNull();
+    const tile = document.querySelector('.dashboard-v2__group[data-group="system"] a[href="/display-settings"]');
+    expect(tile.textContent.trim()).toBe('tile_display_settings');
 
-    dashboard.organizationSettings = {
-      dashboard_configuration: { hidden_tile_keys: [], enabled_option_keys: ['palette_picker'] },
-    };
+    dashboard.organizationSettings = { dashboard_configuration: { hidden_tile_keys: ['display_settings'] } };
     dashboard.render();
-    dashboard.attachEventListeners();
-
-    const button = document.getElementById('dashboard-settings-btn');
-    expect(button.tagName).toBe('BUTTON');
-    expect(button.getAttribute('aria-label')).toBe('dashboard_settings');
+    expect(document.querySelector('a[href="/display-settings"]')).toBeNull();
   });
 
   test('the tool section has no WCAG A/AA violations', async () => {

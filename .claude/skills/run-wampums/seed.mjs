@@ -67,12 +67,12 @@ try {
      VALUES ($1, 'security', '{"two_factor_disabled": true}')`,
     [organizationId]
   );
-  // The year selector and the colour choice are off unless a unit turns them
-  // on; the seeded unit does, so screenshots and the accessibility run see them.
+  // The year selector is off unless a unit turns it on; the seeded unit does,
+  // so screenshots and the accessibility run see it.
   await pool.query(
     `INSERT INTO organization_settings (organization_id, setting_key, setting_value)
      VALUES ($1, 'dashboard_configuration',
-             '{"version": 1, "hidden_tile_keys": [], "enabled_option_keys": ["palette_picker", "scout_year_selector"]}')`,
+             '{"version": 1, "hidden_tile_keys": [], "enabled_option_keys": ["scout_year_selector"]}')`,
     [organizationId]
   );
 

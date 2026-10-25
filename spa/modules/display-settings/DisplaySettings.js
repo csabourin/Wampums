@@ -1,14 +1,19 @@
 /**
- * Lightweight settings modal for dashboard customization.
- * - Pick a color palette (live preview on accept)
- * - Reset all dashboard prefs
+ * Display — how the dashboard looks on this device: its colour theme (among
+ * them high contrast and colorblind-safe), and a way back to the defaults.
  *
- * Triggered from the dashboard header gear button.
+ * Reached from the "Display" tile beside "My account" under Administration.
+ * The choice is stored on the device; nothing is sent to the server.
+ *
+ * @module spa/modules/display-settings/DisplaySettings
  */
 
+import dashboardV2StylesheetUrl from '../../../css/dashboard-v2.css?url';
 import { translate } from '../../app.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { openModal } from '../../utils/ModalUtils.js';
+import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
+import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
+import { debugError } from '../../utils/DebugUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { PALETTES } from '../../config/dashboard-customization.js';
 import {
   getDashboardPrefs,
@@ -16,100 +21,120 @@ import {
   resetDashboardPrefs,
 } from '../../utils/DashboardPreferences.js';
 
-export class DashboardSettingsModal {
-  constructor({ onChange } = {}) {
-    this.onChange = onChange || (() => {});
-    this.modal = null;
+export class DisplaySettings {
+  /** @param {Object} app - Application instance */
+  constructor(app) {
+    this.app = app;
   }
 
-  open() {
-    if (this.modal) {return;}
-    const prefs = getDashboardPrefs();
-    const { body, footer } = this._render(prefs.paletteId);
-
-    const { overlay, close } = openModal({
-      id: 'dash-settings',
-      title: escapeHTML(translate('dashboard_settings')),
-      className: 'dash-settings__panel',
-      body,
-      footer,
-      initialFocus: '.dash-settings__palette.is-active',
-      onClose: () => { this.modal = null; },
-    });
-    this.modal = overlay;
-    this.closeModal = close;
-
-    this._wireEvents();
+  /** Nothing to fetch: the choice lives on this device. @returns {void} */
+  init() {
+    // The theme cards share the dashboard's styles.
+    loadStylesheet(dashboardV2StylesheetUrl)
+      .catch((error) => debugError('Failed to load display settings styles:', error));
+    this.render();
   }
 
-  close() {
-    if (!this.modal) {return;}
-    this.closeModal(true);
+  /** @returns {HTMLElement|null} The page root */
+  root() {
+    return document.getElementById('app');
   }
 
-  _render(currentPaletteId) {
-    const cards = Object.values(PALETTES)
-      .map((palette) => {
-        const swatches = palette.swatches
-          .map((c) => `<span class="dash-settings__swatch" style="background:${c}"></span>`)
-          .join('');
-        const isActive = palette.id === currentPaletteId;
-        return `
-          <button type="button"
-                  class="dash-settings__palette ${isActive ? 'is-active' : ''}"
-                  data-palette="${escapeHTML(palette.id)}"
-                  aria-pressed="${isActive}">
-            <span class="dash-settings__swatches" aria-hidden="true">${swatches}</span>
-            <span class="dash-settings__palette-label">${escapeHTML(translate(palette.label))}</span>
-            <span class="dash-settings__palette-desc">${escapeHTML(translate(palette.description))}</span>
-          </button>
-        `;
-      })
+  /**
+   * One theme to choose, as a native radio button inside its card.
+   *
+   * @param {Object} palette - From PALETTES
+   * @param {string} currentId - The theme in use
+   * @returns {string} HTML
+   */
+  renderPalette(palette, currentId) {
+    const id = `display-palette-${palette.id}`;
+    const isActive = palette.id === currentId;
+    const swatches = palette.swatches
+      .map((colour) => `<span class="dash-settings__swatch" style="background:${escapeAttribute(colour)}"></span>`)
       .join('');
-
-    return {
-      body: `
-        <section class="dash-settings__section">
-          <h3>${escapeHTML(translate('dashboard_palette'))}</h3>
-          <p class="dash-settings__hint">${escapeHTML(translate('dashboard_palette_hint'))}</p>
-          <div class="dash-settings__palettes" role="group" aria-label="${escapeHTML(translate('dashboard_palette'))}">
-            ${cards}
-          </div>
-        </section>
-      `,
-      footer: `
-        <button type="button" class="button button--ghost" data-action="reset">
-          ${escapeHTML(translate('reset_to_defaults'))}
-        </button>
-        <button type="button" class="button button--primary" data-modal-close>
-          ${escapeHTML(translate('done'))}
-        </button>
-      `,
-    };
+    return `
+      <label class="dash-settings__palette ${isActive ? 'is-active' : ''}" for="${id}">
+        <span class="dash-settings__palette-head">
+          <input type="radio" name="display_palette" id="${id}" value="${escapeAttribute(palette.id)}"
+            aria-describedby="${id}-desc" ${isActive ? 'checked' : ''}>
+          <span class="dash-settings__palette-label">${escapeHTML(translate(palette.label))}</span>
+        </span>
+        <span class="dash-settings__swatches" aria-hidden="true">${swatches}</span>
+        <span class="dash-settings__palette-desc" id="${id}-desc">${escapeHTML(translate(palette.description))}</span>
+      </label>`;
   }
 
-  _wireEvents() {
-    this.modal.addEventListener('click', (e) => {
-      const palette = e.target.closest('[data-palette]');
-      if (palette) {
-        const id = palette.dataset.palette;
-        setPaletteId(id);
-        this.modal.querySelectorAll('.dash-settings__palette').forEach((el) => {
-          el.classList.toggle('is-active', el.dataset.palette === id);
-          el.setAttribute('aria-pressed', String(el.dataset.palette === id));
-        });
-        this.onChange({ paletteId: id });
-        return;
-      }
-      if (e.target.closest('[data-action="reset"]')) {
-        resetDashboardPrefs();
-        const current = getDashboardPrefs().paletteId;
-        this.modal.querySelectorAll('.dash-settings__palette').forEach((el) => {
-          el.classList.toggle('is-active', el.dataset.palette === current);
-          el.setAttribute('aria-pressed', String(el.dataset.palette === current));
-        });
-        this.onChange({ paletteId: current, reset: true });
-      }
+  /** @returns {void} */
+  render() {
+    const currentId = getDashboardPrefs().paletteId;
+    const cards = Object.values(PALETTES).map((palette) => this.renderPalette(palette, currentId)).join('');
+    setContent(this.root(), `
+      <section class="page display-settings">
+        ${renderBackLink()}
+        <h1>${translate('display_settings_title')}</h1>
+        <p>${translate('display_settings_intro')}</p>
+        <p id="display-settings-status" class="sr-only" role="status"></p>
+        <fieldset class="dash-settings__section">
+          <legend><h2>${translate('dashboard_palette')}</h2></legend>
+          <p class="dash-settings__hint">${translate('dashboard_palette_hint')}</p>
+          <div class="dash-settings__palettes">${cards}</div>
+        </fieldset>
+        <button type="button" class="button button--secondary" id="display-settings-reset">
+          ${translate('reset_to_defaults')}
+        </button>
+      </section>
+    `);
+    this.attachEventListeners();
+  }
+
+  /** @returns {void} */
+  attachEventListeners() {
+    const root = this.root();
+    // The markup was just replaced, so these listeners never stack.
+    root.querySelectorAll('input[name="display_palette"]').forEach((input) => {
+      input.addEventListener('change', () => this.choose(input.value));
     });
+    document.getElementById('display-settings-reset')?.addEventListener('click', () => this.reset());
+  }
+
+  /**
+   * Apply a theme at once and say so to screen readers.
+   *
+   * @param {string} paletteId - Chosen theme
+   * @returns {void}
+   */
+  choose(paletteId) {
+    const applied = setPaletteId(paletteId);
+    this.markActive(applied);
+    const palette = PALETTES[applied];
+    this.announce(translate('display_settings_palette_applied').replace('{name}', translate(palette.label)));
+  }
+
+  /** @returns {void} */
+  reset() {
+    resetDashboardPrefs();
+    const current = getDashboardPrefs().paletteId;
+    this.markActive(current);
+    const input = document.getElementById(`display-palette-${current}`);
+    if (input) {
+      input.checked = true;
+    }
+    this.announce(translate('display_settings_reset_done'));
+  }
+
+  /** @param {string} paletteId - The theme now in use */
+  markActive(paletteId) {
+    this.root().querySelectorAll('.dash-settings__palette').forEach((card) => {
+      card.classList.toggle('is-active', card.getAttribute('for') === `display-palette-${paletteId}`);
+    });
+  }
+
+  /** @param {string} message - Said by the status region */
+  announce(message) {
+    const status = document.getElementById('display-settings-status');
+    if (status) {
+      status.textContent = message;
+    }
   }
 }

@@ -53,11 +53,9 @@ import {
 } from '../../utils/DashboardPreferences.js';
 import { hasVisibleTab } from '../../config/tabbed-pages.js';
 import { CommandPalette } from '../CommandPalette.js';
-import { DashboardSettingsModal } from '../display-settings/DisplaySettings.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 import { renderCampReadinessSummary } from '../offline/CampReadiness.js';
-import { DASHBOARD_OPTIONS, isUnitDashboardOptionEnabled } from '../../utils/UnitDashboardOptions.js';
 import { offlineManager } from '../OfflineManager.js';
 
 /**
@@ -904,24 +902,8 @@ export class Dashboard extends BaseModule {
             <span>${subtitle}</span>
           </span>
         </div>
-        ${this._offersPalettePicker() ? `<div class="dashboard-v2__top-actions">
-          <button type="button" class="dashboard-v2__icon-btn" id="dashboard-settings-btn"
-                  aria-label="${escapeHTML(translate('dashboard_settings'))}">
-            <i class="fa-solid fa-sliders" aria-hidden="true"></i>
-          </button>
-        </div>` : ''}
       </div>
     `;
-  }
-
-  /**
-   * The colour choice is offered only once the unit turned it on: it is an
-   * occasional need. A palette already chosen on this device stays applied.
-   *
-   * @returns {boolean} True when the dashboard shows the palette button
-   */
-  _offersPalettePicker() {
-    return isUnitDashboardOptionEnabled(this.organizationSettings, DASHBOARD_OPTIONS.PALETTE_PICKER);
   }
 
   _renderHero(nowTiles) {
@@ -1263,22 +1245,6 @@ export class Dashboard extends BaseModule {
     this.addEventListener(document.getElementById('dashboard-fab'), 'click', () => {
       this.commandPalette?.open();
     });
-
-    // Drawn only when the unit offers the colour choice.
-    const settingsButton = document.getElementById('dashboard-settings-btn');
-    if (settingsButton) {
-      this.addEventListener(settingsButton, 'click', () => {
-        const modal = new DashboardSettingsModal({
-          onChange: () => {
-            // Palette CSS vars are already updated by the modal; rerender to refresh
-            // any computed styles tied to tiles.
-            this.render();
-            this.attachEventListeners();
-          },
-        });
-        modal.open();
-      });
-    }
 
     // Collapse/expand "Tools" groups — persisted across renders/sessions.
     document.querySelectorAll('.dashboard-v2__group-toggle').forEach((btn) => {

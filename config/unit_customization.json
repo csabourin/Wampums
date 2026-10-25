@@ -137,6 +137,7 @@
     "budgets",
     "reports",
     "account_info",
+    "display_settings",
     "role_management",
     "district",
     "create_organization"
@@ -145,8 +146,7 @@
     "account_info"
   ],
   "dashboardOptionKeys": [
-    "scout_year_selector",
-    "palette_picker"
+    "scout_year_selector"
   ],
   "parentDashboardButtonKeys": [
     "finances",

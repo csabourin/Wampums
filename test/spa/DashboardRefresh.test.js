@@ -100,7 +100,6 @@ jest.mock('../../spa/modules/CommandPalette.js', () => ({
     detach: jest.fn(),
   })),
 }));
-jest.mock('../../spa/modules/display-settings/DisplaySettings.js', () => ({ DashboardSettingsModal: jest.fn() }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({ offlineManager: {} }));
 
 import { Dashboard } from '../../spa/modules/dashboard/Dashboard.js';

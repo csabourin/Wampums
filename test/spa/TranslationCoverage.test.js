@@ -197,7 +197,7 @@ test('every dashboard option a unit can turn on has a name and an explanation', 
     [`unit_dashboard_option_${option}`, 'UnitSettings'], [`unit_dashboard_option_${option}_hint`, 'UnitSettings'],
   ]);
 
-  expect(dashboardOptionKeys).toEqual(['scout_year_selector', 'palette_picker']);
+  expect(dashboardOptionKeys).toEqual(['scout_year_selector']);
   expect(missing(keys)).toEqual([]);
 });
 

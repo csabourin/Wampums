@@ -35,6 +35,7 @@ const SCREENS = {
   // Opened from attendance, back leads to attendance; otherwise to the dashboard.
   'spa/modules/walk-in/WalkInChildren.js': '${renderBackLink(this.backHref)}',
   'spa/modules/parent-invitations/ParentInvitations.js': '${renderBackLink()}',
+  'spa/modules/display-settings/DisplaySettings.js': '${renderBackLink()}',
   'spa/modules/participant-duplicates/ParticipantDuplicates.js': '${renderBackLink()}',
   'spa/modules/family-access/FamilyAccess.js': '${renderBackLink()}',
   'spa/modules/parent-onboarding/ParentOnboarding.js': '${renderBackLink()}',

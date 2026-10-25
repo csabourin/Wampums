@@ -163,7 +163,7 @@ test('renders vocabulary and dashboard tabs with organization-level controls', a
   );
 });
 
-test('the year selector and the colour choice are off until an administrator turns them on', async () => {
+test('the year selector is off until an administrator turns it on', async () => {
   mockUpdateDashboardConfiguration.mockImplementation((payload) =>
     Promise.resolve({ data: { dashboard_configuration: payload } }));
   const app = { showMessage: jest.fn(), organizationSettings: {}, lang: 'fr' };
@@ -172,9 +172,7 @@ test('the year selector and the colour choice are off until an administrator tur
   document.getElementById('unit-settings-tab-dashboard').click();
 
   const yearSwitch = document.getElementById('dashboard-option-scout_year_selector');
-  const paletteSwitch = document.getElementById('dashboard-option-palette_picker');
   expect(yearSwitch.checked).toBe(false);
-  expect(paletteSwitch.checked).toBe(false);
   expect(yearSwitch.closest('fieldset').querySelector('legend').textContent).toBe('unit_dashboard_options_title');
   expect(document.getElementById(yearSwitch.getAttribute('aria-describedby')).textContent)
     .toBe('unit_dashboard_option_scout_year_selector_hint');
@@ -202,17 +200,19 @@ test('an option the unit turned on shows as on, and stays on when tiles are save
   fetchEditableOrganizationSettings.mockResolvedValueOnce({
     data: {
       organization_info: { name: 'Existing unit' },
-      dashboard_configuration: { version: 1, hidden_tile_keys: [], enabled_option_keys: ['palette_picker'] }
+      dashboard_configuration: { version: 1, hidden_tile_keys: ['display_settings'], enabled_option_keys: ['scout_year_selector'] }
     }
   });
   const module = new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} });
   await module.init();
   document.getElementById('unit-settings-tab-dashboard').click();
 
-  expect(document.getElementById('dashboard-option-palette_picker').checked).toBe(true);
+  expect(document.getElementById('dashboard-option-scout_year_selector').checked).toBe(true);
+  // The display tile is one the unit may hide, like any other.
+  expect(document.getElementById('dashboard-feature-display_settings').checked).toBe(false);
   await module.handleSaveDashboard({ preventDefault: jest.fn() });
   expect(mockUpdateDashboardConfiguration).toHaveBeenCalledWith(
-    expect.objectContaining({ enabled_option_keys: ['palette_picker'] })
+    expect.objectContaining({ hidden_tile_keys: ['display_settings'], enabled_option_keys: ['scout_year_selector'] })
   );
 });
 

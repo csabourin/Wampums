@@ -1,0 +1,92 @@
+/**
+ * @jest-environment jsdom
+ */
+
+/**
+ * Display — the colour theme of the dashboard on this device, reached from the
+ * tile beside "My account". Each theme is a labelled radio button: choosing one
+ * applies it at once and says so; the reset goes back to the defaults.
+ */
+
+import axe from 'axe-core';
+
+jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
+jest.mock('../../spa/config.js', () => ({ CONFIG: { ROLES: {} } }));
+jest.mock('../../spa/utils/DebugUtils.js', () => ({
+  debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn(), debugInfo: jest.fn(),
+}));
+jest.mock('../../spa/utils/DOMUtils.js', () => ({
+  setContent: (element, html) => { element.innerHTML = html; },
+  loadStylesheet: jest.fn(() => Promise.resolve()),
+}));
+
+import { DisplaySettings } from '../../spa/modules/display-settings/DisplaySettings.js';
+import { getDashboardPrefs } from '../../spa/utils/DashboardPreferences.js';
+import { DEFAULT_PALETTE_ID, PALETTES } from '../../spa/config/dashboard-customization.js';
+
+const AXE_OPTIONS = {
+  runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+  // jsdom does no layout, so contrast cannot be computed here.
+  rules: { 'color-contrast': { enabled: false } },
+};
+
+async function openScreen() {
+  const screen = new DisplaySettings({});
+  await screen.init();
+  return screen;
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  document.body.innerHTML = '<div id="app"></div>';
+});
+
+test('opens with the back link and a heading, and lists every theme as a labelled radio button', async () => {
+  await openScreen();
+
+  const app = document.getElementById('app');
+  expect(app.querySelector('.page').firstElementChild.getAttribute('href')).toBe('/dashboard');
+  expect(app.querySelector('h1').textContent).toBe('display_settings_title');
+  const radios = Array.from(app.querySelectorAll('input[type="radio"][name="display_palette"]'));
+  expect(radios.map((radio) => radio.value)).toEqual(Object.keys(PALETTES));
+  radios.forEach((radio) => expect(radio.labels).toHaveLength(1));
+  expect(app.querySelector('input:checked').value).toBe(DEFAULT_PALETTE_ID);
+  expect(app.querySelector('fieldset legend').textContent.trim()).toBe('dashboard_palette');
+});
+
+test('choosing high contrast applies it on this device and says so', async () => {
+  await openScreen();
+
+  const radio = document.getElementById('display-palette-highContrast');
+  radio.click();
+
+  expect(getDashboardPrefs().paletteId).toBe('highContrast');
+  expect(document.documentElement.dataset.dashboardPalette).toBe('highContrast');
+  expect(radio.closest('label').classList.contains('is-active')).toBe(true);
+  expect(document.getElementById('display-settings-status').textContent)
+    .toBe('display_settings_palette_applied'.replace('{name}', 'dashboard_palette_high_contrast'));
+});
+
+test('a theme chosen earlier is the one checked when the screen opens again', async () => {
+  await openScreen();
+  document.getElementById('display-palette-colorblindSafe').click();
+
+  await openScreen();
+  expect(document.querySelector('input:checked').value).toBe('colorblindSafe');
+});
+
+test('the reset returns to the default theme and announces it', async () => {
+  await openScreen();
+  document.getElementById('display-palette-mono').click();
+
+  document.getElementById('display-settings-reset').click();
+
+  expect(getDashboardPrefs().paletteId).toBe(DEFAULT_PALETTE_ID);
+  expect(document.querySelector('input:checked').value).toBe(DEFAULT_PALETTE_ID);
+  expect(document.getElementById('display-settings-status').textContent).toBe('display_settings_reset_done');
+});
+
+test('the screen has no WCAG A/AA violations', async () => {
+  await openScreen();
+  expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
+});

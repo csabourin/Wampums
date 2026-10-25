@@ -446,8 +446,8 @@ export class UnitSettings extends BaseModule {
   }
 
   /**
-   * Render the switches for occasional tools, off until the unit turns them on:
-   * consulting an earlier scout year and choosing dashboard colours.
+   * Render the switches for occasional tools, off until the unit turns them on,
+   * such as consulting an earlier scout year.
    *
    * @returns {string} HTML
    */

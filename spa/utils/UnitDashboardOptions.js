@@ -3,8 +3,8 @@
  *
  * They are off unless the unit lists them in
  * `dashboard_configuration.enabled_option_keys`: consulting an earlier scout
- * year and choosing dashboard colours are occasional needs, and a control
- * nobody uses is one more thing on a phone screen.
+ * year is an occasional need, and a control nobody uses is one more thing on
+ * a phone screen.
  *
  * @module spa/utils/UnitDashboardOptions
  */
@@ -12,7 +12,6 @@
 /** The option keys, as `config/unit_customization.json` lists them. */
 export const DASHBOARD_OPTIONS = Object.freeze({
   SCOUT_YEAR_SELECTOR: 'scout_year_selector',
-  PALETTE_PICKER: 'palette_picker',
 });
 
 /**
