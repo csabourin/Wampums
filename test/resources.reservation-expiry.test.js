@@ -64,7 +64,9 @@ jest.mock('../utils/railway-storage', () => ({
 function mountRouter(poolImpl) {
   let router;
   jest.isolateModules(() => {
-    router = require('../routes/resources')({ query: jest.fn(poolImpl) });
+    const query = jest.fn(poolImpl);
+    // Reservation writes run in a transaction: the client answers like the pool.
+    router = require('../routes/resources')({ query, connect: () => Promise.resolve({ query, release: () => {} }) });
   });
 
   const app = express();
