@@ -40,7 +40,7 @@ export function aiParseReceipt(file) {
  * Ask the assistant which equipment an activity needs, from the unit's
  * inventory. Nothing is reserved: the answer only preselects items.
  *
- * @param {{description: string, date_from: string, date_to: string, locale: string}} request
+ * @param {{description: string, date_from: string, date_to: string, locale: string, activity_id?: number}} request
  * @returns {Promise<Object>} `{ success, data: { items: [{ equipment_id, quantity, reason }], budget } }`
  */
 export function suggestEquipment(request) {

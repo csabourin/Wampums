@@ -35,6 +35,9 @@ const pool = {
     if (query.includes('SELECT DISTINCT r.role_name')) {
       return Promise.resolve({ rows: [{ role_name: 'leader', display_name: 'Leader', data_scope: 'organization' }] });
     }
+    if (query.includes('FROM activities WHERE id = $1 AND organization_id = $2')) {
+      return Promise.resolve({ rows: scenario.activityInUnit ? [{ '?column?': 1 }] : [] });
+    }
     if (query.includes('SELECT DISTINCT r.data_scope')) {
       return Promise.resolve({ rows: [{ data_scope: 'organization' }] });
     }
@@ -53,7 +56,7 @@ const valid = { description: 'Camp d\'hiver, deux nuits, repas sur réchaud', da
 const ask = (body = valid) => request(app).post('/api/v1/equipment-suggestions').set('Authorization', bearer()).send(body);
 
 beforeEach(() => {
-  scenario = { permissions: ['inventory.reserve'], demo: false };
+  scenario = { permissions: ['inventory.reserve'], demo: false, activityInUnit: true };
   suggestEquipment.mockReset();
   suggestEquipment.mockResolvedValue({ items: [{ equipment_id: 3, quantity: 2, reason: 'Pour dormir' }], usage: null });
   isAIConfigured.mockReturnValue(true);
@@ -104,6 +107,25 @@ test('a suggestion comes back with the unit\'s dates and language', async () => 
   expect(suggestEquipment).toHaveBeenCalledWith(pool, expect.objectContaining({
     organizationId: ORGANIZATION_ID, dateFrom: '2099-01-10', dateTo: '2099-01-12', locale: 'fr',
   }));
+});
+
+test('a suggestion for an activity counts what that activity already took home as its own', async () => {
+  const response = await ask({ ...valid, activity_id: 12 });
+  expect(response.status).toBe(200);
+  expect(suggestEquipment).toHaveBeenCalledWith(pool, expect.objectContaining({ activityId: 12 }));
+});
+
+test('another unit\'s activity is not found, and nothing is asked', async () => {
+  scenario.activityInUnit = false;
+  const response = await ask({ ...valid, activity_id: 12 });
+  expect(response.status).toBe(404);
+  expect(suggestEquipment).not.toHaveBeenCalled();
+});
+
+test('a malformed activity is refused', async () => {
+  const response = await ask({ ...valid, activity_id: '12abc' });
+  expect(response.status).toBe(400);
+  expect(suggestEquipment).not.toHaveBeenCalled();
 });
 
 test('a spent budget is explained, not reported as a server error', async () => {

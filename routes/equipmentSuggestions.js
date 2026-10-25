@@ -12,7 +12,7 @@ const { check } = require('express-validator');
 
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { checkValidation } = require('../middleware/validation');
+const { checkValidation, validateIdBodyOptional } = require('../middleware/validation');
 const { isAIConfigured } = require('../services/aiText');
 const { suggestEquipment } = require('../services/equipmentSuggestions');
 const { getBudgetStatus } = require('../services/ai-budget');
@@ -20,6 +20,7 @@ const { sendAIFailure } = require('../utils/aiFailure');
 const interfaceLanguages = require('../config/interface_languages.json');
 
 const HTTP_BAD_REQUEST = 400;
+const HTTP_NOT_FOUND = 404;
 const HTTP_SERVICE_UNAVAILABLE = 503;
 const MIN_DESCRIPTION_LENGTH = 3;
 const MAX_DESCRIPTION_LENGTH = 1000;
@@ -46,6 +47,7 @@ module.exports = (pool) => {
       check('date_from').isISO8601({ strict: true }),
       check('date_to').isISO8601({ strict: true }),
       check('locale').optional().isIn(LOCALES),
+      validateIdBodyOptional('activity_id'),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -58,6 +60,17 @@ module.exports = (pool) => {
         return error(res, 'ai_unavailable', HTTP_SERVICE_UNAVAILABLE, { code: 'AI_NOT_CONFIGURED' });
       }
       const organizationId = await getOrganizationId(req, pool);
+      // Counted as the reservation for that activity is: only one of this unit.
+      const activityId = req.body.activity_id ? Number(req.body.activity_id) : null;
+      if (activityId) {
+        const activity = await pool.query(
+          'SELECT 1 FROM activities WHERE id = $1 AND organization_id = $2 AND is_active = TRUE',
+          [activityId, organizationId],
+        );
+        if (activity.rows.length === 0) {
+          return error(res, 'activity_not_found', HTTP_NOT_FOUND);
+        }
+      }
 
       let result;
       try {
@@ -68,6 +81,7 @@ module.exports = (pool) => {
           dateFrom,
           dateTo,
           locale: req.body.locale || 'fr',
+          activityId,
         });
       } catch (err) {
         return sendAIFailure(res, err);

@@ -344,6 +344,25 @@ describe('asking the assistant for the equipment', () => {
     expect(document.getElementById('material-quantity-3').value).toBe('4');
     expect(page().querySelector('[data-equipment-id="4"] .material-suggestion').textContent).toContain('Pour égoutter les pâtes');
     expect(api.saveBulkReservations).not.toHaveBeenCalled();
+    // The page was redrawn under the dialog: focus lands on the first item suggested.
+    expect(document.activeElement).toBe(document.getElementById('material-select-3'));
+  });
+
+  test('with an activity chosen, the suggestion is asked for that activity', async () => {
+    api.getActivities.mockResolvedValue({ data: { activities: [
+      { id: 12, name: 'Camp d\'hiver', activity_start_date: '2099-01-10', activity_end_date: '2099-01-12' },
+    ] } });
+    suggestEquipment.mockResolvedValue({ data: { items: [] } });
+    await openScreen();
+    type('activitySelect', '12', 'change');
+    document.getElementById('material-suggest').click();
+    document.getElementById('material-suggest-description').value = 'Camp d\'hiver';
+    submit();
+    await flush();
+
+    expect(suggestEquipment).toHaveBeenCalledWith(expect.objectContaining({
+      date_from: '2099-01-10', date_to: '2099-01-12', activity_id: 12,
+    }));
   });
 
   test('a refused suggestion is explained in the dialog, which stays open', async () => {

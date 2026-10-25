@@ -132,4 +132,27 @@ describe.skipIf(!DATABASE_URL)('Equipment suggestions', () => {
 
     expect(generateText.mock.calls[0][1].equipment).toContainEqual({ id: pots, name: 'Gamelle', category: 'kitchen', available: 2 });
   });
+
+  test('equipment an activity already took home is free for that activity, not for another', async () => {
+    const saws = await item(ids.unit, 'Scie', 'tools', 2);
+    const leader = await one("INSERT INTO users (email, password, full_name) VALUES ($1, 'x', 'Ada Lovelace') RETURNING id",
+      [`${randomUUID()}@example.test`]);
+    const campId = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+        meeting_time_going, departure_time_going, activity_start_date, activity_start_time, activity_end_date, activity_end_time)
+      VALUES ($1, $2, 'Camp bois', '2099-01-10', 'Local', '08:00', '08:15', '2099-01-10', '08:00', '2099-01-12', '16:00')
+      RETURNING id`, [ids.unit, leader]);
+    await pool.query(`INSERT INTO equipment_loans (organization_id, equipment_id, activity_id, quantity, due_date)
+      VALUES ($1, $2, $3, 2, '2099-01-12')`, [ids.unit, saws, campId]);
+    generateText.mockResolvedValue({ data: { items: [] }, usage: {} });
+    const offeredFor = async (activityId) => {
+      generateText.mockClear();
+      await suggestEquipment(pool, {
+        organizationId: ids.unit, userId: randomUUID(), description: 'Camp', dateFrom: '2099-01-10', dateTo: '2099-01-12', locale: 'fr', activityId,
+      });
+      return generateText.mock.calls[0][1].equipment.map((entry) => entry.id);
+    };
+
+    expect(await offeredFor(null)).not.toContain(saws);
+    expect(await offeredFor(campId)).toContain(saws);
+  });
 });

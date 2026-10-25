@@ -33,7 +33,7 @@ const MAX_REASON_LENGTH = 200;
  * @param {string} dateTo - YYYY-MM-DD
  * @returns {Promise<Array<{id: number, name: string, category: string, available: number}>>}
  */
-async function availableEquipment(pool, organizationId, dateFrom, dateTo) {
+async function availableEquipment(pool, organizationId, dateFrom, dateTo, activityId = null) {
   const ids = await listAccessibleEquipmentIds(pool, organizationId);
   if (ids.length === 0) {
     return [];
@@ -53,14 +53,14 @@ async function availableEquipment(pool, organizationId, dateFrom, dateTo) {
                          AND COALESCE(er.date_from, er.meeting_date) <= $3::date
                          AND COALESCE(er.date_to, er.meeting_date) >= $2::date
                     ), 0)
-                  - equipment_loans_beyond_reservations(ei.id, $2::date, $3::date))::int AS available
+                  - equipment_loans_beyond_reservations(ei.id, $2::date, $3::date, $5::int))::int AS available
            FROM equipment_items ei
           WHERE ei.id = ANY($1::int[])
        ) AS counted
       WHERE available > 0
       ORDER BY category, name
       LIMIT $4`,
-    [ids, dateFrom, dateTo, MAX_EQUIPMENT_SENT],
+    [ids, dateFrom, dateTo, MAX_EQUIPMENT_SENT, activityId],
   );
   return result.rows.map((row) => ({
     id: Number(row.id),
@@ -112,10 +112,11 @@ function readSuggestions(answer, equipment) {
  * @param {string} request.dateFrom - YYYY-MM-DD
  * @param {string} request.dateTo - YYYY-MM-DD
  * @param {string} request.locale - Language of the reasons
+ * @param {number|null} [request.activityId] - Activity reserved for: its own loans stay available to it
  * @returns {Promise<{items: Array<Object>, usage: Object|null}>}
  */
-async function suggestEquipment(pool, { organizationId, userId, description, dateFrom, dateTo, locale }) {
-  const equipment = await availableEquipment(pool, organizationId, dateFrom, dateTo);
+async function suggestEquipment(pool, { organizationId, userId, description, dateFrom, dateTo, locale, activityId = null }) {
+  const equipment = await availableEquipment(pool, organizationId, dateFrom, dateTo, activityId);
   const choosable = equipment.filter((item) => item.available > 0);
   if (choosable.length === 0) {
     // Nothing is free: there is nothing to choose, and no call to pay for.
