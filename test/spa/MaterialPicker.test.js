@@ -260,6 +260,25 @@ test('pressing Reserve twice while the first request is on its way reserves once
   expect(api.saveBulkReservations).toHaveBeenCalledTimes(1);
 });
 
+test('changing the activity while Reserve is on its way does not let it be sent again', async () => {
+  api.getActivities.mockResolvedValue({ data: { activities: [
+    { id: 12, name: 'Camp d\'hiver', activity_start_date: '2099-01-10', activity_end_date: '2099-01-12' },
+  ] } });
+  let answer;
+  api.saveBulkReservations.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+  await openScreen();
+  document.getElementById('material-select-3').click();
+  document.getElementById('bulkReservationForm').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+
+  type('activitySelect', '12', 'change');
+  expect(document.getElementById('material-reserve-submit').disabled).toBe(true);
+  document.getElementById('bulkReservationForm').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+  answer({ success: true });
+  await flush();
+
+  expect(api.saveBulkReservations).toHaveBeenCalledTimes(1);
+});
+
 test('a small photo opens large, with a fresh address, and closes back onto its button', async () => {
   await openScreen();
   const thumb = page().querySelector('[data-photo-equipment="2"]');

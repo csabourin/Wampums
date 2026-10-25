@@ -117,6 +117,7 @@ export class MaterialManagement {
     // is the latest, so a slow answer for older dates is dropped.
     this.availabilityKey = null;
     this.availabilityRequest = 0;
+    this.submitting = false;
     // Checking gear in and out is the same right as reserving it, and only the
     // unit that owns a reservation may do either.
     this.canReserve = hasPermission('inventory.reserve');
@@ -466,7 +467,7 @@ export class MaterialManagement {
               <span>${escapeHTML(translate('reservation_notes'))}</span>
               <textarea name="notes" id="reservationNotes" rows="2" maxlength="2000">${escapeHTML(this.notes)}</textarea>
             </label>
-            <button type="submit" class="button button--primary" id="material-reserve-submit" ${this.selectedItems.size === 0 ? 'disabled' : ''}>${escapeHTML(translate('reserve_selected'))}</button>
+            <button type="submit" class="button button--primary" id="material-reserve-submit" ${this.submitting || this.selectedItems.size === 0 ? 'disabled' : ''}>${escapeHTML(translate('reserve_selected'))}</button>
           </form>
         </div>
 
@@ -689,7 +690,7 @@ export class MaterialManagement {
     }
     const submit = document.getElementById('material-reserve-submit');
     if (submit) {
-      submit.disabled = this.selectedItems.size === 0;
+      submit.disabled = this.submitting || this.selectedItems.size === 0;
     }
   }
 
@@ -813,8 +814,16 @@ export class MaterialManagement {
     const bulkForm = document.getElementById('bulkReservationForm');
     bulkForm?.addEventListener('submit', (event) => {
       event.preventDefault();
-      // One reservation per submit, however often the button is pressed.
-      withFormBusy(bulkForm, () => this.submitReservation());
+      // One reservation per submit, however often the button is pressed and
+      // even when a redraw replaces the form while the request is on its way.
+      if (this.submitting) {
+        return;
+      }
+      this.submitting = true;
+      withFormBusy(bulkForm, () => this.submitReservation()).finally(() => {
+        this.submitting = false;
+        this.updateSelectionSummary();
+      });
     });
   }
 

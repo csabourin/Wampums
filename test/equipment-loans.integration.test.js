@@ -509,6 +509,23 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
       expect(await reservedOn(pots)).toBe(0);
     });
 
+    test('reserving for a weekend activity holds the equipment for the whole weekend', async () => {
+      const canoes = await item(ids.unit, 'Canot', 2);
+      const weekend = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+          meeting_time_going, departure_time_going, activity_start_date, activity_start_time, activity_end_date, activity_end_time)
+        VALUES ($1, $2, 'Fin de semaine canot', '2099-11-06', 'Local', '08:00', '08:15', '2099-11-06', '08:00', '2099-11-08', '16:00')
+        RETURNING id`, [ids.unit, ids.leader]);
+
+      await as(ids.leader).post('/api/v1/resources/equipment/reservations/bulk', {
+        activity_id: weekend, reserved_for: 'Fin de semaine canot', items: [{ equipment_id: canoes, quantity: 2 }],
+      }).expect(201);
+
+      const held = await pool.query(
+        "SELECT to_char(date_from, 'YYYY-MM-DD') AS date_from, to_char(date_to, 'YYYY-MM-DD') AS date_to FROM equipment_reservations WHERE equipment_id = $1",
+        [canoes]);
+      expect(held.rows).toEqual([{ date_from: '2099-11-06', date_to: '2099-11-08' }]);
+    });
+
     test('two leaders reserving the last tents at the same moment never reserve more than exist', async () => {
       const tents = await item(ids.unit, 'Tente de patrouille', 4);
       const results = await Promise.all(Array.from({ length: SIMULTANEOUS_HANDOUTS }, () => reserve(tents, 4)));
