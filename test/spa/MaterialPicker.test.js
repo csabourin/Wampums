@@ -246,6 +246,22 @@ test('the reservation sends the items chosen with the name and dates typed', asy
   });
 });
 
+test('pressing Reserve twice while the first request is on its way reserves once', async () => {
+  let answer;
+  api.saveBulkReservations.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+  await openScreen();
+  document.getElementById('material-select-3').click();
+  const form = document.getElementById('bulkReservationForm');
+
+  form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+  expect(document.getElementById('material-reserve-submit').disabled).toBe(true);
+  form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+  answer({ success: true });
+  await flush();
+
+  expect(api.saveBulkReservations).toHaveBeenCalledTimes(1);
+});
+
 test('a small photo opens large, with a fresh address, and closes back onto its button', async () => {
   await openScreen();
   const thumb = page().querySelector('[data-photo-equipment="2"]');

@@ -832,7 +832,8 @@ export class MaterialManagement {
     const bulkForm = document.getElementById('bulkReservationForm');
     bulkForm?.addEventListener('submit', (event) => {
       event.preventDefault();
-      this.submitReservation();
+      // One reservation per submit, however often the button is pressed.
+      withFormBusy(bulkForm, () => this.submitReservation());
     });
   }
 
@@ -901,6 +902,7 @@ export class MaterialManagement {
             date_from: this.dateFrom,
             date_to: this.dateTo,
             locale: this.app.lang || 'fr',
+            ...(this.selectedActivityId ? { activity_id: this.selectedActivityId } : {}),
           });
         } catch (error) {
           debugError('Failed to suggest equipment:', error);
@@ -940,7 +942,11 @@ export class MaterialManagement {
     this.render();
     this.attachEventHandlers();
     this.app.showMessage(translate('material_suggest_applied').replace('{count}', String(known.length)), 'success');
-    document.getElementById('material-selected-count')?.scrollIntoView?.({ block: 'start' });
+    // The opener was redrawn: keyboard and screen-reader users land on the
+    // first item suggested, where the review of the selection starts.
+    const first = document.getElementById(`material-select-${Number(known[0].equipment_id)}`);
+    first?.scrollIntoView?.({ block: 'center' });
+    first?.focus();
   }
 
   /** Reserve the selected equipment for the activity or the dates chosen. */
