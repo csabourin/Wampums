@@ -1564,7 +1564,7 @@ module.exports = (pool, logger) => {
         if (req.body.reserved_quantity !== undefined || reacquiresStock) {
           // Get current reservation details
           const currentReservation = await pool.query(
-            `SELECT equipment_id, date_from, date_to, reserved_quantity, status
+            `SELECT equipment_id, date_from, date_to, reserved_quantity, status, activity_id
              FROM equipment_reservations
              WHERE id = $1 AND organization_id = $2`,
             [reservationId, organizationId],
@@ -1596,7 +1596,7 @@ module.exports = (pool, logger) => {
             // Check for overlapping reservations (excluding this reservation)
             const overlapResult = await pool.query(
               `SELECT COALESCE(SUM(reserved_quantity), 0)
-                  + equipment_loaned_quantity($1, $3::date) as total_reserved
+                  + equipment_loaned_quantity($1, $3::date, $5::int) as total_reserved
                FROM equipment_reservations
                WHERE equipment_id = $1
                  AND id != $2
@@ -1610,6 +1610,8 @@ module.exports = (pool, logger) => {
                 reservationId,
                 reservation.date_from,
                 reservation.date_to,
+                // Loans made for this reservation's activity are it leaving the shelf.
+                reservation.activity_id || null,
               ],
             );
 
@@ -1753,7 +1755,7 @@ module.exports = (pool, logger) => {
           // Check for overlapping reservations to prevent double-booking
           const overlapResult = await pool.query(
             `SELECT COALESCE(SUM(reserved_quantity), 0)
-                  + equipment_loaned_quantity($1, $2::date) as total_reserved
+                  + equipment_loaned_quantity($1, $2::date, $4::int) as total_reserved
              FROM equipment_reservations
              WHERE equipment_id = $1
                AND status IN ('reserved', 'confirmed')
@@ -1761,7 +1763,7 @@ module.exports = (pool, logger) => {
                  (date_from <= $3 AND date_to >= $2) OR  -- overlaps with our date range
                  (date_from >= $2 AND date_to <= $3)     -- completely contained within our date range
                )`,
-            [item.equipment_id, normalizedDateFrom, normalizedDateTo],
+            [item.equipment_id, normalizedDateFrom, normalizedDateTo, req.body.activity_id || null],
           );
 
           const totalReserved = parseInt(

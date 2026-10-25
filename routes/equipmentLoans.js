@@ -110,44 +110,39 @@ async function databaseToday(db) {
 }
 
 /**
- * The most units of each item committed on any one day while a loan is out,
- * from today to its due date (with no end, for a loan with no due date).
+ * The most units of each item that would be committed on any one day, from
+ * today to the loan's due date (with no end, for a loan with no due date), if
+ * the loan were recorded.
  *
- * Commitments are the loans already out, across every unit, until they are
- * due back (with no end once overdue, or with no due date: nobody knows when
- * those come back), and the reservations still holding stock. This mirrors
- * equipment_loaned_quantity(), which the reservation checks count, so neither
- * side can promise the same tents twice. Peaks, not sums: three tents back
- * tomorrow and three reserved next weekend never need more than three at once.
- * The reservations of the activity being handed out are what the loan
- * fulfils, and a loan being changed is checked in place of itself, so both
- * are left out; a reservation already partly handed out counts only for what
- * its loans have not taken.
+ * Commitments are the reservations still holding stock, the loans already
+ * out, across every unit, until they are due back (with no end once overdue,
+ * or with no due date: nobody knows when those come back), and the loan being
+ * checked. A loan made for an activity is that activity's reservation leaving
+ * the shelf, so on each day an activity commits the larger of what it reserved
+ * and what its loans keep out, never both. A loan being changed is checked in
+ * place of itself.
  *
- * The busiest day is always a day some commitment starts (today, for those
- * already under way), so only those days are summed.
+ * Peaks, not sums: three tents back tomorrow and three reserved next weekend
+ * never need more than three at once. The busiest day is always a day some
+ * commitment starts (today, for those already under way), so only those days
+ * are counted.
  *
  * @param {Object} db - Pool or client
- * @param {number[]} equipmentIds - Items
+ * @param {Map<number, number>} wanted - Units the loan keeps out, by item
  * @param {{until: (string|null), activityId: (number|null), exceptLoanId: (number|null)}} loan
- * @returns {Promise<Map<number, number>>} Peak committed units by item
+ * @returns {Promise<Map<number, number>>} Peak committed units by item, the loan included
  */
-async function committedDuringLoan(db, equipmentIds, { until, activityId, exceptLoanId }) {
+async function peakWithLoan(db, wanted, { until, activityId, exceptLoanId }) {
+  const ids = [...wanted.keys()];
   const result = await db.query(
-    `WITH commitments AS (
-       -- What a reservation still needs: less what loans of its own activity
-       -- already took out, which are counted below as loans.
-       SELECT r.equipment_id,
-              GREATEST(0, r.reserved_quantity - COALESCE((
-                SELECT SUM(l.quantity - l.returned_quantity)
-                  FROM equipment_loans l
-                 WHERE r.activity_id IS NOT NULL
-                   AND l.activity_id = r.activity_id
-                   AND l.equipment_id = r.equipment_id
-                   AND l.organization_id = r.organization_id
-                   AND l.returned_at IS NULL
-                   AND ($4::int IS NULL OR l.id <> $4::int)
-              ), 0)) AS quantity,
+    `WITH new_loan AS (
+       SELECT (entry->>'equipment_id')::int AS equipment_id, (entry->>'quantity')::int AS quantity
+         FROM jsonb_array_elements($5::jsonb) AS entry
+     ),
+     commitments AS (
+       SELECT r.equipment_id, 'reservation' AS kind,
+              COALESCE('activity:' || r.activity_id, 'reservation:' || r.id) AS commitment_group,
+              r.reserved_quantity AS quantity,
               GREATEST(COALESCE(r.date_from, r.meeting_date), CURRENT_DATE) AS starts,
               COALESCE(r.date_to, r.meeting_date) AS ends
          FROM equipment_reservations r
@@ -155,34 +150,55 @@ async function committedDuringLoan(db, equipmentIds, { until, activityId, except
           AND r.status IN ('reserved', 'confirmed')
           AND COALESCE(r.date_to, r.meeting_date) >= CURRENT_DATE
           AND ($2::date IS NULL OR COALESCE(r.date_from, r.meeting_date) <= $2::date)
-          AND ($3::int IS NULL OR r.activity_id IS DISTINCT FROM $3::int)
        UNION ALL
-       SELECT equipment_id, quantity - returned_quantity AS quantity,
-              CURRENT_DATE AS starts,
-              CASE WHEN due_date IS NULL OR due_date < CURRENT_DATE THEN 'infinity'::date ELSE due_date END AS ends
-         FROM equipment_loans
-        WHERE equipment_id = ANY($1::int[])
-          AND returned_at IS NULL
-          AND ($4::int IS NULL OR id <> $4::int)
+       SELECT l.equipment_id, 'loan',
+              COALESCE('activity:' || l.activity_id, 'loan:' || l.id),
+              l.quantity - l.returned_quantity,
+              CURRENT_DATE,
+              CASE WHEN l.due_date IS NULL OR l.due_date < CURRENT_DATE THEN 'infinity'::date ELSE l.due_date END
+         FROM equipment_loans l
+        WHERE l.equipment_id = ANY($1::int[])
+          AND l.returned_at IS NULL
+          AND ($4::int IS NULL OR l.id <> $4::int)
+       UNION ALL
+       SELECT n.equipment_id, 'loan',
+              COALESCE('activity:' || $3::int, 'new loan'),
+              n.quantity,
+              CURRENT_DATE,
+              COALESCE($2::date, 'infinity'::date)
+         FROM new_loan n
+     ),
+     days AS (
+       SELECT DISTINCT equipment_id, starts AS day FROM commitments
+     ),
+     by_group AS (
+       SELECT d.equipment_id, d.day,
+              GREATEST(
+                COALESCE(SUM(c.quantity) FILTER (WHERE c.kind = 'reservation'), 0),
+                COALESCE(SUM(c.quantity) FILTER (WHERE c.kind = 'loan'), 0)
+              ) AS committed
+         FROM days d
+         JOIN commitments c
+           ON c.equipment_id = d.equipment_id AND c.starts <= d.day AND c.ends >= d.day
+        GROUP BY d.equipment_id, d.day, c.commitment_group
      )
-     SELECT day.equipment_id, MAX(day.total)::int AS committed
-       FROM (
-         SELECT start_day.equipment_id,
-                (SELECT SUM(other.quantity) FROM commitments other
-                  WHERE other.equipment_id = start_day.equipment_id
-                    AND other.starts <= start_day.starts AND other.ends >= start_day.starts) AS total
-           FROM commitments start_day
-       ) AS day
-      GROUP BY day.equipment_id`,
-    [equipmentIds, until, activityId, exceptLoanId],
+     SELECT equipment_id, MAX(total)::int AS peak
+       FROM (SELECT equipment_id, day, SUM(committed) AS total FROM by_group GROUP BY equipment_id, day) AS per_day
+      GROUP BY equipment_id`,
+    [
+      ids,
+      until,
+      activityId,
+      exceptLoanId,
+      JSON.stringify(ids.map((id) => ({ equipment_id: id, quantity: wanted.get(id) }))),
+    ],
   );
-  return new Map(result.rows.map((row) => [Number(row.equipment_id), Number(row.committed)]));
+  return new Map(result.rows.map((row) => [Number(row.equipment_id), Number(row.peak)]));
 }
 
 /**
  * Lock the items about to be lent and check the unit has enough of each on
- * every day until the loan is due back: what it owns, less what other loans
- * and reservations commit that day.
+ * every day until the loan is due back.
  *
  * Locking the item rows, in id order, makes two devices lending the same tents
  * at once wait for each other, so together they never lend more than exist.
@@ -203,14 +219,17 @@ async function findShortages(client, wanted, { until, activityId, exceptLoanId =
       FOR UPDATE`,
     [ids],
   );
-  const committed = await committedDuringLoan(client, ids, { until, activityId, exceptLoanId });
+  const peaks = await peakWithLoan(client, wanted, { until, activityId, exceptLoanId });
   return items.rows
     .map((item) => {
       const id = Number(item.id);
-      const available = Math.max(0, Number(item.quantity_total) - (committed.get(id) || 0));
-      return { equipment_id: id, available, requested: wanted.get(id) };
+      const total = Number(item.quantity_total);
+      const requested = wanted.get(id);
+      const peak = peaks.get(id) || 0;
+      return { equipment_id: id, available: Math.max(0, total - (peak - requested)), requested, fits: peak <= total };
     })
-    .filter((item) => item.requested > item.available);
+    .filter((item) => !item.fits)
+    .map(({ fits: _fits, ...shortage }) => shortage);
 }
 
 /**

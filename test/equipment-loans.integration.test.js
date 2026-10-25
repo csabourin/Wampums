@@ -258,6 +258,46 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
     }).expect(201);
   });
 
+  function activity(name, startOffset, endOffset) {
+    return one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+        meeting_time_going, departure_time_going, activity_start_date, activity_start_time, activity_end_date, activity_end_time)
+      VALUES ($1, $2, $3, CURRENT_DATE + $4::int, 'Local', '08:00', '08:15', CURRENT_DATE + $4::int, '08:00', CURRENT_DATE + $5::int, '16:00')
+      RETURNING id`, [ids.unit, ids.leader, name, startOffset, endOffset]);
+  }
+
+  function reserveFor(activityId, equipmentId, quantity, startOffset, endOffset, status = 'reserved') {
+    return one(`INSERT INTO equipment_reservations (organization_id, equipment_id, activity_id, meeting_date, date_from, date_to,
+        reserved_quantity, reserved_for, status)
+      VALUES ($1, $2, $3, CURRENT_DATE + $5::int, CURRENT_DATE + $5::int, CURRENT_DATE + $6::int, $4, 'Sortie', $7) RETURNING id`,
+    [ids.unit, equipmentId, activityId, quantity, startOffset, endOffset, status]);
+  }
+
+  test('tents lent for an outing and due back before it are reserved for it again on the day', async () => {
+    const tents = await item(ids.unit, 'Tente montagne', 6);
+    const outing = await activity('Sortie de la semaine prochaine', 7, 9);
+    await reserveFor(outing, tents, 6, 7, 9);
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      activity_id: outing, due_date: tomorrow, loans: [{ equipment_id: tents, quantity: 3, participant_id: ids.ada }],
+    }).expect(201);
+
+    // All six are the outing's next weekend, whoever dries three of them now.
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      loans: [{ equipment_id: tents, quantity: 3, participant_id: ids.max }],
+    }).expect(409);
+  });
+
+  test('picking up a camp reservation whose tents were handed out is not refused for lack of stock', async () => {
+    const tents = await item(ids.unit, 'Tente dôme', 6);
+    const camp = await activity('Camp du moment', -1, 1);
+    const reservationId = await reserveFor(camp, tents, 6, -1, 1);
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      activity_id: camp, loans: [{ equipment_id: tents, quantity: 6, participant_id: ids.ada }],
+    }).expect(201);
+
+    await as(ids.leader).patch(`/api/v1/resources/equipment/reservations/${reservationId}`, { status: 'confirmed' }).expect(200);
+  });
+
   test('keeping a loan out past a reservation is refused, and bringing the date back is not', async () => {
     const tarps = await item(ids.unit, 'Bâche 2 x 3 m', 2);
     const created = await as(ids.leader).post('/api/v1/equipment-loans', {

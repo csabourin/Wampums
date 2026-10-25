@@ -68,8 +68,11 @@ CREATE TABLE IF NOT EXISTS equipment_loan_receipts (
 
 -- Units of an item still out on loan that can be counted on for a use starting
 -- on p_from: every open loan, unless it is due back before that day and not yet
--- overdue. Loans of every unit count, as reservations of every unit do.
-CREATE OR REPLACE FUNCTION equipment_loaned_quantity(p_equipment_id INTEGER, p_from DATE)
+-- overdue. Loans of every unit count, as reservations of every unit do. Loans
+-- made for p_activity_id are that activity's own reservation leaving the shelf,
+-- so a check of that reservation leaves them out.
+DROP FUNCTION IF EXISTS equipment_loaned_quantity(INTEGER, DATE);
+CREATE OR REPLACE FUNCTION equipment_loaned_quantity(p_equipment_id INTEGER, p_from DATE, p_activity_id INTEGER DEFAULT NULL)
 RETURNS INTEGER
 LANGUAGE sql
 STABLE
@@ -78,5 +81,6 @@ AS $$
     FROM equipment_loans
    WHERE equipment_id = p_equipment_id
      AND returned_at IS NULL
-     AND (due_date IS NULL OR due_date >= p_from OR due_date < CURRENT_DATE);
+     AND (due_date IS NULL OR due_date >= p_from OR due_date < CURRENT_DATE)
+     AND (p_activity_id IS NULL OR activity_id IS DISTINCT FROM p_activity_id);
 $$;
