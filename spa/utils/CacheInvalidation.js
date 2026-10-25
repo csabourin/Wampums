@@ -101,6 +101,8 @@ const DERIVED_RESOURCES = {
   expenses: ['expenses', 'budget'],
   revenue: ['revenue', 'budget'],
   resources: ['resources', 'activities', 'action-roster'],
+  // What is out on loan is what the inventory shows as unavailable.
+  'equipment-loans': ['equipment-loans', 'resources'],
   // The announcement composer lists the unit's roles.
   roles: ['roles', 'announcements', 'users', 'forms']
 };

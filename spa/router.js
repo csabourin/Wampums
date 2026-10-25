@@ -50,6 +50,7 @@ import {
   canViewMeetings,
   canManageMeetings,
   hasPermission,
+  hasOrganizationScope,
   isParent,
   holdsFamilyRole
 } from './utils/PermissionUtils.js';
@@ -118,6 +119,7 @@ const lazyModules = {
   ResourceDashboard: () => import('./modules/resources/ResourceDashboard.js').then(m => m.ResourceDashboard),
   Inventory: () => import('./modules/resources/Inventory.js').then(m => m.Inventory),
   MaterialManagement: () => import('./modules/resources/MaterialManagement.js').then(m => m.MaterialManagement),
+  EquipmentLoans: () => import('./modules/resources/EquipmentLoans.js').then(m => m.EquipmentLoans),
   MedicationManagement: () => import('./modules/medication/MedicationManagement.js').then(m => m.MedicationManagement),
   MedicationReception: () => import('./modules/medication/MedicationReception.js').then(m => m.MedicationReception),
   PermissionSlipDashboard: () => import('./modules/permission-slips/PermissionSlipDashboard.js').then(m => m.PermissionSlipDashboard),
@@ -218,6 +220,7 @@ const routes = {
   '/resources': 'resourceDashboard',
   '/inventory': 'inventory',
   '/material-management': 'materialManagement',
+  '/equipment-loans': 'equipmentLoans',
   '/medication-management': 'medicationPlanning',
   '/medication-planning': 'medicationPlanning',
   '/medication-planning/:id': 'medicationPlanningParticipant',
@@ -636,6 +639,17 @@ export class Router {
           this.currentModuleInstance = materialManagement;
           await materialManagement.init();
           break;
+        case 'equipmentLoans': {
+          // Loans name the unit's youths: the endpoint is for staff of the unit.
+          if (!guard(hasPermission('inventory.view') && hasOrganizationScope())) {
+            break;
+          }
+          const EquipmentLoans = await this.loadModule('EquipmentLoans');
+          const equipmentLoans = new EquipmentLoans(this.app);
+          this.currentModuleInstance = equipmentLoans;
+          await equipmentLoans.init();
+          break;
+        }
         case 'permissionSlipDashboard':
           if (!guard(canFollowPermissionSlips())) {
             break;

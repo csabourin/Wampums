@@ -551,6 +551,7 @@ module.exports = (pool, logger) => {
                     WHERE er.equipment_id = e.id
                       AND ${activeReservationPredicate('er')}
                   ), 0) AS reserved_quantity,
+                  equipment_loaned_quantity(e.id, CURRENT_DATE) AS loaned_quantity,
                   COALESCE(shared_visibility.shared_organizations, '{}'::text[]) AS shared_organizations
              FROM accessible_equipment e
              LEFT JOIN shared_visibility ON shared_visibility.equipment_id = e.id
@@ -1436,7 +1437,8 @@ module.exports = (pool, logger) => {
         // Check for overlapping reservations to prevent double-booking
         // Exclude the current reservation if this is an update (same organization, equipment, meeting_date, reserved_for)
         const overlapResult = await pool.query(
-          `SELECT COALESCE(SUM(reserved_quantity), 0) as total_reserved
+          `SELECT COALESCE(SUM(reserved_quantity), 0)
+                  + equipment_loaned_quantity($1, $2::date) as total_reserved
            FROM equipment_reservations
            WHERE equipment_id = $1
              AND status IN ('reserved', 'confirmed')
@@ -1593,7 +1595,8 @@ module.exports = (pool, logger) => {
 
             // Check for overlapping reservations (excluding this reservation)
             const overlapResult = await pool.query(
-              `SELECT COALESCE(SUM(reserved_quantity), 0) as total_reserved
+              `SELECT COALESCE(SUM(reserved_quantity), 0)
+                  + equipment_loaned_quantity($1, $3::date) as total_reserved
                FROM equipment_reservations
                WHERE equipment_id = $1
                  AND id != $2
@@ -1749,7 +1752,8 @@ module.exports = (pool, logger) => {
 
           // Check for overlapping reservations to prevent double-booking
           const overlapResult = await pool.query(
-            `SELECT COALESCE(SUM(reserved_quantity), 0) as total_reserved
+            `SELECT COALESCE(SUM(reserved_quantity), 0)
+                  + equipment_loaned_quantity($1, $2::date) as total_reserved
              FROM equipment_reservations
              WHERE equipment_id = $1
                AND status IN ('reserved', 'confirmed')

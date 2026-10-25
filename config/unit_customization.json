@@ -129,6 +129,7 @@
     "incident_reports",
     "inventory",
     "material_management",
+    "equipment_loans",
     "finance",
     "expenses",
     "external_revenue",
