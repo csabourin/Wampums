@@ -227,13 +227,13 @@ export class MaterialManagement {
    */
   async loadAvailability() {
     const key = this.currentAvailabilityKey();
-    if (key === this.availabilityKey) {
-      this.refreshEquipmentList();
-      return;
-    }
-    this.refreshEquipmentList();
+    // Any request still on its way now answers for dates no longer chosen.
     this.availabilityRequest += 1;
     const request = this.availabilityRequest;
+    this.refreshEquipmentList();
+    if (key === this.availabilityKey) {
+      return;
+    }
     try {
       const response = await getEquipmentInventory(this.availabilityParams());
       if (this.destroyed || request !== this.availabilityRequest) {

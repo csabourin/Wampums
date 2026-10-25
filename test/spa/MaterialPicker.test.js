@@ -188,6 +188,21 @@ test('an answer for dates no longer chosen does not replace the count for the ne
   expect(page().querySelector('[data-equipment-id="2"] .equipment-selector').disabled).toBe(true);
 });
 
+test('going back to the dates already counted drops the answer still on its way for other dates', async () => {
+  api.getEquipmentInventory.mockImplementation((params) => Promise.resolve(inventoryFor(params)));
+  await openScreen();
+  let answerOther;
+  api.getEquipmentInventory.mockReturnValueOnce(new Promise((resolve) => { answerOther = resolve; }));
+
+  type('reservationDateFrom', '2098-12-31', 'change');
+  type('reservationDateFrom', TODAY, 'change');
+  answerOther(inventoryFor({ date_from: '2098-12-31' }));
+  await flush();
+
+  document.getElementById('material-select-3').click();
+  expect(document.getElementById('material-quantity-3').getAttribute('max')).toBe('10');
+});
+
 test('choosing an item keeps focus on it, counts it, and keeps what was typed in the form', async () => {
   await openScreen();
   type('reservedFor', 'Camp d\'hiver');
