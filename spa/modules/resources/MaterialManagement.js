@@ -21,7 +21,7 @@ import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { getCurrentOrganizationId } from '../../ajax-functions.js';
 import { deleteCachedData } from '../../indexedDB.js';
-import { setContent } from '../../utils/DOMUtils.js';
+import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
@@ -813,7 +813,8 @@ export class MaterialManagement {
     const bulkForm = document.getElementById('bulkReservationForm');
     bulkForm?.addEventListener('submit', (event) => {
       event.preventDefault();
-      this.submitReservation();
+      // One reservation per submit, however often the button is pressed.
+      withFormBusy(bulkForm, () => this.submitReservation());
     });
   }
 
