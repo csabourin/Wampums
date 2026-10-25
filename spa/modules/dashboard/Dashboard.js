@@ -53,7 +53,7 @@ import {
 } from '../../utils/DashboardPreferences.js';
 import { hasVisibleTab } from '../../config/tabbed-pages.js';
 import { CommandPalette } from '../CommandPalette.js';
-import { DashboardSettingsModal } from '../DashboardSettingsModal.js';
+import { DashboardSettingsModal } from '../display-settings/DisplaySettings.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 import { renderCampReadinessSummary } from '../offline/CampReadiness.js';

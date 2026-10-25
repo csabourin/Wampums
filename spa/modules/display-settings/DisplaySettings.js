@@ -6,15 +6,15 @@
  * Triggered from the dashboard header gear button.
  */
 
-import { translate } from '../app.js';
-import { escapeHTML } from '../utils/SecurityUtils.js';
-import { openModal } from '../utils/ModalUtils.js';
-import { PALETTES } from '../config/dashboard-customization.js';
+import { translate } from '../../app.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { openModal } from '../../utils/ModalUtils.js';
+import { PALETTES } from '../../config/dashboard-customization.js';
 import {
   getDashboardPrefs,
   setPaletteId,
   resetDashboardPrefs,
-} from '../utils/DashboardPreferences.js';
+} from '../../utils/DashboardPreferences.js';
 
 export class DashboardSettingsModal {
   constructor({ onChange } = {}) {
