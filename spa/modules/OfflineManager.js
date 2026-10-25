@@ -404,6 +404,9 @@ export class OfflineManager {
   /** Arrivals cannot overtake a departure still waiting in the outbox. */
   hasPendingAttendance() { return this.hasPendingResource('/api/v1/attendance'); }
 
+  /** A loan's newer return cannot overtake an older one still in the outbox. */
+  hasPendingEquipmentLoans() { return this.hasPendingResource('/api/v1/equipment-loans'); }
+
   /** Match the authenticated account, unit and resource, including subpaths. */
   async hasPendingResource(resource) {
     const records = await getOfflineData();

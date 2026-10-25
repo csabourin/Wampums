@@ -239,6 +239,25 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
     }).expect(409);
   });
 
+  test('a camp under way whose tents went home counts them once, as loans', async () => {
+    const tents = await item(ids.unit, 'Tente prospecteur', 6);
+    const campId = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+        meeting_time_going, departure_time_going, activity_start_date, activity_start_time, activity_end_date, activity_end_time)
+      VALUES ($1, $2, 'Camp en cours', CURRENT_DATE - 1, 'Local', '08:00', '08:15', CURRENT_DATE - 1, '08:00', CURRENT_DATE + 1, '16:00')
+      RETURNING id`, [ids.unit, ids.leader]);
+    await pool.query(`INSERT INTO equipment_reservations (organization_id, equipment_id, activity_id, meeting_date, date_from, date_to,
+        reserved_quantity, reserved_for, status)
+      VALUES ($1, $2, $3, CURRENT_DATE - 1, CURRENT_DATE - 1, CURRENT_DATE + 1, 3, 'Camp en cours', 'confirmed')`,
+    [ids.unit, tents, campId]);
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      activity_id: campId, loans: [{ equipment_id: tents, quantity: 3, participant_id: ids.ada }],
+    }).expect(201);
+
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      loans: [{ equipment_id: tents, quantity: 3, participant_id: ids.max }],
+    }).expect(201);
+  });
+
   test('keeping a loan out past a reservation is refused, and bringing the date back is not', async () => {
     const tarps = await item(ids.unit, 'Bâche 2 x 3 m', 2);
     const created = await as(ids.leader).post('/api/v1/equipment-loans', {

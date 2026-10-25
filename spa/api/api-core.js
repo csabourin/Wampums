@@ -327,8 +327,14 @@ async function sendApiRequest(endpoint, options = {}) {
   const attendanceWaiting = method === 'POST' &&
     (requestPath === '/api/v1/attendance' || requestPath.startsWith('/api/v1/attendance/')) &&
     await offlineManager.hasPendingAttendance();
-  // Keep arrivals, departures and awards in their original order across reconnects.
-  if ((offlineManager.isOffline || navigator.onLine === false || pointsWaiting || attendanceWaiting) && method !== 'GET') {
+  // A return is a count: a newer one sent online must not land before an older
+  // one still in the outbox, which would then overwrite it.
+  const equipmentLoansWaiting = (method === 'POST' || method === 'PATCH') &&
+    (requestPath === '/api/v1/equipment-loans' || requestPath.startsWith('/api/v1/equipment-loans/')) &&
+    await offlineManager.hasPendingEquipmentLoans();
+  // Keep arrivals, departures, awards and returns in their original order across reconnects.
+  if ((offlineManager.isOffline || navigator.onLine === false || pointsWaiting || attendanceWaiting || equipmentLoansWaiting)
+    && method !== 'GET') {
     if (requiresOnline) {
       const offlineError = new Error(offlineManager.getTranslation('family_operation_online_required'));
       offlineError.code = 'online_required';

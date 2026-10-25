@@ -121,7 +121,8 @@ async function databaseToday(db) {
  * tomorrow and three reserved next weekend never need more than three at once.
  * The reservations of the activity being handed out are what the loan
  * fulfils, and a loan being changed is checked in place of itself, so both
- * are left out.
+ * are left out; a reservation already partly handed out counts only for what
+ * its loans have not taken.
  *
  * The busiest day is always a day some commitment starts (today, for those
  * already under way), so only those days are summed.
@@ -134,15 +135,27 @@ async function databaseToday(db) {
 async function committedDuringLoan(db, equipmentIds, { until, activityId, exceptLoanId }) {
   const result = await db.query(
     `WITH commitments AS (
-       SELECT equipment_id, reserved_quantity AS quantity,
-              GREATEST(COALESCE(date_from, meeting_date), CURRENT_DATE) AS starts,
-              COALESCE(date_to, meeting_date) AS ends
-         FROM equipment_reservations
-        WHERE equipment_id = ANY($1::int[])
-          AND status IN ('reserved', 'confirmed')
-          AND COALESCE(date_to, meeting_date) >= CURRENT_DATE
-          AND ($2::date IS NULL OR COALESCE(date_from, meeting_date) <= $2::date)
-          AND ($3::int IS NULL OR activity_id IS DISTINCT FROM $3::int)
+       -- What a reservation still needs: less what loans of its own activity
+       -- already took out, which are counted below as loans.
+       SELECT r.equipment_id,
+              GREATEST(0, r.reserved_quantity - COALESCE((
+                SELECT SUM(l.quantity - l.returned_quantity)
+                  FROM equipment_loans l
+                 WHERE r.activity_id IS NOT NULL
+                   AND l.activity_id = r.activity_id
+                   AND l.equipment_id = r.equipment_id
+                   AND l.organization_id = r.organization_id
+                   AND l.returned_at IS NULL
+                   AND ($4::int IS NULL OR l.id <> $4::int)
+              ), 0)) AS quantity,
+              GREATEST(COALESCE(r.date_from, r.meeting_date), CURRENT_DATE) AS starts,
+              COALESCE(r.date_to, r.meeting_date) AS ends
+         FROM equipment_reservations r
+        WHERE r.equipment_id = ANY($1::int[])
+          AND r.status IN ('reserved', 'confirmed')
+          AND COALESCE(r.date_to, r.meeting_date) >= CURRENT_DATE
+          AND ($2::date IS NULL OR COALESCE(r.date_from, r.meeting_date) <= $2::date)
+          AND ($3::int IS NULL OR r.activity_id IS DISTINCT FROM $3::int)
        UNION ALL
        SELECT equipment_id, quantity - returned_quantity AS quantity,
               CURRENT_DATE AS starts,
