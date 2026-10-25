@@ -752,12 +752,40 @@ export class EquipmentLoans {
       return false;
     }
     if (queued) {
+      // Not sent yet: show the loans as they will be once it is, so a second
+      // return entered offline counts from the first rather than over it.
+      updates.forEach(({ loan, changes }) => this.applyLocally(loan, changes));
       this.app.showMessage(translate('equipment_loans_return_queued'), 'info');
+      this.render();
       return true;
     }
     this.app.showMessage(translate(savedKey), 'success');
     await this.reload();
     return true;
+  }
+
+  /**
+   * Apply a queued change to the loan as shown. A return sends a count, so
+   * the next one entered here starts from this one.
+   *
+   * @param {Object} loan - Loan as listed
+   * @param {Object} changes - What was queued
+   */
+  applyLocally(loan, changes) {
+    if (changes.returned_quantity !== undefined) {
+      loan.returned_quantity = changes.returned_quantity;
+      loan.outstanding_quantity = Number(loan.quantity) - Number(changes.returned_quantity);
+      if (loan.outstanding_quantity === 0) {
+        loan.returned_at ||= new Date().toISOString();
+        loan.returned_on ||= getTodayISO();
+        loan.overdue = false;
+      } else {
+        loan.returned_at = null;
+      }
+    }
+    if (changes.return_note !== undefined) {
+      loan.return_note = changes.return_note;
+    }
   }
 
   async returnLoans(loans) {

@@ -152,7 +152,8 @@ beforeEach(() => {
   hasAllPermissions.mockReturnValue(true);
   hasPermission.mockReturnValue(true);
   app = { lang: 'fr', showMessage: jest.fn() };
-  api.getEquipmentLoans.mockResolvedValue({ data: { loans: OPEN_LOANS } });
+  // A fresh copy for each load: the screen updates the loans it shows.
+  api.getEquipmentLoans.mockImplementation(() => Promise.resolve({ data: { loans: JSON.parse(JSON.stringify(OPEN_LOANS)) } }));
   api.getEquipmentHandout.mockResolvedValue(handout());
   api.createEquipmentLoans.mockResolvedValue({ success: true, data: { loans: [] } });
   api.updateEquipmentLoan.mockResolvedValue({ success: true });
@@ -333,6 +334,29 @@ test('a partial return is entered in an accessible dialog and sent as the new to
   document.getElementById('equipment-loans-partial-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
   await flush();
   expect(api.updateEquipmentLoan).toHaveBeenCalledWith(21, { returned_quantity: 1, return_note: 'Une sardine manque' });
+});
+
+test('two partial returns entered offline add up instead of overwriting each other', async () => {
+  api.updateEquipmentLoan.mockResolvedValue({ queued: true, mutationId: 'm-2' });
+  await openScreen();
+  const returnOne = async () => {
+    document.querySelector('[data-partial="21"]').click();
+    await flush();
+    document.getElementById('equipment-loans-partial-count').value = '1';
+    document.getElementById('equipment-loans-partial-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    await flush();
+  };
+  await returnOne();
+  expect(app.showMessage).toHaveBeenCalledWith('equipment_loans_return_queued', 'info');
+  expect(document.getElementById('app').textContent).toContain('equipment_loans_partly_back');
+
+  // One tent still out: the last one is a full return, counted from the first.
+  document.querySelector('[data-return="21"]').click();
+  await flush();
+  expect(api.updateEquipmentLoan.mock.calls).toEqual([
+    [21, { returned_quantity: 1, return_note: null }],
+    [21, { returned_quantity: 2 }],
+  ]);
 });
 
 test('Escape closes the partial return without changing anything and focus goes back', async () => {

@@ -221,6 +221,24 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
     }).expect(409);
   });
 
+  test('loans due back before a reservation leave its units free for it, and for a loan after', async () => {
+    const tents = await item(ids.unit, 'Tente 3 places', 6);
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      due_date: '2099-08-01', loans: [{ equipment_id: tents, quantity: 3, participant_id: ids.ada }],
+    }).expect(201);
+    await as(ids.leader).post('/api/v1/resources/equipment/reservations', {
+      equipment_id: tents, date_from: '2099-08-07', date_to: '2099-08-09', reserved_quantity: 3, reserved_for: 'Sortie août',
+    }).expect(201);
+
+    // Three out until the 1st, three reserved the 7th: never more than six at once.
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      due_date: '2099-08-20', loans: [{ equipment_id: tents, quantity: 3, participant_id: ids.max }],
+    }).expect(201);
+    await as(ids.leader).post('/api/v1/equipment-loans', {
+      due_date: '2099-07-15', loans: [{ equipment_id: tents, quantity: 1, participant_id: ids.max }],
+    }).expect(409);
+  });
+
   test('keeping a loan out past a reservation is refused, and bringing the date back is not', async () => {
     const tarps = await item(ids.unit, 'Bâche 2 x 3 m', 2);
     const created = await as(ids.leader).post('/api/v1/equipment-loans', {

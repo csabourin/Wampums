@@ -110,44 +110,30 @@ async function databaseToday(db) {
 }
 
 /**
- * Units of each item already out on loan, across every unit.
+ * The most units of each item committed on any one day while a loan is out,
+ * from today to its due date (with no end, for a loan with no due date).
  *
- * @param {Object} db - Pool or client
- * @param {number[]} equipmentIds - Items
- * @returns {Promise<Map<number, number>>} Outstanding units by item
- */
-async function outstandingByEquipment(db, equipmentIds) {
-  const result = await db.query(
-    `SELECT equipment_id, COALESCE(SUM(quantity - returned_quantity), 0)::int AS outstanding
-       FROM equipment_loans
-      WHERE equipment_id = ANY($1::int[]) AND returned_at IS NULL
-      GROUP BY equipment_id`,
-    [equipmentIds],
-  );
-  return new Map(result.rows.map((row) => [Number(row.equipment_id), Number(row.outstanding)]));
-}
-
-/**
- * Units of each item that reservations still to come will need at once while
- * a loan is out: among those still holding stock and starting by its due date
- * (any start, for a loan with no due date), the most that overlap on any one
- * day. Two separate weekends of three tents each need three, not six. This
- * mirrors equipment_loaned_quantity(), which the reservation checks count, so
- * neither side can promise the same tents twice. The reservations of the
- * activity being handed out are what the loan fulfils, so they are left out.
+ * Commitments are the loans already out, across every unit, until they are
+ * due back (with no end once overdue, or with no due date: nobody knows when
+ * those come back), and the reservations still holding stock. This mirrors
+ * equipment_loaned_quantity(), which the reservation checks count, so neither
+ * side can promise the same tents twice. Peaks, not sums: three tents back
+ * tomorrow and three reserved next weekend never need more than three at once.
+ * The reservations of the activity being handed out are what the loan
+ * fulfils, and a loan being changed is checked in place of itself, so both
+ * are left out.
  *
- * The busiest day is always a day some reservation starts (or today, for one
+ * The busiest day is always a day some commitment starts (today, for those
  * already under way), so only those days are summed.
  *
  * @param {Object} db - Pool or client
  * @param {number[]} equipmentIds - Items
- * @param {string|null} until - The loan's due date; null when open-ended
- * @param {number|null} activityId - Activity the loan comes from
- * @returns {Promise<Map<number, number>>} Reserved units by item
+ * @param {{until: (string|null), activityId: (number|null), exceptLoanId: (number|null)}} loan
+ * @returns {Promise<Map<number, number>>} Peak committed units by item
  */
-async function reservedDuringLoan(db, equipmentIds, until, activityId) {
+async function committedDuringLoan(db, equipmentIds, { until, activityId, exceptLoanId }) {
   const result = await db.query(
-    `WITH upcoming AS (
+    `WITH commitments AS (
        SELECT equipment_id, reserved_quantity AS quantity,
               GREATEST(COALESCE(date_from, meeting_date), CURRENT_DATE) AS starts,
               COALESCE(date_to, meeting_date) AS ends
@@ -157,37 +143,45 @@ async function reservedDuringLoan(db, equipmentIds, until, activityId) {
           AND COALESCE(date_to, meeting_date) >= CURRENT_DATE
           AND ($2::date IS NULL OR COALESCE(date_from, meeting_date) <= $2::date)
           AND ($3::int IS NULL OR activity_id IS DISTINCT FROM $3::int)
+       UNION ALL
+       SELECT equipment_id, quantity - returned_quantity AS quantity,
+              CURRENT_DATE AS starts,
+              CASE WHEN due_date IS NULL OR due_date < CURRENT_DATE THEN 'infinity'::date ELSE due_date END AS ends
+         FROM equipment_loans
+        WHERE equipment_id = ANY($1::int[])
+          AND returned_at IS NULL
+          AND ($4::int IS NULL OR id <> $4::int)
      )
-     SELECT day.equipment_id, MAX(day.total)::int AS reserved
+     SELECT day.equipment_id, MAX(day.total)::int AS committed
        FROM (
          SELECT start_day.equipment_id,
-                (SELECT SUM(other.quantity) FROM upcoming other
+                (SELECT SUM(other.quantity) FROM commitments other
                   WHERE other.equipment_id = start_day.equipment_id
                     AND other.starts <= start_day.starts AND other.ends >= start_day.starts) AS total
-           FROM upcoming start_day
+           FROM commitments start_day
        ) AS day
       GROUP BY day.equipment_id`,
-    [equipmentIds, until, activityId],
+    [equipmentIds, until, activityId, exceptLoanId],
   );
-  return new Map(result.rows.map((row) => [Number(row.equipment_id), Number(row.reserved)]));
+  return new Map(result.rows.map((row) => [Number(row.equipment_id), Number(row.committed)]));
 }
 
 /**
- * Lock the items about to be lent and check the unit has enough of each: what
- * it owns, less what is already out and what reservations will need before
- * the loan is due back.
+ * Lock the items about to be lent and check the unit has enough of each on
+ * every day until the loan is due back: what it owns, less what other loans
+ * and reservations commit that day.
  *
  * Locking the item rows, in id order, makes two devices lending the same tents
  * at once wait for each other, so together they never lend more than exist.
  *
  * @param {Object} client - Client inside an open transaction
- * @param {Map<number, number>} wanted - Units to lend now, by item (0 to check a
- *   loan already out against a longer period)
- * @param {{until: (string|null), activityId: (number|null)}} loan - The loan's due date and activity
+ * @param {Map<number, number>} wanted - Units the loan keeps out, by item
+ * @param {{until: (string|null), activityId: (number|null), exceptLoanId?: (number|null)}} loan -
+ *   The loan's due date and activity, and its id when an existing loan is checked in its own place
  * @returns {Promise<Array<{equipment_id: number, available: number, requested: number}>>}
  *   The items there are not enough of; empty when the loan fits
  */
-async function findShortages(client, wanted, { until, activityId }) {
+async function findShortages(client, wanted, { until, activityId, exceptLoanId = null }) {
   const ids = [...wanted.keys()].sort((a, b) => a - b);
   const items = await client.query(
     `SELECT id, quantity_total FROM equipment_items
@@ -196,19 +190,14 @@ async function findShortages(client, wanted, { until, activityId }) {
       FOR UPDATE`,
     [ids],
   );
-  const [outstanding, reserved] = await Promise.all([
-    outstandingByEquipment(client, ids),
-    reservedDuringLoan(client, ids, until, activityId),
-  ]);
+  const committed = await committedDuringLoan(client, ids, { until, activityId, exceptLoanId });
   return items.rows
     .map((item) => {
       const id = Number(item.id);
-      const taken = (outstanding.get(id) || 0) + (reserved.get(id) || 0);
-      const total = Number(item.quantity_total);
-      return { equipment_id: id, available: Math.max(0, total - taken), requested: wanted.get(id), fits: wanted.get(id) + taken <= total };
+      const available = Math.max(0, Number(item.quantity_total) - (committed.get(id) || 0));
+      return { equipment_id: id, available, requested: wanted.get(id) };
     })
-    .filter((item) => !item.fits)
-    .map(({ fits: _fits, ...shortage }) => shortage);
+    .filter((item) => item.requested > item.available);
 }
 
 /**
@@ -615,12 +604,13 @@ module.exports = (pool) => {
         const keptLonger = has('due_date') && stillOut && loan.due_date !== null
           && (dueDate === null || dueDate > loan.due_date);
         if (goingBackOut || keptLonger) {
-          // This loan's own outstanding units are counted already; add only the
-          // units it takes back out.
-          const extra = goingBackOut ? Number(loan.returned_quantity) - returnedQuantity : 0;
-          const shortages = await findShortages(client, new Map([[Number(loan.equipment_id), extra]]), {
+          // The loan is checked in its own place: what it keeps out, until
+          // its new due date, against everything else.
+          const keptOut = Number(loan.quantity) - returnedQuantity;
+          const shortages = await findShortages(client, new Map([[Number(loan.equipment_id), keptOut]]), {
             until: has('due_date') ? dueDate : loan.due_date,
             activityId: loan.activity_id,
+            exceptLoanId: Number(loan.id),
           });
           if (shortages.length > 0) {
             await client.query('ROLLBACK');
