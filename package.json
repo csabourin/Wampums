@@ -73,7 +73,7 @@
     "marked": "^18.1.1",
     "mindee": "^5.10.0",
     "multer": "^2.4.0",
-    "nodemailer": "^10.0.12",
+    "nodemailer": "^10.1.4",
     "openai": "^7.32.0",
     "pg": "^8.23.1",
     "qrcode": "^1.5.4",
