@@ -1762,7 +1762,7 @@ module.exports = (pool, logger) => {
         // If activity_id is provided, fetch activity details and use its date
         if (activity_id) {
           const activityResult = await pool.query(
-            `SELECT id, name, activity_date FROM activities
+            `SELECT id, name, activity_date, activity_start_date, activity_end_date FROM activities
              WHERE id = $1 AND organization_id = $2 AND is_active = TRUE`,
             [activity_id, organizationId]
           );
@@ -1773,8 +1773,9 @@ module.exports = (pool, logger) => {
 
           const activity = activityResult.rows[0];
           activityName = activity.name;
-          normalizedDateFrom = parseDate(activity.activity_date);
-          normalizedDateTo = parseDate(activity.activity_date);
+          // The whole activity, as the picker counts availability for it.
+          normalizedDateFrom = parseDate(activity.activity_start_date || activity.activity_date);
+          normalizedDateTo = parseDate(activity.activity_end_date || activity.activity_date || activity.activity_start_date);
         } else {
           // If no activity_id, dates are required
           if (!date_from || !date_to) {
