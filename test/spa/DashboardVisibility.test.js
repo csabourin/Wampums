@@ -358,6 +358,21 @@ describe('tool groups stay accessible', () => {
     expect(document.querySelector('#app h1').textContent).toBe('dashboard_title');
   });
 
+  test('the colour choice is hidden until the unit turns it on', () => {
+    const dashboard = renderAdmin();
+    expect(document.getElementById('dashboard-settings-btn')).toBeNull();
+
+    dashboard.organizationSettings = {
+      dashboard_configuration: { hidden_tile_keys: [], enabled_option_keys: ['palette_picker'] },
+    };
+    dashboard.render();
+    dashboard.attachEventListeners();
+
+    const button = document.getElementById('dashboard-settings-btn');
+    expect(button.tagName).toBe('BUTTON');
+    expect(button.getAttribute('aria-label')).toBe('dashboard_settings');
+  });
+
   test('the tool section has no WCAG A/AA violations', async () => {
     renderAdmin();
     const results = await axe.run(document.querySelector('#moment-tools').closest('section'), {

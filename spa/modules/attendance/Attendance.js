@@ -28,7 +28,7 @@ import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 import { CONFIG } from '../../config.js';
-import { canViewAttendance } from '../../utils/PermissionUtils.js';
+import { canViewAttendance, hasPermission } from '../../utils/PermissionUtils.js';
 import { normalizeParticipantList } from '../../utils/ParticipantRoleUtils.js';
 import { OptimisticUpdateManager } from '../../utils/OptimisticUpdateManager.js';
 import { setContent } from '../../utils/DOMUtils.js';
@@ -701,15 +701,7 @@ export class Attendance {
         <div id="attendance-list" class="attendance-list">
           <!-- This will be filled by renderGroupsAndNames() -->
         </div>
-        <div class="guest-entry">
-          <h3>${translate('add_guest')}</h3>
-          <input type="text" id="guestName" placeholder="${translate('guest_name')}">
-          <input type="email" id="guestEmail" placeholder="${translate('guest_email_optional')}">
-          <button id="addGuestButton">${translate('add_guest_button')}</button>
-          <div id="guestList">
-            ${this.renderGuests()}
-          </div>
-        </div>
+        ${this.renderGuestSection()}
         <div class="status-buttons fixed-footer">
           <button class="status-btn present" data-status="present">${translate('present')}</button>
           <button class="status-btn absent" data-status="absent">${translate('absent')}</button>
@@ -849,7 +841,53 @@ export class Attendance {
     return fragment;
   }
 
+  /**
+   * Someone at the meeting who is not on the list: a young person joining the
+   * unit is welcomed onto the roster, where attendance, points and honours
+   * follow; an adult visitor (a parent, a volunteer, a guest leader) is noted
+   * as present on this date.
+   *
+   * @returns {string} HTML
+   */
+  renderGuestSection() {
+    const canWelcomeYouth = hasPermission('participants.walk_in');
+    const canNoteAdult = hasPermission('attendance.manage');
+    const date = escapeHTML(formatDate(this.currentDate, this.app.lang));
+    return `
+        <section class="guest-entry" aria-labelledby="attendance-guests-title">
+          <h2 id="attendance-guests-title">${translate('add_guest')}</h2>
+          ${canWelcomeYouth ? `
+          <div class="guest-entry__option">
+            <h3>${translate('attendance_guest_youth_title')}</h3>
+            <p class="form-hint">${translate('attendance_guest_youth_hint')}</p>
+            <a class="button button--secondary" href="/walk-in-children?from=attendance">${translate('tile_walk_in_children')}</a>
+          </div>` : ''}
+          ${canNoteAdult ? `
+          <form id="attendance-guest-form" class="guest-entry__option" novalidate>
+            <h3>${translate('attendance_guest_adult_title')}</h3>
+            <p class="form-hint" id="attendance-guest-hint">${translate('attendance_guest_adult_hint').replace('{date}', date)}</p>
+            <div class="form-group">
+              <label for="guestName">${translate('guest_name')}</label>
+              <input type="text" id="guestName" name="guest_name" maxlength="255" autocomplete="off" required
+                aria-describedby="attendance-guest-hint">
+            </div>
+            <div class="form-group">
+              <label for="guestEmail">${translate('guest_email_optional')}</label>
+              <input type="email" id="guestEmail" name="guest_email" maxlength="255" autocomplete="off">
+            </div>
+            <button type="submit" id="addGuestButton" class="button button--primary">${translate('add_guest_button')}</button>
+          </form>` : ''}
+          <h3>${translate('attendance_guests_noted')}</h3>
+          <div id="guestList">
+            ${this.renderGuests()}
+          </div>
+        </section>`;
+  }
+
   renderGuests() {
+    if (!this.guests.length) {
+      return `<p class="form-hint">${translate('attendance_guests_none')}</p>`;
+    }
     return this.guests
       .map(
         (guest) => `
@@ -906,10 +944,14 @@ export class Attendance {
       });
     });
 
-    const addGuestButton = document.getElementById('addGuestButton');
-    if (addGuestButton) {
-      addGuestButton.addEventListener('click', (e) => {
-        withButtonLoading(e.target, () => this.addGuest());
+    const guestForm = document.getElementById('attendance-guest-form');
+    if (guestForm) {
+      guestForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        withButtonLoading(document.getElementById('addGuestButton'), () => this.addGuest());
+      });
+      document.getElementById('guestName')?.addEventListener('input', (event) => {
+        event.target.removeAttribute('aria-invalid');
       });
     }
 
@@ -1348,9 +1390,12 @@ export class Attendance {
   }
 
   async addGuest() {
-    const guestName = document.getElementById('guestName').value.trim();
+    const nameInput = document.getElementById('guestName');
+    const guestName = nameInput.value.trim();
     const guestEmail = document.getElementById('guestEmail').value.trim();
     if (guestName === '') {
+      nameInput.setAttribute('aria-invalid', 'true');
+      nameInput.focus();
       this.app.showMessage(translate('guest_name_required'), 'error');
       return;
     }
@@ -1362,15 +1407,19 @@ export class Attendance {
     };
 
     try {
-      await this.saveGuest(guest);
+      const result = await this.saveGuest(guest);
       this.guests.push(guest);
       setContent(document.getElementById('guestList'), this.renderGuests());
       document.getElementById('guestName').value = '';
       document.getElementById('guestEmail').value = '';
-      this.app.showMessage(translate('guest_added_successfully'), 'success');
+      // Offline, the visitor is only queued: say so rather than claim it is saved.
+      this.app.showMessage(
+        translate(result?.queued ? 'attendance_guest_queued' : 'guest_added_successfully'),
+        result?.queued ? 'info' : 'success',
+      );
     } catch (error) {
       debugError('Error saving guest:', error);
-      this.app.showMessage(translate('error_saving_guest'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving_guest'), 'error');
     }
   }
 }

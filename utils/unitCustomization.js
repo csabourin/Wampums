@@ -17,6 +17,7 @@ const requiredDashboardFeatureKeys = new Set(
   customizationConfig.requiredDashboardFeatureKeys
 );
 const parentDashboardButtonKeys = new Set(customizationConfig.parentDashboardButtonKeys);
+const dashboardOptionKeys = new Set(customizationConfig.dashboardOptionKeys);
 
 /**
  * Normalize and validate organization vocabulary submitted by an administrator.
@@ -106,6 +107,34 @@ function validateUnitVocabulary(input) {
 }
 
 /**
+ * Normalize the controls a unit turns on for its leaders. They are off unless
+ * listed: consulting earlier years and choosing colours are occasional needs.
+ * A configuration saved before these options existed has none.
+ *
+ * @param {unknown} optionKeys - Candidate list of enabled option keys.
+ * @param {Array<{field: string, msg: string}>} errors - Collects problems.
+ * @returns {string[]} Known option keys, sorted and without duplicates.
+ */
+function normalizeDashboardOptions(optionKeys, errors) {
+  if (optionKeys === undefined) {
+    return [];
+  }
+  if (!Array.isArray(optionKeys)) {
+    errors.push({ field: 'enabled_option_keys', msg: 'Enabled option keys must be an array' });
+    return [];
+  }
+  const normalized = [];
+  new Set(optionKeys).forEach((optionKey) => {
+    if (typeof optionKey !== 'string' || !dashboardOptionKeys.has(optionKey)) {
+      errors.push({ field: 'enabled_option_keys', msg: `Unknown dashboard option: ${String(optionKey)}` });
+    } else {
+      normalized.push(optionKey);
+    }
+  });
+  return normalized.sort();
+}
+
+/**
  * Normalize and validate the organization-wide dashboard visibility policy.
  *
  * @param {unknown} input - Candidate dashboard configuration.
@@ -136,7 +165,8 @@ function validateDashboardConfiguration(input) {
   return {
     value: {
       version: customizationConfig.version,
-      hidden_tile_keys: normalizedHiddenKeys.sort()
+      hidden_tile_keys: normalizedHiddenKeys.sort(),
+      enabled_option_keys: normalizeDashboardOptions(candidate.enabled_option_keys, errors)
     },
     errors
   };

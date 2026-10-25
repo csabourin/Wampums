@@ -13,6 +13,13 @@ Both settings use the existing tenant-scoped `organization_settings` table:
 - `dashboard_configuration` stores `hidden_tile_keys`. Feature keys are stable
   semantic identifiers defined in `config/unit_customization.json` rather than
   page URLs or translated labels.
+- `dashboard_configuration.enabled_option_keys` lists the occasional tools the
+  unit turns on (`dashboardOptionKeys`): `scout_year_selector` (the year
+  selector above every screen) and `palette_picker` (the dashboard colour
+  button). They are off unless listed, including for a configuration saved
+  before they existed. With the selector off, a year already being consulted
+  keeps its notice and its way back; with the colour button off, a palette
+  already chosen on a device stays applied.
 
 The organization's `program_section` is updated when a built-in vocabulary
 profile is selected. This lets new groups and meeting preparation use the same

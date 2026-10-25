@@ -74,6 +74,11 @@ jest.mock('../../spa/utils/DialogUtils.js', () => ({
   confirmDestructive: (...args) => mockConfirmDestructive(...args)
 }));
 
+const mockInitScoutYearBanner = jest.fn(() => Promise.resolve());
+jest.mock('../../spa/modules/scout-year/ScoutYearBanner.js', () => ({
+  initScoutYearBanner: (...args) => mockInitScoutYearBanner(...args)
+}));
+
 import axe from 'axe-core';
 import { UnitSettings } from '../../spa/modules/unit-settings/unit-settings.js';
 import { canManageForms, hasPermission } from '../../spa/utils/PermissionUtils.js';
@@ -155,6 +160,59 @@ test('renders vocabulary and dashboard tabs with organization-level controls', a
   await module.handleSaveDashboard({ preventDefault: jest.fn() });
   expect(mockUpdateDashboardConfiguration).toHaveBeenCalledWith(
     expect.objectContaining({ hidden_tile_keys: expect.arrayContaining(['points']) })
+  );
+});
+
+test('the year selector and the colour choice are off until an administrator turns them on', async () => {
+  mockUpdateDashboardConfiguration.mockImplementation((payload) =>
+    Promise.resolve({ data: { dashboard_configuration: payload } }));
+  const app = { showMessage: jest.fn(), organizationSettings: {}, lang: 'fr' };
+  const module = new UnitSettings(app);
+  await module.init();
+  document.getElementById('unit-settings-tab-dashboard').click();
+
+  const yearSwitch = document.getElementById('dashboard-option-scout_year_selector');
+  const paletteSwitch = document.getElementById('dashboard-option-palette_picker');
+  expect(yearSwitch.checked).toBe(false);
+  expect(paletteSwitch.checked).toBe(false);
+  expect(yearSwitch.closest('fieldset').querySelector('legend').textContent).toBe('unit_dashboard_options_title');
+  expect(document.getElementById(yearSwitch.getAttribute('aria-describedby')).textContent)
+    .toBe('unit_dashboard_option_scout_year_selector_hint');
+
+  yearSwitch.click();
+  document.getElementById('save-dashboard-btn').click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(mockUpdateDashboardConfiguration).toHaveBeenCalledWith(
+    expect.objectContaining({ enabled_option_keys: ['scout_year_selector'] })
+  );
+  expect(app.organizationSettings.dashboard_configuration.enabled_option_keys).toEqual(['scout_year_selector']);
+  // The selector outside the page appears at once, not at the next visit.
+  expect(mockInitScoutYearBanner).toHaveBeenCalledWith({ enabled: true });
+
+  const results = await axe.run(document.getElementById('unit-dashboard-form'), {
+    runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+    rules: { 'color-contrast': { enabled: false } }
+  });
+  expect(results.violations).toEqual([]);
+});
+
+test('an option the unit turned on shows as on, and stays on when tiles are saved', async () => {
+  const { fetchEditableOrganizationSettings } = jest.requireMock('../../spa/api/api-endpoints.js');
+  fetchEditableOrganizationSettings.mockResolvedValueOnce({
+    data: {
+      organization_info: { name: 'Existing unit' },
+      dashboard_configuration: { version: 1, hidden_tile_keys: [], enabled_option_keys: ['palette_picker'] }
+    }
+  });
+  const module = new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} });
+  await module.init();
+  document.getElementById('unit-settings-tab-dashboard').click();
+
+  expect(document.getElementById('dashboard-option-palette_picker').checked).toBe(true);
+  await module.handleSaveDashboard({ preventDefault: jest.fn() });
+  expect(mockUpdateDashboardConfiguration).toHaveBeenCalledWith(
+    expect.objectContaining({ enabled_option_keys: ['palette_picker'] })
   );
 });
 

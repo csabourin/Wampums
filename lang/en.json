@@ -4376,5 +4376,17 @@
   "family_tasks_decline_confirm": "Decline this activity for {children}?",
   "family_tasks_response_queued": "Your answer will be sent when the connection returns.",
   "family_tasks_partial_failure": "The answer could not be saved for {children}. Please try again.",
-  "family_child_file_show": "Full file"
+  "family_child_file_show": "Full file",
+  "unit_dashboard_options_title": "Occasional tools",
+  "unit_dashboard_option_scout_year_selector": "Consult earlier scout years",
+  "unit_dashboard_option_scout_year_selector_hint": "Shows the year selector at the top of every screen, for leaders who may consult the year history.",
+  "unit_dashboard_option_palette_picker": "Choose dashboard colors",
+  "unit_dashboard_option_palette_picker_hint": "Shows the color theme button, including the high-contrast and colorblind-safe themes. A theme already chosen on a device stays applied.",
+  "attendance_guest_youth_title": "A new child",
+  "attendance_guest_youth_hint": "Add this child to the unit's list: attendance, points and honors follow at once, and their parent receives an invitation.",
+  "attendance_guest_adult_title": "An adult visitor",
+  "attendance_guest_adult_hint": "A parent, a volunteer or a guest leader: their presence is noted for {date}.",
+  "attendance_guests_noted": "Visitors noted for this date",
+  "attendance_guests_none": "No visitor noted for this date yet.",
+  "attendance_guest_queued": "Visitor saved on this device; it will be sent when the connection returns."
 }

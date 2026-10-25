@@ -6,9 +6,11 @@
  *
  * It lives outside `#app` so it survives every route change: the pages render
  * into `#app` and would otherwise wipe it on each navigation. It only appears
- * for someone who can consult the year history, and only once the unit actually
- * has more than one year to look at — a unit in its first season has no reason
- * to see a year picker.
+ * for someone who can consult the year history, once the unit has turned the
+ * selector on (Unit settings › Dashboard — looking back is occasional work),
+ * and only once the unit actually has more than one year to look at — a unit
+ * in its first season has no reason to see a year picker. An archived year
+ * already in effect always keeps its notice and its way out.
  */
 
 import { translate } from '../../app.js';
@@ -30,6 +32,7 @@ const MIN_YEARS_TO_OFFER_SWITCH = 2;
 
 let years = [];
 let mounted = false;
+let offerSelector = false;
 
 /**
  * Find or create the host element, just after the app root.
@@ -76,12 +79,12 @@ function render() {
   const element = hostElement();
   const selected = getSelectedScoutYear();
 
-  if (years.length < MIN_YEARS_TO_OFFER_SWITCH) {
+  if (!offerSelector || years.length < MIN_YEARS_TO_OFFER_SWITCH) {
     // With an archived year in effect, the list being short means the year
-    // request failed — not that there is nothing to switch between. Read-only
-    // mode and the write guard are still on, so clearing the banner here would
-    // strand the user in an archive with no way back. The exit stays, without
-    // the selector there is no list to fill.
+    // request failed — not that there is nothing to switch between — or the
+    // unit turned the selector off meanwhile. Read-only mode and the write
+    // guard are still on, so clearing the banner here would strand the user in
+    // an archive with no way back. The exit stays, without the selector.
     if (selected) {
       element.classList.add('is-archive');
       setContent(element, archiveNoticeMarkup(selected));
@@ -142,23 +145,33 @@ function handleSelection(value) {
 }
 
 /**
- * Mount the banner. Safe to call more than once.
+ * Mount the banner. Safe to call more than once: call it again when the unit
+ * turns the selector on or off.
  *
+ * @param {Object} [options]
+ * @param {boolean} [options.enabled=false] - The unit offers the year selector
  * @returns {Promise<void>}
  */
-export async function initScoutYearBanner() {
+export async function initScoutYearBanner({ enabled = false } = {}) {
   if (!hasPermission('scout_year.view')) {
     return;
   }
 
-  try {
-    years = await getScoutYears({ forceRefresh: true });
-  } catch (error) {
-    debugError('Failed to load scout years for the selector:', error);
-    // A selection already in effect must still be visible and escapable, even
-    // if the list could not be refreshed.
-    const selected = getSelectedScoutYear();
+  offerSelector = enabled;
+  const selected = getSelectedScoutYear();
+
+  if (!offerSelector) {
+    // Nothing to list: only an archive already in effect needs its way out.
     years = selected ? [{ ...selected }] : [];
+  } else {
+    try {
+      years = await getScoutYears({ forceRefresh: true });
+    } catch (error) {
+      debugError('Failed to load scout years for the selector:', error);
+      // A selection already in effect must still be visible and escapable, even
+      // if the list could not be refreshed.
+      years = selected ? [{ ...selected }] : [];
+    }
   }
 
   render();

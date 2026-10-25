@@ -4376,5 +4376,17 @@
   "family_tasks_decline_confirm": "Refuser cette activité pour {children} ?",
   "family_tasks_response_queued": "Votre réponse sera envoyée au retour de la connexion.",
   "family_tasks_partial_failure": "La réponse n’a pas pu être enregistrée pour {children}. Veuillez réessayer.",
-  "family_child_file_show": "Dossier complet"
+  "family_child_file_show": "Dossier complet",
+  "unit_dashboard_options_title": "Outils occasionnels",
+  "unit_dashboard_option_scout_year_selector": "Consulter les années précédentes",
+  "unit_dashboard_option_scout_year_selector_hint": "Affiche le choix de l’année consultée en haut de chaque écran, pour les responsables qui ont accès à l’historique.",
+  "unit_dashboard_option_palette_picker": "Choisir les couleurs du tableau de bord",
+  "unit_dashboard_option_palette_picker_hint": "Affiche le bouton des palettes de couleurs, dont les palettes à contraste élevé et adaptées au daltonisme. Une palette déjà choisie sur un appareil reste appliquée.",
+  "attendance_guest_youth_title": "Un nouvel enfant",
+  "attendance_guest_youth_hint": "Ajoutez cet enfant à la liste de l’unité : ses présences, ses points et ses honneurs suivent aussitôt, et son parent reçoit une invitation.",
+  "attendance_guest_adult_title": "Un adulte de passage",
+  "attendance_guest_adult_hint": "Parent, bénévole ou animateur invité : sa présence est notée pour le {date}.",
+  "attendance_guests_noted": "Visiteurs notés à cette date",
+  "attendance_guests_none": "Aucun visiteur noté à cette date pour l’instant.",
+  "attendance_guest_queued": "Visiteur enregistré sur cet appareil : il sera envoyé au retour de la connexion."
 }

@@ -191,6 +191,16 @@ test('the dashboard tiles have labels in both languages', () => {
 });
 
 
+test('every dashboard option a unit can turn on has a name and an explanation', () => {
+  const { dashboardOptionKeys } = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/unit_customization.json'), 'utf8'));
+  const keys = dashboardOptionKeys.flatMap((option) => [
+    [`unit_dashboard_option_${option}`, 'UnitSettings'], [`unit_dashboard_option_${option}_hint`, 'UnitSettings'],
+  ]);
+
+  expect(dashboardOptionKeys).toEqual(['scout_year_selector', 'palette_picker']);
+  expect(missing(keys)).toEqual([]);
+});
+
 test('the role matrix has translated names for the permission catalog and all lock reasons', () => {
   const files = [path.join(ROOT, 'attached_assets/permissions_list.sql'),
     ...fs.readdirSync(path.join(ROOT, 'migrations')).filter((name) => name.endsWith('.sql')).map((name) => path.join(ROOT, 'migrations', name))];

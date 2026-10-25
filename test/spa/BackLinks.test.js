@@ -32,7 +32,8 @@ import { buildNotFoundMarkup } from '../../spa/utils/NotFoundUtils.js';
 const ROOT = path.join(__dirname, '../..');
 
 const SCREENS = {
-  'spa/modules/walk-in/WalkInChildren.js': '${renderBackLink()}',
+  // Opened from attendance, back leads to attendance; otherwise to the dashboard.
+  'spa/modules/walk-in/WalkInChildren.js': '${renderBackLink(this.backHref)}',
   'spa/modules/parent-invitations/ParentInvitations.js': '${renderBackLink()}',
   'spa/modules/participant-duplicates/ParticipantDuplicates.js': '${renderBackLink()}',
   'spa/modules/family-access/FamilyAccess.js': '${renderBackLink()}',

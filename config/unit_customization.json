@@ -144,6 +144,10 @@
   "requiredDashboardFeatureKeys": [
     "account_info"
   ],
+  "dashboardOptionKeys": [
+    "scout_year_selector",
+    "palette_picker"
+  ],
   "parentDashboardButtonKeys": [
     "finances",
     "fundraisers",
