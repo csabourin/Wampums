@@ -8,6 +8,7 @@ const { parseReceipt } = require('../services/veryfi');
 const { getBudgetStatus } = require('../services/ai-budget');
 const { FILE_LIMITS } = require('../config/constants');
 const { AI_MODES, validateAIPayload } = require('../utils/aiPayloadValidation');
+const { sendAIFailure } = require('../utils/aiFailure');
 
 // Every AI call spends the shared, paid budget, so it is limited to the staff
 // features that offer it: message rewriting and translation (communications),
@@ -22,35 +23,7 @@ const upload = multer({
 });
 
 const HTTP_BAD_REQUEST = 400;
-const HTTP_TOO_MANY_REQUESTS = 429;
-const HTTP_BAD_GATEWAY = 502;
 const HTTP_SERVICE_UNAVAILABLE = 503;
-
-/**
- * Answer a failed AI call. The provider's own message and status never reach
- * the browser: a provider's 401 (bad key) would read as an expired session,
- * and its text is English for developers.
- *
- * @param {Object} res - Express response
- * @param {Error} err - Failure from the AI or receipt service
- * @returns {Object} The response
- */
-function sendAIFailure(res, err) {
-  if (err.code === 'AI_BUDGET_EXCEEDED') {
-    return error(res, 'ai_budget_exceeded', HTTP_TOO_MANY_REQUESTS, { code: 'AI_BUDGET_EXCEEDED' });
-  }
-  if (err.code === 'AI_NOT_CONFIGURED') {
-    return error(res, 'ai_unavailable', HTTP_SERVICE_UNAVAILABLE, { code: 'AI_NOT_CONFIGURED' });
-  }
-  if (err.status === HTTP_TOO_MANY_REQUESTS || err.code === 'insufficient_quota' || err.code === 'rate_limit_exceeded') {
-    return error(res, 'ai_rate_limited', HTTP_SERVICE_UNAVAILABLE, { code: 'AI_RATE_LIMITED' });
-  }
-  if (err.code === 'AI_INVALID_RESPONSE' || err.status) {
-    console.error('AI service failure:', err.status || '', err.code || '');
-    return error(res, 'ai_service_error', HTTP_BAD_GATEWAY, { code: 'AI_SERVICE_ERROR' });
-  }
-  throw err;
-}
 
 // Middleware to build user context
 const buildUserContext = async (req) => {

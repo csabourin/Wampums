@@ -4501,5 +4501,16 @@
   "material_available_for_dates": "Disponible pour ces dates : {available} sur {total}",
   "material_none_available": "Aucun disponible pour ces dates",
   "material_view_photo": "Voir la photo de {name}",
-  "material_photo_alt": "Photo de {name}"
+  "material_photo_alt": "Photo de {name}",
+  "material_suggest_button": "Suggérer le matériel",
+  "material_suggest_title": "Suggérer le matériel pour l'activité",
+  "material_suggest_intro": "Décrivez l'activité. L'assistant choisit, dans votre inventaire, ce qu'il lui faut probablement pour les dates choisies; vous vérifiez, puis réservez.",
+  "material_suggest_description_label": "L'activité",
+  "material_suggest_privacy": "N'inscrivez pas de noms de jeunes ni de familles : la description est envoyée à l'assistant IA.",
+  "material_suggest_description_required": "Décrivez l'activité en quelques mots.",
+  "material_suggest_submit": "Suggérer",
+  "material_suggest_failed": "La suggestion n'a pas pu être faite. Réessayez.",
+  "material_suggest_none": "L'assistant n'a rien trouvé à suggérer parmi le matériel libre pour ces dates.",
+  "material_suggest_applied": "Articles suggérés et sélectionnés : {count}. Vérifiez-les avant de réserver.",
+  "material_suggested": "Suggéré :"
 }
