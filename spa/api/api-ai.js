@@ -35,3 +35,14 @@ export function aiParseReceipt(file) {
   formData.append('file', file);
   return API.post('v1/ai/receipt', formData, {}, ONLINE_ONLY);
 }
+
+/**
+ * Ask the assistant which equipment an activity needs, from the unit's
+ * inventory. Nothing is reserved: the answer only preselects items.
+ *
+ * @param {{description: string, date_from: string, date_to: string, locale: string, activity_id?: number}} request
+ * @returns {Promise<Object>} `{ success, data: { items: [{ equipment_id, quantity, reason }], budget } }`
+ */
+export function suggestEquipment(request) {
+  return API.post('v1/equipment-suggestions', request, {}, ONLINE_ONLY);
+}

@@ -27,6 +27,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: () => tr
 jest.mock('../../spa/indexedDB.js', () => ({ deleteCachedData: jest.fn() }));
 jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirmDestructive: jest.fn(), hasActiveDialog: () => false }));
 jest.mock('../../spa/ajax-functions.js', () => ({ getCurrentOrganizationId: () => '1' }));
+jest.mock('../../spa/api/api-ai.js', () => ({ suggestEquipment: jest.fn() }));
 jest.mock('../../spa/api/api-endpoints.js', () => ({
   getEquipmentInventory: jest.fn(),
   getEquipmentPhotoUrl: jest.fn(),
@@ -37,6 +38,7 @@ jest.mock('../../spa/api/api-endpoints.js', () => ({
 }));
 
 import * as api from '../../spa/api/api-endpoints.js';
+import { suggestEquipment } from '../../spa/api/api-ai.js';
 import { closeAllModals } from '../../spa/utils/ModalUtils.js';
 import { MaterialManagement } from '../../spa/modules/resources/MaterialManagement.js';
 
@@ -308,4 +310,87 @@ test('names from people show as text, and the picker passes axe', async () => {
   expect(page().querySelector('#material-equipment-list img[src="x"]')).toBeNull();
   expect(names()).toContain(HOSTILE);
   expect((await axe.run(page(), AXE_OPTIONS)).violations).toEqual([]);
+});
+
+describe('asking the assistant for the equipment', () => {
+  async function openDialog() {
+    const screen = await openScreen();
+    const opener = document.getElementById('material-suggest');
+    opener.focus();
+    opener.click();
+    return { screen, opener };
+  }
+
+  const submit = () => document.getElementById('material-suggest-form')
+    .dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+
+  test('the dialog asks for the activity and warns not to name youths', async () => {
+    await openDialog();
+    const description = document.getElementById('material-suggest-description');
+
+    expect(document.activeElement).toBe(description);
+    expect(description.getAttribute('aria-describedby')).toContain('material-suggest-privacy');
+    expect(document.getElementById('material-suggest-privacy').textContent).toBe('material_suggest_privacy');
+    expect((await axe.run(document.querySelector('#material-suggest-modal'), AXE_OPTIONS)).violations).toEqual([]);
+  });
+
+  test('an empty description is pointed out and nothing is sent', async () => {
+    await openDialog();
+    document.getElementById('material-suggest-description').value = '';
+    submit();
+    await flush();
+
+    expect(suggestEquipment).not.toHaveBeenCalled();
+    expect(document.getElementById('material-suggest-error').textContent).toBe('material_suggest_description_required');
+  });
+
+  test('what is suggested is selected, with its quantity and reason, for the leader to check', async () => {
+    suggestEquipment.mockResolvedValue({ data: { items: [
+      { equipment_id: 3, quantity: 4, reason: 'Pour les jeux de neige' },
+      { equipment_id: 4, quantity: 2, reason: 'Pour égoutter les pâtes' },
+    ] } });
+    const { screen } = await openDialog();
+    document.getElementById('material-suggest-description').value = 'Camp d\'hiver, jeux de neige, spaghetti';
+    submit();
+    await flush();
+
+    expect(suggestEquipment).toHaveBeenCalledWith({
+      description: 'Camp d\'hiver, jeux de neige, spaghetti', date_from: TODAY, date_to: TODAY, locale: 'fr',
+    });
+    expect(document.getElementById('material-suggest-modal')).toBeNull();
+    expect(screen.app.showMessage).toHaveBeenCalledWith('material_suggest_applied', 'success');
+    expect(document.getElementById('material-select-3').checked).toBe(true);
+    expect(document.getElementById('material-quantity-3').value).toBe('4');
+    expect(page().querySelector('[data-equipment-id="4"] .material-suggestion').textContent).toContain('Pour égoutter les pâtes');
+    expect(api.saveBulkReservations).not.toHaveBeenCalled();
+    // The page was redrawn under the dialog: focus lands on the first item suggested.
+    expect(document.activeElement).toBe(document.getElementById('material-select-3'));
+  });
+
+  test('with an activity chosen, the suggestion is asked for that activity', async () => {
+    api.getActivities.mockResolvedValue({ data: { activities: [
+      { id: 12, name: 'Camp d\'hiver', activity_start_date: '2099-01-10', activity_end_date: '2099-01-12' },
+    ] } });
+    suggestEquipment.mockResolvedValue({ data: { items: [] } });
+    await openScreen();
+    type('activitySelect', '12', 'change');
+    document.getElementById('material-suggest').click();
+    document.getElementById('material-suggest-description').value = 'Camp d\'hiver';
+    submit();
+    await flush();
+
+    expect(suggestEquipment).toHaveBeenCalledWith(expect.objectContaining({
+      date_from: '2099-01-10', date_to: '2099-01-12', activity_id: 12,
+    }));
+  });
+
+  test('a refused suggestion is explained in the dialog, which stays open', async () => {
+    suggestEquipment.mockRejectedValue(Object.assign(new Error('cap'), { status: 429, data: { message: 'ai_budget_exceeded' } }));
+    await openDialog();
+    submit();
+    await flush();
+
+    expect(document.getElementById('material-suggest-modal')).not.toBeNull();
+    expect(document.getElementById('material-suggest-error').textContent).not.toBe('');
+  });
 });

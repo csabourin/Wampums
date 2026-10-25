@@ -163,7 +163,7 @@ function readJsonAnswer(completion) {
 /**
  * Generate text for one mode, within the monthly budget.
  *
- * @param {string} mode - meeting_plan | rewrite | translate | risk_suggest
+ * @param {string} mode - meeting_plan | rewrite | translate | risk_suggest | equipment_suggest
  * @param {Object} payload - Validated payload (utils/aiPayloadValidation.js)
  * @param {{userId: string, organizationId: number|null}} userContext
  * @returns {Promise<{data: Object, usage: {provider: string, model: string, cost: number}}>}
@@ -304,6 +304,24 @@ ${CANADIAN_FRENCH_RULE}`,
         {
           role: 'user',
           content: `Identify 3-5 risks and mitigations from this validated request data:\n${JSON.stringify(payload)}`,
+        },
+      ];
+
+    case 'equipment_suggest':
+      return [
+        {
+          role: 'system',
+          content: `You help youth-program leaders choose the equipment an activity needs from their unit's inventory. ${untrustedDataRule}
+Choose only items from the "equipment" list of the data, by their "id"; never invent an item. Choose what the activity plausibly needs and nothing else, at most 25 items. A quantity never exceeds the item's "available" count and is at least 1. Write each reason as one short sentence in the language of "locale". Return only a JSON object with this structure:
+{
+  "items": [{ "id": 0, "quantity": 1, "reason": "string" }]
+}
+
+${CANADIAN_FRENCH_RULE}`,
+        },
+        {
+          role: 'user',
+          content: `Choose equipment for this validated request data:\n${JSON.stringify(payload)}`,
         },
       ];
 

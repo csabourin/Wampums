@@ -11207,6 +11207,19 @@ button.material-thumb {
   margin-bottom: var(--space-md);
 }
 
+.material-suggest-button {
+  margin-bottom: var(--space-sm);
+}
+
+/* What the assistant suggested: said in words, the border only repeats it. */
+.material-suggestion {
+  margin: var(--space-xs) 0 0;
+  padding: var(--space-xs) var(--space-sm);
+  border-inline-start: 3px solid var(--color-primary);
+  background: var(--color-surface-secondary);
+  font-size: var(--font-size-sm);
+}
+
 /* ================================================
    Form Builder Styles
    ================================================ */

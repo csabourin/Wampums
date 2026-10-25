@@ -22,6 +22,7 @@ import { hasPermission } from '../../utils/PermissionUtils.js';
 import { getCurrentOrganizationId } from '../../ajax-functions.js';
 import { deleteCachedData } from '../../indexedDB.js';
 import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
+import { suggestEquipment } from '../../api/api-ai.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
@@ -46,6 +47,10 @@ const RESERVATION_ACTIONS = {
     { status: 'returned', labelKey: 'reservation_action_return', variant: 'primary' }
   ]
 };
+
+/** Length of an activity description sent for a suggestion. */
+const MIN_SUGGESTION_DESCRIPTION = 3;
+const MAX_SUGGESTION_DESCRIPTION = 1000;
 
 /** How the picker can be sorted. */
 const MATERIAL_SORTS = ['category', 'name', 'available'];
@@ -113,6 +118,8 @@ export class MaterialManagement {
     this.search = '';
     this.categoryFilter = 'all';
     this.sortOrder = 'category';
+    /** @type {Map<number, string>} Why the assistant suggested an item */
+    this.suggestions = new Map();
     // The dates the server last counted availability for, and which request
     // is the latest, so a slow answer for older dates is dropped.
     this.availabilityKey = null;
@@ -473,6 +480,11 @@ export class MaterialManagement {
 
         <div class="card">
           <h2 id="material-select-title">${escapeHTML(translate('select_equipment'))}</h2>
+          ${this.canReserve ? `
+            <button type="button" class="button button--secondary material-suggest-button" id="material-suggest">
+              <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+              ${escapeHTML(translate('material_suggest_button'))}
+            </button>` : ''}
           <div class="material-picker-controls" role="search" aria-labelledby="material-select-title">
             <label class="stacked material-search">
               <span>${escapeHTML(translate('material_search_label'))}</span>
@@ -621,6 +633,9 @@ export class MaterialManagement {
             <span class="equipment-name">${escapeHTML(item.name)}</span>
           </label>
         </div>
+        ${this.suggestions.has(id) ? `
+          <p class="material-suggestion"><strong>${escapeHTML(translate('material_suggested'))}</strong>
+            ${escapeHTML(this.suggestions.get(id))}</p>` : ''}
         <p class="material-item-details">
           <span class="equipment-category">${escapeHTML(equipmentCategoryLabel(item.category))}</span>
           <span class="equipment-available ${available === 0 ? 'is-unavailable' : ''}">${escapeHTML(availabilityText)}</span>
@@ -811,6 +826,10 @@ export class MaterialManagement {
       }
     });
 
+    document.getElementById('material-suggest')?.addEventListener('click', (event) => {
+      this.openSuggestionDialog(event.currentTarget);
+    });
+
     const bulkForm = document.getElementById('bulkReservationForm');
     bulkForm?.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -825,6 +844,118 @@ export class MaterialManagement {
         this.updateSelectionSummary();
       });
     });
+  }
+
+  /**
+   * Ask the assistant which equipment the activity needs. The leader
+   * describes it (the activity's own name and description start the text);
+   * the answer only preselects items, which the leader checks and reserves.
+   *
+   * @param {HTMLElement} opener - Where focus returns when the dialog closes
+   */
+  openSuggestionDialog(opener) {
+    const activity = this.selectedActivityId
+      ? this.activities.find((entry) => entry.id === this.selectedActivityId)
+      : null;
+    const start = activity
+      ? [activity.name, activity.description].filter(Boolean).join(' — ')
+      : this.reservedFor;
+    let saving = false;
+    const modal = openModal({
+      id: 'material-suggest-modal',
+      title: escapeHTML(translate('material_suggest_title')),
+      closeOnBackdrop: false,
+      canClose: () => !saving,
+      returnFocus: opener,
+      body: `
+        <form id="material-suggest-form" novalidate>
+          <p>${escapeHTML(translate('material_suggest_intro'))}</p>
+          <div class="form-group">
+            <label for="material-suggest-description">${escapeHTML(translate('material_suggest_description_label'))}</label>
+            <textarea id="material-suggest-description" rows="4" maxlength="${MAX_SUGGESTION_DESCRIPTION}"
+              aria-describedby="material-suggest-privacy material-suggest-error" required>${escapeHTML(start)}</textarea>
+            <p class="field-hint" id="material-suggest-privacy">${escapeHTML(translate('material_suggest_privacy'))}</p>
+            <p class="field-error" id="material-suggest-error" role="alert"></p>
+          </div>
+        </form>`,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button>
+        <button type="submit" class="button button--primary" form="material-suggest-form">
+          ${escapeHTML(translate('material_suggest_submit'))}
+        </button>`,
+      initialFocus: '#material-suggest-description',
+    });
+
+    const form = modal.dialog.querySelector('#material-suggest-form');
+    const description = modal.dialog.querySelector('#material-suggest-description');
+    const errorMessage = modal.dialog.querySelector('#material-suggest-error');
+    description.addEventListener('input', () => {
+      errorMessage.textContent = '';
+      description.removeAttribute('aria-invalid');
+    });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const text = description.value.trim();
+      if (text.length < MIN_SUGGESTION_DESCRIPTION) {
+        errorMessage.textContent = translate('material_suggest_description_required');
+        description.setAttribute('aria-invalid', 'true');
+        description.focus();
+        return;
+      }
+      saving = true;
+      await withFormBusy(form, async () => {
+        let response;
+        try {
+          response = await suggestEquipment({
+            description: text,
+            date_from: this.dateFrom,
+            date_to: this.dateTo,
+            locale: this.app.lang || 'fr',
+            ...(this.selectedActivityId ? { activity_id: this.selectedActivityId } : {}),
+          });
+        } catch (error) {
+          debugError('Failed to suggest equipment:', error);
+          errorMessage.textContent = apiErrorMessage(error, 'material_suggest_failed');
+          saving = false;
+          return;
+        }
+        saving = false;
+        modal.close();
+        this.applySuggestions(Array.isArray(response?.data?.items) ? response.data.items : []);
+      });
+    });
+  }
+
+  /**
+   * Preselect what the assistant suggested, with its quantity and reason,
+   * and show the whole list so nothing chosen is hidden by a filter.
+   *
+   * @param {Array<{equipment_id: number, quantity: number, reason: string}>} items
+   */
+  applySuggestions(items) {
+    if (this.destroyed) {
+      return;
+    }
+    const known = items.filter((item) => this.equipment.some((entry) => entry.id === Number(item.equipment_id)));
+    if (known.length === 0) {
+      this.app.showMessage(translate('material_suggest_none'), 'info');
+      return;
+    }
+    known.forEach((item) => {
+      const id = Number(item.equipment_id);
+      this.selectedItems.set(id, Math.max(1, Number(item.quantity) || 1));
+      this.suggestions.set(id, String(item.reason || ''));
+    });
+    this.search = '';
+    this.categoryFilter = 'all';
+    this.render();
+    this.attachEventHandlers();
+    this.app.showMessage(translate('material_suggest_applied').replace('{count}', String(known.length)), 'success');
+    // The opener was redrawn: keyboard and screen-reader users land on the
+    // first item suggested, where the review of the selection starts.
+    const first = document.getElementById(`material-select-${Number(known[0].equipment_id)}`);
+    first?.scrollIntoView?.({ block: 'center' });
+    first?.focus();
   }
 
   /** Reserve the selected equipment for the activity or the dates chosen. */
@@ -865,6 +996,7 @@ export class MaterialManagement {
     // Saved: the selection is done with, whatever the reload below brings.
     this.app.showMessage(translate('bulk_reservation_saved'), 'success');
     this.selectedItems.clear();
+    this.suggestions.clear();
     this.notes = '';
     await deleteCachedData('v1/resources/equipment');
     await deleteCachedData('v1/resources/equipment/reservations');

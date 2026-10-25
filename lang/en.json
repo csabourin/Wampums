@@ -4501,5 +4501,16 @@
   "material_available_for_dates": "Available for these dates: {available} of {total}",
   "material_none_available": "None available for these dates",
   "material_view_photo": "View the photo of {name}",
-  "material_photo_alt": "Photo of {name}"
+  "material_photo_alt": "Photo of {name}",
+  "material_suggest_button": "Suggest equipment",
+  "material_suggest_title": "Suggest equipment for the activity",
+  "material_suggest_intro": "Describe the activity. The assistant picks, from your inventory, what it probably needs for the dates chosen; you check and reserve.",
+  "material_suggest_description_label": "The activity",
+  "material_suggest_privacy": "Do not write the names of youths or families: the description is sent to the AI assistant.",
+  "material_suggest_description_required": "Describe the activity in a few words.",
+  "material_suggest_submit": "Suggest",
+  "material_suggest_failed": "The suggestion could not be made. Try again.",
+  "material_suggest_none": "The assistant found nothing to suggest among the equipment free for these dates.",
+  "material_suggest_applied": "Items suggested and selected: {count}. Check them before reserving.",
+  "material_suggested": "Suggested:"
 }
