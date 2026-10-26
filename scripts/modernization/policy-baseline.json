@@ -93,7 +93,7 @@
     "spa/functions.js": 5,
     "spa/indexedDB.js": 22,
     "spa/jwt-helper.js": 7,
-    "spa/modules/ActivityManager.js": 19,
+    "spa/modules/meetings/ActivityManager.js": 19,
     "spa/modules/CommandPalette.js": 1,
     "spa/modules/OfflineManager.js": 35,
     "spa/modules/account-info.js": 4,

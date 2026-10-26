@@ -30,7 +30,7 @@ import { getUnitVocabulary } from '../../utils/UnitVocabularyUtils.js';
 import { memberDisplayName } from '../../utils/DisplayNameUtils.js';
 import { deleteCachedData, clearYearlyPlannerCaches } from '../../indexedDB.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
-import { ActivityManager } from '../ActivityManager.js';
+import { ActivityManager } from './ActivityManager.js';
 import { PrintManager } from '../PrintManager.js';
 import { aiGenerateText } from '../../api/api-ai.js';
 import { MeetingAutosave, MEETING_SAVE_STATES } from './MeetingAutosave.js';

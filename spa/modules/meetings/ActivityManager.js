@@ -1,11 +1,11 @@
-import { translate } from '../app.js';
-import { getSectionActivityTemplates } from '../utils/meetingSections.js';
-import { setContent } from '../utils/DOMUtils.js';
-import { debugLog, debugWarn } from '../utils/DebugUtils.js';
-import { escapeAttribute, escapeHTML } from '../utils/SecurityUtils.js';
-import { badgeLabel } from '../utils/BadgeLabelUtils.js';
-import { memberDisplayName } from '../utils/DisplayNameUtils.js';
-import { AchievementModal } from './AchievementModal.js';
+import { translate } from '../../app.js';
+import { getSectionActivityTemplates } from '../../utils/meetingSections.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { debugLog, debugWarn } from '../../utils/DebugUtils.js';
+import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
+import { badgeLabel } from '../../utils/BadgeLabelUtils.js';
+import { memberDisplayName } from '../../utils/DisplayNameUtils.js';
+import { AchievementModal } from '../AchievementModal.js';
 
 /**
  * ActivityManager - Handles all activity-related operations
