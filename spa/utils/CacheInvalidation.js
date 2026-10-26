@@ -100,7 +100,10 @@ const DERIVED_RESOURCES = {
   budget: ['budget', 'expenses', 'revenue'],
   expenses: ['expenses', 'budget'],
   revenue: ['revenue', 'budget'],
-  resources: ['resources', 'activities', 'action-roster'],
+  // The handout lists what an activity reserved, and what is left to lend.
+  resources: ['resources', 'activities', 'action-roster', 'equipment-loans'],
+  // What is out on loan is what the inventory shows as unavailable.
+  'equipment-loans': ['equipment-loans', 'resources'],
   // The announcement composer lists the unit's roles.
   roles: ['roles', 'announcements', 'users', 'forms']
 };
@@ -111,6 +114,11 @@ const DERIVED_RESOURCES = {
  * A name ending in "_" or "-" matches every key starting with it.
  */
 const SNAPSHOT_SOURCES = [
+  // Camp preparation stored the roster and its point totals under these API
+  // read keys without naming their sources; entries already on devices still
+  // need to go when points change.
+  ['participants_v2', ['participants', 'points']],
+  ['groups', ['groups', 'points']],
   ['action_roster_', ['action-roster', 'attendance', 'activities', 'resources']],
   ['manage_points_data', ['participants', 'groups', 'points', 'attendance']],
   ['manage_participants_data', ['participants', 'groups', 'users']],

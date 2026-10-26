@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, allowDemoSandbox, withScoutYear } = require('../middleware/auth');
 const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
-const { allEnrolledInUnit } = require('../services/unitParticipants');
+const { allEnrolledInUnit, lockParticipantsInUnit } = require('../services/unitParticipants');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateDate, validateAttendanceStatus, checkValidation, validateIdQuery, validateDateOptional } = require('../middleware/validation');
 const { getPointSystemRules } = require('../utils');
@@ -13,6 +13,30 @@ const { calculateAttendancePoints, handleOrganizationResolutionError } = require
 const MAX_ACTIVITY_SPAN_DAYS = 31;
 const HTTP_NOT_FOUND = 404;
 const HTTP_CONFLICT = 409;
+
+/**
+ * Attendance points a status earns under the unit's rules.
+ * @param {string|null} status - Attendance status
+ * @param {Object} rules - The unit's point system rules
+ * @returns {number} Whole points
+ */
+function statusPoints(status, rules) {
+  return Math.round(calculateAttendancePoints(null, status, rules)) || 0;
+}
+
+/**
+ * Attendance points a recorded row has granted. Rows from before
+ * attendance.points_awarded (migration 047) granted their status's points.
+ * @param {{status: string, points_awarded: number|null}|null} row - Recorded attendance
+ * @param {Object} rules - The unit's point system rules
+ * @returns {number} Points to take back if the row changes or goes away
+ */
+function grantedPoints(row, rules) {
+  if (!row?.status) {
+    return 0;
+  }
+  return row.points_awarded ?? statusPoints(row.status, rules);
+}
 
 module.exports = (pool, logger) => {
   /**
@@ -181,44 +205,46 @@ module.exports = (pool, logger) => {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
+        await lockParticipantsInUnit(client, organizationId, [req.body.participant_id]);
 
         // The recorded status is the authoritative baseline for point adjustments.
         // Client-supplied previous_status is ignored: the individual and group UI
         // paths used to send different guesses, producing phantom point deltas.
         const existingResult = await client.query(
-          `SELECT status FROM attendance
+          `SELECT status, points_awarded FROM attendance
          WHERE participant_id = $1 AND date = $2 AND organization_id = $3
          FOR UPDATE`,
           [participant_id, date, organizationId]
         );
-        const previousStatus = existingResult.rows[0]?.status || null;
+        const previous = existingResult.rows[0] || null;
+        const previousStatus = previous?.status || null;
+
+        // The adjustment replaces what the row granted with what the new status
+        // earns. A first mark grants from 0, so "present = +1" applies on day
+        // one; re-sending the same status changes nothing, not even a carried-
+        // forward day that granted no points.
+        const pointSystemRules = await getPointSystemRules(client, organizationId);
+        const granted = grantedPoints(previous, pointSystemRules);
+        const awarded = previousStatus === status ? granted : statusPoints(status, pointSystemRules);
 
         // Upsert attendance
         const result = await client.query(
-          `INSERT INTO attendance (participant_id, date, status, organization_id, is_on_site)
-         VALUES ($1, $2, $3::varchar, $4, $3::varchar IN ('present', 'late'))
+          `INSERT INTO attendance (participant_id, date, status, organization_id, is_on_site, points_awarded)
+         VALUES ($1, $2, $3::varchar, $4, $3::varchar IN ('present', 'late'), $5)
          ON CONFLICT (participant_id, date, organization_id)
-         DO UPDATE SET status = $3, is_on_site = $3::varchar IN ('present', 'late'), departed_at = NULL
+         DO UPDATE SET status = $3, is_on_site = $3::varchar IN ('present', 'late'), departed_at = NULL,
+           points_awarded = $5
          RETURNING *`,
-          [participant_id, date, status, organizationId]
+          [participant_id, date, status, organizationId, awarded]
         );
 
-        // Adjustment relative to the recorded baseline. First-time marking uses a
-        // baseline of 0, so "present = +1" applies on day one, matching the
-        // legacy batch endpoint (/api/update-attendance).
-        if (previousStatus !== status) {
-          const pointSystemRules = await getPointSystemRules(client, organizationId);
-          const adjustment = Math.round(
-            calculateAttendancePoints(previousStatus, status, pointSystemRules)
+        const adjustment = awarded - granted;
+        if (adjustment !== 0) {
+          await client.query(
+            `INSERT INTO points (participant_id, value, created_at, organization_id)
+           VALUES ($1, $2, NOW(), $3)`,
+            [participant_id, adjustment, organizationId]
           );
-
-          if (adjustment !== 0 && !isNaN(adjustment)) {
-            await client.query(
-              `INSERT INTO points (participant_id, value, created_at, organization_id)
-             VALUES ($1, $2, NOW(), $3)`,
-              [participant_id, adjustment, organizationId]
-            );
-          }
         }
 
         await client.query('COMMIT');
@@ -329,9 +355,10 @@ module.exports = (pool, logger) => {
           }, 'No records to carry forward');
         }
 
-        // Batch insert the attendance records for target date
+        // Batch insert the attendance records for target date. A carried day
+        // grants no attendance points, and records that it granted none.
         const valuesClauses = toCarryForward.map((_, idx) =>
-          `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4})`
+          `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4}, 0)`
         ).join(', ');
 
         const insertParams = toCarryForward.flatMap(row =>
@@ -339,7 +366,7 @@ module.exports = (pool, logger) => {
         );
 
         await client.query(
-          `INSERT INTO attendance (participant_id, date, status, organization_id)
+          `INSERT INTO attendance (participant_id, date, status, organization_id, points_awarded)
          VALUES ${valuesClauses}`,
           insertParams
         );
@@ -393,11 +420,39 @@ module.exports = (pool, logger) => {
       try {
         await client.query('BEGIN');
 
-        const result = await client.query(
-          `DELETE FROM attendance
-         WHERE organization_id = $1 AND date = $2::date`,
+        // Lock in the same order as marking does, so a mark arriving meanwhile
+        // either lands before the deletion or waits for it.
+        const marked = await client.query(
+          'SELECT participant_id FROM attendance WHERE organization_id = $1 AND date = $2::date',
           [organizationId, date]
         );
+        await lockParticipantsInUnit(client, organizationId, marked.rows.map((row) => row.participant_id));
+
+        const result = await client.query(
+          `DELETE FROM attendance
+         WHERE organization_id = $1 AND date = $2::date
+         RETURNING participant_id, status, points_awarded`,
+          [organizationId, date]
+        );
+
+        // A deleted day takes back the attendance points it granted, so taking
+        // the day again cannot award them twice. The reversal counts in the
+        // day's scout year, where the grant was counted, not in today's.
+        const pointRules = await getPointSystemRules(client, organizationId);
+        const reversals = result.rows
+          .map((row) => ({ participantId: row.participant_id, value: -grantedPoints(row, pointRules) }))
+          .filter((reversal) => reversal.value !== 0);
+        if (reversals.length > 0) {
+          await client.query(
+            `INSERT INTO points (participant_id, value, created_at, organization_id, scout_year_id)
+             SELECT participant_id, value, NOW(), $3,
+                    (SELECT sy.id FROM scout_years sy
+                      WHERE sy.organization_id = $3 AND $4::date BETWEEN sy.start_date AND sy.end_date
+                      LIMIT 1)
+               FROM unnest($1::int[], $2::int[]) AS r(participant_id, value)`,
+            [reversals.map((reversal) => reversal.participantId), reversals.map((reversal) => reversal.value), organizationId, date]
+          );
+        }
 
         await client.query('COMMIT');
         return success(res, { deleted: result.rowCount }, 'Attendance deleted successfully');
@@ -559,6 +614,7 @@ module.exports = (pool, logger) => {
       try {
         await client.query('BEGIN');
 
+        await lockParticipantsInUnit(client, organizationId, participantIds);
         // Get point system rules for this organization
         const pointRules = await getPointSystemRules(client, organizationId);
         const pointUpdates = [];
@@ -571,54 +627,55 @@ module.exports = (pool, logger) => {
           `SELECT
           p.id as participant_id,
           a.status as previous_status,
+          a.points_awarded,
           pg.group_id
          FROM unnest($1::int[]) as p(id)
          LEFT JOIN attendance a ON a.participant_id = p.id
            AND a.organization_id = $2 AND a.date = $3
          LEFT JOIN participant_groups pg ON pg.participant_id = p.id
            AND pg.organization_id = $2`,
-          [participantIds, organizationId, date]
+          [[...new Set(participantIds.map(Number))], organizationId, date]
         );
 
-        // Build VALUES clause for batch upsert
-        const attendanceValues = participantIds.map((_, idx) =>
-          `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4})`
-        ).join(', ');
-
-        const attendanceParams = participantIds.flatMap(pid =>
-          [pid, organizationId, date, status]
-        );
+        // Each row replaces what it granted with what the status earns; the
+        // same status changes nothing (see POST /).
+        const marks = existingDataResult.rows.map((row) => {
+          const granted = grantedPoints({ status: row.previous_status, points_awarded: row.points_awarded }, pointRules);
+          const awarded = row.previous_status === status ? granted : statusPoints(status, pointRules);
+          return { ...row, awarded, adjustment: awarded - granted };
+        });
 
         // Batch upsert all attendance records
         await client.query(
-          `INSERT INTO attendance (participant_id, organization_id, date, status)
-         VALUES ${attendanceValues}
+          `INSERT INTO attendance (participant_id, organization_id, date, status, points_awarded)
+         SELECT m.participant_id, $3, $4::date, $5, m.awarded
+           FROM unnest($1::int[], $2::int[]) AS m(participant_id, awarded)
          ON CONFLICT (participant_id, organization_id, date)
-         DO UPDATE SET status = EXCLUDED.status`,
-          attendanceParams
+         DO UPDATE SET status = EXCLUDED.status, points_awarded = EXCLUDED.points_awarded`,
+          [marks.map((mark) => mark.participant_id), marks.map((mark) => mark.awarded), organizationId, date, status]
         );
 
-        // Calculate point adjustments and prepare batch insert
+        // Prepare the point adjustments for batch insert
         const pointsToInsert = [];
-        for (const row of existingDataResult.rows) {
-          const pointAdjustment = calculateAttendancePoints(row.previous_status, status, pointRules);
+        for (const mark of marks) {
+          const pointAdjustment = mark.adjustment;
 
           if (pointAdjustment !== 0) {
             pointsToInsert.push({
-              participant_id: row.participant_id,
-              group_id: row.group_id,
+              participant_id: mark.participant_id,
+              group_id: mark.group_id,
               points: pointAdjustment,
-              previous_status: row.previous_status
+              previous_status: mark.previous_status
             });
 
             pointUpdates.push({
-              participant_id: row.participant_id,
-              previous_status: row.previous_status,
+              participant_id: mark.participant_id,
+              previous_status: mark.previous_status,
               new_status: status,
               points: pointAdjustment
             });
 
-            logger.info(`[attendance] Participant ${row.participant_id}: ${row.previous_status || 'none'} -> ${status}, points: ${pointAdjustment > 0 ? '+' : ''}${pointAdjustment}`);
+            logger.info(`[attendance] Participant ${mark.participant_id}: ${mark.previous_status || 'none'} -> ${status}, points: ${pointAdjustment > 0 ? '+' : ''}${pointAdjustment}`);
           }
         }
 

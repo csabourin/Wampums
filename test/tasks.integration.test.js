@@ -65,7 +65,7 @@ describe.skipIf(!DATABASE_URL)('Shared activity tasks', () => {
   beforeAll(async () => {
     pool = new Pool({ connectionString: DATABASE_URL });
     const first = await unit(); const second = await unit();
-    const manageRole = await role(first, ['tasks.view', 'tasks.manage']);
+    const manageRole = await role(first, ['tasks.view', 'tasks.manage', 'meetings.manage']);
     viewRole = await role(first, ['tasks.view']);
     const otherRole = await role(second, ['tasks.view', 'tasks.manage']);
     manager = await member(first, manageRole);
@@ -77,6 +77,7 @@ describe.skipIf(!DATABASE_URL)('Shared activity tasks', () => {
     app = express(); app.locals.pool = pool; app.use(express.json());
     app.use('/api/v1/tasks', require('../routes/tasks')(pool));
     app.use('/api/v1/participants', require('../routes/participants')(pool));
+    app.use('/api/v1/yearly-planner', require('../routes/yearlyPlanner')(pool, { error: jest.fn() }));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
   });
   afterAll(async () => {
@@ -151,6 +152,27 @@ describe.skipIf(!DATABASE_URL)('Shared activity tasks', () => {
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
     expect(results.find((result) => result.status === 'rejected').reason.status).toBe(409);
     expect(await one('SELECT COUNT(*)::int FROM activity_task_history WHERE task_id = $1', [task.id])).toBe(2);
+  });
+  test.each(['regenerate', 'delete'])('changing a year plan with %s preserves meetings with assigned tasks and their history', async (action) => {
+    const planId = await one(`INSERT INTO year_plans (organization_id, title, start_date, end_date, created_by)
+      VALUES ($1, 'Fictional task plan', CURRENT_DATE + 7, CURRENT_DATE + 21, $2) RETURNING id`, [units[0], manager]);
+    const preparedMeeting = await one(`INSERT INTO year_plan_meetings (organization_id, year_plan_id, meeting_date)
+      VALUES ($1, $2, (SELECT GREATEST(CURRENT_DATE + 28, MAX(meeting_date)) + 7 FROM year_plan_meetings WHERE organization_id = $1)) RETURNING id`, [units[0], planId]);
+    const untouchedMeeting = await one(`INSERT INTO year_plan_meetings (organization_id, year_plan_id, meeting_date)
+      VALUES ($1, $2, (SELECT meeting_date + 1 FROM year_plan_meetings WHERE id = $3)) RETURNING id`, [units[0], planId, preparedMeeting]);
+    const task = await saveTask(pool, units[0], manager, assignment({ activity_id: null, meeting_id: preparedMeeting }));
+    const path = `/api/v1/yearly-planner/plans/${planId}`;
+    const response = action === 'regenerate'
+      ? await request(app).patch(path).set(as(manager)).send({ regenerate_meetings: true })
+      : await request(app).delete(path).set(as(manager));
+    expect(response.status).toBe(200);
+    if (action === 'regenerate') {expect(response.body.data.regenerated_meeting_count).toBeGreaterThan(0);}
+    const kept = await pool.query('SELECT id, year_plan_id FROM year_plan_meetings WHERE id = $1', [preparedMeeting]);
+    expect(kept.rows).toEqual([{ id: preparedMeeting, year_plan_id: action === 'delete' ? null : planId }]);
+    expect(await one('SELECT COUNT(*)::int FROM activity_tasks WHERE id = $1 AND organization_id = $2', [task.id, units[0]])).toBe(1);
+    expect(await one('SELECT COUNT(*)::int FROM activity_task_history WHERE task_id = $1 AND organization_id = $2', [task.id, units[0]])).toBe(1);
+    const untouched = await pool.query('SELECT id FROM year_plan_meetings WHERE id = $1', [untouchedMeeting]);
+    expect(untouched.rows).toEqual([]);
   });
   test('revoking task rights closes the personal task list immediately', async () => {
     await pool.query('DELETE FROM role_permissions WHERE role_id = $1', [viewRole]);

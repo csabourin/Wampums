@@ -21,6 +21,7 @@ const {
   buildPermissionSlipLeaderCopyContent,
 } = require('../utils/permission-slip-email');
 const { listActivityLeaderContacts } = require('../services/unitLeaders');
+const { EQUIPMENT_CATEGORIES } = require('../services/equipmentCategories');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { findTestRecipient, markAsTestEmail } = require('../utils/test-email');
@@ -496,6 +497,35 @@ module.exports = (pool, logger) => {
     }
   }
 
+  /**
+   * Run a reservation's stock check and its write as one transaction.
+   *
+   * The check reads what is reserved and lent, then the write adds to it.
+   * Without a transaction, two requests could both read the same stock and
+   * both write. Each route locks the item rows it checks (FOR UPDATE, as the
+   * loans do), so reservations and loans of one item wait for each other.
+   *
+   * `work` returns what to answer, as a function, and whether the
+   * transaction must be undone (`rollback`) because a check refused it.
+   *
+   * @param {function(Object): Promise<{send: Function, rollback?: boolean}>} work
+   * @returns {Promise<{send: Function, rollback?: boolean}>} What work returned
+   */
+  async function inTransaction(work) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const outcome = await work(client);
+      await client.query(outcome.rollback ? 'ROLLBACK' : 'COMMIT');
+      return outcome;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   // ============================
   // Equipment inventory
   // ============================
@@ -503,9 +533,19 @@ module.exports = (pool, logger) => {
     '/equipment',
     authenticate,
     requirePermission('inventory.view'),
+    // Dates to reserve for: each item then says how many are free for them,
+    // counted as a reservation of those dates is (reservations and loans).
+    query('date_from').optional().isISO8601({ strict: true }),
+    query('date_to').optional().isISO8601({ strict: true }),
+    validateIdQuery('activity_id'),
+    checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
+        const datesFrom = req.query.date_from ? parseDate(req.query.date_from) : null;
+        const datesTo = req.query.date_to ? parseDate(req.query.date_to) : null;
+        const forDates = datesFrom && datesTo && datesFrom <= datesTo;
+        const activityId = req.query.activity_id ? Number(req.query.activity_id) : null;
         // Settle lapsed reservations first: their held quantity is what the
         // availability sum below reports as unavailable.
         await expireLapsedReservations(pool, organizationId, req.log || null);
@@ -551,11 +591,23 @@ module.exports = (pool, logger) => {
                     WHERE er.equipment_id = e.id
                       AND ${activeReservationPredicate('er')}
                   ), 0) AS reserved_quantity,
+                  equipment_loaned_quantity(e.id, CURRENT_DATE) AS loaned_quantity,
+                  CASE WHEN $2::date IS NULL THEN NULL ELSE GREATEST(0,
+                    COALESCE(e.quantity_total, 0)
+                    - COALESCE((
+                        SELECT SUM(er.reserved_quantity)
+                          FROM equipment_reservations er
+                         WHERE er.equipment_id = e.id
+                           AND er.status IN ('reserved', 'confirmed')
+                           AND er.date_from <= $3::date AND er.date_to >= $2::date
+                      ), 0)
+                    - equipment_loans_beyond_reservations(e.id, $2::date, $3::date, $4::int)
+                  )::int END AS available_for_dates,
                   COALESCE(shared_visibility.shared_organizations, '{}'::text[]) AS shared_organizations
              FROM accessible_equipment e
              LEFT JOIN shared_visibility ON shared_visibility.equipment_id = e.id
              ORDER BY e.category NULLS LAST, e.name`,
-          [organizationId],
+          [organizationId, forDates ? datesFrom : null, forDates ? datesTo : null, forDates ? activityId : null],
         );
 
         const equipment = await Promise.all(
@@ -578,7 +630,7 @@ module.exports = (pool, logger) => {
     requirePermission('inventory.manage'),
     [
       check('name').isString().trim().isLength({ min: 2, max: 150 }),
-      check('category').optional().isString().trim().isLength({ max: 100 }),
+      check('category').optional({ values: 'falsy' }).isIn(EQUIPMENT_CATEGORIES),
       check('description').optional().isString().trim().isLength({ max: 2000 }),
       check('quantity_total').optional().isInt({ min: 0 }),
       check('quantity_available').optional().isInt({ min: 0 }),
@@ -611,7 +663,6 @@ module.exports = (pool, logger) => {
         const organizationId = await getOrganizationId(req, pool);
         const {
           name,
-          category,
           description,
           quantity_total = 1,
           quantity_available,
@@ -679,7 +730,8 @@ module.exports = (pool, logger) => {
           [
             organizationId,
             name,
-            category,
+            // An item put in no category goes in Other.
+            req.body.category || 'other',
             description,
             quantity_total,
             available,
@@ -726,7 +778,7 @@ module.exports = (pool, logger) => {
     [
       validateIdParam('id'),
       check('name').optional().isString().trim().isLength({ min: 2, max: 150 }),
-      check('category').optional().isString().trim().isLength({ max: 100 }),
+      check('category').optional().isIn(EQUIPMENT_CATEGORIES),
       check('description').optional().isString().trim().isLength({ max: 2000 }),
       check('quantity_total').optional().isInt({ min: 0 }),
       check('quantity_available').optional().isInt({ min: 0 }),
@@ -1420,94 +1472,103 @@ module.exports = (pool, logger) => {
 
         await verifyEquipmentAccess(equipment_id, organizationId);
 
-        // Get equipment details
-        const equipmentResult = await pool.query(
-          `SELECT name, quantity_total FROM equipment_items WHERE id = $1`,
-          [equipment_id],
-        );
-
-        if (equipmentResult.rows.length === 0) {
-          return error(res, 'Equipment not found', 404);
-        }
-
-        const { name: equipmentName, quantity_total: quantityTotal } =
-          equipmentResult.rows[0];
-
-        // Check for overlapping reservations to prevent double-booking
-        // Exclude the current reservation if this is an update (same organization, equipment, meeting_date, reserved_for)
-        const overlapResult = await pool.query(
-          `SELECT COALESCE(SUM(reserved_quantity), 0) as total_reserved
-           FROM equipment_reservations
-           WHERE equipment_id = $1
-             AND status IN ('reserved', 'confirmed')
-             AND (
-               (date_from <= $3 AND date_to >= $2) OR  -- overlaps with our date range
-               (date_from >= $2 AND date_to <= $3)     -- completely contained within our date range
-             )
-             AND NOT (
-               organization_id = $4
-               AND meeting_date = $5
-               AND reserved_for = $6
-             )`,
-          [
-            equipment_id,
-            normalizedDateFrom,
-            normalizedDateTo,
-            organizationId,
-            normalizedDate,
-            reserved_for ?? '',
-          ],
-        );
-
-        const totalReserved = parseInt(
-          overlapResult.rows[0].total_reserved,
-          10,
-        );
-        const available = Math.max(0, quantityTotal - totalReserved);
-
-        // Check if adding this reservation would exceed available quantity
-        if (totalReserved + reserved_quantity > quantityTotal) {
-          return error(
-            res,
-            `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${reserved_quantity}).`,
-            400,
+        const outcome = await inTransaction(async (client) => {
+          // Lock the item: a concurrent reservation or loan of it waits here.
+          const equipmentResult = await client.query(
+            `SELECT name, quantity_total FROM equipment_items WHERE id = $1 FOR UPDATE`,
+            [equipment_id],
           );
-        }
 
-        const insertResult = await pool.query(
-          `INSERT INTO equipment_reservations
-           (organization_id, equipment_id, meeting_id, meeting_date, date_from, date_to, reserved_quantity, reserved_for, status, notes, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-           ON CONFLICT ON CONSTRAINT equipment_reservations_unique_reservation
-           DO UPDATE SET reserved_quantity = EXCLUDED.reserved_quantity,
-                         status = EXCLUDED.status,
-                         notes = EXCLUDED.notes,
-                         meeting_id = EXCLUDED.meeting_id,
-                         date_from = EXCLUDED.date_from,
-                         date_to = EXCLUDED.date_to,
-                         updated_at = CURRENT_TIMESTAMP
-           RETURNING *`,
-          [
-            organizationId,
-            equipment_id,
-            meeting_id || null,
-            normalizedDate,
-            normalizedDateFrom,
-            normalizedDateTo,
-            reserved_quantity,
-            reserved_for ?? '',
-            status,
-            notes,
-            req.user?.id || null,
-          ],
-        );
+          if (equipmentResult.rows.length === 0) {
+            return { rollback: true, send: () => error(res, 'Equipment not found', 404) };
+          }
 
-        return success(
-          res,
-          { reservation: insertResult.rows[0] },
-          'Reservation saved',
-          201,
-        );
+          const { name: equipmentName, quantity_total: quantityTotal } =
+            equipmentResult.rows[0];
+
+          // Check for overlapping reservations to prevent double-booking
+          // Exclude the current reservation if this is an update (same organization, equipment, meeting_date, reserved_for)
+          const overlapResult = await client.query(
+            `SELECT COALESCE(SUM(reserved_quantity), 0)
+                    + equipment_loans_beyond_reservations($1, $2::date, $3::date) as total_reserved
+             FROM equipment_reservations
+             WHERE equipment_id = $1
+               AND status IN ('reserved', 'confirmed')
+               AND (
+                 (date_from <= $3 AND date_to >= $2) OR  -- overlaps with our date range
+                 (date_from >= $2 AND date_to <= $3)     -- completely contained within our date range
+               )
+               AND NOT (
+                 organization_id = $4
+                 AND meeting_date = $5
+                 AND reserved_for = $6
+               )`,
+            [
+              equipment_id,
+              normalizedDateFrom,
+              normalizedDateTo,
+              organizationId,
+              normalizedDate,
+              reserved_for ?? '',
+            ],
+          );
+
+          const totalReserved = parseInt(
+            overlapResult.rows[0].total_reserved,
+            10,
+          );
+          const available = Math.max(0, quantityTotal - totalReserved);
+
+          // Check if adding this reservation would exceed available quantity
+          if (totalReserved + reserved_quantity > quantityTotal) {
+            return {
+              rollback: true,
+              send: () => error(
+                res,
+                `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${reserved_quantity}).`,
+                400,
+              ),
+            };
+          }
+
+          const insertResult = await client.query(
+            `INSERT INTO equipment_reservations
+             (organization_id, equipment_id, meeting_id, meeting_date, date_from, date_to, reserved_quantity, reserved_for, status, notes, created_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             ON CONFLICT ON CONSTRAINT equipment_reservations_unique_reservation
+             DO UPDATE SET reserved_quantity = EXCLUDED.reserved_quantity,
+                           status = EXCLUDED.status,
+                           notes = EXCLUDED.notes,
+                           meeting_id = EXCLUDED.meeting_id,
+                           date_from = EXCLUDED.date_from,
+                           date_to = EXCLUDED.date_to,
+                           updated_at = CURRENT_TIMESTAMP
+             RETURNING *`,
+            [
+              organizationId,
+              equipment_id,
+              meeting_id || null,
+              normalizedDate,
+              normalizedDateFrom,
+              normalizedDateTo,
+              reserved_quantity,
+              reserved_for ?? '',
+              status,
+              notes,
+              req.user?.id || null,
+            ],
+          );
+
+          return {
+            send: () => success(
+              res,
+              { reservation: insertResult.rows[0] },
+              'Reservation saved',
+              201,
+            ),
+          };
+        });
+        return outcome.send();
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
@@ -1559,99 +1620,110 @@ module.exports = (pool, logger) => {
           req.body.status !== undefined &&
           HOLDING_STATUSES.includes(req.body.status);
 
-        if (req.body.reserved_quantity !== undefined || reacquiresStock) {
-          // Get current reservation details
-          const currentReservation = await pool.query(
-            `SELECT equipment_id, date_from, date_to, reserved_quantity, status
-             FROM equipment_reservations
-             WHERE id = $1 AND organization_id = $2`,
-            [reservationId, organizationId],
-          );
-
-          if (currentReservation.rows.length === 0) {
-            return error(res, 'Reservation not found', 404);
-          }
-
-          const reservation = currentReservation.rows[0];
-
-          // A row that already holds stock is checked because its quantity may
-          // grow; a row that released it is checked because it may be taking it
-          // back. Between them that is every case worth checking.
-          if (HOLDING_STATUSES.includes(reservation.status) || reacquiresStock) {
-            // Get equipment details
-            const equipmentResult = await pool.query(
-              `SELECT name, quantity_total FROM equipment_items WHERE id = $1`,
-              [reservation.equipment_id],
-            );
-
-            if (equipmentResult.rows.length === 0) {
-              return error(res, 'Equipment not found', 404);
-            }
-
-            const { name: equipmentName, quantity_total: quantityTotal } =
-              equipmentResult.rows[0];
-
-            // Check for overlapping reservations (excluding this reservation)
-            const overlapResult = await pool.query(
-              `SELECT COALESCE(SUM(reserved_quantity), 0) as total_reserved
+        const outcome = await inTransaction(async (client) => {
+          if (req.body.reserved_quantity !== undefined || reacquiresStock) {
+            // Get current reservation details
+            const currentReservation = await client.query(
+              `SELECT equipment_id, date_from, date_to, reserved_quantity, status, activity_id
                FROM equipment_reservations
-               WHERE equipment_id = $1
-                 AND id != $2
-                 AND status IN ('reserved', 'confirmed')
-                 AND (
-                   (date_from <= $4 AND date_to >= $3) OR  -- overlaps with our date range
-                   (date_from >= $3 AND date_to <= $4)     -- completely contained within our date range
-                 )`,
-              [
-                reservation.equipment_id,
-                reservationId,
-                reservation.date_from,
-                reservation.date_to,
-              ],
+               WHERE id = $1 AND organization_id = $2`,
+              [reservationId, organizationId],
             );
 
-            const totalReserved = parseInt(
-              overlapResult.rows[0].total_reserved,
-              10,
-            );
-            const available = Math.max(0, quantityTotal - totalReserved);
+            if (currentReservation.rows.length === 0) {
+              return { rollback: true, send: () => error(res, 'Reservation not found', 404) };
+            }
 
-            // Check if the resulting quantity would exceed available. A
-            // status-only change keeps whatever the row already reserved.
-            const requestedQuantity =
-              req.body.reserved_quantity !== undefined
-                ? req.body.reserved_quantity
-                : reservation.reserved_quantity;
+            const reservation = currentReservation.rows[0];
 
-            if (totalReserved + requestedQuantity > quantityTotal) {
-              return error(
-                res,
-                `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${requestedQuantity}).`,
-                400,
+            // A row that already holds stock is checked because its quantity may
+            // grow; a row that released it is checked because it may be taking it
+            // back. Between them that is every case worth checking.
+            if (HOLDING_STATUSES.includes(reservation.status) || reacquiresStock) {
+              // Lock the item: a concurrent reservation or loan of it waits here.
+              const equipmentResult = await client.query(
+                `SELECT name, quantity_total FROM equipment_items WHERE id = $1 FOR UPDATE`,
+                [reservation.equipment_id],
               );
+
+              if (equipmentResult.rows.length === 0) {
+                return { rollback: true, send: () => error(res, 'Equipment not found', 404) };
+              }
+
+              const { name: equipmentName, quantity_total: quantityTotal } =
+                equipmentResult.rows[0];
+
+              // Check for overlapping reservations (excluding this reservation)
+              const overlapResult = await client.query(
+                `SELECT COALESCE(SUM(reserved_quantity), 0)
+                    + equipment_loans_beyond_reservations($1, $3::date, $4::date, $5::int, $2::int) as total_reserved
+                 FROM equipment_reservations
+                 WHERE equipment_id = $1
+                   AND id != $2
+                   AND status IN ('reserved', 'confirmed')
+                   AND (
+                     (date_from <= $4 AND date_to >= $3) OR  -- overlaps with our date range
+                     (date_from >= $3 AND date_to <= $4)     -- completely contained within our date range
+                   )`,
+                [
+                  reservation.equipment_id,
+                  reservationId,
+                  reservation.date_from,
+                  reservation.date_to,
+                  // Loans made for this reservation's activity are it leaving the shelf.
+                  reservation.activity_id || null,
+                ],
+              );
+
+              const totalReserved = parseInt(
+                overlapResult.rows[0].total_reserved,
+                10,
+              );
+              const available = Math.max(0, quantityTotal - totalReserved);
+
+              // Check if the resulting quantity would exceed available. A
+              // status-only change keeps whatever the row already reserved.
+              const requestedQuantity =
+                req.body.reserved_quantity !== undefined
+                  ? req.body.reserved_quantity
+                  : reservation.reserved_quantity;
+
+              if (totalReserved + requestedQuantity > quantityTotal) {
+                return {
+                  rollback: true,
+                  send: () => error(
+                    res,
+                    `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${requestedQuantity}).`,
+                    400,
+                  ),
+                };
+              }
             }
           }
-        }
 
-        const queryText = `UPDATE equipment_reservations
-          SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
-          WHERE id = $1 AND organization_id = $${updates.length + 2}
-          RETURNING *`;
-        const result = await pool.query(queryText, [
-          reservationId,
-          ...values,
-          organizationId,
-        ]);
+          const queryText = `UPDATE equipment_reservations
+            SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1 AND organization_id = $${updates.length + 2}
+            RETURNING *`;
+          const result = await client.query(queryText, [
+            reservationId,
+            ...values,
+            organizationId,
+          ]);
 
-        if (result.rows.length === 0) {
-          return error(res, 'Reservation not found', 404);
-        }
+          if (result.rows.length === 0) {
+            return { rollback: true, send: () => error(res, 'Reservation not found', 404) };
+          }
 
-        return success(
-          res,
-          { reservation: result.rows[0] },
-          'Reservation updated',
-        );
+          return {
+            send: () => success(
+              res,
+              { reservation: result.rows[0] },
+              'Reservation updated',
+            ),
+          };
+        });
+        return outcome.send();
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
@@ -1690,7 +1762,7 @@ module.exports = (pool, logger) => {
         // If activity_id is provided, fetch activity details and use its date
         if (activity_id) {
           const activityResult = await pool.query(
-            `SELECT id, name, activity_date FROM activities
+            `SELECT id, name, activity_date, activity_start_date, activity_end_date FROM activities
              WHERE id = $1 AND organization_id = $2 AND is_active = TRUE`,
             [activity_id, organizationId]
           );
@@ -1701,8 +1773,9 @@ module.exports = (pool, logger) => {
 
           const activity = activityResult.rows[0];
           activityName = activity.name;
-          normalizedDateFrom = parseDate(activity.activity_date);
-          normalizedDateTo = parseDate(activity.activity_date);
+          // The whole activity, as the picker counts availability for it.
+          normalizedDateFrom = parseDate(activity.activity_start_date || activity.activity_date);
+          normalizedDateTo = parseDate(activity.activity_end_date || activity.activity_date || activity.activity_start_date);
         } else {
           // If no activity_id, dates are required
           if (!date_from || !date_to) {
@@ -1730,83 +1803,100 @@ module.exports = (pool, logger) => {
           await verifyEquipmentAccess(item.equipment_id, organizationId);
         }
 
-        const createdReservations = [];
-
-        // Create a reservation for each equipment item
-        for (const item of items) {
-          // Get equipment details
-          const equipmentResult = await pool.query(
-            `SELECT name, quantity_total FROM equipment_items WHERE id = $1`,
-            [item.equipment_id],
-          );
-
-          if (equipmentResult.rows.length === 0) {
-            return error(res, `Equipment not found`, 404);
-          }
-
-          const { name: equipmentName, quantity_total: quantityTotal } =
-            equipmentResult.rows[0];
-
-          // Check for overlapping reservations to prevent double-booking
-          const overlapResult = await pool.query(
-            `SELECT COALESCE(SUM(reserved_quantity), 0) as total_reserved
-             FROM equipment_reservations
-             WHERE equipment_id = $1
-               AND status IN ('reserved', 'confirmed')
-               AND (
-                 (date_from <= $3 AND date_to >= $2) OR  -- overlaps with our date range
-                 (date_from >= $2 AND date_to <= $3)     -- completely contained within our date range
-               )`,
-            [item.equipment_id, normalizedDateFrom, normalizedDateTo],
-          );
-
-          const totalReserved = parseInt(
-            overlapResult.rows[0].total_reserved,
-            10,
-          );
-          const available = Math.max(0, quantityTotal - totalReserved);
-
-          // Check if adding this reservation would exceed available quantity
-          if (totalReserved + item.quantity > quantityTotal) {
-            return error(
-              res,
-              `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${item.quantity}).`,
-              400,
+        // All or none: an item short of stock undoes the items before it, so a
+        // refused batch never leaves part of itself reserved.
+        const outcome = await inTransaction(async (client) => {
+          // Lock every item first, in id order (as the loans do), so two batches
+          // naming the same items cannot each hold one the other waits for.
+          const lockedItems = new Map();
+          const itemIds = [...new Set(items.map((item) => Number(item.equipment_id)))].sort((a, b) => a - b);
+          for (const equipmentId of itemIds) {
+            // eslint-disable-next-line no-await-in-loop -- locks must be taken one after another, in order
+            const equipmentResult = await client.query(
+              `SELECT name, quantity_total FROM equipment_items WHERE id = $1 FOR UPDATE`,
+              [equipmentId],
             );
+            if (equipmentResult.rows.length === 0) {
+              return { rollback: true, send: () => error(res, `Equipment not found`, 404) };
+            }
+            lockedItems.set(equipmentId, equipmentResult.rows[0]);
           }
 
-          const insertResult = await pool.query(
-            `INSERT INTO equipment_reservations
-             (organization_id, equipment_id, activity_id, meeting_date, date_from, date_to, reserved_quantity, reserved_for, status, notes, created_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-             RETURNING *, (SELECT name FROM equipment_items WHERE id = $2) as equipment_name`,
-            [
-              organizationId,
-              item.equipment_id,
-              activity_id || null,
-              normalizedDateFrom, // Use date_from as meeting_date for backward compatibility
-              normalizedDateFrom,
-              normalizedDateTo,
-              item.quantity,
-              reserved_for,
-              'reserved',
-              notes || null,
-              req.user?.id || null,
-            ],
-          );
+          const createdReservations = [];
 
-          createdReservations.push(insertResult.rows[0]);
-        }
+          // Create a reservation for each equipment item
+          for (const item of items) {
+            const { name: equipmentName, quantity_total: quantityTotal } =
+              lockedItems.get(Number(item.equipment_id));
 
-        return success(
-          res,
-          {
-            reservations: createdReservations,
-            count: createdReservations.length,
-          },
-          'Bulk reservations saved',
-          201,
-        );
+            // Check for overlapping reservations to prevent double-booking
+            const overlapResult = await client.query(
+              `SELECT COALESCE(SUM(reserved_quantity), 0)
+                    + equipment_loans_beyond_reservations($1, $2::date, $3::date, $4::int) as total_reserved
+               FROM equipment_reservations
+               WHERE equipment_id = $1
+                 AND status IN ('reserved', 'confirmed')
+                 AND (
+                   (date_from <= $3 AND date_to >= $2) OR  -- overlaps with our date range
+                   (date_from >= $2 AND date_to <= $3)     -- completely contained within our date range
+                 )`,
+              [item.equipment_id, normalizedDateFrom, normalizedDateTo, req.body.activity_id || null],
+            );
+
+            const totalReserved = parseInt(
+              overlapResult.rows[0].total_reserved,
+              10,
+            );
+            const available = Math.max(0, quantityTotal - totalReserved);
+
+            // Check if adding this reservation would exceed available quantity
+            if (totalReserved + item.quantity > quantityTotal) {
+              return {
+                rollback: true,
+                send: () => error(
+                  res,
+                  `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${item.quantity}).`,
+                  400,
+                ),
+              };
+            }
+
+            const insertResult = await client.query(
+              `INSERT INTO equipment_reservations
+               (organization_id, equipment_id, activity_id, meeting_date, date_from, date_to, reserved_quantity, reserved_for, status, notes, created_by)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+               RETURNING *, (SELECT name FROM equipment_items WHERE id = $2) as equipment_name`,
+              [
+                organizationId,
+                item.equipment_id,
+                activity_id || null,
+                normalizedDateFrom, // Use date_from as meeting_date for backward compatibility
+                normalizedDateFrom,
+                normalizedDateTo,
+                item.quantity,
+                reserved_for,
+                'reserved',
+                notes || null,
+                req.user?.id || null,
+              ],
+            );
+
+            createdReservations.push(insertResult.rows[0]);
+          }
+
+          return {
+            send: () => success(
+              res,
+              {
+                reservations: createdReservations,
+                count: createdReservations.length,
+              },
+              'Bulk reservations saved',
+              201,
+            ),
+          };
+        });
+        return outcome.send();
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;

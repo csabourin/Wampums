@@ -30,4 +30,29 @@ async function allEnrolledInUnit(db, organizationId, participantIds) {
   return ids.every((id) => enrolled.has(id));
 }
 
-module.exports = { allEnrolledInUnit };
+/**
+ * Serialize writes about these youths until the transaction ends.
+ *
+ * Attendance points and honors check what is already recorded before writing.
+ * A youth's first mark or honor of the day has no row to lock yet, so two
+ * devices (or two tabs replaying one offline outbox) would both find nothing
+ * and both write. Locking the youths' enrollment rows makes the second writer
+ * wait and read what the first recorded. Rows are locked in id order, so
+ * concurrent batches naming the same youths cannot deadlock.
+ *
+ * @param {Object} client - Client inside an open transaction
+ * @param {number} organizationId - The writing unit
+ * @param {Array<number|string>} participantIds - Youths about to be written about
+ * @returns {Promise<void>}
+ */
+async function lockParticipantsInUnit(client, organizationId, participantIds) {
+  await client.query(
+    `SELECT 1 FROM participant_enrollments
+      WHERE organization_id = $1 AND participant_id = ANY($2::int[])
+      ORDER BY participant_id, scout_year_id
+      FOR UPDATE`,
+    [organizationId, participantIds]
+  );
+}
+
+module.exports = { allEnrolledInUnit, lockParticipantsInUnit };

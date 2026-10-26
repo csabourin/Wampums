@@ -55,6 +55,9 @@ export class ManagePoints {
     // arrive out of order; clicks made meanwhile accumulate in the queue
     this.updateQueue = []; // [{ payloads, txn, resolve }]
     this.batchInFlight = false;
+    // Counts awards made on this screen, so a server read that started
+    // before one can tell its totals are already out of date.
+    this.awardCount = 0;
 
     this.participants = [];
     this.groups = [];
@@ -83,8 +86,11 @@ export class ManagePoints {
       this.unsubscribeStore?.();
       this.unsubscribeStore = this.store.subscribe((changedIds) => this.onStoreChange(changedIds));
       debugLog('ManagePoints initialized');
+      // Online, totals come from the server: a cache written elsewhere (camp
+      // preparation, another screen) only bridges the wait. Queued awards
+      // still keep their local copy (see refreshPointsData).
       if (navigator.onLine) {
-        await this.refreshPointsData();
+        await this.refreshPointsData({ forceRefresh: true });
       }
     } catch (error) {
       debugError('Error initializing manage points:', error);
@@ -604,6 +610,7 @@ export class ManagePoints {
     this.pendingActionKeys.add(actionKey);
 
     try {
+      this.awardCount += 1;
       this.store.applyOptimistic(txn);
       this.showPointChangeAnimation(points, announcementTarget);
 
@@ -859,7 +866,15 @@ export class ManagePoints {
       }
 
       debugLog('Fetching fresh points data');
+      const awardsBefore = this.awardCount;
       const data = await API.getNoCache('v1/points');
+      // An award made while the read was on its way is newer than its totals:
+      // keep the confirmed or locally queued totals instead.
+      if (this.awardCount !== awardsBefore || this.batchInFlight || this.updateQueue.length
+        || await this.hasQueuedPoints()) {
+        debugLog('Discarding points totals read before a newer award');
+        return;
+      }
       const normalized = this.normalizePointsData(data);
 
       // The points endpoint returns totals but not role/leader flags, so merge

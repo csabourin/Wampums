@@ -286,6 +286,10 @@ router.delete('/data', authenticate, blockDemoRoles, requirePermission('data.del
 - ✅ Use `getOrganizationId(req, pool)` helper to get organization context
 - ✅ Organization ID from the JWT token **always takes precedence** over `x-organization-id` header and `organization_id` body field — never trust client-supplied org IDs for authenticated requests
 - ✅ For unauthenticated public routes, the `x-organization-id` header (validated against `organization_domains` table) is used
+- ✅ **What one unit records never refuses or changes another's.** A youth may be enrolled in several
+  units; each records attendance, honors and points for them independently. A uniqueness constraint on
+  a youth's records includes `organization_id` (migration 049 dropped the last one that did not, on
+  `honors`), and a lock taken for one unit's write locks that unit's rows only.
 ```javascript
 const { getOrganizationId } = require('../middleware/auth');
 const organizationId = await getOrganizationId(req, pool);
@@ -434,6 +438,19 @@ associés au compte et à l’unité. Chaque lot porte un `Idempotency-Key` dès
 envoi : `point_mutation_receipts` et les points sont validés dans la même transaction.
 Une réponse perdue peut donc être retransmise sans doubler les points. Déployer la
 migration `044_point_mutation_receipts.sql` avant le nouveau client.
+Les totaux mis en cache par la préparation sont ceux de l'année scoute active, comme
+`GET /api/v1/points` ; en ligne, l'écran des points recharge toujours les totaux du serveur.
+Une présence verrouille l'inscription du jeune avant de comparer son statut : deux appareils
+qui marquent le même jeune au même moment ne donnent les points de présence qu'une fois.
+Les onglets ouverts partagent une seule file : un seul à la fois la rejoue (Web Lock
+`wampums-offline-outbox-replay`), les autres n'envoient rien et réessaient plus tard.
+L'onglet qui rejoue relaie `offlineMutationReplayed` / `offlineMutationRejected` aux autres
+(BroadcastChannel `wampums-offline-outbox`) : l'écran qui a mis un changement en file
+l'apprend même si un autre onglet l'a envoyé.
+`attendance.points_awarded` (migration 047) retient les points qu'une présence a donnés :
+un changement de statut ou une journée supprimée reprend exactement ceux-là (une journée
+reprise de la veille n'en donne aucun). Un niveau de badge donne ses points une seule fois
+(`badge_progress.points_awarded`, migration 048), même approuvé de nouveau.
 
 Les camps des sept prochains jours se préparent automatiquement lorsque la SPA
 est ouverte avec du réseau, pour les comptes ayant `activities.view` et une portée
@@ -444,6 +461,8 @@ un ancien indicateur sans preuve ne suffit pas. Les données sont actualisées c
 heure et après synchronisation, avec une nouvelle tentative chaque minute en cas
 d'échec. Une file locale non vide reporte le téléchargement pour préserver les
 modifications. Les camps futurs n'activent le mode camp qu'à leur début.
+Le tableau de bord n'affiche la disponibilité hors ligne d'un camp que de 24 heures avant son début
+jusqu'à sa fin (`isCampReadinessDue`) ; la préparation, elle, commence plus tôt en arrière-plan.
 « Vérifier la disponibilité hors ligne » permet une actualisation manuelle depuis
 les activités ou la préparation hors ligne ; vérifier chaque appareil avant de partir.
 Les totaux locaux restent
@@ -462,7 +481,7 @@ explicitly grant them through the role matrix; the district role receives new
 permissions through its existing trigger. Task-only helpers can use an ordinary
 unit-scoped custom role with only `tasks.view`.
 
-Migration `047_activity_tasks.sql` creates tasks linked to exactly one outing/camp
+Migration `052_activity_tasks.sql` creates tasks linked to exactly one outing/camp
 or planned meeting. Use `services/activityTasks.js` for writes: it locks and checks
 active membership in the same unit, verifies the event's unit, and commits task
 creation/status history atomically. Status changes require `expected_status` and
@@ -472,6 +491,9 @@ management endpoints require `tasks.manage`. History records who changed the
 status and when. Extend `config/tasks.js` and `CONFIG.TASKS.STATUS_KEYS` together
 when adding states, with English and French labels and a migration extending the
 status constraint.
+
+Regenerating a year plan preserves meetings with assigned tasks. Deleting a plan
+detaches those meetings, preserving assignments and their history.
 
 Task writes require a connection and cannot be queued. Confirmed writes invalidate
 task reads through the shared API client. The task screen uses minimal event/member
@@ -636,7 +658,8 @@ them when another action screen opens offline. Apply migration 045 before the cl
   signed-in person the server takes it from the token and ignores anything else.
 
 #### Scout years and archives
-- ✅ A leader may consult an archived scout year (`spa/modules/scout-year/`). The API layer then sends
+- ✅ A leader may consult an archived scout year (`spa/modules/scout-year/`) once they turn the year
+  selector on under Display (`/display-settings`, a per-device preference). The API layer then sends
   the year with every read and refuses every write, and `ArchiveReadOnly` disables every control in
   `#app`. Mark a control used to browse (date picker, filter, search) with `data-archive-safe`.
 - ✅ Lists of youth are the roster of the year being consulted, not every participant ever enrolled.

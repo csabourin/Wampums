@@ -90,6 +90,8 @@ module.exports = (app, pool) => {
   const budgetsRoutes = require('./budgets')(pool, logger);
   const externalRevenueRoutes = require('./external-revenue')(pool, logger);
   const resourcesRoutes = require('./resources')(pool, logger);
+  const equipmentLoansRoutes = require('./equipmentLoans')(pool);
+  const equipmentSuggestionsRoutes = require('./equipmentSuggestions')(pool);
   const medicationRoutes = require('./medication')(pool, logger);
   const activitiesRoutes = require('./activities')(pool);
   const offlineRoutes = require('./offline')(pool, logger);
@@ -183,6 +185,8 @@ module.exports = (app, pool) => {
   app.use('/api', externalRevenueRoutes);
 
   app.use('/api/v1/resources', resourcesRoutes);
+  app.use('/api/v1/equipment-loans', equipmentLoansRoutes);
+  app.use('/api/v1/equipment-suggestions', equipmentSuggestionsRoutes);
 
   app.use('/api', medicationRoutes);
 

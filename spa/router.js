@@ -50,6 +50,7 @@ import {
   canViewMeetings,
   canManageMeetings,
   hasPermission,
+  hasOrganizationScope,
   isParent,
   holdsFamilyRole
 } from './utils/PermissionUtils.js';
@@ -118,6 +119,7 @@ const lazyModules = {
   ResourceDashboard: () => import('./modules/resources/ResourceDashboard.js').then(m => m.ResourceDashboard),
   Inventory: () => import('./modules/resources/Inventory.js').then(m => m.Inventory),
   MaterialManagement: () => import('./modules/resources/MaterialManagement.js').then(m => m.MaterialManagement),
+  EquipmentLoans: () => import('./modules/resources/EquipmentLoans.js').then(m => m.EquipmentLoans),
   MedicationManagement: () => import('./modules/medication/MedicationManagement.js').then(m => m.MedicationManagement),
   MedicationReception: () => import('./modules/medication/MedicationReception.js').then(m => m.MedicationReception),
   PermissionSlipDashboard: () => import('./modules/permission-slips/PermissionSlipDashboard.js').then(m => m.PermissionSlipDashboard),
@@ -143,6 +145,7 @@ const lazyModules = {
   ParentOnboarding: () => import('./modules/parent-onboarding/ParentOnboarding.js').then(m => m.ParentOnboarding),
   FamilyAccess: () => import('./modules/family-access/FamilyAccess.js').then(m => m.FamilyAccess),
   WalkInChildren: () => import('./modules/walk-in/WalkInChildren.js').then(m => m.WalkInChildren),
+  DisplaySettings: () => import('./modules/display-settings/DisplaySettings.js').then(m => m.DisplaySettings),
   Tasks: () => import('./modules/tasks/Tasks.js').then(m => m.Tasks),
   Messages: () => import('./modules/messages/Messages.js').then(m => m.Messages)
 };
@@ -219,6 +222,7 @@ const routes = {
   '/resources': 'resourceDashboard',
   '/inventory': 'inventory',
   '/material-management': 'materialManagement',
+  '/equipment-loans': 'equipmentLoans',
   '/medication-management': 'medicationPlanning',
   '/medication-planning': 'medicationPlanning',
   '/medication-planning/:id': 'medicationPlanningParticipant',
@@ -229,6 +233,7 @@ const routes = {
   '/permission-slips/:id': 'permissionSlipDashboardActivity',
   '/permission-slip/:token': 'permissionSlipSign',
   '/account-info': 'accountInfo',
+  '/display-settings': 'displaySettings',
   '/form-builder': 'formBuilder',
   '/activities': 'activities',
   '/carpool': 'carpoolLanding',
@@ -636,6 +641,17 @@ export class Router {
           this.currentModuleInstance = materialManagement;
           await materialManagement.init();
           break;
+        case 'equipmentLoans': {
+          // Loans name the unit's youths: the endpoint is for staff of the unit.
+          if (!guard(hasPermission('inventory.view') && hasOrganizationScope())) {
+            break;
+          }
+          const EquipmentLoans = await this.loadModule('EquipmentLoans');
+          const equipmentLoans = new EquipmentLoans(this.app);
+          this.currentModuleInstance = equipmentLoans;
+          await equipmentLoans.init();
+          break;
+        }
         case 'permissionSlipDashboard':
           if (!guard(canFollowPermissionSlips())) {
             break;
@@ -971,6 +987,10 @@ export class Router {
           break;
         case 'accountInfo':
           await this.loadAccountInfo();
+          break;
+        case 'displaySettings':
+          // Stored on this device only: open to every signed-in member.
+          await this.loadModuleInstance('DisplaySettings');
           break;
         case 'formBuilder':
           if (!guard(canManageForms())) {

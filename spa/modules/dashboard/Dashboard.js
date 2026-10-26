@@ -53,7 +53,6 @@ import {
 } from '../../utils/DashboardPreferences.js';
 import { hasVisibleTab } from '../../config/tabbed-pages.js';
 import { CommandPalette } from '../CommandPalette.js';
-import { DashboardSettingsModal } from '../DashboardSettingsModal.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 import { renderCampReadinessSummary } from '../offline/CampReadiness.js';
@@ -903,12 +902,6 @@ export class Dashboard extends BaseModule {
             <span>${subtitle}</span>
           </span>
         </div>
-        <div class="dashboard-v2__top-actions">
-          <button type="button" class="dashboard-v2__icon-btn" id="dashboard-settings-btn"
-                  aria-label="${escapeHTML(translate('dashboard_settings'))}">
-            <i class="fa-solid fa-sliders" aria-hidden="true"></i>
-          </button>
-        </div>
       </div>
     `;
   }
@@ -1251,18 +1244,6 @@ export class Dashboard extends BaseModule {
 
     this.addEventListener(document.getElementById('dashboard-fab'), 'click', () => {
       this.commandPalette?.open();
-    });
-
-    this.addEventListener(document.getElementById('dashboard-settings-btn'), 'click', () => {
-      const modal = new DashboardSettingsModal({
-        onChange: () => {
-          // Palette CSS vars are already updated by the modal; rerender to refresh
-          // any computed styles tied to tiles.
-          this.render();
-          this.attachEventListeners();
-        },
-      });
-      modal.open();
     });
 
     // Collapse/expand "Tools" groups — persisted across renders/sessions.

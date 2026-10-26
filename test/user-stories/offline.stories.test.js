@@ -647,3 +647,149 @@ describe('Camp preparation keeps a trustworthy snapshot on this device', () => {
     expect(manager.preparedActivities.size).toBe(0);
   });
 });
+
+describe('Several open tabs share one outbox', () => {
+  /** A browser LockManager: one holder per name; ifAvailable answers null while held. */
+  function installWebLocks() {
+    const held = new Set();
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        async request(name, _options, callback) {
+          if (held.has(name)) {
+            return callback(null);
+          }
+          held.add(name);
+          try {
+            return await callback({ name });
+          } finally {
+            held.delete(name);
+          }
+        },
+      },
+    });
+  }
+
+  /** BroadcastChannel between tabs: a message reaches every other member of the channel. */
+  function installBroadcastChannel() {
+    const members = new Set();
+    global.BroadcastChannel = class BroadcastChannel {
+      constructor(name) {
+        this.name = name;
+        members.add(this);
+      }
+
+      postMessage(data) {
+        members.forEach((member) => {
+          if (member !== this && member.name === this.name) {
+            queueMicrotask(() => member.onmessage?.({ data }));
+          }
+        });
+      }
+
+      close() {
+        members.delete(this);
+      }
+    };
+  }
+
+  afterEach(() => {
+    delete navigator.locks;
+    delete global.BroadcastChannel;
+  });
+
+  it('sends each queued change once when two tabs sync at the same moment, in the order it was made', async () => {
+    installWebLocks();
+    const firstTab = new OfflineManager();
+    const secondTab = new OfflineManager();
+    firstTab.isOffline = true;
+    await firstTab.queueMutation('http://localhost:3000/api/v1/attendance', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participant_id: 1, date: '2026-07-15', status: 'present' }),
+    });
+    await firstTab.queueMutation('http://localhost:3000/api/v1/attendance', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participant_id: 1, date: '2026-07-15', status: 'absent' }),
+    });
+    global.fetch.mockImplementation(() => Promise.resolve(makeJsonResponse({ success: true })));
+
+    const [first, second] = await Promise.all([
+      firstTab.replayPendingMutations(),
+      secondTab.replayPendingMutations(),
+    ]);
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(global.fetch.mock.calls.map(([, init]) => JSON.parse(init.body).status)).toEqual(['present', 'absent']);
+    expect(first.replayed + second.replayed).toBe(2);
+    expect(await getOfflineData()).toHaveLength(0);
+  });
+
+  it('a tab that finds the outbox busy announces nothing', async () => {
+    installWebLocks();
+    const firstTab = new OfflineManager();
+    const secondTab = new OfflineManager();
+    firstTab.isOffline = true;
+    await firstTab.queueMutation('http://localhost:3000/api/v1/attendance', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participant_id: 1, date: '2026-07-15', status: 'present' }),
+    });
+    let answer;
+    global.fetch.mockImplementation(() => new Promise((resolve) => { answer = resolve; }));
+    firstTab.isOffline = false;
+    secondTab.isOffline = false;
+    const toasts = captureWindowEvents('showToast');
+
+    const firstSync = firstTab.syncPendingData();
+    for (let tick = 0; tick < 50 && !answer; tick += 1) {
+      // eslint-disable-next-line no-await-in-loop -- Wait until the first tab is sending.
+      await new Promise((resolve) => { setTimeout(resolve, 0); });
+    }
+    await secondTab.syncPendingData();
+    expect(toasts.seen).toEqual([]);
+
+    answer(makeJsonResponse({ success: true }));
+    await firstSync;
+    toasts.stop();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(toasts.seen).toHaveLength(1);
+  });
+
+  it('the tab that queued a change hears whether another tab\'s replay saved or refused it', async () => {
+    installWebLocks();
+    installBroadcastChannel();
+    const queuingTab = new OfflineManager();
+    const replayingTab = new OfflineManager();
+    queuingTab.listenToOtherTabs();
+    replayingTab.listenToOtherTabs();
+    queuingTab.isOffline = true;
+    const saved = await queuingTab.queueMutation('http://localhost:3000/api/v1/attendance', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participant_id: 1, date: '2026-07-15', status: 'present' }),
+    });
+    const refused = await queuingTab.queueMutation('http://localhost:3000/api/v1/badges/history', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participant_id: 1, entries: [] }),
+    });
+    global.fetch.mockImplementation((url) => Promise.resolve(url.endsWith('/badges/history')
+      ? makeJsonResponse({ success: false }, { status: 400 })
+      : makeJsonResponse({ success: true })));
+    const heard = jest.spyOn(queuingTab, 'dispatchEvent');
+
+    await replayingTab.replayPendingMutations();
+    // The relayed end of replay makes the queuing tab re-read IndexedDB, which
+    // answers in macrotasks: wait for it rather than for a fixed number of turns.
+    const relayed = () => heard.mock.calls.some(([name]) => name === 'syncStatusChanged');
+    for (let tick = 0; tick < 200 && !relayed(); tick += 1) {
+      // eslint-disable-next-line no-await-in-loop -- Wait for the other tab to finish.
+      await new Promise((resolve) => { setTimeout(resolve, 0); });
+    }
+
+    expect(heard).toHaveBeenCalledWith('offlineMutationReplayed', expect.objectContaining({ mutationId: saved }));
+    expect(heard).toHaveBeenCalledWith('offlineMutationRejected', expect.objectContaining({ mutationId: refused, kind: 'badges', status: 400 }));
+    // Its screens refresh and its pending count empties once the other tab is done.
+    expect(heard).toHaveBeenCalledWith('syncStatusChanged', { isSyncing: false });
+    expect(queuingTab.pendingMutations).toHaveLength(0);
+    queuingTab.outboxChannel.close();
+    replayingTab.outboxChannel.close();
+  });
+});

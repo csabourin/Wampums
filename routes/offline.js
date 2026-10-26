@@ -9,6 +9,7 @@ const { success, error, asyncHandler } = require('../middleware/response');
 const { getActionRoster } = require('../services/actionRoster');
 const { mayReadInviteeList, getActivityParticipation } = require('../services/activityInvitations');
 const { DATE_LIMITS } = require('../config/constants');
+const { ensureActiveScoutYear } = require('../services/scoutYear');
 
 const HTTP_BAD_REQUEST = 400;
 
@@ -79,34 +80,47 @@ module.exports = (pool, logger) => {
       const dates = generateDateRange(start_date, end_date);
       logger.info(`[offline] Preparing data for ${dates.length} days (${start_date} to ${end_date})`);
 
+      const activeScoutYear = await ensureActiveScoutYear(pool, organizationId);
+
       // Use a single client to avoid exhausting connection pool
       const client = await pool.connect();
       try {
         // Fetch all data sequentially on a single connection
+        // The points screen opens on these totals, so they are the running totals
+        // of the active scout year, exactly as GET /api/v1/points computes them.
         const participantsResult = await client.query(
           `SELECT p.id, p.first_name, p.last_name, p.nickname, p.date_naissance,
-                            pg.group_id, g.name as group_name,
-                            COALESCE(SUM(pts.value), 0) AS total_points
-                     FROM participants p
-                     JOIN participant_organizations po ON p.id = po.participant_id
-                     LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
-                     LEFT JOIN groups g ON pg.group_id = g.id
-                     LEFT JOIN points pts ON p.id = pts.participant_id AND pts.organization_id = $1
-                     WHERE po.organization_id = $1
-                     GROUP BY p.id, p.first_name, p.last_name, p.nickname, p.date_naissance, pg.group_id, g.name
-                     ORDER BY p.last_name, p.first_name`,
-          [organizationId]
+                  pg.group_id, g.name as group_name,
+                  COALESCE(point_totals.total_points, 0) AS total_points
+             FROM participants p
+             JOIN participant_enrollments pe ON pe.participant_id = p.id
+              AND pe.organization_id = $1 AND pe.scout_year_id = $2 AND pe.status = 'active'
+             LEFT JOIN participant_group_assignments pg ON pg.participant_id = p.id
+              AND pg.organization_id = $1 AND pg.scout_year_id = $2
+             LEFT JOIN groups g ON pg.group_id = g.id
+             LEFT JOIN (
+               SELECT participant_id, SUM(value) AS total_points
+                 FROM points
+                WHERE organization_id = $1 AND scout_year_id = $2 AND participant_id IS NOT NULL
+                GROUP BY participant_id
+             ) point_totals ON point_totals.participant_id = p.id
+            ORDER BY p.last_name, p.first_name`,
+          [organizationId, activeScoutYear.id]
         );
 
         const groupsResult = await client.query(
           `SELECT g.id, g.name, g.section,
-                            COALESCE(SUM(pts.value), 0) AS total_points
-                     FROM groups g
-                     LEFT JOIN points pts ON g.id = pts.group_id AND pts.participant_id IS NULL AND pts.organization_id = $1
-                     WHERE g.organization_id = $1
-                     GROUP BY g.id, g.name, g.section
-                     ORDER BY g.name`,
-          [organizationId]
+                  COALESCE(group_points.total_points, 0) AS total_points
+             FROM groups g
+             LEFT JOIN (
+               SELECT group_id, SUM(value) AS total_points
+                 FROM points
+                WHERE organization_id = $1 AND scout_year_id = $2 AND participant_id IS NULL
+                GROUP BY group_id
+             ) group_points ON group_points.group_id = g.id
+            WHERE g.organization_id = $1
+            ORDER BY g.name`,
+          [organizationId, activeScoutYear.id]
         );
 
         const attendanceResult = await client.query(

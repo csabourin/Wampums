@@ -249,6 +249,16 @@ export const CONFIG = {
   },
 
   /**
+     * Equipment loans (who took equipment home)
+     */
+  EQUIPMENT_LOANS: {
+    // Tents and tarps dry in a week; the due date offered for a new handout.
+    DEFAULT_LOAN_DAYS: 7,
+    // Length of a loan's notes, as the server stores them.
+    MAX_NOTE_LENGTH: 500,
+  },
+
+  /**
      * Push Notification Settings
      */
   PUSH_NOTIFICATIONS: {
@@ -397,6 +407,7 @@ Object.freeze(CONFIG.DEFAULT_POINTS.HONORS);
 Object.freeze(CONFIG.DEFAULT_POINTS.BADGES);
 Object.freeze(CONFIG.UI);
 Object.freeze(CONFIG.DASHBOARD);
+Object.freeze(CONFIG.EQUIPMENT_LOANS);
 Object.freeze(CONFIG.PUSH_NOTIFICATIONS);
 Object.freeze(CONFIG.FEATURES);
 Object.freeze(CONFIG.INDEXEDDB);

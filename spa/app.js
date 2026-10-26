@@ -11,7 +11,7 @@ import './pwa-update-manager.js';
 import { initOfflineSupport } from './offline-init.js';
 import { offlineManager } from './modules/OfflineManager.js';
 import { setContent, clearElement, createElement } from './utils/DOMUtils.js';
-import { applyPalette as applyDashboardPalette } from './utils/DashboardPreferences.js';
+import { applyPalette as applyDashboardPalette, getDashboardPrefs } from './utils/DashboardPreferences.js';
 import { checkForStaleClient, installChunkErrorRecovery } from './modules/app-recovery/StaleClientRecovery.js';
 import { localizeStaticChrome } from './utils/StaticChromeUtils.js';
 import { initPageTitleSync, initSkipLink, updateDocumentTitle } from './utils/PageFocusUtils.js';
@@ -396,9 +396,12 @@ export const app = {
           .catch(error => debugError('Failed to refresh access:', error));
 
         // The year selector sits outside #app so it survives navigation.
-        // It draws nothing for a unit that has only ever had one year.
+        // It draws nothing until asked for under Display, nor for a unit that
+        // has only ever had one year; an archive in effect keeps its way out.
         import('./modules/scout-year/ScoutYearBanner.js')
-          .then(({ initScoutYearBanner }) => initScoutYearBanner())
+          .then(({ initScoutYearBanner }) => initScoutYearBanner({
+            enabled: getDashboardPrefs().showScoutYearSelector,
+          }))
           .catch(error => debugError('Failed to mount the scout year selector:', error));
 
         // A demo visitor learns what they may try; it reads the demo_sign_in setting.

@@ -129,6 +129,7 @@
     "incident_reports",
     "inventory",
     "material_management",
+    "equipment_loans",
     "finance",
     "expenses",
     "external_revenue",
@@ -137,6 +138,7 @@
     "budgets",
     "reports",
     "account_info",
+    "display_settings",
     "role_management",
     "district",
     "create_organization"

@@ -243,6 +243,42 @@ try {
      VALUES ($1, 'draft', 'participant', $2, 'Léa Parent', $3, $4, 'Local scout', $5) RETURNING id`,
     [organizationId, childId, activityId, programmeDate, adminId]
   );
+  // A weekend camp that ended yesterday, with tents and tarps reserved for it
+  // and one tarp still drying at Léa's, now overdue, for the equipment loans
+  // screen: what is left to hand out, and what has not come back.
+  const campId = await one(
+    `INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+                             meeting_time_going, departure_time_going, activity_start_date, activity_start_time,
+                             activity_end_date, activity_end_time)
+     VALUES ($1, $2, 'Camp d''automne', CURRENT_DATE - 3, 'Local scout', '17:30', '18:00',
+             CURRENT_DATE - 3, '18:00', CURRENT_DATE - 1, '15:00')
+     RETURNING id`,
+    [organizationId, adminId]
+  );
+  const tentsId = await one(
+    `INSERT INTO equipment_items (organization_id, name, category, quantity_total, quantity_available)
+     VALUES ($1, 'Tente 4 places', 'camping', 6, 6) RETURNING id`,
+    [organizationId]
+  );
+  const tarpsId = await one(
+    `INSERT INTO equipment_items (organization_id, name, category, quantity_total, quantity_available)
+     VALUES ($1, 'Bâche 3 x 4 m', 'camping', 4, 4) RETURNING id`,
+    [organizationId]
+  );
+  await pool.query(
+    `INSERT INTO equipment_reservations (organization_id, equipment_id, activity_id, meeting_date, date_from, date_to,
+                                         reserved_quantity, reserved_for, status, created_by)
+     VALUES ($1, $2, $4, CURRENT_DATE - 3, CURRENT_DATE - 3, CURRENT_DATE - 1, 5, 'Camp d''automne', 'confirmed', $5),
+            ($1, $3, $4, CURRENT_DATE - 3, CURRENT_DATE - 3, CURRENT_DATE - 1, 3, 'Camp d''automne', 'confirmed', $5)`,
+    [organizationId, tentsId, tarpsId, campId, adminId]
+  );
+  await pool.query(
+    `INSERT INTO equipment_loans (organization_id, equipment_id, activity_id, holder_participant_id, quantity,
+                                  reason, loaned_on, due_date, created_by)
+     VALUES ($1, $2, $3, $4, 1, 'drying', CURRENT_DATE - 2, CURRENT_DATE - 1, $5)`,
+    [organizationId, tarpsId, campId, childId, adminId]
+  );
+
   const slipToken = await one(
     'SELECT access_token AS id FROM permission_slips WHERE organization_id = $1 AND activity_id = $2',
     [organizationId, activityId]

@@ -203,6 +203,15 @@ describe('writes that do not change the roster', () => {
     expect(planInvalidation('v1/ai/ask')).toBeNull();
   });
 
+  test('reserving equipment refreshes the handout, and lending refreshes the inventory', () => {
+    const reservation = planInvalidation('v1/resources/equipment/reservations/bulk');
+    expect(reservation.matchesPath('/api/v1/equipment-loans/handout')).toBe(true);
+
+    const loan = planInvalidation('v1/equipment-loans');
+    expect(loan.matchesPath('/api/v1/resources/equipment')).toBe(true);
+    expect(loan.matchesPath('/api/v1/participants')).toBe(false);
+  });
+
   test("changing one's own profile does not flush the roster", () => {
     const plan = planInvalidation('v1/users/me/language');
 
@@ -416,4 +425,31 @@ test('attendance changes invalidate the signed-authorization snapshot used by ho
   await setCachedData('action_roster_2026-07-15', { attendance: [] }, ONE_HOUR);
   await invalidateForWrite('v1/attendance/departure');
   expect(await getCachedData('action_roster_2026-07-15')).toBeNull();
+});
+
+describe('the roster totals a camp preparation stored', () => {
+  /** What an earlier camp preparation left: API read keys, no sources recorded. */
+  async function cacheWhatAPreparationLeft() {
+    await setCachedData('participants_v2', { success: true, data: [{ id: 42, total_points: 43 }] }, ONE_HOUR);
+    await setCachedData('groups', { success: true, data: [{ id: 7, total_points: 27 }] }, ONE_HOUR);
+    return { participants: buildScopedCacheKey('participants_v2'), groups: buildScopedCacheKey('groups') };
+  }
+
+  test('an award made while connected clears them, so the dashboard counts the new totals', async () => {
+    const keys = await cacheWhatAPreparationLeft();
+
+    await API.post('v1/points', [{ type: 'individual', id: 42, points: 1 }]);
+
+    expect(await getCachedData(keys.participants)).toBeNull();
+    expect(await getCachedData(keys.groups)).toBeNull();
+  });
+
+  test('in camp mode an award keeps them: they are the only copy of the roster', async () => {
+    const keys = await cacheWhatAPreparationLeft();
+    mockOfflineState.campMode = true;
+
+    await API.post('v1/points', [{ type: 'individual', id: 42, points: 1 }]);
+
+    expect(await getCachedData(keys.participants)).not.toBeNull();
+  });
 });

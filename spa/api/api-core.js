@@ -185,6 +185,13 @@ import { isLiveSyncActive } from '../modules/live-sync/LiveDataSync.js';
 const LIVE_SYNC_CLIENT_HEADER = 'X-Live-Sync-Client';
 
 /**
+ * Writes whose server keeps an Idempotency-Key receipt. The key is set before
+ * the first attempt, so a request that committed but lost its response, then
+ * queued and replayed, is recognized instead of applied a second time.
+ */
+const IDEMPOTENT_POSTS = new Set(['/api/v1/points', '/api/v1/equipment-loans']);
+
+/**
  * Drop cached reads for the resource a mutation just changed.
  *
  * Screens cache GET responses for 30 minutes, so without this a create,
@@ -306,8 +313,9 @@ async function sendApiRequest(endpoint, options = {}) {
   }
 
   const requestPath = normalizeApiPath(endpoint);
-  // Keep the same identity from the first attempt through every offline replay.
-  if (method === 'POST' && requestPath === '/api/v1/points') {
+  // Keep the same identity from the first attempt through every offline replay:
+  // the server keeps a receipt for these, so a lost response is never applied twice.
+  if (method === 'POST' && IDEMPOTENT_POSTS.has(requestPath)) {
     requestConfig.headers['Idempotency-Key'] ||= crypto.randomUUID();
   }
   const requiresOnline = !queueOffline || (CONFIG.ONLINE_REQUIRED_MUTATION_RESOURCES || []).some((resource) =>
@@ -319,8 +327,14 @@ async function sendApiRequest(endpoint, options = {}) {
   const attendanceWaiting = method === 'POST' &&
     (requestPath === '/api/v1/attendance' || requestPath.startsWith('/api/v1/attendance/')) &&
     await offlineManager.hasPendingAttendance();
-  // Keep arrivals, departures and awards in their original order across reconnects.
-  if ((offlineManager.isOffline || navigator.onLine === false || pointsWaiting || attendanceWaiting) && method !== 'GET') {
+  // A return is a count: a newer one sent online must not land before an older
+  // one still in the outbox, which would then overwrite it.
+  const equipmentLoansWaiting = (method === 'POST' || method === 'PATCH') &&
+    (requestPath === '/api/v1/equipment-loans' || requestPath.startsWith('/api/v1/equipment-loans/')) &&
+    await offlineManager.hasPendingEquipmentLoans();
+  // Keep arrivals, departures, awards and returns in their original order across reconnects.
+  if ((offlineManager.isOffline || navigator.onLine === false || pointsWaiting || attendanceWaiting || equipmentLoansWaiting)
+    && method !== 'GET') {
     if (requiresOnline) {
       const offlineError = new Error(offlineManager.getTranslation('family_operation_online_required'));
       offlineError.code = 'online_required';

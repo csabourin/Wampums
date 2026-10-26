@@ -12,7 +12,7 @@ jest.mock('../../spa/indexedDB.js', () => ({
 }));
 jest.mock('../../spa/utils/PerformanceUtils.js', () => ({ PerformanceMonitor: { logAPICall: jest.fn() } }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({
-  offlineManager: { isOffline: false, hasPendingPoints: jest.fn(() => Promise.resolve(false)), hasPendingAttendance: jest.fn(() => Promise.resolve(false)), queueMutation: jest.fn(), getTranslation: (key) => key },
+  offlineManager: { isOffline: false, hasPendingPoints: jest.fn(() => Promise.resolve(false)), hasPendingAttendance: jest.fn(() => Promise.resolve(false)), hasPendingEquipmentLoans: jest.fn(() => Promise.resolve(false)), queueMutation: jest.fn(), getTranslation: (key) => key },
 }));
 jest.mock('../../spa/modules/scout-year/ScoutYearContext.js', () => ({ isArchiveMode: () => false, getSelectedScoutYearId: () => null }));
 jest.mock('../../spa/modules/live-sync/LiveDataSync.js', () => ({ isLiveSyncActive: () => false }));
@@ -103,6 +103,26 @@ test('a lost points response is queued with the identity used by the first attem
   expect(sentKey).toEqual(expect.any(String));
   expect(offlineManager.queueMutation.mock.calls[0][1].headers['Idempotency-Key']).toBe(sentKey);
   expect(global.fetch).toHaveBeenCalledTimes(1);
+});
+
+test('a lost equipment handout response is queued with the identity used by the first attempt', async () => {
+  const { offlineManager } = require('../../spa/modules/OfflineManager.js');
+  global.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+  offlineManager.queueMutation.mockResolvedValue('queued-handout');
+  const result = await API.post('v1/equipment-loans', { loans: [{ equipment_id: 3, quantity: 2, participant_id: 11 }] });
+  expect(result).toMatchObject({ success: true, queued: true });
+  const sentKey = global.fetch.mock.calls[0][1].headers['Idempotency-Key'];
+  expect(sentKey).toEqual(expect.any(String));
+  expect(offlineManager.queueMutation.mock.calls[0][1].headers['Idempotency-Key']).toBe(sentKey);
+});
+
+test('a return waits behind one still in the outbox even when the radio is online', async () => {
+  const { offlineManager } = require('../../spa/modules/OfflineManager.js');
+  offlineManager.hasPendingEquipmentLoans.mockResolvedValueOnce(true);
+  offlineManager.queueMutation.mockResolvedValue('queued-return');
+  const result = await API.patch('v1/equipment-loans/21', { returned_quantity: 2 });
+  expect(result).toMatchObject({ queued: true });
+  expect(global.fetch).not.toHaveBeenCalled();
 });
 
 test('new points wait behind awards already queued even when the radio is online', async () => {

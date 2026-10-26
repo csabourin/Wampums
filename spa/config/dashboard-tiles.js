@@ -306,6 +306,16 @@ export const DASHBOARD_TILES = [
     domain: 'logistics',
     gate: { any: ['inventory.view', 'inventory.manage', 'inventory.reserve', 'inventory.value'] },
   },
+  {
+    featureKey: 'equipment_loans',
+    href: '/equipment-loans',
+    icon: 'fa-people-carry-box',
+    label: 'tile_equipment_loans',
+    aliases: 'tile_equipment_loans_aliases',
+    moment: 'tools',
+    domain: 'logistics',
+    gate: { permission: 'inventory.view' },
+  },
 
   // ---------------------------------------------------------------
   // ARGENT — the three `?tab=` duplicates of /finance are gone; the
@@ -481,6 +491,18 @@ export const DASHBOARD_TILES = [
     moment: 'tools',
     domain: 'system',
     priority: 0,
+  },
+  {
+    // How the dashboard looks on this device: colour theme, high contrast.
+    featureKey: 'display_settings',
+    href: '/display-settings',
+    icon: 'fa-palette',
+    label: 'tile_display_settings',
+    aliases: 'tile_display_settings_aliases',
+    moment: 'tools',
+    domain: 'system',
+    priority: 1,
+    gate: { check: 'member' },
   },
   {
     featureKey: 'district',

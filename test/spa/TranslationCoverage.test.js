@@ -148,6 +148,17 @@ function familyTaskKinds() {
   return [...table.matchAll(/: '([a-z_]+)'/g)].map((match) => match[1]);
 }
 
+/** @returns {string[]} The equipment category keys, from the list the server validates against */
+function equipmentCategories() {
+  return JSON.parse(fs.readFileSync(path.join(ROOT, 'config/equipment_categories.json'), 'utf8')).categories;
+}
+
+/** @returns {string[]} The orders the equipment picker offers, read from its source */
+function materialSorts() {
+  const source = code(path.join(ROOT, 'spa/modules/resources/MaterialManagement.js'));
+  return [...source.match(/MATERIAL_SORTS = \[([^\]]*)\]/)[1].matchAll(/'([a-z_]+)'/g)].map((match) => match[1]);
+}
+
 test('every key built from a state exists for each state the server returns', () => {
   const built = [
     ...['pending', 'expired', 'accepted', 'revoked', 'invalid'].map((s) => [`parent_invitation_state_${s}`, 'ParentInvitations']),
@@ -161,12 +172,16 @@ test('every key built from a state exists for each state the server returns', ()
     ...familyTaskKinds().map((kind) => [`family_tasks_kind_${kind}`, 'FamilyTasks']),
     ...['one', 'other'].map((form) => [`family_tasks_count_${form}`, 'FamilyTasks']),
     ...['treatment', 'administration'].map((kind) => [`authorization_kind_${kind}`, 'FamilyTasks']),
+    ...equipmentCategories().map((key) => [`equipment_category_${key}`, 'EquipmentCategoryUtils']),
+    ...materialSorts().map((sort) => [`material_sort_${sort}`, 'MaterialManagement']),
   ];
 
   expect(programProgressStatuses().length).toBeGreaterThan(10);
   expect(offlineMutationKinds()).toEqual(expect.arrayContaining(['attendance', 'medication', 'badges']));
   expect(loginList('DEMO_VIEWS')).toEqual(['parent', 'leader']);
   expect(familyTaskKinds()).toEqual(['permission', 'form', 'review', 'authorization', 'payment']);
+  expect(equipmentCategories()).toContain('other');
+  expect(materialSorts()).toEqual(['category', 'name', 'available']);
 
   expect(missing(built)).toEqual([]);
 });
@@ -209,5 +224,5 @@ test('every shared task status has a label in both languages', () => {
   const config = fs.readFileSync(path.join(ROOT, 'spa/config.js'), 'utf8');
   const labels = [...config.match(/STATUS_KEYS:\s*\{([^}]+)\}/)[1].matchAll(/([a-z_]+): '([^']+)'/g)];
   expect(labels.map((match) => match[1])).toEqual(TASK_STATUSES);
-  expect(missing(labels.map((match) => [match[2], 'shared task status']))).toEqual([]);
+  expect(missing([...labels.map((match) => [match[2], 'shared task status']), ['role_category_tasks', 'role matrix category']])).toEqual([]);
 });

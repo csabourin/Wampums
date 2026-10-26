@@ -437,6 +437,32 @@ describe('Equipment sharing and metadata', () => {
     expect(equipmentItemOrganizations[newEquipmentId].has(2)).toBe(true);
   });
 
+  test('equipment created without a category goes in Other', async () => {
+    const response = await request(app)
+      .post('/api/v1/resources/equipment')
+      .send({ name: 'Bâche' });
+
+    expect(response.status).toBe(201);
+    expect(response.body.data.equipment.category).toBe('other');
+  });
+
+  test('a category outside the fixed list is refused, on create and on update', async () => {
+    const created = await request(app)
+      .post('/api/v1/resources/equipment')
+      .send({ name: 'Ballon', category: 'stuff' });
+    expect(created.status).toBe(400);
+
+    const updated = await request(app)
+      .put('/api/v1/resources/equipment/1')
+      .send({ category: 'Cuisine' });
+    expect(updated.status).toBe(400);
+
+    const kept = await request(app)
+      .put('/api/v1/resources/equipment/1')
+      .send({ category: 'kitchen' });
+    expect(kept.status).toBe(200);
+  });
+
   test('rejects a photo key owned by another organization on create', async () => {
     const response = await request(app)
       .post('/api/v1/resources/equipment')

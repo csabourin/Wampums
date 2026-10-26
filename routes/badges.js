@@ -26,8 +26,42 @@ const NOT_FOUND_STATUS = 404;
 const MAX_HISTORY_ENTRIES = 100;
 const ISO_DATE_LENGTH = 10;
 const POSTGRES_INT_MAX = 2147483647;
+const DEFAULT_BADGE_EARN_POINTS = 5;
 
 /** A positive PostgreSQL integer id, or null: `Number`, unlike `parseInt`, refuses `12abc`. */
+/**
+ * Grant a badge level's earn points, once. A level that already granted them
+ * (badge_progress.points_awarded) awards nothing more, whether it is approved
+ * a second time or again after a rejection.
+ * @param {Object} client - Client inside the transaction that approves the level
+ * @param {number} organizationId - Unit
+ * @param {{id: number, participant_id: number, points_awarded: number|null}} badge - Locked badge_progress row
+ * @returns {Promise<number>} The points granted now (0 when already granted)
+ */
+async function grantBadgeEarnPoints(client, organizationId, badge) {
+  if (badge.points_awarded) {
+    return 0;
+  }
+  const pointRules = await getPointSystemRules(client, organizationId);
+  const value = pointRules.badges?.earn || DEFAULT_BADGE_EARN_POINTS;
+  const groupResult = await client.query(
+    `SELECT group_id FROM participant_groups
+       WHERE participant_id = $1 AND organization_id = $2`,
+    [badge.participant_id, organizationId]
+  );
+  const groupId = groupResult.rows.length > 0 ? groupResult.rows[0].group_id : null;
+  await client.query(
+    `INSERT INTO points (participant_id, group_id, organization_id, value, created_at)
+       VALUES ($1, $2, $3, $4, NOW())`,
+    [badge.participant_id, groupId, organizationId, value]
+  );
+  await client.query(
+    'UPDATE badge_progress SET points_awarded = $1 WHERE id = $2 AND organization_id = $3',
+    [value, badge.id, organizationId]
+  );
+  return value;
+}
+
 const toIntegerId = (value) => {
   const id = Number(value);
   return Number.isInteger(id) && id >= 1 && id <= POSTGRES_INT_MAX ? id : null;
@@ -546,7 +580,7 @@ module.exports = (pool, logger) => {
 
       // Get the badge details
       const badgeResult = await client.query(
-        `SELECT * FROM badge_progress WHERE id = $1 AND organization_id = $2`,
+        `SELECT * FROM badge_progress WHERE id = $1 AND organization_id = $2 FOR UPDATE`,
         [badge_id, organizationId]
       );
 
@@ -556,6 +590,11 @@ module.exports = (pool, logger) => {
       }
 
       const badge = badgeResult.rows[0];
+      if (badge.status === 'approved') {
+        // A second approval (a double click, two leaders) awards nothing more.
+        await client.query('COMMIT');
+        return res.json({ success: true, message: 'Badge approved', points: 0 });
+      }
 
       // Update badge status to approved
       await client.query(
@@ -565,24 +604,7 @@ module.exports = (pool, logger) => {
         [badge_id]
       );
 
-      // Get point system rules for badge earn points
-      const pointRules = await getPointSystemRules(client, organizationId);
-      const badgeEarnPoints = pointRules.badges?.earn || 5;
-
-      // Get participant's group for proper point tracking
-      const groupResult = await client.query(
-        `SELECT group_id FROM participant_groups
-           WHERE participant_id = $1 AND organization_id = $2`,
-        [badge.participant_id, organizationId]
-      );
-      const groupId = groupResult.rows.length > 0 ? groupResult.rows[0].group_id : null;
-
-      // Award points for earning the badge
-      await client.query(
-        `INSERT INTO points (participant_id, group_id, organization_id, value, created_at)
-           VALUES ($1, $2, $3, $4, NOW())`,
-        [badge.participant_id, groupId, organizationId, badgeEarnPoints]
-      );
+      const badgeEarnPoints = await grantBadgeEarnPoints(client, organizationId, badge);
 
       await client.query('COMMIT');
       logger.info(`[badge] Badge ${badge_id} approved for participant ${badge.participant_id}, points: +${badgeEarnPoints}`);
@@ -924,8 +946,6 @@ module.exports = (pool, logger) => {
    *               status:
    *                 type: string
    *                 enum: [approved, rejected, pending]
-   *               reviewer_comments:
-   *                 type: string
    *     responses:
    *       200:
    *         description: Badge status updated successfully
@@ -942,7 +962,6 @@ module.exports = (pool, logger) => {
     const badgeId = Number(req.params.id);
     const {
       status,
-      reviewer_comments,
       etoiles,
       objectif,
       description,
@@ -958,7 +977,6 @@ module.exports = (pool, logger) => {
 
     if (
       status === undefined &&
-      reviewer_comments === undefined &&
       etoiles === undefined &&
       objectif === undefined &&
       description === undefined &&
@@ -982,7 +1000,8 @@ module.exports = (pool, logger) => {
         `SELECT bp.*, bt.level_count, COALESCE(bt.levels, '[]'::jsonb) AS template_levels
            FROM badge_progress bp
            JOIN badge_templates bt ON bp.badge_template_id = bt.id
-           WHERE bp.id = $1 AND bp.organization_id = $2`,
+           WHERE bp.id = $1 AND bp.organization_id = $2
+           FOR UPDATE OF bp`,
         [badgeId, organizationId]
       );
 
@@ -1009,11 +1028,6 @@ module.exports = (pool, logger) => {
         } else {
           updateFields.push('approval_date = NULL');
         }
-      }
-
-      if (reviewer_comments !== undefined) {
-        updateFields.push(`reviewer_comments = $${valueIndex++}`);
-        values.push(reviewer_comments || null);
       }
 
       if (etoiles !== undefined) {
@@ -1078,25 +1092,10 @@ module.exports = (pool, logger) => {
 
       const badge = updateResult.rows[0];
 
-      // If approved, award points
-      if (status === 'approved') {
-        const pointRules = await getPointSystemRules(client, organizationId);
-        const badgeEarnPoints = pointRules.badges?.earn || 5;
-
-        // Get participant's group for proper point tracking
-        const groupResult = await client.query(
-          `SELECT group_id FROM participant_groups
-             WHERE participant_id = $1 AND organization_id = $2`,
-          [badge.participant_id, organizationId]
-        );
-        const groupId = groupResult.rows.length > 0 ? groupResult.rows[0].group_id : null;
-
-        // Award points for earning the badge
-        await client.query(
-          `INSERT INTO points (participant_id, group_id, organization_id, value, created_at)
-             VALUES ($1, $2, $3, $4, NOW())`,
-          [badge.participant_id, groupId, organizationId, badgeEarnPoints]
-        );
+      // Approving awards the earn points; editing a level that is already
+      // approved (its comments, its date…) awards nothing.
+      if (status === 'approved' && existingBadge.status !== 'approved') {
+        await grantBadgeEarnPoints(client, organizationId, badge);
       }
 
       await client.query('COMMIT');

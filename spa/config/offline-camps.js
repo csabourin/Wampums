@@ -14,4 +14,6 @@ export const OFFLINE_CAMPS = Object.freeze({
   MAX_DAYS: 14,
   EXPIRY_BUFFER_DAYS: 2,
   DAY_MS: HOURS_PER_DAY * HOUR_MS,
+  /** The dashboard speaks of a camp from this long before it starts until it ends. */
+  DASHBOARD_NOTICE_MS: HOURS_PER_DAY * HOUR_MS,
 });
