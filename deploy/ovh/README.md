@@ -207,9 +207,71 @@ writes after OVH accepts writes without reconciling the data.
 Schedule encrypted off-server PostgreSQL backups and object backups, define
 retention, and test restores before relying on the VPS as the only copy. Also
 preserve `/opt/wampums/*.env` securely. Docker volumes survive image updates but
-are not backups. Retain previous release directories/images for recovery and
-monitor disk usage; image pruning and backup deletion are intentionally manual.
+are not backups. Retain previous release directories for recovery and monitor
+disk usage. Commit-tagged application images are cleaned automatically after
+successful deployments; backup deletion remains manual.
 Never run `docker compose down -v` on this stack.
+
+### Automatic image retention
+
+After the app and Caddy pass health checks and the release becomes current,
+`deploy.sh` retains the active image and **three previous images** by default.
+The image that was active immediately before deployment is always retained,
+including when deploying an older commit. Remaining slots keep the newest
+commit-tagged `wampums` images by Docker image creation order. Images from
+failed deployments can occupy those slots; retention does not certify them as
+healthy rollback targets.
+
+To retain only **two previous images** (three total), create this optional
+configuration file on the VPS:
+
+```bash
+printf '2\n' | sudo tee /opt/wampums/image-retention
+```
+
+Use `3` to restore the default. The file must contain a positive integer; an
+invalid value rejects the deployment before loading an image or stopping the
+app. Without the file, `WAMPUMS_PREVIOUS_IMAGES` can override the default for a
+manual invocation. The file takes precedence over that environment variable.
+
+Cleanup runs under the deployment lock and only removes `wampums:<40-character
+commit SHA>` tags using `docker image rm`, without force. Other repositories,
+custom tags, volumes, backups and release directories are untouched. Docker
+can refuse removal of images referenced by containers, so actual retention may
+exceed the configured limit. A cleanup error prints a warning while leaving
+the healthy release active; a failed deployment never starts image cleanup.
+Free sufficient space manually before the first deployment on an already-full
+disk: cleanup occurs after successful activation, not before upload.
+
+### An archive upload fails with `scp: write remote ...: Failure`
+
+This happens before `deploy.sh` runs. The message alone does not distinguish
+disk exhaustion, exhausted inodes, a user quota, a read-only mount or an archive
+that the deployment account cannot overwrite. Check with the same SSH account
+used by CI (no application logs or environment files are needed):
+
+```bash
+df -h /opt/wampums/releases
+df -i /opt/wampums/releases
+quota -s # if quotas are enabled and the quota utility is installed
+ls -ld /opt/wampums/releases/<commit SHA>
+ls -l /opt/wampums/releases/<commit SHA>/image.tar.gz
+docker system df
+```
+
+CI now checks available archive space and performs a small write probe before
+SCP; a transfer failure also prints disk, inode and destination permissions.
+The space check covers the compressed archive only: Docker needs additional
+space on its own storage filesystem to load the image. A write probe cannot
+guarantee enough user quota for the entire transfer.
+
+Once no upload or deployment is running, an operator may remove an identified
+partial `image.tar.gz` from the failed release before retrying. Keep the active
+and rollback images, Compose files, volumes and backups. Do not prune Docker
+storage indiscriminately. Loaded archives are now removed immediately after
+`docker load` succeeds, including when a later migration or health check fails;
+rollback uses the previously loaded image, not the archive. If loading itself
+fails, the archive remains available for diagnosis or an explicit retry.
 
 ## Changing app.env
 

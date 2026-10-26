@@ -28,6 +28,13 @@ describe('OVH release activation', () => {
     commandLog = path.join(root, 'commands');
     fs.writeFileSync(path.join(root, 'bin/docker'), `#!/usr/bin/env bash
 printf '%s %s\\n' "$WAMPUMS_IMAGE" "$*" >> "$COMMAND_LOG"
+if [[ "$*" == 'image ls '* ]]; then
+  if [[ "$FAIL_IMAGE_LIST" == true ]]; then exit 1; fi
+  printf '%s\\n' "$IMAGE_LIST"
+fi
+if [[ "$*" == 'image rm '* && "$FAIL_IMAGE_REMOVE" == true ]]; then
+  exit 1
+fi
 if [[ "$*" == *'run --rm --no-deps app npm run db:migrate:deploy'* && "$FAIL_MIGRATION" == true ]]; then
   exit 1
 fi
@@ -77,10 +84,56 @@ fi
     expect(commands.at(-1)).toContain(`${previousImage} compose`);
     expect(commands.at(-1)).toContain('app caddy');
     expect(result.stderr).toContain('Database migrations are not reversed automatically');
+    expect(commands.some((command) => command.includes('image rm'))).toBe(false);
+    expect(fs.existsSync(path.join(release, 'image.tar.gz'))).toBe(false);
   });
 
   test('an invalid revision is rejected before Docker is invoked', () => {
     expect(deploy({}, 'main; echo unsafe').status).not.toBe(0);
+    expect(fs.existsSync(commandLog)).toBe(false);
+  });
+
+  test('cleanup keeps the active image and three previous images, including an older immediate predecessor', () => {
+    const images = ['a', 'c', 'd', 'e', 'b', 'f'].map((letter) => `wampums:${letter.repeat(40)}`);
+    const result = deploy({ IMAGE_LIST: [...images, 'postgres:18-bookworm', 'wampums:latest'].join('\n') });
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe('');
+    const commands = fs.readFileSync(commandLog, 'utf8').trim().split('\n');
+    expect(commands.filter((command) => command.includes('image rm'))).toEqual([
+      `wampums:${revision} image rm ${images[3]}`,
+      `wampums:${revision} image rm ${images[5]}`,
+    ]);
+    expect(commands.findIndex((command) => command.includes('image ls')))
+      .toBeGreaterThan(commands.findIndex((command) => command.endsWith('caddy')));
+  });
+
+  test('a retention file can limit cleanup to two previous images', () => {
+    fs.writeFileSync(path.join(root, 'image-retention'), '2\n');
+    const images = ['a', 'b', 'c', 'd'].map((letter) => `wampums:${letter.repeat(40)}`);
+    expect(deploy({ IMAGE_LIST: images.join('\n') }).status).toBe(0);
+    const commands = fs.readFileSync(commandLog, 'utf8');
+    expect(commands).toContain(`image rm ${images[3]}`);
+    expect(commands).not.toContain(`image rm ${images[2]}`);
+  });
+
+  test.each([{ FAIL_IMAGE_LIST: 'true' }, { FAIL_IMAGE_REMOVE: 'true' }])(
+    'a cleanup failure leaves the healthy release active', (failure) => {
+      const result = deploy({
+        WAMPUMS_PREVIOUS_IMAGES: '1',
+        IMAGE_LIST: `wampums:${'c'.repeat(40)}`,
+        ...failure,
+      });
+      expect(result.status).toBe(0);
+      expect(result.stderr).toContain('Release is active, but image cleanup was incomplete.');
+      expect(result.stderr).not.toContain('attempting to restore');
+      expect(fs.readFileSync(path.join(root, 'current-image'), 'utf8').trim()).toBe(`wampums:${revision}`);
+      expect(fs.readlinkSync(path.join(root, 'current'))).toBe(release);
+    },
+  );
+
+  test('invalid retention is rejected before stopping the app or loading an image', () => {
+    fs.writeFileSync(path.join(root, 'image-retention'), '0');
+    expect(deploy().status).not.toBe(0);
     expect(fs.existsSync(commandLog)).toBe(false);
   });
 });
