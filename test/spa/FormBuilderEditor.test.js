@@ -196,3 +196,39 @@ describe('Form builder: moving fields up and down', () => {
     expect(results.violations).toEqual([]);
   });
 });
+
+describe('Form builder: field names the browser would strip', () => {
+  it('refuses a new field named "title", says why on the field, and saves nothing', async () => {
+    const builder = builderWith([CITY_FIELD]);
+    builder.renderFieldEditor();
+
+    const name = document.getElementById('field-name');
+    name.value = 'title';
+    document.getElementById('field-label').value = 'title_label';
+    saveButton().click();
+
+    expect(builder.currentFields.map((field) => field.name)).toEqual(['ville']);
+    expect(name.getAttribute('aria-invalid')).toBe('true');
+    expect(document.getElementById(name.getAttribute('aria-describedby')).textContent).toBe('form_field_name_reserved');
+    expect(document.activeElement).toBe(name);
+    const results = await axe.run(document.getElementById('field-editor-modal'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+
+    name.value = 'titre_sortie';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(name.hasAttribute('aria-invalid')).toBe(false);
+    saveButton().click();
+    expect(builder.currentFields.map((field) => field.name)).toEqual(['ville', 'titre_sortie']);
+  });
+
+  it('keeps a reserved name an older saved form already uses', () => {
+    const builder = builderWith([{ name: 'name', type: 'text', label: 'Name' }]);
+    builder.currentFormat = { id: 1, form_structure: { fields: [{ name: 'name', type: 'text', label: 'Name' }] } };
+    builder.renderFieldEditor(0);
+
+    document.getElementById('field-required').checked = true;
+    saveButton().click();
+
+    expect(builder.currentFields[0]).toMatchObject({ name: 'name', required: true });
+  });
+});

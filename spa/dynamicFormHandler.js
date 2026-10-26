@@ -41,7 +41,11 @@ export class DynamicFormHandler {
     this.organizationId = null;
   }
 
-  async init(formType, participantId = null, initialData = {}, container = null, useUniqueIds = false, formIndex = null, _formStructure = null,organizationId = null) {
+  /**
+   * @param {Object|null} [formStructure] - Drawn instead of the unit's stored format for this
+   *   form type, for a screen that adapts the format before showing it
+   */
+  async init(formType, participantId = null, initialData = {}, container = null, useUniqueIds = false, formIndex = null, formStructure = null, organizationId = null) {
     debugLog('Initializing DynamicFormHandler', { formType, participantId, initialData, container,organizationId});
     this.formType = formType;
     this.participantId = participantId;
@@ -64,7 +68,11 @@ export class DynamicFormHandler {
     }
 
     try {
-      await this.fetchFormFormats();
+      if (formStructure) {
+        this.formFormats = { [this.formType]: formStructure };
+      } else {
+        await this.fetchFormFormats();
+      }
       if (this.participantId && Object.keys(this.formData).length === 0) {
         await this.fetchFormData();
       }

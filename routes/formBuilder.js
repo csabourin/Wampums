@@ -21,6 +21,7 @@ const { validateIdParam, checkValidation } = require('../middleware/validation')
 
 // Import utilities
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { findReservedFieldNames } = require('../utils/formFieldNames');
 
 /** Language codes a field's own texts may use (ISO 639-1, as in lang/*.json). */
 const LANGUAGE_CODE_PATTERN = /^[a-z]{2}$/;
@@ -28,6 +29,7 @@ const LANGUAGE_CODE_PATTERN = /^[a-z]{2}$/;
 const FIELD_TEXT_PROPERTIES = ['labelText', 'infoHtml'];
 /** Longest text accepted for one language, so a form format stays a sane size. */
 const MAX_FIELD_TEXT_LENGTH = 20000;
+const HTTP_BAD_REQUEST = 400;
 
 /**
  * Check the per-language texts of a form structure's fields.
@@ -60,6 +62,18 @@ function validateFieldTexts(formStructure) {
     }
   }
   return null;
+}
+
+/**
+ * Refuse field names the SPA could not draw (see utils/formFieldNames.js).
+ *
+ * @param {Object} res - Express response
+ * @param {string[]} names - Reserved names the structure introduces
+ * @returns {Object} The 400 response
+ */
+function reservedFieldNamesResponse(res, names) {
+  return errorResponse(res, 'form_field_name_reserved', HTTP_BAD_REQUEST,
+    names.map((name) => ({ field: name, msg: 'Reserved field name' })));
 }
 
 /**
@@ -200,6 +214,10 @@ module.exports = (pool, logger) => {
       if (textError) {
         return errorResponse(res, textError, 400);
       }
+      const reservedNames = findReservedFieldNames(form_structure);
+      if (reservedNames.length > 0) {
+        return reservedFieldNamesResponse(res, reservedNames);
+      }
 
       // Check if form type already exists for this organization
       const existingCheck = await pool.query(
@@ -279,13 +297,17 @@ module.exports = (pool, logger) => {
 
       // Check if form format exists and belongs to organization
       const existingCheck = await pool.query(
-        `SELECT id FROM organization_form_formats
+        `SELECT id, form_structure FROM organization_form_formats
          WHERE id = $1 AND organization_id = $2`,
         [formFormatId, organizationId]
       );
 
       if (existingCheck.rows.length === 0) {
         return errorResponse(res, 'Form format not found', 404);
+      }
+      const reservedNames = findReservedFieldNames(req.body.form_structure || { fields: [] }, existingCheck.rows[0].form_structure);
+      if (reservedNames.length > 0) {
+        return reservedFieldNamesResponse(res, reservedNames);
       }
 
       const result = await pool.query(
@@ -597,13 +619,18 @@ module.exports = (pool, logger) => {
 
       // Verify form exists and belongs to organization
       const formCheck = await client.query(
-        'SELECT id, form_type FROM organization_form_formats WHERE id = $1 AND organization_id = $2',
+        'SELECT id, form_type, form_structure FROM organization_form_formats WHERE id = $1 AND organization_id = $2',
         [formFormatId, organizationId]
       );
 
       if (formCheck.rows.length === 0) {
         await client.query('ROLLBACK');
         return errorResponse(res, 'Form format not found', 404);
+      }
+      const reservedNames = findReservedFieldNames(form_structure, formCheck.rows[0].form_structure);
+      if (reservedNames.length > 0) {
+        await client.query('ROLLBACK');
+        return reservedFieldNamesResponse(res, reservedNames);
       }
 
       const formType = formCheck.rows[0].form_type;
