@@ -72,6 +72,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   canAccessAdminPanel: jest.fn(() => mockAdminPanel),
   canAccessParentTools: jest.fn(() => mockIsParent),
   canCreateOrganization: jest.fn(() => false),
+  canSwitchUnits: jest.fn(() => false),
   canViewCarpools: jest.fn(() => false),
   canFollowPermissionSlips: jest.fn(() => !mockIsParent
     && ['activities.view', 'participants.view', 'groups.view'].every((permission) => mockPermissions.has(permission))),
@@ -203,7 +204,7 @@ describe('tool groups separate weekly work from unit set-up', () => {
   test('"Administration" holds my account and display first, then district and system tools', () => {
     const tiles = DASHBOARD_TILES.filter((tile) => tile.domain === 'system');
     expect(tiles.map((tile) => tile.href))
-      .toEqual(['/account-info', '/display-settings', '/district', '/create-organization']);
+      .toEqual(['/account-info', '/display-settings', '/district', '/create-organization', '/units']);
     expect(tiles.every((tile) => tile.href === '/account-info' || tile.gate)).toBe(true);
   });
 

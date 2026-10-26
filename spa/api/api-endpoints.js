@@ -268,7 +268,8 @@ export async function logout() {
  * Create new organization
  */
 export async function createOrganization(data) {
-  return API.post('v1/organizations', data);
+  // A unit, its address and its administrator's invitation exist only once the server says so.
+  return API.post('v1/organizations', data, {}, { queueOffline: false });
 }
 
 // ============================================================================

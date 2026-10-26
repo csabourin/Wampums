@@ -26,6 +26,7 @@ import {
   canAccessAdminPanel,
   canAccessParentTools,
   canCreateOrganization,
+  canSwitchUnits,
   canViewCarpools,
   canFollowPermissionSlips,
   isParent,
@@ -516,6 +517,8 @@ export class Dashboard extends BaseModule {
         return canFollowPermissionSlips();
       case 'createOrganization':
         return canCreateOrganization();
+      case 'switchUnits':
+        return canSwitchUnits();
       case 'member':
         return true;
       default:

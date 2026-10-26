@@ -105,7 +105,9 @@ const DERIVED_RESOURCES = {
   // What is out on loan is what the inventory shows as unavailable.
   'equipment-loans': ['equipment-loans', 'resources'],
   // The announcement composer lists the unit's roles.
-  roles: ['roles', 'announcements', 'users', 'forms']
+  roles: ['roles', 'announcements', 'users', 'forms'],
+  // Creating a unit adds it to the list of the creator's units.
+  organizations: ['organizations', 'users/me/organizations']
 };
 
 /**

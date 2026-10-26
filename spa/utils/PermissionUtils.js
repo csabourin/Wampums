@@ -201,6 +201,17 @@ export function canCreateOrganization() {
 }
 
 /**
+ * Whether the person is offered the list of their units to move between. A
+ * district administrator's tool: `org.create` is district-only (migration 022),
+ * and whoever creates a unit needs a way into it.
+ *
+ * @returns {boolean} True for a district administrator
+ */
+export function canSwitchUnits() {
+  return hasPermission('org.create');
+}
+
+/**
  * Determine if the current user can view finance data
  *
  * @returns {boolean} True when finance view permission is granted

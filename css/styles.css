@@ -13020,3 +13020,70 @@ body:has(> .settings-icon) .demo-banner__inner {
 .material-items__note { margin: var(--space-xs) 0 0; }
 .activity-material-summary { padding: var(--space-xs) var(--space-sm); overflow-wrap: anywhere; }
 .activity-row__materiel .material-items-btn { margin-top: var(--space-xs); }
+
+/* Creating a unit: its branch, address and administrator, then the way into it. */
+.create-unit-access {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: var(--space-lg) 0;
+  min-width: 0;
+}
+
+.create-unit-branch {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.create-unit-subdomain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.create-unit-subdomain input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.create-unit-subdomain__suffix {
+  overflow-wrap: anywhere;
+}
+
+.create-unit-notice {
+  padding: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-warning-light);
+  background: #fff4d6;
+  color: #6b4e00;
+}
+
+.create-unit-done__actions,
+.unit-switcher__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.unit-switcher__list {
+  flex-direction: column;
+  list-style: none;
+  padding: 0;
+}
+
+.unit-switcher__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.unit-switcher__name {
+  overflow-wrap: anywhere;
+}

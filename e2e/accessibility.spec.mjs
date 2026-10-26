@@ -42,7 +42,7 @@ const SCREENS = {
     '/time-since-registration', '/formulaire-inscription', `/carpool/${seededActivityId()}`,
     '/material-management', '/equipment-loans',
     '/medication-dispensing', '/medication-reception',
-    '/create-organization',
+    '/create-organization', '/units',
     `/badge-form/${seededParticipantId()}`,
     '/prepare-offline', '/communications',
     '/main-dashboard', '/manage-users-participants', '/group-participant-report',
