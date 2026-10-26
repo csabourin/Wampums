@@ -369,6 +369,22 @@ describe.skipIf(!DATABASE_URL)('Activities for some participants', () => {
     expect(sendEmail.mock.calls.map(([to]) => to)).toContain(familyEmail);
   });
 
+  test('the update notice also reaches the unit\'s leaders, but not a leader of another unit', async () => {
+    const { sendActivityUpdateNotifications } = jest.requireActual('../utils/carpool-notifications');
+    const staffEmail = await one('SELECT email FROM users WHERE id = $1', [ids.staff]);
+    const staffRole = await one('SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+      [ids.staff, ids.unit]);
+    const elsewhere = await member(Number(staffRole), 'Leader Elsewhere', ids.otherUnit);
+    const elsewhereEmail = await one('SELECT email FROM users WHERE id = $1', [elsewhere]);
+
+    sendEmail.mockClear();
+    await sendActivityUpdateNotifications(pool, ids.camp, ids.unit);
+    const recipients = sendEmail.mock.calls.map(([to]) => to);
+    expect(recipients).toContain(staffEmail);
+    expect(recipients).not.toContain(elsewhereEmail);
+    expect(recipients.filter((to) => to === staffEmail)).toHaveLength(1);
+  });
+
   test('inviting everyone again opens the activity to the whole unit', async () => {
     const response = await call('put', `/api/v1/activities/${ids.camp}`, ids.staff).send({ invites_everyone: true });
     expect(response.status).toBe(200);
@@ -407,5 +423,31 @@ describe.skipIf(!DATABASE_URL)('Activities for some participants', () => {
     sendEmail.mockClear();
     await sendActivityUpdateNotifications(pool, ids.camp, ids.unit);
     expect(sendEmail.mock.calls.map(([to]) => to)).not.toContain(newcomerEmail);
+  });
+
+  test('a cancellation notice for an activity for some participants reaches its invited families, drivers and leaders', async () => {
+    const { findActivityCancellationRecipients } = jest.requireActual('../utils/carpool-notifications');
+    const emailOf = (userId) => one('SELECT email FROM users WHERE id = $1', [userId]);
+    const outsider = await member(Number(await one(
+      'SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1 AND organization_id = $2', [ids.family, ids.unit])),
+    'Uninvited Family');
+    const outsiderChild = await child('Outsider');
+    await grantParticipantAccess(pool, { participantId: outsiderChild, userId: outsider, sourceType: ACCESS_SOURCE.DIRECT });
+    const driver = await member(Number(await one(
+      'SELECT role_ids->>0 FROM user_organizations WHERE user_id = $1 AND organization_id = $2', [ids.family, ids.unit])),
+    'Driving Family');
+    await offer(driver, ids.camp);
+    await call('put', `/api/v1/activities/${ids.camp}`, ids.staff)
+      .send({ invites_everyone: false, invited_participant_ids: [ids.veteran, ids.older] });
+
+    const notice = await findActivityCancellationRecipients(pool, ids.camp, ids.unit);
+    const recipients = notice.recipients.map((recipient) => recipient.email);
+
+    expect(notice.activity.invites_everyone).toBe(false);
+    expect(recipients).toEqual(expect.arrayContaining([
+      await emailOf(ids.family), await emailOf(ids.staff), await emailOf(driver),
+    ]));
+    expect(recipients).not.toContain(await emailOf(outsider));
+    expect(await findActivityCancellationRecipients(pool, ids.camp, ids.otherUnit)).toBeNull();
   });
 });

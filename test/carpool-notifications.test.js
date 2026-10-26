@@ -16,6 +16,8 @@ jest.mock('../services/emailSender', () => ({
 const { sendEmail, getUserEmailLanguage } = require('../utils/index');
 const {
   sendRideCancellationNotifications,
+  sendActivityUpdateNotifications,
+  findActivityCancellationRecipients,
   sendActivityCancellationNotifications,
 } = require('../utils/carpool-notifications');
 
@@ -23,19 +25,47 @@ const LANGUAGES = {
   'lea.parent@example.test': 'fr',
   'ada.parent@example.test': 'en',
   'oksana.parent@example.test': 'uk',
+  'akela@example.test': 'fr',
+  'baloo@example.test': 'en',
 };
 
-/** A pool that answers the unit's language setting and, when asked, the people to tell. */
-function poolWith({ fallback = 'fr', recipients = [] } = {}) {
+const AKELA = { id: 'a1', full_name: 'Julie Gagnon', email: 'akela@example.test' };
+const BALOO = { id: 'b2', full_name: 'Grace Hopper', email: 'baloo@example.test' };
+
+const CANOE_TRIP = {
+  activity_name: 'Sortie canot',
+  activity_date: '2026-11-22',
+  meeting_location_going: 'Local scout',
+  meeting_time_going: '08:00',
+  departure_time_going: '08:15',
+  meeting_location_return: null,
+  meeting_time_return: null,
+  departure_time_return: null,
+};
+
+/**
+ * A pool that answers the unit's language setting, the activity, the unit's
+ * activity leaders and, when asked, the families and drivers to tell.
+ */
+function poolWith({ fallback = 'fr', recipients = [], leaders = [], activity = CANOE_TRIP } = {}) {
   return {
     query: jest.fn((sql) => {
       if (sql.includes("setting_key = 'interface_languages'")) {
         return Promise.resolve({ rows: [{ setting_value: { enabled: ['uk'], fallback } }] });
       }
+      if (sql.includes("r.data_scope = 'organization'")) {
+        return leaders instanceof Error ? Promise.reject(leaders) : Promise.resolve({ rows: leaders });
+      }
+      if (/FROM activities\s+WHERE id = \$1/.test(sql)) {
+        return Promise.resolve({ rows: activity ? [activity] : [] });
+      }
       return Promise.resolve({ rows: recipients });
     }),
   };
 }
+
+/** @returns {string[]} Every address an email was sent to, in order */
+const addressees = () => sendEmail.mock.calls.map(([to]) => to);
 
 /** @returns {Object} The email sent to that address: subject, text and html */
 function emailTo(address) {
@@ -107,17 +137,91 @@ describe('a cancelled carpool ride', () => {
   });
 });
 
+const FAMILIES = [
+  { email: 'lea.parent@example.test', name: 'Marie Tremblay' },
+  { email: 'ada.parent@example.test', name: 'Ada Lovelace' },
+];
+
+describe('an updated activity', () => {
+  test('the unit\'s leaders are told as well as the families, each in their own language', async () => {
+    await sendActivityUpdateNotifications(poolWith({ recipients: FAMILIES, leaders: [AKELA, BALOO] }), 7, 1);
+
+    expect(addressees().sort()).toEqual([
+      'ada.parent@example.test', 'akela@example.test', 'baloo@example.test', 'lea.parent@example.test',
+    ]);
+    expect(emailTo('akela@example.test').text).toContain('Bonjour Julie Gagnon,');
+    expect(emailTo('baloo@example.test').text).toContain('Hello Grace Hopper,');
+    expect(emailTo('baloo@example.test').text).toContain('Local scout');
+  });
+
+  test('a leader who is also a parent of the activity gets one email', async () => {
+    const parentLeader = { ...AKELA, email: 'Lea.Parent@example.test' };
+    await sendActivityUpdateNotifications(poolWith({ recipients: FAMILIES, leaders: [parentLeader] }), 7, 1);
+
+    expect(addressees()).toHaveLength(2);
+    expect(emailTo('lea.parent@example.test').text).toContain('Marie Tremblay');
+  });
+
+  test('the leaders are told even when no family is concerned yet', async () => {
+    await sendActivityUpdateNotifications(poolWith({ leaders: [AKELA] }), 7, 1);
+
+    expect(addressees()).toEqual(['akela@example.test']);
+  });
+
+  test('the families are still told when the leaders cannot be listed', async () => {
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    await sendActivityUpdateNotifications(poolWith({ recipients: FAMILIES, leaders: new Error('db down') }), 7, 1);
+
+    expect(addressees().sort()).toEqual(['ada.parent@example.test', 'lea.parent@example.test']);
+    consoleError.mockRestore();
+  });
+
+  test('an activity of another unit emails no one', async () => {
+    await sendActivityUpdateNotifications(poolWith({ recipients: FAMILIES, leaders: [AKELA], activity: null }), 7, 1);
+
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+});
+
 describe('a cancelled activity', () => {
+  /** Find who to tell, then tell them, as DELETE /activities/:id does. */
+  async function cancel(pool) {
+    const notice = await findActivityCancellationRecipients(pool, 7, 1);
+    await sendActivityCancellationNotifications(pool, 1, notice);
+    return notice;
+  }
+
+  test('the unit\'s leaders are told as well as the families', async () => {
+    await cancel(poolWith({ recipients: FAMILIES, leaders: [AKELA] }));
+
+    expect(addressees().sort()).toEqual(['ada.parent@example.test', 'akela@example.test', 'lea.parent@example.test']);
+    expect(emailTo('akela@example.test').subject).toBe('Activité annulée - Sortie canot');
+  });
+
   test('each family is told in its own language', async () => {
-    const recipients = [
-      { email: 'lea.parent@example.test', guardian_name: 'Marie Tremblay', activity_name: 'Sortie canot', activity_date: '2026-11-22' },
-      { email: 'ada.parent@example.test', guardian_name: 'Ada Lovelace', activity_name: 'Sortie canot', activity_date: '2026-11-22' },
-    ];
-    await sendActivityCancellationNotifications(poolWith({ recipients }), 7, 1);
+    await cancel(poolWith({ recipients: FAMILIES }));
 
     expect(emailTo('lea.parent@example.test').subject).toBe('Activité annulée - Sortie canot');
     expect(emailTo('lea.parent@example.test').text).toContain('Les covoiturages prévus pour cette activité sont annulés eux aussi.');
     expect(emailTo('ada.parent@example.test').subject).toBe('Activity cancelled - Sortie canot');
     expect(emailTo('ada.parent@example.test').text).toContain('All carpools planned for this activity are cancelled as well.');
+  });
+
+  test('an activity open to every participant is announced to the whole unit', async () => {
+    const pool = poolWith({ recipients: FAMILIES, activity: { ...CANOE_TRIP, invites_everyone: true } });
+    await findActivityCancellationRecipients(pool, 7, 1);
+    const concernedCall = pool.query.mock.calls.find(([sql]) => sql.includes('WITH recipients AS'));
+    expect(concernedCall[1]).toEqual([7, 1, true]);
+  });
+
+  test('an activity for some participants is announced only to those it concerns', async () => {
+    const pool = poolWith({ recipients: FAMILIES, activity: { ...CANOE_TRIP, invites_everyone: false } });
+    await findActivityCancellationRecipients(pool, 7, 1);
+    const concernedCall = pool.query.mock.calls.find(([sql]) => sql.includes('WITH recipients AS'));
+    expect(concernedCall[1]).toEqual([7, 1, false]);
+  });
+
+  test('an activity of another unit has no one to tell', async () => {
+    expect(await findActivityCancellationRecipients(poolWith({ leaders: [AKELA], activity: null }), 7, 1)).toBeNull();
   });
 });

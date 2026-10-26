@@ -64,12 +64,16 @@ export async function updateActivity(activityId, activityData) {
 /**
  * Delete an activity
  * @param {number} activityId - Activity ID
- * @returns {Promise<void>}
+ * @param {Object} [options]
+ * @param {boolean} [options.notify=false] - Email everyone it concerns, and the
+ *   unit's leaders, that it is cancelled
+ * @returns {Promise<Object>} API response; `queued` when sent later
  */
-export async function deleteActivity(activityId) {
-  await API.delete(`v1/activities/${activityId}`);
+export async function deleteActivity(activityId, { notify = false } = {}) {
+  const response = await API.delete(`v1/activities/${activityId}`, notify ? { notify_participants: 'true' } : {});
   // Invalidate activity caches to ensure fresh data
   await clearActivityRelatedCaches();
+  return response;
 }
 
 /**

@@ -11,9 +11,9 @@ import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { parseDate } from '../../utils/DateUtils.js';
 import { debounce } from '../../utils/PerformanceUtils.js';
-import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { openActivityFormModal } from './ActivityFormModal.js';
+import { confirmActivityDeletion } from './ActivityDeleteDialog.js';
 import {
   formatActivityDateRange,
   getActivityEndDateObj,
@@ -289,10 +289,11 @@ export class Activities extends BaseModule {
       // Captured before the dialog: currentTarget is cleared once dispatch ends
       const button = e.currentTarget;
       const activityId = parseInt(button.dataset.activityId, 10);
-      if (await confirmDestructive(translate('confirm_delete_activity'))) {
+      const choice = await confirmActivityDeletion(this.activities.find((a) => a.id === activityId));
+      if (choice) {
         setButtonLoading(button, true);
         try {
-          await this.deleteActivity(activityId);
+          await this.deleteActivity(activityId, choice);
         } finally {
           setButtonLoading(button, false);
         }
@@ -357,11 +358,15 @@ export class Activities extends BaseModule {
     });
   }
 
-  async deleteActivity(activityId) {
+  async deleteActivity(activityId, { notify = false } = {}) {
     try {
-      await deleteActivity(activityId);
+      const result = await deleteActivity(activityId, { notify });
       await clearActivityRelatedCaches();
-      this.app.showMessage(translate('activity_deleted_success'), 'success');
+      // Offline, the deletion (and its emails) is only queued: say so
+      this.app.showMessage(
+        translate(result?.queued ? 'activity_delete_queued' : 'activity_deleted_success'),
+        result?.queued ? 'info' : 'success'
+      );
       await this.loadActivities(true);
       this.render();
       this.attachEventListeners();

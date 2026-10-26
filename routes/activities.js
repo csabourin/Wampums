@@ -5,7 +5,11 @@ const { toBool } = require('../utils');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 const logger = require('../config/logger');
-const { sendActivityUpdateNotifications } = require('../utils/carpool-notifications');
+const {
+  sendActivityUpdateNotifications,
+  findActivityCancellationRecipients,
+  sendActivityCancellationNotifications
+} = require('../utils/carpool-notifications');
 const { carpoolRosterRestriction } = require('../services/carpoolAccess');
 const { mayReadInviteeList, readInvitation, saveInvitation } = require('../services/activityInvitations');
 const { readRichTextField } = require('../utils/richText');
@@ -731,6 +735,8 @@ module.exports = (pool) => {
    * Delete an activity (soft delete).
    * Its carpool offers are cancelled and its unanswered permission slips are
    * archived, so guardians can no longer sign for an activity that is gone.
+   * With `?notify_participants=true`, everyone it concerns and the unit's
+   * leaders are emailed that it is cancelled.
    * Accessible by: animation, admin only
    */
   router.delete('/:id', authenticate, blockDemoRoles, requirePermission('activities.delete'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
@@ -745,6 +751,21 @@ module.exports = (pool) => {
 
     if (activityCheck.rows.length === 0) {
       return error(res, 'Activity not found', 404);
+    }
+
+    // Explicit opt-in, as for updates: deleting also removes mistakes. The
+    // recipients are read now, while the carpool offers still name the drivers.
+    let cancellationNotice = null;
+    if (toBool(req.query.notify_participants) === 't') {
+      try {
+        cancellationNotice = await findActivityCancellationRecipients(pool, Number(id), organizationId);
+      } catch (notifyError) {
+        logger.error('[Activity Delete] Failed to list cancellation recipients', {
+          activityId: id,
+          organizationId,
+          error: notifyError.message
+        });
+      }
     }
 
     // Cancel all active carpool offers for this activity
@@ -768,6 +789,18 @@ module.exports = (pool) => {
        RETURNING *`,
       [id, organizationId]
     );
+
+    if (cancellationNotice) {
+      try {
+        await sendActivityCancellationNotifications(pool, organizationId, cancellationNotice);
+      } catch (notifyError) {
+        logger.error('[Activity Delete] Failed to send cancellation notifications', {
+          activityId: id,
+          organizationId,
+          error: notifyError.message
+        });
+      }
+    }
 
     return success(res, result.rows[0], 'Activity deleted successfully');
   }));
