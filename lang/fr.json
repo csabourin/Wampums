@@ -4673,5 +4673,8 @@
   "equipment_catalog_items_button": "Matériel de l'unité ({count})",
   "equipment_catalog_items_for": "Matériel pour {name}",
   "equipment_catalog_group_articles": "Catalogue",
-  "equipment_catalog_group_inventory": "Inventaire"
+  "equipment_catalog_group_inventory": "Inventaire",
+  "meeting_autosave_incomplete": "Gardé sur cet appareil seulement. Remplissez {fields} pour l'enregistrer pour l'équipe.",
+  "activity_plan_timeline_heading": "Déroulement :",
+  "activity_plan_materials_heading": "Matériel :"
 }

@@ -9,7 +9,9 @@ const { getBudgetStatus } = require('../services/ai-budget');
 const { FILE_LIMITS } = require('../config/constants');
 const { AI_MODES, validateAIPayload } = require('../utils/aiPayloadValidation');
 const { sendAIFailure } = require('../utils/aiFailure');
-const { listMaterialOptions, planMaterialChoices, readPlanMaterial } = require('../services/equipmentCatalog');
+const {
+  listMaterialOptions, planMaterialChoices, readPlanMaterial, PLAN_ITEMS_PER_OUTING_MAX,
+} = require('../services/equipmentCatalog');
 
 // Every AI call spends the shared, paid budget, so it is limited to the staff
 // features that offer it: message rewriting and translation (communications),
@@ -27,13 +29,14 @@ const HTTP_BAD_REQUEST = 400;
 const HTTP_SERVICE_UNAVAILABLE = 503;
 
 /**
- * A meeting plan chooses its material among what the unit has or may use
- * (catalogue articles and accessible inventory), never inventing any. The list
- * is read here, from the unit of the token: the client cannot supply it.
+ * A meeting plan or an activity plan chooses its material among what the unit
+ * has or may use (catalogue articles and accessible inventory), never
+ * inventing any. The list is read here, from the unit of the token: the
+ * client cannot supply it.
  *
  * @param {Object} pool - pg pool
  * @param {number} organizationId
- * @param {Object} payload - Validated meeting_plan payload, given availableMaterial
+ * @param {Object} payload - Validated meeting_plan payload (either request type), given availableMaterial
  * @returns {Promise<Map<string, Object>>} The choices offered, by ref
  */
 async function offerUnitMaterial(pool, organizationId, payload) {
@@ -45,8 +48,21 @@ async function offerUnitMaterial(pool, organizationId, payload) {
 }
 
 /**
- * Replace the plan's material by what it chose from the unit's list: each
- * timeline item gets material_items, and no free-text material is kept.
+ * Replace an activity plan's material by what it chose from the unit's list:
+ * material_items for the whole activity, and no free-text list.
+ *
+ * @param {Object} plan - The model's answer
+ * @param {Map<string, Object>} choices - What it was offered
+ * @returns {Object} The plan
+ */
+function keepOfferedActivityMaterial(plan, choices) {
+  const { materials, materialsMasterList: _invented, ...rest } = plan || {};
+  return { ...rest, material_items: readPlanMaterial(materials, choices, PLAN_ITEMS_PER_OUTING_MAX) };
+}
+
+/**
+ * Replace a meeting plan's material by what it chose from the unit's list:
+ * each timeline item gets material_items, and no free-text material is kept.
  *
  * @param {Object} plan - The model's answer
  * @param {Map<string, Object>} choices - What it was offered
@@ -97,8 +113,8 @@ router.post(
     }
 
     const userContext = await buildUserContext(req);
-    const planningMeeting = mode === 'meeting_plan' && validation.value.requestType === 'meeting_plan';
-    const choices = planningMeeting && userContext.organizationId
+    const planning = mode === 'meeting_plan';
+    const choices = planning && userContext.organizationId
       ? await offerUnitMaterial(req.app.locals.pool, userContext.organizationId, validation.value)
       : new Map();
 
@@ -109,7 +125,9 @@ router.post(
       return sendAIFailure(res, err);
     }
     if (choices.size > 0) {
-      result.data = keepOfferedMaterial(result.data, choices);
+      result.data = validation.value.requestType === 'activity_plan'
+        ? keepOfferedActivityMaterial(result.data, choices)
+        : keepOfferedMaterial(result.data, choices);
     }
 
     // Budget status rides along so the page can show what is left.

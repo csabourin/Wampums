@@ -176,4 +176,16 @@ describe('AI prompt trust boundaries', () => {
     expect(system).not.toContain(INJECTION_SENTINEL);
     expect(messages.find(({ role }) => role === 'user').content).toContain(INJECTION_SENTINEL);
   });
+
+  test('an outing plan offered the unit\'s material may only choose from it, by reference', () => {
+    const validation = validateAIPayload('meeting_plan', { durationMinutes: 90, badgeFocus: 'Orientation', participantsCount: 10 });
+    const payload = { ...validation.value, availableMaterial: [{ ref: 'e7', name: INJECTION_SENTINEL, category: 'games', unit: 'each' }] };
+
+    const [system, user] = buildMessages('meeting_plan', payload);
+
+    expect(system.content).toContain('never name material that is not in the list');
+    expect(system.content).not.toContain('materialsMasterList');
+    expect(system.content).not.toContain(INJECTION_SENTINEL);
+    expect(user.content).toContain(INJECTION_SENTINEL);
+  });
 });

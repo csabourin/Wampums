@@ -512,7 +512,7 @@ Rules and the meeting-template links are in `devdocs/ACTIVITY_LIBRARY.md`.
 
 ### Equipment catalogue and unit material
 
-`/equipment-catalog` (`equipment_catalog.manage`, migration 054) names a unit's articles once:
+`/equipment-catalog` (`equipment_catalog.manage`, migrations 054 and 055) names a unit's articles once:
 name, category (`config/equipment_categories.json`), unit of measure (`config/equipment_units.json`)
 and, optionally, an inventory item the unit may use (`services/equipmentAccess.js`). Articles are
 archived, never deleted; one active name per unit.
@@ -528,10 +528,15 @@ line's list in the line's transaction; omitted, the list is kept. Something arch
 shared stays on a line that lists it but cannot be added; copying a camp schedule copies only what
 is still active. Composite foreign keys keep a line and its articles in the same unit.
 
-The AI meeting plan chooses material only from that list: `routes/ai.js` reads it for the unit of
-the token (a client cannot supply it) and sends names and categories with short references
-(`a3`, `e7`); the answer keeps only references it was offered and never free-text material. A unit
-with no catalogue and no inventory keeps the free-text answer. Catalogue writes need a connection.
+The AI meeting plan and outing plan choose material only from that list: `routes/ai.js` reads it
+for the unit of the token (a client cannot supply it) and sends names and categories with short
+references (`a3`, `e7`); the answer keeps only references it was offered and never free-text
+material. A unit with no catalogue and no inventory keeps the free-text answer. Catalogue writes
+need a connection.
+
+Meeting preparation sends a change to the server once the date (and the youth of honour, where
+the unit requires one) is filled; the leader in charge and the place are optional, as on the
+server. Until then the change stays on the device and the status names what is missing.
 
 ### Action rosters during activities
 

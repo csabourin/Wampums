@@ -35,8 +35,10 @@ const CATALOG_NAME_MAX_LENGTH = 150;
 const MATERIAL_ITEMS_MAX = 50;
 /** Most choices offered at once: enough for any unit, small enough for one AI call. */
 const MATERIAL_OPTIONS_MAX = 300;
-/** Most entries the assistant may give one activity. */
+/** Most entries the assistant may give one activity of a meeting. */
 const PLAN_ITEMS_PER_ACTIVITY_MAX = 10;
+/** Most entries the assistant may give a whole outing, as equipment suggestions. */
+const PLAN_ITEMS_PER_OUTING_MAX = 25;
 const QUANTITY_DECIMALS = 100;
 /** References the assistant uses for a choice: a3 is article 3, e7 inventory item 7. */
 const PLAN_REF_PATTERN = /^([ae])([1-9]\d{0,9})$/;
@@ -506,11 +508,12 @@ function planMaterialChoices(options) {
  * Keep only what the assistant may say about one activity's material:
  * references it was offered, each once, with a sensible quantity.
  *
- * @param {*} entries - `materialItems` of one timeline item of the answer
+ * @param {*} entries - `materialItems` of one timeline item, or `materials` of an outing
  * @param {Map<string, Object>} choices - planMaterialChoices by ref
+ * @param {number} [max] - Most entries kept
  * @returns {Object[]} material_items, as a schedule line lists them
  */
-function readPlanMaterial(entries, choices) {
+function readPlanMaterial(entries, choices, max = PLAN_ITEMS_PER_ACTIVITY_MAX) {
   if (!Array.isArray(entries)) {
     return [];
   }
@@ -537,7 +540,7 @@ function readPlanMaterial(entries, choices) {
       };
     })
     .filter(Boolean)
-    .slice(0, PLAN_ITEMS_PER_ACTIVITY_MAX);
+    .slice(0, max);
 }
 
 module.exports = {
@@ -560,4 +563,5 @@ module.exports = {
   listMaterialOptions,
   planMaterialChoices,
   readPlanMaterial,
+  PLAN_ITEMS_PER_OUTING_MAX,
 };

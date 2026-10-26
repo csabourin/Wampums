@@ -4673,5 +4673,8 @@
   "equipment_catalog_items_button": "Unit material ({count})",
   "equipment_catalog_items_for": "Material for {name}",
   "equipment_catalog_group_articles": "Catalogue",
-  "equipment_catalog_group_inventory": "Inventory"
+  "equipment_catalog_group_inventory": "Inventory",
+  "meeting_autosave_incomplete": "Kept on this device only. Fill in {fields} to save it for the team.",
+  "activity_plan_timeline_heading": "Timeline:",
+  "activity_plan_materials_heading": "Material:"
 }

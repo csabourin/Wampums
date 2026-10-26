@@ -203,3 +203,35 @@ test('the material offered comes from the unit, never from the request', async (
   // With nothing recorded, the unit keeps the free-text material it had.
   expect(response.body.data.data.timeline[0].materiel).toBe('Cordes');
 });
+
+const ACTIVITY_PLAN = { mode: 'meeting_plan', payload: { durationMinutes: 120, badgeFocus: 'Orientation', participantsCount: 12 } };
+
+test('an outing plan names only the unit\'s material, and its invented list is dropped', async () => {
+  scenario = { permissions: ['activities.create'], demo: false, material: true };
+  generateText.mockResolvedValue({
+    data: {
+      title: 'Rallye',
+      materials: [{ ref: 'a3', quantity: 10 }, { ref: 'e404', quantity: 2 }],
+      materialsMasterList: ['Drone'],
+    },
+    usage: {},
+  });
+
+  const response = await ask(ACTIVITY_PLAN);
+
+  expect(response.status).toBe(200);
+  expect(generateText.mock.calls[0][1].availableMaterial.map((choice) => choice.ref)).toEqual(['a3', 'e7']);
+  const plan = response.body.data.data;
+  expect(plan).not.toHaveProperty('materialsMasterList');
+  expect(plan).not.toHaveProperty('materials');
+  expect(plan.material_items).toEqual([expect.objectContaining({ catalog_item_id: 3, quantity: 10, name: 'Cônes' })]);
+});
+
+test('an outing plan for a unit with nothing recorded keeps the assistant\'s list', async () => {
+  scenario = { permissions: ['activities.create'], demo: false, material: false };
+  generateText.mockResolvedValue({ data: { title: 'Rallye', materialsMasterList: ['Foulards'] }, usage: {} });
+
+  const response = await ask(ACTIVITY_PLAN);
+
+  expect(response.body.data.data.materialsMasterList).toEqual(['Foulards']);
+});

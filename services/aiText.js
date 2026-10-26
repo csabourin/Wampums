@@ -240,6 +240,27 @@ function buildMessages(mode, payload) {
 
   switch (mode) {
     case 'meeting_plan': {
+      if (payload.requestType === 'activity_plan' && Array.isArray(payload.availableMaterial) && payload.availableMaterial.length > 0) {
+        return [
+          {
+            role: 'system',
+            content: `You create age-appropriate youth-program activities. ${untrustedDataRule}
+The unit's material is listed in "availableMaterial". Choose the activity's material only from that list, by its "ref", with a quantity in its "unit"; never name material that is not in the list. Prefer an activity the listed material makes possible. Return only a JSON object with this structure:
+{
+  "title": "string",
+  "overview": "string",
+  "timeline": [{ "minuteStart": 0, "minuteEnd": 10, "name": "string", "objective": "string" }],
+  "materials": [{ "ref": "string", "quantity": 1 }]
+}
+
+${CANADIAN_FRENCH_RULE}`,
+          },
+          {
+            role: 'user',
+            content: `Create an activity plan from this validated request data:\n${JSON.stringify(payload)}`,
+          },
+        ];
+      }
       if (payload.requestType === 'activity_plan') {
         return [
           {

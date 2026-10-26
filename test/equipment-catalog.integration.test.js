@@ -260,6 +260,14 @@ describe.skipIf(!DATABASE_URL)('Equipment catalogue', () => {
       expect(again.body.data.meeting.activities[0].material_items).toHaveLength(2);
     });
 
+    test('the database refuses an entry naming both an article and an inventory item', async () => {
+      const line = await one("INSERT INTO year_plan_meeting_activities (organization_id, meeting_id, name) VALUES ($1, $2, 'Both') RETURNING id", [units[0], camp]);
+      await expect(pool.query(
+        'INSERT INTO meeting_activity_equipment (organization_id, meeting_activity_id, catalog_item_id, equipment_item_id, quantity) VALUES ($1, $2, $3, $4, 1)',
+        [units[0], line, tent, ball],
+      )).rejects.toMatchObject({ code: '23514' });
+    });
+
     test('another unit\'s inventory cannot be put on a line', async () => {
       const res = await request(app).post('/api/v1/meetings/preparation').set(as(planner)).send({
         date: '2026-12-09',
