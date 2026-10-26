@@ -1,4 +1,4 @@
-{$APP_DOMAINS} {
+{$APP_DOMAINS}, *.{$UNIT_BASE_DOMAIN} {
     tls /etc/wampums/tls/fullchain.pem /etc/wampums/tls/privkey.pem
     encode zstd gzip
     reverse_proxy app:5000

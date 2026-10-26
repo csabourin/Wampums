@@ -525,7 +525,10 @@ A unit's branch and addresses are changed under Unit settings › General. `PATC
 /api/v1/organizations/settings/branch` (`org.edit`) sets the branch; its vocabulary follows unless
 the unit wrote its own (`custom`). Saving the vocabulary sets the branch only while it is still
 `general`. A branch without terms or a meeting layout of its own (scouts, pioneers, rovers) uses the
-generic ones, never the cubs'. Addresses are listed with `org.view`; adding one, choosing the
+generic ones, ahead of a stale legacy meeting section once vocabulary is saved; an unknown branch
+still falls back to its legacy section. OVH routes the unit base domain's wildcard to the app
+(`deploy/ovh/README.md`); wildcard DNS and TLS must be configured before using new addresses.
+Addresses are listed with `org.view`; adding one, choosing the
 primary one (`organization_domains.is_primary`, migration 057, used by `resolveOrganizationBaseUrl`)
 and removing one take `org.create`. A unit keeps its primary and at least one exact address. Adding
 an address never replaces one, so links already sent keep working.

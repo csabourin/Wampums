@@ -33,6 +33,7 @@ services:
     restart: unless-stopped
     environment:
       APP_DOMAINS: ${APP_DOMAINS:?Set the public hostnames, separated by commas}
+      UNIT_BASE_DOMAIN: ${UNIT_BASE_DOMAIN:-wampums.app}
       STORAGE_DOMAIN: ${STORAGE_DOMAIN:-files.wampums.app}
     ports:
       - '80:80'

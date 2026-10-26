@@ -1,4 +1,7 @@
 const defaultMeetingSections = require('../config/meeting_sections.json');
+const { DEFAULT_PROGRAM_SECTIONS } = require('./programSections');
+
+const PROGRAM_SECTION_KEYS = new Set(DEFAULT_PROGRAM_SECTIONS.map((section) => section.key));
 
 /**
  * Safely parse a JSON string value from the database.
@@ -70,13 +73,13 @@ function resolveMeetingSectionKey(meetingSections, context = {}) {
   if (programSection && sections[programSection]) {
     return programSection;
   }
-  if (legacySection && sections[legacySection]) {
-    return legacySection;
-  }
   // A branch without a meeting layout of its own (scouts, pioneers, rovers)
   // uses the general one rather than the cubs' default.
-  if (programSection && programSection !== 'general' && sections.general) {
+  if (PROGRAM_SECTION_KEYS.has(programSection) && sections.general) {
     return 'general';
+  }
+  if (legacySection && sections[legacySection]) {
+    return legacySection;
   }
   return meetingSections.defaultSection;
 }
