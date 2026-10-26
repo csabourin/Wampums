@@ -10,6 +10,7 @@ This directory contains durable material that is not better expressed by code, t
 - [`../.claude/skills/run-wampums/SKILL.md`](../.claude/skills/run-wampums/SKILL.md) — run, seed and screenshot the app locally
 - [`FAMILY_ACCESS.md`](./FAMILY_ACCESS.md) — invitations, parent onboarding, family links, and who can see which child
 - [`EMAIL_SENDER.md`](./EMAIL_SENDER.md) — a unit's email sender name, From and Reply-To, and the DNS that keeps them from being marked as spoofed
+- [`ACTIVITY_LIBRARY.md`](./ACTIVITY_LIBRARY.md) — starter activity fields, bilingual editorial review, specialist references and withdrawn entries
 - [`oas-catalog-pipeline.md`](./oas-catalog-pipeline.md) — versioned bilingual program catalog workflow
 - [`UNIT_CUSTOMIZATION.md`](./UNIT_CUSTOMIZATION.md) — unit vocabulary (dens, sections…) and which dashboard tiles a unit shows
 - [`REFONTE_TABLEAU_DE_BORD.md`](./REFONTE_TABLEAU_DE_BORD.md) — dashboard tile naming, grouping and tabbed-page rules, and what the mobile port can reuse (French)
