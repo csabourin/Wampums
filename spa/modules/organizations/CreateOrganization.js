@@ -183,6 +183,10 @@ export class CreateOrganization {
     const problems = [];
     (this.structure?.fields || []).forEach((field) => {
       const key = serverKeyFor(field.name);
+      // A field whose dependsOn condition is unmet is disabled and hidden: nobody can fill it.
+      if (this.control(key)?.disabled) {
+        return;
+      }
       if ((field.required || key === 'name') && !body[key]) {
         problems.push({ field: key, messageKey: 'field_required' });
       } else if (key === 'logo' && body.logo && !LOGO_PATTERN.test(body.logo)) {

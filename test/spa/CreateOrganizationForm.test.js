@@ -151,6 +151,26 @@ describe('creating a unit from the filled form', () => {
     expect(page().querySelector('.field-error')).toBeNull();
   });
 
+  test('a required field hidden by its condition does not block the creation', async () => {
+    ajax.getOrganizationFormFormats.mockResolvedValue({
+      organization_info: {
+        fields: [
+          ...TEMPLATE_FORMAT.fields,
+          { name: 'has_second_site', type: 'radio', label: 'Second site', options: [{ label: 'yes', value: 'yes' }, { label: 'no', value: 'no' }] },
+          { name: 'second_site', type: 'text', label: 'Second site address', required: true, dependsOn: { field: 'has_second_site', value: 'yes' } },
+        ],
+      },
+    });
+    ajax.createOrganization.mockResolvedValue({ success: true, organization_id: 9 });
+    await openScreen();
+    fillEverything();
+
+    await submit();
+
+    expect(field('Second site address').disabled).toBe(true);
+    expect(ajax.createOrganization).toHaveBeenCalled();
+  });
+
   test('a logo that is not a web address is explained on its field, not sent', async () => {
     await openScreen();
     fillEverything();
