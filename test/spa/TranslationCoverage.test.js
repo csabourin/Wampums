@@ -224,5 +224,5 @@ test('every shared task status has a label in both languages', () => {
   const config = fs.readFileSync(path.join(ROOT, 'spa/config.js'), 'utf8');
   const labels = [...config.match(/STATUS_KEYS:\s*\{([^}]+)\}/)[1].matchAll(/([a-z_]+): '([^']+)'/g)];
   expect(labels.map((match) => match[1])).toEqual(TASK_STATUSES);
-  expect(missing(labels.map((match) => [match[2], 'shared task status']))).toEqual([]);
+  expect(missing([...labels.map((match) => [match[2], 'shared task status']), ['role_category_tasks', 'role matrix category']])).toEqual([]);
 });

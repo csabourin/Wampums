@@ -4544,5 +4544,6 @@
   "tasks_invalid_date": "Enter a valid due date.",
   "tasks_invalid_status": "Choose a valid task status.",
   "role_permission_tasks_view": "Read assigned tasks and update their status",
-  "role_permission_tasks_manage": "Manage unit tasks"
+  "role_permission_tasks_manage": "Manage unit tasks",
+  "role_category_tasks": "Tasks"
 }

@@ -130,6 +130,9 @@ export class Tasks {
       ...options.activities.map((item) => ({ value: `activity:${item.id}`, label: item.name, date: item.date })),
       ...options.meetings.map((item) => ({ value: `meeting:${item.id}`, label: item.name || translate('tasks_meeting'), date: item.date })),
     ];
+    if (task && !events.some((item) => item.value === eventValue)) {
+      events.push({ value: eventValue, label: this.eventName(task), date: task.meeting_date });
+    }
     const modal = openModal({
       id: 'tasks-editor', title: translate(task ? 'tasks_edit' : 'tasks_create'),
       closeOnBackdrop: false,
@@ -139,7 +142,7 @@ export class Tasks {
         <input id="tasks-title" name="task_title" required maxlength="${CONFIG.TASKS.TITLE_MAX_LENGTH}" value="${escapeAttribute(task?.title || '')}">
         <label for="tasks-event">${translate('tasks_event')}</label>
         <select id="tasks-event" name="task_event" required><option value="">${translate('tasks_choose_event')}</option>
-          ${events.map((item) => `<option value="${escapeAttribute(item.value)}" ${item.value === eventValue ? 'selected' : ''}>${escapeHTML(item.label)} · ${escapeHTML(formatDate(item.date, this.app.lang))}</option>`).join('')}
+          ${events.map((item) => `<option value="${escapeAttribute(item.value)}" ${item.value === eventValue ? 'selected' : ''}>${escapeHTML(item.label)}${item.date ? ` · ${escapeHTML(formatDate(item.date, this.app.lang))}` : ''}</option>`).join('')}
         </select>
         <label for="tasks-assignee">${translate('tasks_assignee')}</label>
         <select id="tasks-assignee" name="task_assignee" required><option value="">${translate('tasks_choose_member')}</option>

@@ -4544,5 +4544,6 @@
   "tasks_invalid_date": "Saisissez une échéance valide.",
   "tasks_invalid_status": "Choisissez un état valide pour la tâche.",
   "role_permission_tasks_view": "Consulter ses tâches et modifier leur état",
-  "role_permission_tasks_manage": "Gérer les tâches de l’unité"
+  "role_permission_tasks_manage": "Gérer les tâches de l’unité",
+  "role_category_tasks": "Tâches"
 }

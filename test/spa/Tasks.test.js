@@ -139,3 +139,25 @@ test('a saved change remains successful when reloading fails', async () => {
   expect(app.showMessage).not.toHaveBeenCalledWith('tasks_save_failed', 'error');
   expect(document.getElementById('tasks-retry')).not.toBeNull();
 });
+
+test.each([
+  ['inactive outing', { activity_id: 4, activity_name: '<b>Camp</b>' }, 'activity:4'],
+  ['cancelled meeting', { activity_id: null, activity_name: null, meeting_id: 42, meeting_name: '<b>Meeting</b>', meeting_date: '2026-11-15' }, 'meeting:42'],
+])('editing a task keeps its %s selected even when it is absent from creation choices', async (_kind, event, selected) => {
+  hasPermission.mockReturnValue(true);
+  const current = { ...task, ...event };
+  api.getUnitTasks.mockResolvedValue({ data: [current] });
+  api.getTaskOptions.mockResolvedValue({ data: { members: [{ id: USER, full_name: 'Ada' }], activities: [], meetings: [] } });
+  await new Tasks(app).init();
+  document.getElementById('tasks-view').click(); await settle();
+  document.querySelector('[data-task-edit]').click(); await settle();
+  const form = document.getElementById('tasks-form');
+  expect(form.elements.task_event.value).toBe(selected);
+  expect(document.querySelector('#tasks-event b')).toBeNull();
+  form.elements.task_title.value = 'Updated task';
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  expect(api.saveTask).toHaveBeenCalledWith(expect.objectContaining({
+    title: 'Updated task', activity_id: event.activity_id, meeting_id: event.meeting_id || null,
+  }), task.id);
+});
