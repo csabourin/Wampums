@@ -39,7 +39,7 @@
     "routes/medication.js": 128,
     "routes/meetings.js": 18,
     "routes/offline.js": 33,
-    "routes/organizations.js": 28,
+    "routes/organizations.js": 25,
     "routes/parentOnboarding.js": 5,
     "routes/participantDuplicates.js": 1,
     "routes/participants.js": 116,

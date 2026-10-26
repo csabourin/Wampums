@@ -12,9 +12,10 @@ const router = express.Router();
 const meetingSectionDefaults = require('../config/meeting_sections.json');
 
 // Import auth middleware
+const { check, validationResult } = require('express-validator');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
-const { asyncHandler, success, error: errorResponse } = require('../middleware/response');
-const { validateIdBody, checkValidation } = require('../middleware/validation');
+const { asyncHandler, success, forbidden, error: errorResponse } = require('../middleware/response');
+const { validateIdBody, checkValidation, normalizeEmailValue } = require('../middleware/validation');
 const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 const {
   validateUnitVocabulary,
@@ -30,8 +31,17 @@ const {
   INTERFACE_LANGUAGES_SETTING_KEY,
   validateInterfaceLanguages,
 } = require('../utils/interfaceLanguages');
-const { ensureProgramSectionsSeeded, getProgramSections } = require('../utils/programSections');
+const {
+  DEFAULT_PROGRAM_SECTIONS,
+  ensureProgramSectionsSeeded,
+  getProgramSections
+} = require('../utils/programSections');
+const { readUnitSubdomain } = require('../utils/unitSubdomains');
 const { installDefaultFormFormats } = require('../services/defaultFormFormats');
+const { checkRolesGrantable } = require('../services/roleAssignment');
+const { resolveUnitRoleId } = require('../services/roleVisibility');
+const { createInvitation, resolveInvitationLanguage } = require('../services/parentInvitations');
+const { deliverParentInvitation } = require('../services/familyDelivery');
 const { installDefaultStarterActivities } = require('../services/activityLibraryStarter');
 const {
   EMAIL_SENDER_SETTING_KEY,
@@ -51,6 +61,38 @@ const DEDICATED_SETTING_KEYS = new Set([
   INTERFACE_LANGUAGES_SETTING_KEY,
 ]);
 const HTTP_BAD_REQUEST = 400;
+const HTTP_CREATED = 201;
+const HTTP_CONFLICT = 409;
+const MAX_EMAIL_LENGTH = 255;
+
+/** The branches a unit may be created for: castors, louveteaux, éclaireurs… */
+const PROGRAM_SECTION_KEYS = new Set(DEFAULT_PROGRAM_SECTIONS.map((section) => section.key));
+/** The built-in role a new unit's administrator is invited into (or the unit role replacing it). */
+const UNIT_ADMIN_ROLE = 'unitadmin';
+
+/** The address of the person who will administer a unit being created. */
+const validateLeaderEmail = check('leader_email')
+  .trim()
+  .isEmail()
+  .withMessage('leader_email_invalid')
+  .bail()
+  .isLength({ max: MAX_EMAIL_LENGTH })
+  .withMessage('leader_email_invalid');
+
+/**
+ * Whether a unit already answers at this hostname.
+ *
+ * @param {{query: Function}} db - Pool or client
+ * @param {string} hostname - Full hostname, e.g. `meute-ada.wampums.app`
+ * @returns {Promise<boolean>}
+ */
+async function isDomainTaken(db, hostname) {
+  const result = await db.query(
+    'SELECT 1 FROM organization_domains WHERE lower(domain) = lower($1) LIMIT 1',
+    [hostname]
+  );
+  return result.rows.length > 0;
+}
 
 // Validate JWT secret at startup
 requireJWTSecret();
@@ -888,7 +930,9 @@ module.exports = (pool, logger) => {
    * /api/organizations:
    *   post:
    *     summary: Create new organization
-   *     description: Create a new organization and assign current user as admin
+   *     description: >
+   *       Create a unit at its subdomain, for its branch, make the creator a
+   *       district member of it, and invite its unit administrator by email.
    *     tags: [Organizations]
    *     security:
    *       - bearerAuth: []
@@ -900,29 +944,66 @@ module.exports = (pool, logger) => {
    *             type: object
    *             required:
    *               - name
+   *               - subdomain
+   *               - program_section
+   *               - leader_email
    *             properties:
    *               name:
    *                 type: string
+   *               subdomain:
+   *                 type: string
+   *                 description: Label before .wampums.app (config/unit_subdomains.json)
+   *               program_section:
+   *                 type: string
+   *                 enum: [general, beavers, cubs, scouts, pioneers, rovers]
+   *               leader_email:
+   *                 type: string
+   *                 format: email
+   *               language:
+   *                 type: string
+   *                 description: Language of the invitation email
    *     responses:
    *       201:
-   *         description: Organization created successfully
+   *         description: Organization created; data.leader_invitation says whether the email went
+   *       400:
+   *         description: A field is missing or invalid (errors names it)
    *       401:
    *         description: Unauthorized
+   *       403:
+   *         description: The caller cannot grant the unit administrator role
+   *       409:
+   *         description: subdomain_taken
    */
-  router.post('/', authenticate, blockDemoRoles, requirePermission('org.create'), asyncHandler(async (req, res) => {
+  router.post('/', authenticate, blockDemoRoles, requirePermission('org.create'), validateLeaderEmail, asyncHandler(async (req, res) => {
     const input = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
       ? req.body
       : {};
     // The same rules as Unit Settings: only known fields, a logo that is a URL.
     const validation = validateOrganizationInfo(input);
-    if (validation.errors.length > 0) {
-      return errorResponse(res, 'Invalid organization settings', 400, validation.errors);
+    const { hostname, problem: subdomainProblem } = readUnitSubdomain(input.subdomain);
+    const programSection = PROGRAM_SECTION_KEYS.has(input.program_section) ? input.program_section : null;
+    const errors = [
+      ...validation.errors,
+      ...(subdomainProblem ? [{ field: 'subdomain', msg: subdomainProblem }] : []),
+      ...(programSection ? [] : [{ field: 'program_section', msg: 'program_section_required' }]),
+      ...validationResult(req).array().map((problem) => ({ field: problem.path, msg: problem.msg })),
+    ];
+    if (errors.length > 0) {
+      return errorResponse(res, 'Invalid organization settings', 400, errors);
     }
 
     const orgInfo = validation.value;
     const { name } = orgInfo;
     const userId = req.user.id;
+    const leaderEmail = normalizeEmailValue(input.leader_email);
+
+    // Asked before any work; the unique index settles a race when the domain is written.
+    if (await isDomainTaken(pool, hostname)) {
+      return errorResponse(res, 'subdomain_taken', HTTP_CONFLICT, [{ field: 'subdomain', msg: 'subdomain_taken' }]);
+    }
+
     const client = await pool.connect();
+    let invitation = null;
 
     try {
       await client.query('BEGIN');
@@ -938,13 +1019,28 @@ module.exports = (pool, logger) => {
       }
       const districtRoleId = districtRoleResult.rows[0].id;
 
-      // Create new organization
+      // The branch is set before anything is installed: the starter activities
+      // and the unit's vocabulary follow it.
       const orgResult = await client.query(
-        'INSERT INTO organizations (name, created_at) VALUES ($1, NOW()) RETURNING id',
-        [name]
+        `INSERT INTO organizations (name, program_section, created_at)
+         VALUES ($1, $2, NOW())
+         RETURNING id, default_language`,
+        [name, programSection]
       );
 
       const newOrganizationId = orgResult.rows[0].id;
+
+      const domainResult = await client.query(
+        `INSERT INTO organization_domains (organization_id, domain)
+         VALUES ($1, $2)
+         ON CONFLICT ((lower(domain))) DO NOTHING
+         RETURNING id`,
+        [newOrganizationId, hostname]
+      );
+      if (domainResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return errorResponse(res, 'subdomain_taken', HTTP_CONFLICT, [{ field: 'subdomain', msg: 'subdomain_taken' }]);
+      }
 
       // Install versioned formats and their safe role policy from the
       // repository catalog. This works even when no template tenant exists.
@@ -980,13 +1076,52 @@ module.exports = (pool, logger) => {
         [userId, newOrganizationId, districtRoleId]
       );
 
+      // The unit's administrator is invited, never given an account: nothing
+      // exists for them until they accept. Their role may be granted only by
+      // someone holding all of its permissions (services/roleAssignment.js).
+      const unitAdminRoleId = await resolveUnitRoleId(client, UNIT_ADMIN_ROLE, newOrganizationId);
+      if (!unitAdminRoleId) {
+        throw new Error('Unit administrator role not found; cannot invite the unit administrator');
+      }
+      const grantable = await checkRolesGrantable(client, [unitAdminRoleId], req.userPermissions || []);
+      if (!grantable.allowed) {
+        await client.query('ROLLBACK');
+        return forbidden(res, 'You can only invite into roles whose permissions you hold', grantable.required, grantable.missing);
+      }
+
+      const creator = await client.query('SELECT lower(email) AS email FROM users WHERE id = $1', [userId]);
+      // The creator is already a member, with every right: there is no one to invite.
+      if (creator.rows[0]?.email !== leaderEmail) {
+        const created = await createInvitation(client, {
+          organizationId: newOrganizationId,
+          email: leaderEmail,
+          language: resolveInvitationLanguage(input.language, orgResult.rows[0].default_language),
+          invitedBy: userId,
+          roleIds: [unitAdminRoleId],
+        });
+        if (!created.ok) {
+          throw new Error(`Unit administrator invitation refused in a new unit: ${created.reason}`);
+        }
+        invitation = created;
+      }
+
       await client.query('COMMIT');
 
-      res.status(201).json({
-        success: true,
-        message: 'Organization created successfully',
-        organization_id: newOrganizationId
-      });
+      // Sent once the unit exists. A failed send leaves the invitation pending,
+      // to be resent from the new unit's invitations.
+      const emailSent = invitation
+        ? await deliverParentInvitation(pool, { invitation: invitation.invitation, token: invitation.token, logger })
+        : false;
+
+      return success(res, {
+        organization_id: newOrganizationId,
+        domain: hostname,
+        leader_invitation: {
+          email: leaderEmail,
+          invited: Boolean(invitation),
+          email_sent: emailSent,
+        },
+      }, 'Organization created successfully', HTTP_CREATED);
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -1041,17 +1176,14 @@ module.exports = (pool, logger) => {
       return res.status(400).json({ success: false, message: 'Organization ID is required' });
     }
 
-    // Verify user belongs to this organization
+    // Verify user is an active member of this organization
     const membershipCheck = await pool.query(
-      'SELECT role FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+      `SELECT role FROM user_organizations WHERE user_id = $1 AND organization_id = $2 AND status = 'active'`,
       [req.user.id, organizationId]
     );
 
     if (membershipCheck.rows.length === 0) {
-      return res.status(403).json({
-        success: false,
-        message: 'You do not have access to this organization'
-      });
+      return forbidden(res, 'You do not have access to this organization', [], [], { code: 'not_a_member' });
     }
 
     const rolesResult = await pool.query(

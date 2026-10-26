@@ -222,6 +222,28 @@ describe('POST /api/v1/organizations/switch', () => {
 
     expect(res.status).toBe(403);
     expect(res.body.message).toMatch(/not.*member|permission|access/i);
+    expect(res.body).toMatchObject({ required: [], missing: [], code: 'not_a_member' });
+  });
+
+  test('a membership the unit ended no longer opens the unit', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ user_id: 1, organizationId: ORG_ID });
+    let membershipQuery = '';
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('FROM user_organizations WHERE user_id') && query.includes('AND organization_id')) {
+        membershipQuery = query;
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .post('/api/v1/organizations/switch')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ organization_id: ORG_ID_2 });
+
+    expect(res.status).toBe(403);
+    expect(membershipQuery).toMatch(/status = 'active'/);
   });
 
   test('validates target organization_id is numeric', async () => {
