@@ -2618,6 +2618,7 @@
   "info_text": "Info Text",
   "field_name": "Field Name",
   "field_name_hint": "Use lowercase letters and underscores only (e.g., first_name)",
+  "form_field_name_reserved": "This name is reserved by web browsers and its answer would be lost. Choose another, such as unit_name.",
   "label_translation_key": "Label Translation Key",
   "add_translation": "Add Translation",
   "auto_suggest_key": "Auto-suggests based on field name",

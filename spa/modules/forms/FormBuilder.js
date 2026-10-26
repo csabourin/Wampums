@@ -18,6 +18,8 @@ import { BaseModule } from '../../utils/BaseModule.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { DEFAULT_LANG, FORM_CONTENT_LANGS, SUPPORTED_LANGS } from '../../config/languages.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { isReservedFieldName } from '../../utils/FormFieldNameUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 import {
   formInfoHtml,
@@ -395,6 +397,7 @@ export class FormBuilder extends BaseModule {
                     <input type="text" id="field-name" name="field_name" value="${escapeAttribute(field.name || '')}"
                            placeholder="field_name" pattern="[a-z_]+" required>
                     <small>${translate('field_name_hint')}</small>
+                    <p id="field-name-error" class="field-error" role="alert"></p>
                 </div>
 
                 <div class="form-group" id="field-label-group" ${field.type === 'infoText' ? 'style="display:none;"' : ''}>
@@ -832,6 +835,9 @@ export class FormBuilder extends BaseModule {
       document.getElementById(id)?.addEventListener('input', () => this.syncFieldTexts());
     });
 
+    // The name's message goes as soon as the name changes.
+    document.getElementById('field-name')?.addEventListener('input', () => this.setFieldNameError(''));
+
     // Form submit
     const form = document.getElementById('field-editor-form');
     if (form) {
@@ -1011,6 +1017,14 @@ export class FormBuilder extends BaseModule {
       required: document.getElementById('field-required').checked
     };
 
+    // DOMPurify would strip such a name and the answer would be lost. A name
+    // the saved format already uses stays, so an older form remains editable.
+    if (field.type !== 'infoText' && isReservedFieldName(field.name) && !this.savedFieldNames().has(field.name)) {
+      this.setFieldNameError(translate('form_field_name_reserved'));
+      document.getElementById('field-name')?.focus();
+      return;
+    }
+
     // Handle infoText type
     if (field.type === 'infoText') {
       field.infoText = formData.get('infoText') || undefined;
@@ -1065,6 +1079,33 @@ export class FormBuilder extends BaseModule {
     // Close modal and re-render
     closeModal('field-editor-modal');
     this.updateFieldsList();
+  }
+
+  /** @returns {Set<string>} Field names of the format as it was last saved */
+  savedFieldNames() {
+    const fields = this.currentFormat?.form_structure?.fields;
+    return new Set(Array.isArray(fields) ? fields.map((item) => item?.name) : []);
+  }
+
+  /**
+   * Show or clear the field name's message, tied to its input.
+   *
+   * @param {string} message - Text to show; empty clears it
+   */
+  setFieldNameError(message) {
+    const input = document.getElementById('field-name');
+    const problem = document.getElementById('field-name-error');
+    if (!input || !problem) {
+      return;
+    }
+    problem.textContent = message;
+    if (message) {
+      input.setAttribute('aria-invalid', 'true');
+      input.setAttribute('aria-describedby', 'field-name-error');
+    } else {
+      input.removeAttribute('aria-invalid');
+      input.removeAttribute('aria-describedby');
+    }
   }
 
   /**
@@ -1283,7 +1324,7 @@ export class FormBuilder extends BaseModule {
       }
     } catch (error) {
       debugError('Error saving format:', error);
-      this.app.showMessage(translate('error_saving_format'), 'error');
+      this.app.showMessage(apiErrorMessage(error, 'error_saving_format'), 'error');
     }
   }
 
