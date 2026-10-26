@@ -261,6 +261,9 @@ describe.skipIf(!DATABASE_URL)('Camp material list', () => {
       return request(app).post(`/api/v1/resources/equipment/reservations/camps/${meetingId}`)
         .set(as(userId, organizationId)).send({ items });
     }
+    async function stoveLike(equipmentItemId) {
+      return (await list(camp)).body.data.items.find((item) => item.equipment_item_id === equipmentItemId);
+    }
     async function stoveEntry() {
       return (await list(camp)).body.data.items.find((item) => item.name === 'Réchauds du local');
     }
@@ -350,6 +353,23 @@ describe.skipIf(!DATABASE_URL)('Camp material list', () => {
       const entry = (await list(camp)).body.data.items.find((item) => item.name === 'Haches');
       // The one-day reservation holds two of the three axes on the first day: one free, two needed.
       expect(entry.inventory).toEqual({ status: 'missing', reserved: 0, free: 1, missing: 1, to_reserve: 1 });
+    });
+
+    test('a longer booking under the camp\'s name is never shortened by reserving for the camp', async () => {
+      const tarps = await equipment(units[0], 'Bâches longues', 4);
+      const shelter = await line(units[0], camp, 'Abri', 0);
+      await needs(units[0], shelter, { equipmentItemId: tarps }, 3);
+      const label = await one('SELECT theme FROM year_plan_meetings WHERE id = $1', [camp]);
+      await pool.query(`INSERT INTO equipment_reservations
+        (organization_id, equipment_id, meeting_id, meeting_date, date_from, date_to, reserved_quantity, reserved_for, status)
+        VALUES ($1, $2, $3, '2026-11-13', '2026-11-13', '2026-11-20', 1, $4, 'reserved')`, [units[0], tarps, camp, label]);
+      expect((await stoveLike(tarps)).inventory).toMatchObject({ reserved: 1, to_reserve: 2 });
+
+      const res = await reserveFor(camp, [{ equipment_item_id: tarps, quantity: 2 }]);
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe('camp_material_reservation_conflict');
+      const kept = (await pool.query('SELECT date_to::text, reserved_quantity FROM equipment_reservations WHERE equipment_id = $1', [tarps])).rows;
+      expect(kept).toEqual([{ date_to: '2026-11-20', reserved_quantity: 1 }]);
     });
 
     test('equipment the camp does not list cannot be reserved through it', async () => {

@@ -378,8 +378,9 @@ function needsByEquipment(items) {
  * with the items locked while their standing is counted: an entry asking for
  * more than the camp still lacks, or than is free, is refused, so two people
  * pressing the button at once never reserve twice. Each reservation names the
- * camp's meeting and outing; one already made for this camp, covering all its
- * days, grows instead.
+ * camp's meeting and outing; one already made for this camp over exactly its
+ * dates grows instead. Any other booking holding the same name and first day
+ * is left as it is, and the request is refused.
  *
  * @param {Object} pool - pg pool
  * @param {number} organizationId - Unit of the token
@@ -427,11 +428,13 @@ async function reserveCampMaterial(pool, organizationId, userId, meetingId, requ
          date_from = EXCLUDED.date_from,
          date_to = EXCLUDED.date_to,
          updated_at = CURRENT_TIMESTAMP
+       -- Grow only a held reservation of exactly the camp's dates: a longer one
+       -- would lose its other days, and its added units were counted for the camp only.
        WHERE NOT (equipment_reservations.status = ANY($10::text[]))
           OR ((equipment_reservations.meeting_id = EXCLUDED.meeting_id
                OR (EXCLUDED.activity_id IS NOT NULL AND equipment_reservations.activity_id = EXCLUDED.activity_id))
-              AND COALESCE(equipment_reservations.date_from, equipment_reservations.meeting_date) <= EXCLUDED.date_from
-              AND COALESCE(equipment_reservations.date_to, equipment_reservations.meeting_date) >= EXCLUDED.date_to)
+              AND COALESCE(equipment_reservations.date_from, equipment_reservations.meeting_date) = EXCLUDED.date_from
+              AND COALESCE(equipment_reservations.date_to, equipment_reservations.meeting_date) = EXCLUDED.date_to)
        RETURNING id, equipment_id, reserved_quantity`,
       [
         organizationId, camp.id, camp.activity_id, camp.date_from, camp.date_to,

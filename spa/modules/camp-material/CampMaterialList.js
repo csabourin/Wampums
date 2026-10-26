@@ -286,9 +286,14 @@ export class CampMaterialList {
       </section>`;
   }
 
-  /** @returns {boolean} Whether there is anything to print or export */
-  hasContent() {
+  /** @returns {boolean} Whether the schedule lists any material */
+  hasScheduledMaterial() {
     return this.list.items.length > 0 || this.list.free_text.length > 0;
+  }
+
+  /** @returns {boolean} Whether there is anything to print or export, reservations included */
+  hasContent() {
+    return this.hasScheduledMaterial() || (this.list.unlisted_reservations || []).length > 0;
   }
 
   render() {
@@ -319,7 +324,8 @@ export class CampMaterialList {
               <button type="button" class="button button--primary" id="camp-material-reserve">
                 ${escapeHTML(translate('camp_material_reserve'))}
               </button>` : ''}
-          </div>` : `<p class="empty-state">${escapeHTML(translate('camp_material_empty'))}</p>`}
+          </div>` : ''}
+        ${this.hasScheduledMaterial() ? '' : `<p class="empty-state">${escapeHTML(translate('camp_material_empty'))}</p>`}
         ${listMarkup}
         ${this.freeTextMarkup()}
         ${this.unlistedMarkup()}

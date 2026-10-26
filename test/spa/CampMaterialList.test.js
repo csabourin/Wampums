@@ -195,6 +195,16 @@ test('an empty list says what would fill it and offers nothing to print', async 
   expect(document.getElementById('camp-material-export')).toBeNull();
 });
 
+test('reservations alone can still be printed and exported, beside the empty-schedule message', async () => {
+  api.getCampMaterialList.mockResolvedValue({ data: list({ items: [], free_text: [] }) });
+  await openScreen();
+  expect(document.querySelector('.empty-state').textContent).toBe('camp_material_empty');
+  expect(document.querySelector('.camp-material__unlisted li')).not.toBeNull();
+  document.getElementById('camp-material-export').click();
+  expect(exportToCSV.mock.calls[0][0].map((row) => row.name)).toEqual(['Bâche']);
+  expect(document.getElementById('camp-material-print')).not.toBeNull();
+});
+
 test('a failed load is an alert with a retry, not an empty list', async () => {
   api.getCampMaterialList.mockRejectedValueOnce(Object.assign(new Error('offline'), { status: 0 }));
   await openScreen();
