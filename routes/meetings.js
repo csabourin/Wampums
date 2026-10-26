@@ -585,7 +585,10 @@ module.exports = (pool, logger) => {
         `SELECT id, name AS activity, category AS type,
                 estimated_duration_min AS estimated_time_min,
                 estimated_duration_max AS estimated_time_max,
-                material, description
+                material, description,
+                metadata ->> 'starter_key' AS starter_key,
+                CASE WHEN jsonb_typeof(metadata -> 'safety') = 'array'
+                     THEN metadata -> 'safety' ELSE '[]'::jsonb END AS precautions
          FROM activity_library
          WHERE organization_id = $1 AND is_active = TRUE
          ORDER BY name`,

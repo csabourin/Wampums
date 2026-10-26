@@ -135,6 +135,7 @@ const lazyModules = {
   OfflinePreparation: () => import('./modules/offline/OfflinePreparation.js').then(m => m.OfflinePreparation),
   IncidentReport: () => import('./modules/incident-report/incident-report.js').then(m => m.IncidentReport),
   YearlyPlanner: () => import('./modules/yearly-planner/YearlyPlanner.js').then(m => m.YearlyPlanner),
+  StarterActivities: () => import('./modules/yearly-planner/StarterActivities.js').then(m => m.StarterActivities),
   ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
   AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink),
   ReactivationLink: () => import('./modules/reactivation/ReactivationLink.js').then(m => m.ReactivationLink),
@@ -246,6 +247,7 @@ const routes = {
   '/incident-reports/:id': 'incidentReportView',
   '/incident-reports/:id/edit': 'incidentReportEdit',
   '/yearly-planner': 'yearlyPlanner',
+  '/yearly-planner/starter-activities': 'starterActivities',
   '/yearly-planner/:planId': 'yearlyPlannerDetail',
   '/unit-settings': 'unitSettings',
   '/scout-year': 'scoutYear'
@@ -776,6 +778,15 @@ export class Router {
           this.currentModuleInstance = yearlyPlanner;
           await yearlyPlanner.init(routeName === 'yearlyPlannerDetail' ? parseInt(param, 10) : null);
           break;
+        case 'starterActivities': {
+          // Both starter endpoints require meetings.manage.
+          if (!guard(hasPermission('meetings.manage'))) {break;}
+          const StarterActivities = await this.loadModule('StarterActivities');
+          const starterActivities = new StarterActivities(this.app);
+          this.currentModuleInstance = starterActivities;
+          await starterActivities.init();
+          break;
+        }
         case 'offlinePreparation':
           if (!guard(canViewActivities())) {break;}
           const OfflinePreparation = await this.loadModule('OfflinePreparation');

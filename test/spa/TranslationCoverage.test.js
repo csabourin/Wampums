@@ -153,6 +153,15 @@ function equipmentCategories() {
   return JSON.parse(fs.readFileSync(path.join(ROOT, 'config/equipment_categories.json'), 'utf8')).categories;
 }
 
+/**
+ * @param {string} vocabulary - categories, branches or seasons
+ * @returns {string[]} The starter catalogue's keys for it
+ */
+function starterVocabulary(vocabulary) {
+  const catalogue = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/activity_library_starter.json'), 'utf8'));
+  return Object.keys(catalogue[vocabulary]);
+}
+
 /** @returns {string[]} The orders the equipment picker offers, read from its source */
 function materialSorts() {
   const source = code(path.join(ROOT, 'spa/modules/resources/MaterialManagement.js'));
@@ -174,6 +183,10 @@ test('every key built from a state exists for each state the server returns', ()
     ...['treatment', 'administration'].map((kind) => [`authorization_kind_${kind}`, 'FamilyTasks']),
     ...equipmentCategories().map((key) => [`equipment_category_${key}`, 'EquipmentCategoryUtils']),
     ...materialSorts().map((sort) => [`material_sort_${sort}`, 'MaterialManagement']),
+    ...starterVocabulary('categories').map((key) => [`starter_category_${key}`, 'ActivityLibraryUtils']),
+    ...starterVocabulary('branches').map((key) => [`starter_branch_${key}`, 'ActivityLibraryUtils']),
+    ...starterVocabulary('seasons').map((key) => [`starter_season_${key}`, 'ActivityLibraryUtils']),
+    ...['indoor', 'outdoor'].map((key) => [`starter_setting_${key}`, 'ActivityLibraryUtils']),
   ];
 
   expect(programProgressStatuses().length).toBeGreaterThan(10);
@@ -225,4 +238,12 @@ test('every shared task status has a label in both languages', () => {
   const labels = [...config.match(/STATUS_KEYS:\s*\{([^}]+)\}/)[1].matchAll(/([a-z_]+): '([^']+)'/g)];
   expect(labels.map((match) => match[1])).toEqual(TASK_STATUSES);
   expect(missing([...labels.map((match) => [match[2], 'shared task status']), ['role_category_tasks', 'role matrix category']])).toEqual([]);
+});
+
+test('every key the starter activity screen holds in a lookup table exists', () => {
+  const file = path.join(ROOT, 'spa/modules/yearly-planner/StarterActivities.js');
+  const keys = [...code(file).matchAll(/'(starter_[a-z_]+)'/g)].map((match) => [match[1], 'StarterActivities']);
+
+  expect(keys.length).toBeGreaterThan(10);
+  expect(missing(keys)).toEqual([]);
 });

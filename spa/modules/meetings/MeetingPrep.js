@@ -818,7 +818,7 @@ export class MeetingPrep extends BaseModule {
     const { overlay } = openModal({
       id: 'activity-description-modal',
       title: translate('description'),
-      body: '<p id="description-text"></p>'
+      body: '<p id="description-text" class="activity-description-text"></p>'
     });
     overlay.querySelector('#description-text').textContent = description || '';
   }

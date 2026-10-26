@@ -9,6 +9,9 @@
  *   demo.leader@run.test / demo.parent@run.test -- the demo unit's read-only
  *                       accounts (demoadmin, demoparent); the parent sees Léa
  *
+ * The unit also receives the default starter activities a new unit gets
+ * (services/activityLibraryStarter.js).
+ *
  * All of them use the password printed at the end. Two-factor sign-in is switched off
  * for this unit only, through the unit's own `security` setting, so the login
  * form lands straight on the dashboard instead of waiting for an emailed code.
@@ -217,6 +220,21 @@ try {
     await installDefaultFormFormats(formsClient, organizationId);
   } finally {
     formsClient.release();
+  }
+
+  // The starter activities a new unit receives, through the same service as
+  // unit creation, so the planner and meeting preparation have a repertoire.
+  const { installDefaultStarterActivities } = require(path.join(ROOT, 'services/activityLibraryStarter.js'));
+  const starterClient = await pool.connect();
+  try {
+    await starterClient.query('BEGIN');
+    await installDefaultStarterActivities(starterClient, organizationId, adminId);
+    await starterClient.query('COMMIT');
+  } catch (error) {
+    await starterClient.query('ROLLBACK');
+    throw error;
+  } finally {
+    starterClient.release();
   }
 
   // One of each record a detail screen opens, so the browser checks see each

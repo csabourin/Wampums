@@ -55,6 +55,7 @@ const SCREENS = {
     `/medication-authorizations/${seededParticipantId()}`,
     `/preparation-reunions/${seededProgrammeDate()}`,
     `/yearly-planner/${seededRecord('yearPlanId')}`,
+    '/yearly-planner/starter-activities',
     `/calendars/${seededRecord('fundraiserId')}`,
   ],
 };

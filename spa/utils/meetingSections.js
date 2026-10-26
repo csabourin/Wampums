@@ -83,3 +83,24 @@ export function getSectionActivityTemplates(sectionConfig) {
     ? sectionConfig.activityTemplates
     : fallbackTemplates;
 }
+
+/**
+ * The starter catalogue key a meeting template stands for, so meeting
+ * preparation can use the unit's own copy of that block. A template the unit
+ * renamed (`activity`) keeps its own text and is not linked.
+ *
+ * @param {object} template - Section activity template
+ * @returns {string|null} Catalogue key (config/activity_library_starter.json)
+ */
+export function getTemplateStarterKey(template) {
+  if (!template) {
+    return null;
+  }
+  if (template.starterKey) {
+    return template.starterKey;
+  }
+  if (template.activity) {
+    return null;
+  }
+  return defaultMeetingSections.starterBlocks?.[template.activityKey] || null;
+}

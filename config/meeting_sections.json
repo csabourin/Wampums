@@ -1,5 +1,10 @@
 {
   "defaultSection": "cubs",
+  "starterBlocks": {
+    "activity_welcome_cubs": "block_arrival",
+    "activity_water_break": "block_water_break",
+    "activity_prayer_departure": "block_closing"
+  },
   "sections": {
     "general": {
       "name": "Scouts",

@@ -294,6 +294,33 @@ export async function deleteLibraryActivity(id) {
 }
 
 // ============================================================================
+// STARTER ACTIVITIES
+// ============================================================================
+
+/**
+ * The starter catalogue in the unit's language, with what the unit holds.
+ * Always fresh: what the unit holds changes with every import.
+ * @returns {Promise<Object>} { version, language, branch, default_keys, activities }
+ */
+export function getStarterActivities() {
+  return API.getNoCache('v1/yearly-planner/starter-activities');
+}
+
+/**
+ * Copy starter activities into the unit's library. Requires a connection
+ * (CONFIG.ONLINE_REQUIRED_MUTATION_RESOURCES): offline it is refused with
+ * `online_required`, never queued.
+ * @param {string[]} keys - Catalogue keys
+ * @returns {Promise<Object>} Outcome: created, already_present, reconciled, restored, ambiguous
+ */
+export async function importStarterActivities(keys) {
+  const response = await API.post('v1/yearly-planner/starter-activities/import', { keys });
+  // Meeting preparation lists the library too.
+  await invalidatePlanner({ includeMeetingPrep: true });
+  return response;
+}
+
+// ============================================================================
 // OBJECTIVE ACHIEVEMENTS
 // ============================================================================
 

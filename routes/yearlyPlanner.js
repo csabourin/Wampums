@@ -15,6 +15,11 @@ const { check } = require('express-validator');
 const { checkValidation, validateIdParam } = require('../middleware/validation');
 const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
+const {
+  StarterSelectionError,
+  describeStarterCatalogue,
+  importStarterActivities
+} = require('../services/activityLibraryStarter');
 
 /**
  * Kinds of dated block on the planner calendar.
@@ -23,6 +28,9 @@ const { ensureActiveScoutYear } = require('../services/scoutYear');
  * special = a one-off that is neither.
  */
 const MEETING_KINDS = ['regular', 'weekend', 'camp', 'special'];
+
+/** Status for a starter selection the person must correct. */
+const HTTP_BAD_REQUEST = 400;
 
 /** Upper bound on a single batch placement: a school year holds far fewer dates. */
 const MAX_BATCH_MEETINGS = 60;
@@ -38,6 +46,22 @@ const PATCHABLE_MEETING_FIELDS = [
   'start_time', 'end_time', 'duration_minutes', 'location',
   'theme', 'notes', 'is_cancelled', 'period_id', 'meeting_kind', 'metadata'
 ];
+
+/**
+ * Library metadata as a client may write it. `starter_key` names the
+ * catalogue entry a copy came from; only services/activityLibraryStarter.js
+ * sets it, so a hand-made activity cannot claim to be a starter copy.
+ *
+ * @param {*} metadata - Request value
+ * @returns {Object} Metadata without starter_key
+ */
+function withoutStarterKey(metadata) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return {};
+  }
+  const { starter_key: _ignored, ...rest } = metadata;
+  return rest;
+}
 
 /**
  * Resolve the activities-row fields implied by a planned meeting.
@@ -2106,7 +2130,7 @@ module.exports = (pool, logger) => {
           JSON.stringify(tags || []),
           estimated_duration_min || null, estimated_duration_max || null,
           material || null, JSON.stringify(objective_ids || []),
-          JSON.stringify(metadata || {}), req.user.id
+          JSON.stringify(withoutStarterKey(metadata)), req.user.id
         ]
       );
 
@@ -2142,7 +2166,10 @@ module.exports = (pool, logger) => {
           estimated_duration_max = COALESCE($6, estimated_duration_max),
           material = COALESCE($7, material),
           objective_ids = COALESCE($8, objective_ids),
-          metadata = COALESCE($9, metadata),
+          metadata = COALESCE($9::jsonb - 'starter_key', metadata)
+            || CASE WHEN metadata ? 'starter_key'
+                 THEN jsonb_build_object('starter_key', metadata -> 'starter_key')
+                 ELSE '{}'::jsonb END,
           updated_at = NOW()
          WHERE id = $10 AND organization_id = $11 AND is_active = TRUE
          RETURNING *`,
@@ -2189,6 +2216,48 @@ module.exports = (pool, logger) => {
       }
 
       return success(res, null, 'Library activity deleted');
+    })
+  );
+
+  // =========================================================================
+  // STARTER ACTIVITIES (config/activity_library_starter.json)
+  // =========================================================================
+
+  /**
+   * GET /v1/yearly-planner/starter-activities
+   * The catalogue in the unit's language, with whether the unit holds each entry.
+   */
+  router.get('/starter-activities',
+    authenticate,
+    requirePermission('meetings.manage'),
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const catalogue = await describeStarterCatalogue(pool, organizationId);
+      return success(res, catalogue);
+    })
+  );
+
+  /**
+   * POST /v1/yearly-planner/starter-activities/import
+   * Copy catalogue entries into the unit's library. Entries already held are
+   * reported, never copied twice; older copies found by legacy name are adopted.
+   * Body: { keys: string[] }
+   */
+  router.post('/starter-activities/import',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('meetings.manage'),
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      try {
+        const outcome = await importStarterActivities(pool, organizationId, req.user.id, req.body?.keys);
+        return success(res, outcome, 'Starter activities imported');
+      } catch (err) {
+        if (err instanceof StarterSelectionError) {
+          return error(res, 'invalid_starter_selection', HTTP_BAD_REQUEST, err.errors);
+        }
+        throw err;
+      }
     })
   );
 
