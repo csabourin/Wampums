@@ -5,6 +5,7 @@
  * @module spa/api/api-equipment-catalog
  */
 import { API } from './api-core.js';
+import { CONFIG } from '../config.js';
 
 /**
  * @param {{includeArchived?: boolean, forceRefresh?: boolean}} [options]
@@ -38,4 +39,14 @@ export function updateCatalogItem(itemId, changes) {
  */
 export function getLinkableEquipment() {
   return API.get('v1/resources/equipment');
+}
+
+/**
+ * What a schedule line may list: the unit's active articles, and the
+ * inventory items it has or may borrow, by name and category.
+ *
+ * @returns {Promise<Object>} { articles, equipment }
+ */
+export function getMaterialOptions() {
+  return API.get('v1/equipment-catalog/options', {}, { cacheDuration: CONFIG.CACHE_DURATION.SHORT });
 }

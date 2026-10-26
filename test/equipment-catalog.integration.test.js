@@ -96,6 +96,7 @@ describe.skipIf(!DATABASE_URL)('Equipment catalogue', () => {
     app.use(express.json());
     app.use('/api/v1/equipment-catalog', require('../routes/equipmentCatalog')(pool));
     app.use('/api/v1/yearly-planner', require('../routes/yearlyPlanner')(pool, { error: jest.fn(), info: jest.fn(), warn: jest.fn() }));
+    app.use('/api/v1/meetings', require('../routes/meetings')(pool, { error: jest.fn(), info: jest.fn(), warn: jest.fn() }));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
   });
 
@@ -212,5 +213,61 @@ describe.skipIf(!DATABASE_URL)('Equipment catalogue', () => {
     expect((await request(app).delete(`/api/v1/yearly-planner/meeting-activities/${line}`).set(as(planner))).status).toBe(200);
     expect(Number(await one('SELECT COUNT(*) FROM meeting_activity_equipment WHERE meeting_activity_id = $1', [line]))).toBe(0);
     expect((await request(app).get('/api/v1/equipment-catalog').set(as(planner))).body.data.map((item) => item.id)).toContain(tent);
+  });
+
+  describe('inventory the unit has or may borrow', () => {
+    let ball;
+    let theirs;
+
+    beforeAll(async () => {
+      ball = await one("INSERT INTO equipment_items (organization_id, name, category) VALUES ($1, 'Ballon de soccer', 'sports') RETURNING id", [units[0]]);
+      theirs = await one(`INSERT INTO equipment_items (organization_id, name, category, attributes)
+        VALUES ($1, 'Their kayak', 'water', '{"share_with_local_group": false}') RETURNING id`, [units[1]]);
+    });
+
+    test('is offered beside the articles, except what an article already stands for or the unit may not use', async () => {
+      const res = await request(app).get('/api/v1/equipment-catalog/options').set(as(planner));
+      expect(res.status).toBe(200);
+      expect(res.body.data.articles.map((item) => item.name)).toContain('Tente 4 places');
+      const offered = res.body.data.equipment.map((item) => item.name);
+      expect(offered).toContain('Ballon de soccer');
+      // "Tentes du local" is offered as the article linked to it; their kayak is not the unit's to use.
+      expect(offered).not.toContain('Tentes du local');
+      expect(offered).not.toContain('Their kayak');
+    });
+
+    test('a regular meeting keeps an article and an inventory item on its activity', async () => {
+      const date = '2026-12-02';
+      const saved = await request(app).post('/api/v1/meetings/preparation').set(as(planner)).send({
+        date,
+        activities: [{
+          id: 'ai-generated-0', activity: 'Soccer', time: '19:00', duration: '00:30', materiel: '',
+          material_items: [{ equipment_item_id: ball, quantity: 2 }, { catalog_item_id: tent, quantity: 1 }],
+        }],
+      });
+      expect(saved.status).toBe(200);
+
+      const read = await request(app).get(`/api/v1/meetings/preparation?date=${date}`).set(as(planner));
+      const [activity] = read.body.data.meeting.activities;
+      expect(activity.material_items.map((item) => [item.name, item.quantity, item.equipment_item_id, item.catalog_item_id]))
+        .toEqual([['Ballon de soccer', 2, ball, null], ['Tente 4 places', 1, null, tent]]);
+      expect(activity.legacy?.material_items).toBeUndefined();
+
+      // Saved again without the field (an older client), it keeps what it lists.
+      await request(app).post('/api/v1/meetings/preparation').set(as(planner))
+        .send({ date, activities: [{ id: activity.id, activity: 'Soccer', time: '19:00' }] }).expect(200);
+      const again = await request(app).get(`/api/v1/meetings/preparation?date=${date}`).set(as(planner));
+      expect(again.body.data.meeting.activities[0].material_items).toHaveLength(2);
+    });
+
+    test('another unit\'s inventory cannot be put on a line', async () => {
+      const res = await request(app).post('/api/v1/meetings/preparation').set(as(planner)).send({
+        date: '2026-12-09',
+        activities: [{ id: 'new', activity: 'Kayak', material_items: [{ equipment_item_id: theirs, quantity: 1 }] }],
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe('equipment_catalog_item_unavailable');
+      expect(Number(await one("SELECT COUNT(*) FROM year_plan_meetings WHERE organization_id = $1 AND meeting_date = '2026-12-09'", [units[0]]))).toBe(0);
+    });
   });
 });

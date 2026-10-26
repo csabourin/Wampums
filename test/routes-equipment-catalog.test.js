@@ -183,3 +183,33 @@ test('a database failure answers a generic error without its detail', async () =
   expect(res.status).toBe(500);
   expect(JSON.stringify(res.body)).not.toContain('equipment_catalog_items');
 });
+
+test('what a line may list is the unit\'s articles and the inventory no article stands for', async () => {
+  permissions = ['meetings.manage'];
+  const linked = { ...ARTICLE, equipment_item_id: 44 };
+  const base = db.query.getMockImplementation();
+  db.query.mockImplementation((sql, params) => {
+    if (sql.includes('FROM equipment_catalog_items c')) {return { rows: [linked] };}
+    if (sql.includes('SELECT DISTINCT ei.id')) {return { rows: [{ id: 44 }, { id: 45 }] };}
+    if (sql.includes('SELECT id, name, category FROM equipment_items')) {
+      return { rows: params[0].map((id) => ({ id, name: `Item ${id}`, category: null })) };
+    }
+    return base(sql, params);
+  });
+  try {
+    const res = await auth(request(app).get('/api/v1/equipment-catalog/options'));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      articles: [{ id: 3, name: 'Tente 4 places', category: 'camping', unit_of_measure: 'each' }],
+      equipment: [{ id: 45, name: 'Item 45', category: 'other', unit_of_measure: 'each' }],
+    });
+  } finally {
+    db.query.mockImplementation(base);
+  }
+});
+
+test('someone who neither plans meetings nor manages the catalogue gets no material list', async () => {
+  permissions = ['inventory.view'];
+  const res = await auth(request(app).get('/api/v1/equipment-catalog/options'));
+  expect(res.status).toBe(403);
+});

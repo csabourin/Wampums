@@ -1049,7 +1049,7 @@ describe('camp schedule routes', () => {
     const order = calls.map(([sql]) => sql.trim().split(/\s+/).slice(0, 2).join(' '));
     expect(order.indexOf('BEGIN')).toBeLessThan(order.findIndex(text => text.startsWith('UPDATE year_plan_meeting_activities')));
     const insert = calls.find(([sql]) => sql.includes('INSERT INTO meeting_activity_equipment'));
-    expect(insert[1]).toEqual([ORG_ID, 5, [3], [2.5]]);
+    expect(insert[1]).toEqual([ORG_ID, 5, [3], [null], [2.5]]);
     expect(order[order.length - 1]).toBe('COMMIT');
   });
 

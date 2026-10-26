@@ -5,6 +5,8 @@
  * Mounted at /api/v1/equipment-catalog. Reading it is open to whoever manages
  * the catalogue or plans meetings (they pick articles from it); changing it
  * takes `equipment_catalog.manage`. Articles are archived, never deleted.
+ * `/options` is what a schedule line may list: the active articles and the
+ * inventory items the unit may use, by name and category only.
  *
  * @module routes/equipmentCatalog
  */
@@ -17,7 +19,7 @@ const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdParam, validateIdBody, checkValidation } = require('../middleware/validation');
 const {
   CatalogError, CATALOG_NAME_MAX_LENGTH, EQUIPMENT_CATEGORIES, EQUIPMENT_UNITS,
-  listCatalog, createCatalogItem, updateCatalogItem,
+  listCatalog, createCatalogItem, updateCatalogItem, listMaterialOptions,
 } = require('../services/equipmentCatalog');
 
 const HTTP_CREATED = 201;
@@ -72,6 +74,13 @@ module.exports = (pool) => {
         includeArchived: req.query.include_archived === 'true',
       });
       return success(res, items);
+    }));
+
+  router.get('/options',
+    requireAnyPermission('equipment_catalog.manage', 'meetings.manage'),
+    catalogHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      return success(res, await listMaterialOptions(pool, organizationId));
     }));
 
   router.post('/',

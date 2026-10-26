@@ -51,12 +51,6 @@ export const CONFIG = {
     TITLE_MAX_LENGTH: 255,
     STATUS_KEYS: { todo: 'tasks_status_todo', in_progress: 'tasks_status_in_progress', done: 'tasks_status_done' },
   },
-  /** Equipment catalogue limits, as the server checks them. */
-  EQUIPMENT_CATALOG: {
-    NAME_MAX_LENGTH: 150,
-    QUANTITY_MAX: 99999,
-    ITEMS_MAX: 50,
-  },
   /** These workflows need a confirmed server result, never an offline replay. */
   ONLINE_REQUIRED_MUTATION_RESOURCES: [
     'parent-invitations', 'parent-onboarding', 'walk-in-children',

@@ -10,7 +10,7 @@ import { openModal } from '../../utils/ModalUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
-import { getEquipmentCatalog } from '../../api/api-equipment-catalog.js';
+import { getMaterialOptions } from '../../api/api-equipment-catalog.js';
 import { MaterialItemsField, renderMaterialItemsList } from '../equipment-catalog/MaterialItemsField.js';
 import {
   getMeetingSchedule,
@@ -48,8 +48,8 @@ export class CampSchedule extends BaseModule {
     this.quickEdit = false;
     this.changed = false;
     this.modal = null;
-    // The unit's catalogue articles; null until loaded, or when it could not be.
-    this.catalog = null;
+    // What the unit has or may use; null until loaded, or when it could not be.
+    this.materialChoices = null;
     this.itemFields = new Map();
   }
 
@@ -68,22 +68,23 @@ export class CampSchedule extends BaseModule {
       }
     });
     if (this.canManage) {
-      await this.loadCatalog();
+      await this.loadMaterialChoices();
     }
     await this.reload();
   }
 
   /**
-   * Load the articles a schedule line may list. Without them, the lines keep
-   * their articles and only the free-text material can be edited.
+   * Load what a schedule line may list: catalogue articles and the inventory
+   * the unit may use. Without it, the lines keep what they list and only the
+   * free-text material can be edited.
    */
-  async loadCatalog() {
+  async loadMaterialChoices() {
     try {
-      const response = await getEquipmentCatalog();
-      this.catalog = Array.isArray(response?.data) ? response.data : null;
+      const response = await getMaterialOptions();
+      this.materialChoices = response?.data || null;
     } catch (err) {
-      debugError('Error loading the equipment catalogue:', err);
-      this.catalog = null;
+      debugError('Error loading the unit material:', err);
+      this.materialChoices = null;
     }
   }
 
@@ -94,7 +95,7 @@ export class CampSchedule extends BaseModule {
    */
   materialField(idPrefix, items = []) {
     return new MaterialItemsField({
-      catalog: this.catalog,
+      choices: this.materialChoices,
       items,
       idPrefix,
       lang: this.lang,
@@ -260,8 +261,9 @@ export class CampSchedule extends BaseModule {
    */
   quickEditItems(activity) {
     const items = activity.material_items || [];
-    // An empty catalogue is pointed out once, in the add form, not on every line.
-    if (Array.isArray(this.catalog) && this.catalog.length === 0 && items.length === 0) {
+    // Having nothing to choose from is pointed out once, in the add form, not on every line.
+    const choices = this.materialChoices;
+    if (choices && !choices.articles?.length && !choices.equipment?.length && items.length === 0) {
       return '';
     }
     const field = this.materialField(`yp-schedule-items-${Number(activity.id)}`, items);

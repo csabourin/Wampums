@@ -162,4 +162,18 @@ describe('AI prompt trust boundaries', () => {
     });
     expect(validation.errors).toEqual([expect.objectContaining({ field: 'payload.targetVocabulary.Ignore rules' })]);
   });
+
+  test('a meeting plan offered the unit\'s material may only choose from it, by reference', () => {
+    const validation = validateAIPayload('meeting_plan', { locale: 'fr', date: '2026-11-04', section: 'Meute', duration: '90 minutes' });
+    const payload = { ...validation.value, availableMaterial: [{ ref: 'a3', name: INJECTION_SENTINEL, category: 'sports', unit: 'each' }] };
+
+    const messages = buildMessages('meeting_plan', payload);
+    const system = messages.filter(({ role }) => role === 'system').map(({ content }) => content).join('\n');
+
+    expect(system).toContain('never name material that is not in the list');
+    expect(system).toContain('"materialItems"');
+    expect(system).not.toContain('"materiel"');
+    expect(system).not.toContain(INJECTION_SENTINEL);
+    expect(messages.find(({ role }) => role === 'user').content).toContain(INJECTION_SENTINEL);
+  });
 });

@@ -33,6 +33,7 @@ import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { ActivityManager } from './ActivityManager.js';
 import { PrintManager } from '../PrintManager.js';
 import { aiGenerateText } from '../../api/api-ai.js';
+import { getMaterialOptions } from '../../api/api-equipment-catalog.js';
 import { MeetingAutosave, MEETING_SAVE_STATES } from './MeetingAutosave.js';
 import {
   getMeetingActivities,
@@ -104,6 +105,9 @@ export class MeetingPrep extends BaseModule {
         this.app, this.animateurs, this.activitiesCatalog,
         this.sectionConfig, this.badgeTemplates, this.participants
       );
+      if (this.canPickMaterial) {
+        this.activityManager.setMaterialChoices(this.materialChoices, hasPermission('equipment_catalog.manage'));
+      }
       this.printManager = new PrintManager(
         this.activityManager,
         this.sectionConfig,
@@ -127,7 +131,9 @@ export class MeetingPrep extends BaseModule {
   async fetchData() {
     this.organizationSettings = (await this.app.waitForOrganizationSettings()) || {};
 
-    const [catalogResponse, animateursResponse, badgeResponse, participantsResponse, datesResponse, reminderResponse] =
+    // Those who plan meetings pick what activities need from the unit's material.
+    this.canPickMaterial = hasPermission('meetings.manage') || hasPermission('equipment_catalog.manage');
+    const [catalogResponse, animateursResponse, badgeResponse, participantsResponse, datesResponse, reminderResponse, materialResponse] =
       await Promise.all([
         getMeetingActivities().catch(err => {
           debugError('Error loading activity catalog:', err);
@@ -152,7 +158,13 @@ export class MeetingPrep extends BaseModule {
         getReminder().catch(err => {
           debugError('Error loading reminder:', err);
           return { data: null };
-        })
+        }),
+        this.canPickMaterial
+          ? getMaterialOptions().catch(err => {
+            debugError('Error loading the unit material:', err);
+            return { data: null };
+          })
+          : { data: null }
       ]);
 
     this.activitiesCatalog = catalogResponse?.data || [];
@@ -162,6 +174,7 @@ export class MeetingPrep extends BaseModule {
     this.participants = participantsResponse?.data || [];
     this.meetingDates = datesResponse?.data || [];
     this.reminder = reminderResponse?.data || null;
+    this.materialChoices = materialResponse?.data || null;
 
     this.updateSectionConfig(this.organizationSettings.meeting_sections);
   }
@@ -789,6 +802,8 @@ export class MeetingPrep extends BaseModule {
         this.activityManager.addActivityRow(e.target.dataset.position);
       } else if (e.target.classList.contains('delete-row-btn')) {
         this.activityManager.deleteActivityRow(e.target.dataset.position);
+      } else if (e.target.closest('.material-items-btn')) {
+        this.activityManager.openMaterialItems(e.target.closest('.material-items-btn'));
       }
     });
   }

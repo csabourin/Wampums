@@ -9,7 +9,7 @@
  * @module spa/modules/equipment-catalog/EquipmentCatalog
  */
 import { translate } from '../../app.js';
-import { CONFIG } from '../../config.js';
+import { EQUIPMENT_CATALOG_LIMITS } from '../../config/equipment-catalog.js';
 import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { hasPermission, isDemoUser } from '../../utils/PermissionUtils.js';
@@ -198,7 +198,7 @@ export class EquipmentCatalog {
       body: `<form id="equipment-catalog-form" class="equipment-catalog__form" novalidate>
         <label for="equipment-catalog-name">${translate('equipment_catalog_name')}</label>
         <input id="equipment-catalog-name" name="catalog_name" required aria-required="true"
-               maxlength="${CONFIG.EQUIPMENT_CATALOG.NAME_MAX_LENGTH}" value="${escapeAttribute(item?.name || '')}">
+               maxlength="${EQUIPMENT_CATALOG_LIMITS.NAME_MAX_LENGTH}" value="${escapeAttribute(item?.name || '')}">
         <label for="equipment-catalog-category">${translate('equipment_catalog_category')}</label>
         <select id="equipment-catalog-category" name="catalog_category">${equipmentCategoryOptions(item?.category || 'other')}</select>
         <label for="equipment-catalog-unit">${translate('equipment_catalog_unit')}</label>

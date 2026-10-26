@@ -18,7 +18,7 @@
 import axe from 'axe-core';
 
 jest.mock('../../spa/config.js', () => ({
-  CONFIG: { EQUIPMENT_CATALOG: { NAME_MAX_LENGTH: 150, QUANTITY_MAX: 99999, ITEMS_MAX: 50 } },
+  CONFIG: {},
   getStorageKey: (key) => key,
 }));
 jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));

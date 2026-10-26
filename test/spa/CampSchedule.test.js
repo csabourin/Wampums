@@ -31,7 +31,7 @@ jest.mock('../../spa/app.js', () => ({
 }));
 
 jest.mock('../../spa/config.js', () => ({
-  CONFIG: { EQUIPMENT_CATALOG: { NAME_MAX_LENGTH: 150, QUANTITY_MAX: 99999, ITEMS_MAX: 50 } },
+  CONFIG: {},
   getStorageKey: (key) => key,
 }));
 
@@ -40,7 +40,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
 }));
 
 jest.mock('../../spa/api/api-equipment-catalog.js', () => ({
-  getEquipmentCatalog: jest.fn(),
+  getMaterialOptions: jest.fn(),
 }));
 
 jest.mock('../../spa/utils/DialogUtils.js', () => ({
@@ -71,12 +71,15 @@ const AXE_OPTIONS = {
 
 const MEETING_ID = 7;
 
-/** The unit's active catalogue articles. */
-const CATALOG = [
-  { id: 3, name: 'Tente <b>4</b>', category: 'camping', unit_of_measure: 'each', archived: false },
-  { id: 5, name: 'Corde', category: 'tools', unit_of_measure: 'm', archived: false },
-  { id: 6, name: 'Réchaud', category: 'kitchen', unit_of_measure: 'each', archived: false },
-];
+/** What the unit has or may use: active catalogue articles and inventory. */
+const CHOICES = {
+  articles: [
+    { id: 3, name: 'Tente <b>4</b>', category: 'camping', unit_of_measure: 'each' },
+    { id: 5, name: 'Corde', category: 'tools', unit_of_measure: 'm' },
+    { id: 6, name: 'Réchaud', category: 'kitchen', unit_of_measure: 'each' },
+  ],
+  equipment: [{ id: 9, name: 'Ballon de soccer', category: 'sports', unit_of_measure: 'each' }],
+};
 
 /** @returns {Object} A two-day camp with a programme on its first day */
 function schedule() {
@@ -135,8 +138,8 @@ beforeEach(() => {
   app = { showMessage: jest.fn() };
   Object.values(api).forEach((fn) => fn.mockReset());
   api.getMeetingSchedule.mockResolvedValue({ success: true, data: schedule() });
-  catalogApi.getEquipmentCatalog.mockReset();
-  catalogApi.getEquipmentCatalog.mockResolvedValue({ success: true, data: CATALOG });
+  catalogApi.getMaterialOptions.mockReset();
+  catalogApi.getMaterialOptions.mockResolvedValue({ success: true, data: CHOICES });
   confirmDestructive.mockReset();
 });
 
@@ -290,11 +293,11 @@ test('the schedule dialog meets WCAG A/AA', async () => {
 
 describe('catalogue articles', () => {
   /**
-   * @param {HTMLElement} field - The articles fieldset
-   * @param {number} id - Catalogue article to add
+   * @param {HTMLElement} field - The material fieldset
+   * @param {string} key - What to add: a5 is article 5, e9 inventory item 9
    */
-  function addArticle(field, id) {
-    field.querySelector('[data-item-select]').value = String(id);
+  function addArticle(field, key) {
+    field.querySelector('[data-item-select]').value = key;
     field.querySelector('[data-add-item]').click();
   }
 
@@ -305,7 +308,7 @@ describe('catalogue articles', () => {
     expect(card.querySelector('.material-items__summary').textContent).toContain('Tente <b>4</b>');
     expect(card.querySelector('.material-items__summary b')).toBeNull();
     expect(card.textContent).toContain('equipment_quantity_with_unit');
-    expect(catalogApi.getEquipmentCatalog).not.toHaveBeenCalled();
+    expect(catalogApi.getMaterialOptions).not.toHaveBeenCalled();
   });
 
   test('articles chosen while adding a line are sent with their quantities', async () => {
@@ -313,13 +316,13 @@ describe('catalogue articles', () => {
     const form = openAddForm();
     const field = form.querySelector('fieldset.material-items');
 
-    addArticle(field, 5);
-    expect(document.activeElement).toBe(field.querySelector('[data-quantity-for="5"]'));
+    addArticle(field, 'a5');
+    expect(document.activeElement).toBe(field.querySelector('[data-quantity-for="a5"]'));
     document.activeElement.value = '12,5';
-    addArticle(field, 6);
-    addArticle(field, 3);
-    field.querySelector('[data-remove-item="6"]').click();
-    expect(field.querySelector('[data-quantity-for="5"]').value).toBe('12,5');
+    addArticle(field, 'a6');
+    addArticle(field, 'a3');
+    field.querySelector('[data-remove-item="a6"]').click();
+    expect(field.querySelector('[data-quantity-for="a5"]').value).toBe('12,5');
     document.getElementById('yp-schedule-new-name').value = 'Pionniérisme';
     form.requestSubmit();
     await flush();
@@ -334,8 +337,8 @@ describe('catalogue articles', () => {
     await openSchedule();
     const form = openAddForm();
     const field = form.querySelector('fieldset.material-items');
-    addArticle(field, 5);
-    const quantity = field.querySelector('[data-quantity-for="5"]');
+    addArticle(field, 'a5');
+    const quantity = field.querySelector('[data-quantity-for="a5"]');
     quantity.value = '0';
     document.getElementById('yp-schedule-new-name').value = 'Pionniérisme';
 
@@ -361,9 +364,9 @@ describe('catalogue articles', () => {
     dialog().querySelector('[data-edit-activity="11"]').click();
     const card = dialog().querySelector('[data-activity-id="11"]');
     const field = card.querySelector('fieldset.material-items');
-    expect(field.querySelector('[data-item-select] option[value="3"]')).toBeNull();
+    expect(field.querySelector('[data-item-select] option[value="a3"]')).toBeNull();
 
-    field.querySelector('[data-quantity-for="3"]').value = '4';
+    field.querySelector('[data-quantity-for="a3"]').value = '4';
     card.querySelector('[data-save-activity="11"]').click();
     await flush();
 
@@ -373,7 +376,7 @@ describe('catalogue articles', () => {
   });
 
   test('when the catalogue cannot be loaded, a line keeps its articles and a save leaves them alone', async () => {
-    catalogApi.getEquipmentCatalog.mockRejectedValue(new Error('offline'));
+    catalogApi.getMaterialOptions.mockRejectedValue(new Error('offline'));
     await openSchedule();
     dialog().querySelector('[data-edit-activity="11"]').click();
     const card = dialog().querySelector('[data-activity-id="11"]');
@@ -388,8 +391,8 @@ describe('catalogue articles', () => {
     expect(api.updateMeetingActivity.mock.calls[0][1]).not.toHaveProperty('material_items');
   });
 
-  test('an empty catalogue is pointed out in the add form, not on every line', async () => {
-    catalogApi.getEquipmentCatalog.mockResolvedValue({ success: true, data: [] });
+  test('having nothing to choose from is pointed out in the add form, not on every line', async () => {
+    catalogApi.getMaterialOptions.mockResolvedValue({ success: true, data: { articles: [], equipment: [] } });
     const empty = schedule();
     empty.days[0].activities[0].material_items = [];
     api.getMeetingSchedule.mockResolvedValue({ success: true, data: empty });
@@ -403,10 +406,28 @@ describe('catalogue articles', () => {
     expect(form.querySelector('[data-item-select]')).toBeNull();
   });
 
+  test('inventory the unit has or may borrow is offered beside the catalogue and sent as such', async () => {
+    await openSchedule();
+    const form = openAddForm();
+    const field = form.querySelector('fieldset.material-items');
+    const groups = [...field.querySelectorAll('optgroup')].map((group) => group.label);
+    expect(groups).toEqual(['equipment_catalog_group_articles', 'equipment_catalog_group_inventory']);
+
+    addArticle(field, 'e9');
+    field.querySelector('[data-quantity-for="e9"]').value = '2';
+    document.getElementById('yp-schedule-new-name').value = 'Soccer';
+    form.requestSubmit();
+    await flush();
+
+    expect(api.addMeetingActivity).toHaveBeenCalledWith(MEETING_ID, expect.objectContaining({
+      material_items: [{ equipment_item_id: 9, quantity: 2 }],
+    }));
+  });
+
   test('the article picker meets WCAG A/AA', async () => {
     await openSchedule();
     const form = openAddForm();
-    addArticle(form.querySelector('fieldset.material-items'), 5);
+    addArticle(form.querySelector('fieldset.material-items'), 'a5');
 
     const results = await axe.run(document.querySelector('#yp-schedule-activity'), AXE_OPTIONS);
 
