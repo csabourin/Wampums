@@ -493,8 +493,8 @@ module.exports = (pool, logger) => {
       const defaults = regenerate === true ? await getMeetingDefaults(pool, organizationId) : null;
       const generated = regenerate === true
         ? generateMeetingDates(
-          String(previous.start_date).slice(0, 10),
-          String(previous.end_date).slice(0, 10),
+          previous.start_date instanceof Date ? formatLocalDate(previous.start_date) : previous.start_date,
+          previous.end_date instanceof Date ? formatLocalDate(previous.end_date) : previous.end_date,
           defaults.meetingDay,
           previous.recurrence_pattern,
           nextBlackouts,
@@ -538,6 +538,10 @@ module.exports = (pool, logger) => {
                 AND NOT EXISTS (
                   SELECT 1 FROM year_plan_meeting_activities a
                    WHERE a.meeting_id = m.id AND a.organization_id = m.organization_id
+                )
+                AND NOT EXISTS (
+                  SELECT 1 FROM activity_tasks t
+                   WHERE t.meeting_id = m.id AND t.organization_id = m.organization_id
                 )
                 AND NOT (m.meeting_date = ANY($3::date[]))`,
             [planId, organizationId, generatedDates]
@@ -630,7 +634,9 @@ module.exports = (pool, logger) => {
            WHERE m.year_plan_id = $1 AND m.organization_id = $2
              AND (m.meeting_date < CURRENT_DATE
                   OR m.animateur_responsable IS NOT NULL
-                  OR EXISTS (SELECT 1 FROM year_plan_meeting_activities a WHERE a.meeting_id = m.id))`,
+                  OR EXISTS (SELECT 1 FROM year_plan_meeting_activities a WHERE a.meeting_id = m.id)
+                  OR EXISTS (SELECT 1 FROM activity_tasks t
+                              WHERE t.meeting_id = m.id AND t.organization_id = m.organization_id))`,
           [planId, organizationId]
         );
         await client.query(

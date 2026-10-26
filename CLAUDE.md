@@ -492,6 +492,9 @@ status and when. Extend `config/tasks.js` and `CONFIG.TASKS.STATUS_KEYS` togethe
 when adding states, with English and French labels and a migration extending the
 status constraint.
 
+Regenerating a year plan preserves meetings with assigned tasks. Deleting a plan
+detaches those meetings, preserving assignments and their history.
+
 Task writes require a connection and cannot be queued. Confirmed writes invalidate
 task reads through the shared API client. The task screen uses minimal event/member
 choices rather than requesting participants, families, contacts or health forms.

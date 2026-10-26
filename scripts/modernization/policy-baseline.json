@@ -55,7 +55,7 @@
     "routes/users.js": 45,
     "routes/walkInChildren.js": 1,
     "routes/whatsapp-baileys.js": 11,
-    "routes/yearlyPlanner.js": 165,
+    "routes/yearlyPlanner.js": 163,
     "scripts/diagnose-whatsapp-auth.js": 22,
     "scripts/find-mismatches.js": 4,
     "scripts/fix-whatsapp-buffer-serialization.js": 2,
