@@ -528,6 +528,11 @@ the unit wrote its own (`custom`). Saving the vocabulary sets the branch only wh
 generic ones, ahead of a stale legacy meeting section once vocabulary is saved; an unknown branch
 still falls back to its legacy section. OVH routes the unit base domain's wildcard to the app
 (`deploy/ovh/README.md`); wildcard DNS and TLS must be configured before using new addresses.
+`middleware/unit-host.js` redirects unassigned unit subdomains to the fixed public home URL before
+static files and routes, using exact case-insensitive domain assignments (no header or wildcard
+fallback). Its 302 is not cached, drops path/query, and reflects address changes immediately;
+database failures stay errors. Apex/`www`, local development and other domain suffixes keep their
+existing routing.
 Addresses are listed with `org.view`; adding one, choosing the
 primary one (`organization_domains.is_primary`, migration 057, used by `resolveOrganizationBaseUrl`)
 and removing one take `org.create`. A unit keeps its primary and at least one exact address. Adding

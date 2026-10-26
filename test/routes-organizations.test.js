@@ -759,7 +759,7 @@ describe('Organization domain mapping', () => {
     expect(domainQuery.includes('organization_domains')).toBe(true);
   });
 
-  test('falls back to default organization when domain not found', async () => {
+  test('an unassigned unit hostname redirects to the public home page', async () => {
     const { __mClient, __mPool } = require('pg');
 
     mockQueryImplementation(__mClient, __mPool, (query, _params) => {
@@ -780,8 +780,8 @@ describe('Organization domain mapping', () => {
       .get('/api/v1/organizations/status')
       .set('Host', 'unknown.wampums.app');
 
-    // Should not crash, might use default
-    expect([200, 404, 500]).toContain(res.status);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('https://wampums.app/');
   });
 });
 

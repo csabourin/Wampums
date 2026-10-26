@@ -86,7 +86,14 @@ organization routing; outbound integrations stay blocked during this stage.
    creating units or selecting their new primary addresses. Test an otherwise
    unused unit hostname through public HTTPS after deployment, then test a
    registered unit's sign-in and invitation link; unknown hostnames do not
-   register a unit. New unit addresses then need no per-unit DNS or proxy edit.
+   register a unit. Unassigned subdomains redirect to `https://wampums.app/`
+   before the app serves any static file or endpoint. The redirect is temporary
+   (302) and not cached, drops the old path and query, and checks exact domain
+   assignments on each request, so adding or removing an address takes effect
+   immediately. The apex and `www` keep serving the landing site; the storage
+   hostname keeps its exact Garage route. A database failure returns an error
+   rather than treating an assigned hostname as unused.
+   New unit addresses then need no per-unit DNS or proxy edit.
    If using a different base domain, update `config/unit_subdomains.json`, DNS
    and the certificate names in `configure-tls.sh` together.
 
