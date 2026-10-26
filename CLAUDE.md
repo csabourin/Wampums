@@ -534,6 +534,15 @@ references (`a3`, `e7`); the answer keeps only references it was offered and nev
 material. A unit with no catalogue and no inventory keeps the free-text answer. Catalogue writes
 need a connection.
 
+A camp's collective material list (`/camp-material/:id`, from the camp schedule;
+`GET /api/v1/yearly-planner/meetings/:id/material-list`, `meetings.view`) is built by
+`services/campMaterialList.js`: each article once, its quantity the sum of every line naming it; an
+inventory item listed directly joins the article that stands for it. Free-text material is listed
+apart, line by line, never added up. With `inventory.view` only, each inventory entry is compared over
+the camp's dates as a reservation of those dates is counted: reserved for this camp (by its meeting or
+its outing), still free (loans included), missing, or no longer accessible; reservations for the camp
+that no line lists are returned too. Print and CSV export carry the same content.
+
 Meeting preparation sends a change to the server once the date (and the youth of honour, where
 the unit requires one) is filled; the leader in charge and the place are optional, as on the
 server. Until then the change stays on the device and the status names what is missing.

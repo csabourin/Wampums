@@ -115,7 +115,7 @@ describe('yearly planner cache invalidation', () => {
     // Exports that only read; everything else must appear in MUTATIONS.
     const readOnly = [
       'getYearPlans', 'getYearPlan', 'getPeriods', 'getObjectives',
-      'getYearPlanMeeting', 'getMeetingSchedule', 'getActivityLibrary', 'getStarterActivities', 'getAchievements',
+      'getYearPlanMeeting', 'getMeetingSchedule', 'getCampMaterialList', 'getActivityLibrary', 'getStarterActivities', 'getAchievements',
       'getDistributionRules', 'getReminders', 'getMeetingReminders'
     ];
     const covered = new Set([...readOnly, ...MUTATIONS.map(([name]) => name)]);

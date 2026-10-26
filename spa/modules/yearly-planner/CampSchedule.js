@@ -59,7 +59,10 @@ export class CampSchedule extends BaseModule {
       id: 'yp-camp-schedule',
       title: escapeHTML(translate('yearly_planner_camp_schedule')),
       body: `<div class="loading-spinner" role="status"><span class="sr-only">${escapeHTML(translate('loading'))}</span></div>`,
-      footer: `<button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('close'))}</button>`,
+      footer: `
+        <a class="button button--secondary" href="/camp-material/${Number(this.chip.meetingId)}">${escapeHTML(translate('camp_material_open'))}</a>
+        <button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('close'))}</button>
+      `,
       onClose: () => {
         this.destroy();
         if (this.changed) {

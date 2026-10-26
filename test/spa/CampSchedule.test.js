@@ -434,3 +434,10 @@ describe('catalogue articles', () => {
     expect(results.violations).toEqual([]);
   });
 });
+
+test('the camp schedule leads to the camp\'s collective material list, for viewers too', async () => {
+  await openSchedule(false);
+  const link = dialog().querySelector('.modal-footer a[href]');
+  expect(link.getAttribute('href')).toBe(`/camp-material/${MEETING_ID}`);
+  expect(link.textContent.trim()).toBe('camp_material_open');
+});

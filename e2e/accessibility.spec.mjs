@@ -56,6 +56,7 @@ const SCREENS = {
     `/preparation-reunions/${seededProgrammeDate()}`,
     `/yearly-planner/${seededRecord('yearPlanId')}`,
     '/yearly-planner/starter-activities',
+    `/camp-material/${seededRecord('campMeetingId')}`,
     `/calendars/${seededRecord('fundraiserId')}`,
   ],
 };
