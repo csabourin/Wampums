@@ -64,6 +64,7 @@ organization routing; outbound integrations stay blocked during this stage.
 
    ```dotenv
    APP_DOMAINS=wampums.app, demo.wampums.app, meute6b.wampums.app, 1stwilliamsburg.wampums.app, castors6h.wampums.app, mobile.meute6a.app, meute6a.app
+   UNIT_BASE_DOMAIN=wampums.app
    STORAGE_DOMAIN=files.wampums.app
    WAMPUMS_ROOT=/opt/wampums
    WAMPUMS_IMAGE=wampums:REPLACE_WITH_COMMIT_SHA
@@ -71,6 +72,34 @@ organization routing; outbound integrations stay blocked during this stage.
 
    For production, separate each domain with a comma **and a space**, as Caddy
    requires when expanding the address list from an environment variable.
+   Caddy also routes `*.${UNIT_BASE_DOMAIN}` to the app (`wampums.app` by
+   default, matching `config/unit_subdomains.json`). Existing installations
+   receive this wildcard on their next deployment without editing `APP_DOMAINS`.
+   Keep `APP_DOMAINS` for the apex and any additional exact app hostnames; do not
+   put the unit wildcard or `STORAGE_DOMAIN` in that list. The exact storage
+   hostname continues to go to Garage, ahead of the app wildcard. `files` is
+   reserved in the shared unit-subdomain rules. Compose also passes the same
+   `STORAGE_DOMAIN` to the app, so a storage hostname override cannot be claimed
+   as a unit address or selected as its primary email address.
+
+   In Cloudflare, create a proxied wildcard A record (`*` in the `wampums.app`
+   zone) pointing to `148.113.174.196`. Keep the existing apex and explicit
+   records, especially `files`; do not replace them. The wildcard DNS record,
+   wildcard proxy route and wildcard TLS certificate are all required before
+   creating units or selecting their new primary addresses. Test an otherwise
+   unused unit hostname through public HTTPS after deployment, then test a
+   registered unit's sign-in and invitation link; unknown hostnames do not
+   register a unit. Unassigned subdomains redirect to `https://wampums.app/`
+   before the app serves any static file or endpoint. The redirect is temporary
+   (302) and not cached, drops the old path and query, and checks exact domain
+   assignments on each request, so adding or removing an address takes effect
+   immediately. The apex and `www` keep serving the landing site; the storage
+   hostname keeps its exact Garage route. A database failure returns an error
+   rather than treating an assigned hostname as unused.
+   New unit addresses then need no per-unit DNS or proxy edit.
+   If using a different base domain, update `config/unit_subdomains.json`, DNS
+   and the certificate names in `configure-tls.sh` together.
+
    Before cutover, run `configure-tls.sh` as root with a private Cloudflare token
    file. Its token needs DNS Edit and Zone Read for both zones. It installs
    Certbot's Cloudflare DNS plugin, issues a certificate for both apex domains

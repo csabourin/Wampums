@@ -537,6 +537,16 @@ export const DASHBOARD_TILES = [
     priority: 11,
     gate: { check: 'createOrganization' },
   },
+  {
+    href: '/units',
+    icon: 'fa-right-left',
+    label: 'tile_switch_unit',
+    aliases: 'tile_switch_unit_aliases',
+    moment: 'tools',
+    domain: 'system',
+    priority: 12,
+    gate: { check: 'switchUnits' },
+  },
 ];
 
 /**

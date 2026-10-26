@@ -278,3 +278,36 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* The addresses a unit answers at. */
+.unit-addresses-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-md);
+}
+
+.unit-addresses-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.unit-addresses-domain {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.unit-addresses-primary {
+  font-size: var(--font-size-sm);
+}
+
+.unit-addresses-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}

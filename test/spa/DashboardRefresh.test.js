@@ -78,6 +78,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   canAccessAdminPanel: jest.fn(() => mockAdminPanel),
   canAccessParentTools: jest.fn(() => mockIsParent),
   canCreateOrganization: jest.fn(() => false),
+  canSwitchUnits: jest.fn(() => false),
   canViewCarpools: jest.fn(() => false),
   canFollowPermissionSlips: jest.fn(() => !mockIsParent
     && ['activities.view', 'participants.view', 'groups.view'].every((permission) => mockPermissions.has(permission))),

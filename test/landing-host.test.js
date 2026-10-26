@@ -321,6 +321,14 @@ describe('Landing Host Routing - wampums.app', () => {
   });
 
   describe('Non-landing hosts', () => {
+    test('an unused hostname redirects before serving a static app file', async () => {
+      require('pg').__mPool.query.mockResolvedValueOnce({ rows: [] });
+      const res = await request(app).get('/index.html?token=fictional').set('Host', 'unused.wampums.app');
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBe('https://wampums.app/');
+      expect(res.headers['cache-control']).toBe('no-store');
+    });
+
     test('does not redirect / on demo.wampums.app', async () => {
       const res = await request(app)
         .get('/')
@@ -331,7 +339,8 @@ describe('Landing Host Routing - wampums.app', () => {
       expect(res.status).not.toBe(302);
     });
 
-    test('does not redirect / on other subdomains', async () => {
+    test('an assigned unit subdomain does not redirect to the landing page', async () => {
+      require('pg').__mPool.query.mockResolvedValueOnce({ rows: [{ organization_id: 1 }] });
       const res = await request(app)
         .get('/')
         .set('Host', 'app.wampums.app')

@@ -56,6 +56,8 @@ export const CONFIG = {
     'parent-invitations', 'parent-onboarding', 'walk-in-children',
     'family-links', 'family-link-requests', 'calendar-feed', 'roles', 'tasks',
     'yearly-planner/starter-activities', 'equipment-catalog',
+    // How the unit is reached and what it is: never replayed later from a queue.
+    'organizations/domains', 'organizations/settings/branch',
   ],
   /**
      * Cache Duration Settings

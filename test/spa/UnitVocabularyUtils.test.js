@@ -12,6 +12,14 @@ describe('UnitVocabularyUtils', () => {
     expect(getUnitVocabulary({}, 'fr').youth_plural).toBe('Louveteaux');
   });
 
+  test('a scouts, pioneers or rovers unit without saved terms speaks the generic ones, not the cubs\'', () => {
+    ['scouts', 'pioneers', 'rovers'].forEach((section) => {
+      expect(getVocabularyProfile({ program_section: section })).toBe('generic');
+    });
+    expect(getUnitVocabulary({ program_section: 'scouts' }, 'fr').youth_plural).not.toBe('Louveteaux');
+    expect(getVocabularyProfile({ program_section: 'beavers' })).toBe('beavers');
+  });
+
   test('resolves Beaver defaults and organization overrides', () => {
     const vocabulary = createVocabularyFromProfile('beavers');
     vocabulary.locales.fr.subgroup_plural = 'Barrages';

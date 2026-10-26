@@ -1,7 +1,7 @@
 import unitSettingsStylesheetUrl from '../../../css/unit-settings.css?url';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { translate } from '../../app.js';
-import { loadStylesheet, setContent } from '../../utils/DOMUtils.js';
+import { loadStylesheet, setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { makeApiRequest } from '../../api/api-core.js';
 import {
@@ -18,8 +18,18 @@ import {
   updateParentDashboardConfiguration,
   updateUnitVocabulary,
 } from '../../api/api-endpoints.js';
+import {
+  addUnitDomain,
+  getUnitDomains,
+  removeUnitDomain,
+  setPrimaryUnitDomain,
+  updateUnitBranch,
+} from '../../api/api-organizations.js';
+import { CONFIG } from '../../config.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { SUBDOMAIN_MAX_LENGTH, UNIT_BASE_DOMAIN, subdomainProblem } from '../../utils/UnitSubdomainUtils.js';
 import {
   INTERFACE_LANGS,
   INTERFACE_LANGUAGES_SETTING_KEY,
@@ -63,6 +73,8 @@ const EMAIL_MAX_LENGTH = 254;
 const VOCABULARY_TERM_MAX_LENGTH = 80;
 const BASE_SETTINGS_TABS = ['general', 'vocabulary', 'dashboard', 'parent_dashboard'];
 const GROUP_TAB = 'group';
+/** Problems the server names on the new address field. */
+const ADDRESS_FIELD_MESSAGES = new Set(['subdomain_required', 'subdomain_invalid', 'subdomain_reserved', 'subdomain_taken']);
 
 export class UnitSettings extends BaseModule {
   constructor(app) {
@@ -79,6 +91,12 @@ export class UnitSettings extends BaseModule {
     this.canManageOrg = false;
     this.canEditOrg = false;
     this.canViewOrg = false;
+    // Adding, choosing and removing addresses is a district administrator's task.
+    this.canManageDomains = false;
+    this.programSection = 'general';
+    /** @type {Array<{id: number, domain: string, is_primary: boolean, is_wildcard: boolean}>} */
+    this.domains = [];
+    this.domainsError = false;
     this.activeTab = 'general';
     this.vocabulary = createVocabularyFromProfile('cubs');
     this.dashboardConfiguration = { version: 1, hidden_tile_keys: [] };
@@ -111,9 +129,10 @@ export class UnitSettings extends BaseModule {
     this.canManageOrg = hasPermission('organization.manage');
     this.canEditOrg = hasPermission('org.edit');
     this.canViewOrg = hasPermission('org.view');
+    this.canManageDomains = hasPermission('org.create');
     try {
       await this.loadSettings();
-      await Promise.all([this.loadLeaders(), this.loadEmailSender()]);
+      await Promise.all([this.loadLeaders(), this.loadEmailSender(), this.loadDomains()]);
       this.isLoading = false;
       this.render();
       this.attachEventListeners();
@@ -140,6 +159,7 @@ export class UnitSettings extends BaseModule {
       meeting_duration: configuredDuration,
     };
     this.orgName = this.organizationInfo.name || '';
+    this.programSection = data.program_section || 'general';
     this.emailLanguage = data.default_email_language || 'fr';
     this.interfaceLanguages = getUnitLanguages(data);
     const profile = getVocabularyProfile(data);
@@ -177,6 +197,22 @@ export class UnitSettings extends BaseModule {
     } catch (error) {
       debugError('Failed to load unit leader suggestions:', error);
       this.leaders = [];
+    }
+  }
+
+  /**
+   * Load the addresses the unit answers at. A failure is shown in their
+   * section, with a retry; the rest of the page stays usable.
+   */
+  async loadDomains() {
+    if (!this.canViewOrg) {return;}
+    try {
+      const response = await getUnitDomains();
+      this.domains = Array.isArray(response?.data) ? response.data : [];
+      this.domainsError = false;
+    } catch (error) {
+      debugError('Failed to load unit addresses:', error);
+      this.domainsError = true;
     }
   }
 
@@ -224,6 +260,8 @@ export class UnitSettings extends BaseModule {
           aria-labelledby="unit-settings-tab-${this.activeTab}">
           ${this.activeTab === 'general' ? `
             ${this.renderUnitDetailsSection()}
+            ${this.renderBranchSection()}
+            ${this.canViewOrg ? this.renderAddressesSection() : ''}
             ${this.canEditOrg ? this.renderInterfaceLanguagesSection() : ''}
             ${this.canEditOrg ? this.renderLanguageSection() : ''}
             ${this.canEditOrg && this.emailSender ? this.renderEmailSenderSection() : ''}
@@ -340,6 +378,96 @@ export class UnitSettings extends BaseModule {
             </button>` : ''}
         </form>
       </section>`;
+  }
+
+  renderBranchSection() {
+    const disabled = this.canEditOrg ? '' : 'disabled';
+    const options = CONFIG.PROGRAM_SECTIONS.DEFAULT.map(({ key, labelKey }) => `
+      <option value="${escapeAttribute(key)}" ${this.programSection === key ? 'selected' : ''}>
+        ${escapeHTML(translate(labelKey))}
+      </option>`).join('');
+    return `
+      <section class="account-section" aria-labelledby="unit-branch-title">
+        <h2 id="unit-branch-title">${escapeHTML(translate('unit_branch_title'))}</h2>
+        <form id="unit-branch-form" class="unit-settings-form">
+          <div class="form-group">
+            <label for="unit-branch-select">${escapeHTML(translate('create_unit_branch_label'))}</label>
+            <select id="unit-branch-select" name="program_section" class="form-control"
+              aria-describedby="unit-branch-hint" ${disabled}>
+              ${options}
+            </select>
+            <p class="field-hint" id="unit-branch-hint">${escapeHTML(translate('unit_branch_hint'))}</p>
+          </div>
+          ${this.canEditOrg ? `<button type="submit" id="save-unit-branch-btn" class="button button--primary">
+            ${escapeHTML(translate('save'))}
+          </button>` : ''}
+        </form>
+      </section>`;
+  }
+
+  renderAddressesSection() {
+    let body;
+    if (this.domainsError) {
+      body = `
+        <p class="error-message" role="alert">${escapeHTML(translate('unit_addresses_load_failed'))}</p>
+        <button type="button" class="button button--secondary" id="unit-addresses-retry">${escapeHTML(translate('retry'))}</button>`;
+    } else if (this.domains.length === 0) {
+      body = `<p>${escapeHTML(translate('unit_addresses_empty'))}</p>`;
+    } else {
+      body = `<ul class="unit-addresses-list">${this.domains.map((address) => this.renderAddress(address)).join('')}</ul>`;
+    }
+    return `
+      <section class="account-section" aria-labelledby="unit-addresses-title">
+        <h2 id="unit-addresses-title" tabindex="-1">${escapeHTML(translate('unit_addresses_title'))}</h2>
+        <p class="section-description">${escapeHTML(translate(this.canManageDomains ? 'unit_addresses_description' : 'unit_addresses_read_only'))}</p>
+        ${body}
+        ${this.canManageDomains && !this.domainsError ? this.renderAddressForm() : ''}
+      </section>`;
+  }
+
+  /**
+   * @param {{id: number, domain: string, is_primary: boolean, is_wildcard: boolean}} address - One address
+   * @returns {string} HTML
+   */
+  renderAddress(address) {
+    const id = Number(address.id);
+    const name = escapeAttribute(address.domain);
+    const actions = this.canManageDomains && !address.is_primary ? `
+      <div class="unit-addresses-actions">
+        ${address.is_wildcard ? '' : `<button type="button" class="button button--secondary button--small" data-domain-primary="${id}"
+          aria-label="${escapeAttribute(translate('unit_addresses_make_primary_named').replace('{domain}', address.domain))}">
+          ${escapeHTML(translate('unit_addresses_make_primary'))}</button>`}
+        <button type="button" class="button button--danger button--small" data-domain-remove="${id}" data-domain-name="${name}"
+          aria-label="${escapeAttribute(translate('unit_addresses_remove_named').replace('{domain}', address.domain))}">
+          ${escapeHTML(translate('unit_addresses_remove'))}</button>
+      </div>` : '';
+    return `
+      <li class="unit-addresses-item">
+        <span class="unit-addresses-domain">${escapeHTML(address.domain)}</span>
+        ${address.is_primary ? `<span class="unit-addresses-primary">${escapeHTML(translate('unit_addresses_primary'))}</span>` : ''}
+        ${actions}
+      </li>`;
+  }
+
+  renderAddressForm() {
+    return `
+      <form id="unit-address-form" class="unit-settings-form" novalidate>
+        <div class="form-group">
+          <label for="unit-address-subdomain">${escapeHTML(translate('unit_addresses_new_label'))}</label>
+          <div class="create-unit-subdomain" data-error-anchor>
+            <input type="text" id="unit-address-subdomain" name="subdomain" class="form-control" required
+              maxlength="${SUBDOMAIN_MAX_LENGTH}" autocomplete="off" autocapitalize="none" spellcheck="false"
+              aria-describedby="unit-address-subdomain-hint">
+            <span class="create-unit-subdomain__suffix" aria-hidden="true">.${escapeHTML(UNIT_BASE_DOMAIN)}</span>
+          </div>
+          <p class="field-hint" id="unit-address-subdomain-hint">${escapeHTML(translate('create_unit_subdomain_hint').replace('{domain}', UNIT_BASE_DOMAIN))}</p>
+        </div>
+        <div class="form-group form-group--single-checkbox">
+          <input type="checkbox" id="unit-address-primary" name="make_primary">
+          <label for="unit-address-primary">${escapeHTML(translate('unit_addresses_new_primary'))}</label>
+        </div>
+        <button type="submit" class="button button--primary" id="unit-address-add">${escapeHTML(translate('unit_addresses_add'))}</button>
+      </form>`;
   }
 
   renderVocabularySection() {
@@ -796,6 +924,35 @@ export class UnitSettings extends BaseModule {
       this.addEventListener(twoFaToggle, 'change', (e) => this.handleTwoFactorToggle(e.target.checked));
     }
 
+    const branchForm = document.getElementById('unit-branch-form');
+    if (branchForm && this.canEditOrg) {
+      this.addEventListener(branchForm, 'submit', (event) => {
+        event.preventDefault();
+        withFormBusy(branchForm, () => this.handleSaveBranch());
+      });
+    }
+
+    const addressesRetry = document.getElementById('unit-addresses-retry');
+    if (addressesRetry) {
+      this.addEventListener(addressesRetry, 'click', () => this.refreshAddresses());
+    }
+    const addressForm = document.getElementById('unit-address-form');
+    if (addressForm && this.canManageDomains) {
+      this.addEventListener(addressForm, 'submit', (event) => {
+        event.preventDefault();
+        withFormBusy(addressForm, () => this.handleAddAddress());
+      });
+      this.addEventListener(addressForm, 'input', (event) => this.clearAddressError(event.target));
+    }
+    if (this.canManageDomains) {
+      document.querySelectorAll('[data-domain-primary]').forEach((button) => {
+        this.addEventListener(button, 'click', () => this.handleMakePrimary(button));
+      });
+      document.querySelectorAll('[data-domain-remove]').forEach((button) => {
+        this.addEventListener(button, 'click', () => this.handleRemoveAddress(button));
+      });
+    }
+
     const vocabularyForm = document.getElementById('unit-vocabulary-form');
     if (vocabularyForm && this.canEditOrg) {
       this.addEventListener(vocabularyForm, 'submit', (event) => this.handleSaveVocabulary(event));
@@ -1009,6 +1166,130 @@ export class UnitSettings extends BaseModule {
     }
   }
 
+  async handleSaveBranch() {
+    const programSection = document.getElementById('unit-branch-select')?.value;
+    try {
+      const response = await updateUnitBranch(programSection);
+      this.programSection = response?.data?.program_section || programSection;
+      if (response?.data?.unit_vocabulary) {
+        this.vocabulary = JSON.parse(JSON.stringify(response.data.unit_vocabulary));
+      }
+      if (this.app) {
+        this.app.organizationSettings = {
+          ...(this.app.organizationSettings || {}),
+          program_section: this.programSection,
+          unit_vocabulary: this.vocabulary,
+        };
+      }
+      this.app?.showMessage?.(translate('unit_branch_saved'), 'success');
+      if (this.isDestroyed) {return;}
+      this.render();
+      this.attachEventListeners();
+      document.getElementById('unit-branch-select')?.focus();
+    } catch (error) {
+      debugError('Failed to save unit branch:', error);
+      this.app?.showMessage?.(apiErrorMessage(error, 'error_saving'), 'error');
+    }
+  }
+
+  /**
+   * Reload the addresses after a change, then put focus back on their
+   * heading: the button that was pressed may be gone.
+   */
+  async refreshAddresses() {
+    await this.loadDomains();
+    if (this.isDestroyed) {return;}
+    this.render();
+    this.attachEventListeners();
+    document.getElementById('unit-addresses-title')?.focus();
+  }
+
+  /**
+   * Tie a problem to the new address field.
+   *
+   * @param {string} messageKey - Translation key
+   */
+  showAddressError(messageKey) {
+    const input = document.getElementById('unit-address-subdomain');
+    if (!input) {return;}
+    this.clearAddressError(input);
+    const message = document.createElement('p');
+    message.className = 'field-error';
+    message.id = 'unit-address-subdomain-error';
+    message.textContent = translate(messageKey);
+    input.closest('[data-error-anchor]').insertAdjacentElement('afterend', message);
+    input.setAttribute('aria-invalid', 'true');
+    input.setAttribute('aria-describedby', 'unit-address-subdomain-hint unit-address-subdomain-error');
+    input.focus();
+  }
+
+  /** @param {EventTarget} target - The field that changed */
+  clearAddressError(target) {
+    if (!(target instanceof HTMLElement) || target.id !== 'unit-address-subdomain') {return;}
+    document.getElementById('unit-address-subdomain-error')?.remove();
+    target.removeAttribute('aria-invalid');
+    target.setAttribute('aria-describedby', 'unit-address-subdomain-hint');
+  }
+
+  async handleAddAddress() {
+    const input = document.getElementById('unit-address-subdomain');
+    const subdomain = (input?.value || '').trim().toLowerCase();
+    const problem = subdomainProblem(subdomain);
+    if (problem) {
+      this.showAddressError(problem);
+      return;
+    }
+    try {
+      await addUnitDomain(subdomain, document.getElementById('unit-address-primary')?.checked === true);
+    } catch (error) {
+      debugError('Failed to add unit address:', error);
+      const fieldProblem = (Array.isArray(error?.errors) ? error.errors : [])
+        .find((entry) => entry?.field === 'subdomain' && ADDRESS_FIELD_MESSAGES.has(entry.msg));
+      if (fieldProblem) {
+        this.showAddressError(fieldProblem.msg);
+      }
+      this.app?.showMessage?.(apiErrorMessage(error, 'unit_addresses_add_failed'), 'error');
+      return;
+    }
+    this.app?.showMessage?.(translate('unit_addresses_added'), 'success');
+    await this.refreshAddresses();
+  }
+
+  /** @param {HTMLButtonElement} button - The address's "use for emails" button */
+  async handleMakePrimary(button) {
+    button.disabled = true;
+    try {
+      await setPrimaryUnitDomain(Number(button.dataset.domainPrimary));
+    } catch (error) {
+      debugError('Failed to change primary address:', error);
+      button.disabled = false;
+      this.app?.showMessage?.(apiErrorMessage(error, 'unit_addresses_primary_failed'), 'error');
+      return;
+    }
+    this.app?.showMessage?.(translate('unit_addresses_primary_changed'), 'success');
+    await this.refreshAddresses();
+  }
+
+  /** @param {HTMLButtonElement} button - The address's remove button */
+  async handleRemoveAddress(button) {
+    const confirmed = await confirmDestructive({
+      title: translate('unit_addresses_remove_title'),
+      message: translate('unit_addresses_remove_confirm').replace('{domain}', button.dataset.domainName || ''),
+    });
+    if (!confirmed) {return;}
+    button.disabled = true;
+    try {
+      await removeUnitDomain(Number(button.dataset.domainRemove));
+    } catch (error) {
+      debugError('Failed to remove unit address:', error);
+      button.disabled = false;
+      this.app?.showMessage?.(apiErrorMessage(error, 'unit_addresses_remove_failed'), 'error');
+      return;
+    }
+    this.app?.showMessage?.(translate('unit_addresses_removed'), 'success');
+    await this.refreshAddresses();
+  }
+
   async handleSaveVocabulary(event) {
     event.preventDefault();
     const form = document.getElementById('unit-vocabulary-form');
@@ -1030,12 +1311,12 @@ export class UnitSettings extends BaseModule {
     try {
       const response = await updateUnitVocabulary(payload);
       this.vocabulary = response?.data?.unit_vocabulary || payload;
+      this.programSection = response?.data?.program_section || this.programSection;
       if (this.app) {
         this.app.organizationSettings = {
           ...(this.app.organizationSettings || {}),
           unit_vocabulary: this.vocabulary,
-          program_section: response?.data?.program_section
-            || this.app.organizationSettings?.program_section,
+          program_section: this.programSection,
         };
       }
       this.app?.showMessage?.(translate('unit_vocabulary_saved'), 'success');

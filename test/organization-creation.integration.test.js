@@ -25,25 +25,42 @@ const DATABASE_URL = process.env.SCOUT_YEAR_TEST_DATABASE_URL || process.env.TES
 
 process.env.JWT_SECRET_KEY = process.env.JWT_SECRET_KEY || 'organization-integration-secret';
 
-const mockContext = { userId: null };
+const mockContext = { userId: null, permissions: [], organizationId: null };
 
 jest.mock('../middleware/auth', () => {
   const actual = jest.requireActual('../middleware/auth');
   return {
     ...actual,
     authenticate: (req, _res, next) => {
-      req.user = { id: mockContext.userId, roleNames: ['district'] };
+      req.user = { id: mockContext.userId, roleNames: ['district'], organizationId: mockContext.organizationId };
       next();
     },
-    requirePermission: () => (_req, _res, next) => next(),
+    requirePermission: () => (req, _res, next) => {
+      req.userPermissions = mockContext.permissions;
+      next();
+    },
     blockDemoRoles: (_req, _res, next) => next()
   };
 });
+
+// The invitation email is sent after the unit is committed; no mail leaves the test.
+jest.mock('../services/familyDelivery', () => ({
+  deliverParentInvitation: jest.fn(),
+  deliverFamilyRequest: jest.fn()
+}));
+
+const { deliverParentInvitation } = require('../services/familyDelivery');
+
+/** What the unit administrator role holds in this suite, and so what the creator must hold. */
+const UNIT_ADMIN_PERMISSIONS = ['participants.view'];
 
 describe.skipIf(!DATABASE_URL)('Organization creation', () => {
   let pool;
   let app;
   const ids = { created: [] };
+  let sequence = 0;
+  // A district administrator holds every permission.
+  let everyPermission = [];
 
   /**
    * Read a single value.
@@ -68,6 +85,8 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
    */
   async function cleanup() {
     if (ids.created.length > 0) {
+      await pool.query('DELETE FROM parent_invitations WHERE organization_id = ANY($1::int[])', [ids.created]);
+      await pool.query('DELETE FROM organization_domains WHERE organization_id = ANY($1::int[])', [ids.created]);
       await pool.query('DELETE FROM user_organizations WHERE organization_id = ANY($1::int[])', [ids.created]);
       await pool.query('DELETE FROM organization_settings WHERE organization_id = ANY($1::int[])', [ids.created]);
       await pool.query('DELETE FROM organization_form_formats WHERE organization_id = ANY($1::int[])', [ids.created]);
@@ -96,6 +115,18 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
       `INSERT INTO roles (role_name, display_name) VALUES ('district', 'District')
        ON CONFLICT (role_name) DO NOTHING`
     );
+    await pool.query(
+      `INSERT INTO roles (role_name, display_name, data_scope) VALUES ('unitadmin', 'Unit administrator', 'organization')
+       ON CONFLICT (role_name) DO NOTHING`
+    );
+    await pool.query(
+      `INSERT INTO role_permissions (role_id, permission_id)
+       SELECT r.id, p.id FROM roles r, permissions p
+        WHERE r.role_name = 'unitadmin' AND r.organization_id IS NULL AND p.permission_key = ANY($1::text[])
+       ON CONFLICT DO NOTHING`,
+      [UNIT_ADMIN_PERMISSIONS]
+    );
+    everyPermission = (await pool.query('SELECT permission_key FROM permissions')).rows.map((row) => row.permission_key);
   });
 
   afterAll(async () => {
@@ -111,20 +142,60 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
        RETURNING id`
     );
     mockContext.userId = ids.userId;
+    mockContext.permissions = everyPermission;
+    mockContext.organizationId = null;
+    deliverParentInvitation.mockReset();
+    deliverParentInvitation.mockResolvedValue(true);
   });
+
+  /**
+   * A subdomain no other run of this suite holds.
+   *
+   * @returns {string} Label before .wampums.app
+   */
+  function freshSubdomain() {
+    sequence += 1;
+    return `test-unit-${process.pid}-${Date.now().toString(36)}-${sequence}`;
+  }
+
+  /**
+   * Everything a unit is created with, around the given fields.
+   *
+   * @param {Object} fields - Fields to set or override
+   * @returns {Object} Request body
+   */
+  function unitBody(fields = {}) {
+    return {
+      subdomain: freshSubdomain(),
+      program_section: 'cubs',
+      leader_email: `ada-${freshSubdomain()}@example.test`,
+      ...fields,
+    };
+  }
+
+  /**
+   * Post a unit and remember it for cleanup.
+   *
+   * @param {Object} body - Request body
+   * @returns {Promise<Object>} Supertest response
+   */
+  async function post(body) {
+    const response = await request(app).post('/api/v1/organizations').send(body);
+    if (response.body?.data?.organization_id) {
+      ids.created.push(response.body.data.organization_id);
+    }
+    return response;
+  }
 
   /**
    * Create an organization through the route.
    *
    * @param {string} name - Organization name
+   * @param {Object} [fields] - Other fields
    * @returns {Promise<Object>} Supertest response
    */
-  async function create(name) {
-    const response = await request(app).post('/api/v1/organizations').send({ name });
-    if (response.body?.organization_id) {
-      ids.created.push(response.body.organization_id);
-    }
-    return response;
+  function create(name, fields = {}) {
+    return post(unitBody({ name, ...fields }));
   }
 
   test('creates an organization, which the circular foreign key used to forbid', async () => {
@@ -132,12 +203,12 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
 
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({ success: true });
-    expect(response.body.organization_id).toEqual(expect.any(Number));
+    expect(response.body.data.organization_id).toEqual(expect.any(Number));
   });
 
   test('seeds the default program sections in the same transaction', async () => {
-    const response = await create('Unité avec sections');
-    const organizationId = response.body.organization_id;
+    const response = await create('Unité avec sections', { program_section: 'general' });
+    const organizationId = response.body.data.organization_id;
 
     const sections = await pool.query(
       'SELECT section_key FROM organization_program_sections WHERE organization_id = $1 ORDER BY section_key',
@@ -155,7 +226,7 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
 
   test('makes the creator a district member of the new unit', async () => {
     const response = await create('Unité avec propriétaire');
-    const organizationId = response.body.organization_id;
+    const organizationId = response.body.data.organization_id;
 
     const districtRoleId = await one("SELECT id FROM roles WHERE role_name = 'district'");
     const roleIds = await one(
@@ -188,8 +259,8 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
   test('a new unit receives the default starter activities, once, created by its creator', async () => {
     const { selectDefaultStarterKeys } = require('../services/activityLibraryStarter');
     const expected = selectDefaultStarterKeys(null);
-    const response = await create('Unité avec activités de départ');
-    const organizationId = response.body.organization_id;
+    const response = await create('Unité avec activités de départ', { program_section: 'general' });
+    const organizationId = response.body.data.organization_id;
 
     const copies = await pool.query(
       `SELECT metadata ->> 'starter_key' AS key, created_by, metadata ->> 'starter_language' AS language
@@ -207,13 +278,14 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
   });
 
   test('rejects a nameless organization without opening a transaction', async () => {
-    const response = await request(app).post('/api/v1/organizations').send({});
+    const response = await request(app).post('/api/v1/organizations').send(unitBody());
     expect(response.status).toBe(400);
+    expect(response.body.errors).toEqual([expect.objectContaining({ field: 'name' })]);
   });
 
   test('a new unit receives the unit information form, closed to parents', async () => {
     const response = await create('Unité avec fiche d’unité');
-    const organizationId = response.body.organization_id;
+    const organizationId = response.body.data.organization_id;
 
     const format = await pool.query(
       `SELECT id, status, display_context, current_version_id
@@ -235,25 +307,24 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
 
   test('keeps only the unit fields it knows, and refuses a logo that is not a web address', async () => {
     const refused = await request(app).post('/api/v1/organizations')
-      .send({ name: 'Unité au logo local', logo: 'C:\\fakepath\\logo.png' });
+      .send(unitBody({ name: 'Unité au logo local', logo: 'C:\\fakepath\\logo.png' }));
     expect(refused.status).toBe(400);
     expect(refused.body.errors).toEqual([expect.objectContaining({ field: 'logo' })]);
     expect(await one("SELECT COUNT(*)::int FROM organizations WHERE name = 'Unité au logo local'")).toBe(0);
 
-    const response = await request(app).post('/api/v1/organizations').send({
+    const response = await post(unitBody({
       name: '  Unité complète  ',
       unit: '12e Saint-Bivouac',
       meeting_day: 'Tuesday',
       logo: 'https://example.test/logo.png',
       program_sections: ['not', 'a', 'unit', 'field'],
-    });
-    ids.created.push(response.body.organization_id);
+    }));
     expect(response.status).toBe(201);
 
     const info = await one(
       `SELECT setting_value FROM organization_settings
        WHERE organization_id = $1 AND setting_key = 'organization_info'`,
-      [response.body.organization_id]
+      [response.body.data.organization_id]
     );
     expect(info).toEqual({
       name: 'Unité complète',
@@ -265,7 +336,7 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
 
   test('the migration gives a unit its missing information form without restoring a form it removed', async () => {
     const response = await create('Unité sans fiche d’unité');
-    const organizationId = response.body.organization_id;
+    const organizationId = response.body.data.organization_id;
     await pool.query(
       `DELETE FROM organization_form_formats
        WHERE organization_id = $1 AND form_type IN ('organization_info', 'acceptation_risque')`,
@@ -292,7 +363,7 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
 
   test('deletes cleanly, which the RESTRICT side used to block', async () => {
     const response = await create('Unité éphémère');
-    const organizationId = response.body.organization_id;
+    const organizationId = response.body.data.organization_id;
 
     await pool.query('DELETE FROM user_organizations WHERE organization_id = $1', [organizationId]);
     await pool.query('DELETE FROM organization_settings WHERE organization_id = $1', [organizationId]);
@@ -307,5 +378,314 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
     )).toBe(0);
 
     ids.created = ids.created.filter(id => id !== organizationId);
+  });
+  test('a new unit answers at its subdomain, which no other unit may then take, whatever its case', async () => {
+    const subdomain = freshSubdomain();
+    const response = await create('Meute à son adresse', { subdomain: `  ${subdomain.toUpperCase()} ` });
+    expect(response.status).toBe(201);
+    expect(response.body.data.domain).toBe(`${subdomain}.wampums.app`);
+    expect(await one(
+      'SELECT domain FROM organization_domains WHERE organization_id = $1',
+      [response.body.data.organization_id]
+    )).toBe(`${subdomain}.wampums.app`);
+
+    const taken = await create('Meute en double', { subdomain: subdomain.toUpperCase() });
+    expect(taken.status).toBe(409);
+    expect(taken.body).toMatchObject({ success: false, message: 'subdomain_taken' });
+    expect(taken.body.errors).toEqual([{ field: 'subdomain', msg: 'subdomain_taken' }]);
+    expect(await one("SELECT COUNT(*)::int FROM organizations WHERE name = 'Meute en double'")).toBe(0);
+  });
+
+  test('a unit created at the same moment as another for the same subdomain is refused, leaving nothing behind', async () => {
+    const subdomain = freshSubdomain();
+    const [first, second] = await Promise.all([
+      create('Meute rapide A', { subdomain }),
+      create('Meute rapide B', { subdomain }),
+    ]);
+    expect([first.status, second.status].sort()).toEqual([201, 409]);
+    expect(await one(
+      "SELECT COUNT(*)::int FROM organizations WHERE name IN ('Meute rapide A', 'Meute rapide B')"
+    )).toBe(1);
+  });
+
+  test('a unit needs a usable subdomain, a branch and its administrator\'s address', async () => {
+    const response = await post({
+      name: 'Meute incomplète',
+      subdomain: 'www',
+      program_section: 'dragons',
+      leader_email: 'pas-une-adresse',
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.errors).toEqual(expect.arrayContaining([
+      { field: 'subdomain', msg: 'subdomain_reserved' },
+      { field: 'program_section', msg: 'program_section_required' },
+      { field: 'leader_email', msg: 'leader_email_invalid' },
+    ]));
+
+    const malformed = await post(unitBody({ name: 'Meute mal nommée', subdomain: 'meute_ada!' }));
+    expect(malformed.body.errors).toEqual([{ field: 'subdomain', msg: 'subdomain_invalid' }]);
+    const missing = await post(unitBody({ name: 'Meute sans adresse', subdomain: undefined }));
+    expect(missing.body.errors).toEqual([{ field: 'subdomain', msg: 'subdomain_required' }]);
+    expect(await one("SELECT COUNT(*)::int FROM organizations WHERE name LIKE 'Meute %' AND name IN ('Meute incomplète', 'Meute mal nommée', 'Meute sans adresse')")).toBe(0);
+  });
+
+  test('a unit is created for its branch, with that branch\'s starter activities', async () => {
+    const { selectDefaultStarterKeys } = require('../services/activityLibraryStarter');
+    const response = await create('Colonie Ada', { program_section: 'beavers' });
+    const organizationId = response.body.data.organization_id;
+
+    expect(await one('SELECT program_section FROM organizations WHERE id = $1', [organizationId])).toBe('beavers');
+    const copies = await pool.query(
+      `SELECT metadata ->> 'starter_key' AS key FROM activity_library WHERE organization_id = $1 ORDER BY id`,
+      [organizationId]
+    );
+    expect(copies.rows.map((row) => row.key)).toEqual(selectDefaultStarterKeys('beavers'));
+  });
+
+  test('the unit administrator is invited by email into the new unit, with no account made for them', async () => {
+    const leaderEmail = `Lea.Tremblay-${freshSubdomain()}@Example.test`;
+    const response = await create('Meute avec responsable', { leader_email: leaderEmail, language: 'en' });
+    const organizationId = response.body.data.organization_id;
+
+    expect(response.status).toBe(201);
+    expect(response.body.data.leader_invitation).toEqual({
+      email: leaderEmail.toLowerCase(),
+      invited: true,
+      email_sent: true,
+    });
+    const invitation = await pool.query(
+      'SELECT email, role_ids, status, language, invited_by FROM parent_invitations WHERE organization_id = $1',
+      [organizationId]
+    );
+    const unitAdminRoleId = await one("SELECT id FROM roles WHERE role_name = 'unitadmin' AND organization_id IS NULL");
+    expect(invitation.rows).toEqual([{
+      email: leaderEmail.toLowerCase(),
+      role_ids: [unitAdminRoleId],
+      status: 'pending',
+      language: 'en',
+      invited_by: ids.userId,
+    }]);
+    expect(await one('SELECT COUNT(*)::int FROM users WHERE lower(email) = lower($1)', [leaderEmail])).toBe(0);
+    expect(deliverParentInvitation).toHaveBeenCalledWith(pool, expect.objectContaining({
+      invitation: expect.objectContaining({ organization_id: organizationId }),
+      token: expect.any(String),
+    }));
+  });
+
+  test('a unit stays created when its invitation email could not be sent, and says so', async () => {
+    deliverParentInvitation.mockResolvedValue(false);
+    const response = await create('Meute au courriel perdu');
+
+    expect(response.status).toBe(201);
+    expect(response.body.data.leader_invitation).toMatchObject({ invited: true, email_sent: false });
+    expect(await one(
+      "SELECT COUNT(*)::int FROM parent_invitations WHERE organization_id = $1 AND status = 'pending'",
+      [response.body.data.organization_id]
+    )).toBe(1);
+  });
+
+  test('a creator naming their own address as administrator is not invited into a unit they already run', async () => {
+    const creatorEmail = await one('SELECT email FROM users WHERE id = $1', [ids.userId]);
+    const response = await create('Meute de la créatrice', { leader_email: creatorEmail.toUpperCase() });
+
+    expect(response.status).toBe(201);
+    expect(response.body.data.leader_invitation).toMatchObject({ invited: false, email_sent: false });
+    expect(await one(
+      'SELECT COUNT(*)::int FROM parent_invitations WHERE organization_id = $1',
+      [response.body.data.organization_id]
+    )).toBe(0);
+    expect(deliverParentInvitation).not.toHaveBeenCalled();
+  });
+
+  test('someone lacking the unit administrator\'s permissions cannot create a unit to hand them out', async () => {
+    mockContext.permissions = ['org.create'];
+    const response = await create('Meute refusée');
+
+    expect(response.status).toBe(403);
+    expect(response.body.required).toEqual(expect.arrayContaining(UNIT_ADMIN_PERMISSIONS));
+    expect(response.body.missing).toEqual(response.body.required);
+    expect(await one("SELECT COUNT(*)::int FROM organizations WHERE name = 'Meute refusée'")).toBe(0);
+  });
+  test('the creator can open the unit they just created, and only a unit they belong to', async () => {
+    const jwt = require('jsonwebtoken');
+    const response = await create('Meute à ouvrir');
+    const organizationId = response.body.data.organization_id;
+
+    const switched = await request(app).post('/api/v1/organizations/switch').send({ organization_id: organizationId });
+    expect(switched.status).toBe(200);
+    const claims = jwt.verify(switched.body.data.token, process.env.JWT_SECRET_KEY);
+    expect(claims).toMatchObject({ user_id: ids.userId, organizationId });
+    expect(claims.roleNames).toEqual(['district']);
+
+    await pool.query(
+      "UPDATE user_organizations SET status = 'inactive' WHERE user_id = $1 AND organization_id = $2",
+      [ids.userId, organizationId]
+    );
+    const refused = await request(app).post('/api/v1/organizations/switch').send({ organization_id: organizationId });
+    expect(refused.status).toBe(403);
+    expect(refused.body).toMatchObject({ required: [], missing: [], code: 'not_a_member' });
+  });
+  /**
+   * A unit created through the route, with the session then inside it.
+   *
+   * @param {Object} [fields] - Creation fields
+   * @returns {Promise<{id: number, domain: string}>} The unit
+   */
+  async function enterNewUnit(fields = {}) {
+    const response = await create('Unité à modifier', fields);
+    expect(response.status).toBe(201);
+    mockContext.organizationId = response.body.data.organization_id;
+    return { id: response.body.data.organization_id, domain: response.body.data.domain };
+  }
+
+  /** @param {number} organizationId - Unit @returns {Promise<Object>} Stored vocabulary */
+  function storedVocabulary(organizationId) {
+    return one(
+      "SELECT setting_value FROM organization_settings WHERE organization_id = $1 AND setting_key = 'unit_vocabulary'",
+      [organizationId]
+    );
+  }
+
+  test('a unit created for a branch without its own terms speaks the generic vocabulary, not the cubs\'', async () => {
+    const unit = await enterNewUnit({ program_section: 'scouts' });
+    expect((await storedVocabulary(unit.id)).profile).toBe('generic');
+
+    const cubs = await enterNewUnit({ program_section: 'cubs' });
+    expect((await storedVocabulary(cubs.id)).locales.fr.youth_plural).toBe('Louveteaux');
+  });
+
+  test('changing the branch changes its vocabulary, but never terms the unit wrote itself', async () => {
+    const unit = await enterNewUnit({ program_section: 'cubs' });
+
+    const changed = await request(app).patch('/api/v1/organizations/settings/branch').send({ program_section: 'beavers' });
+    expect(changed.status).toBe(200);
+    expect(changed.body.data).toMatchObject({ program_section: 'beavers', unit_vocabulary: { profile: 'beavers' } });
+    expect(await one('SELECT program_section FROM organizations WHERE id = $1', [unit.id])).toBe('beavers');
+
+    const custom = { ...(await storedVocabulary(unit.id)), profile: 'custom' };
+    custom.locales.fr.subgroup_plural = 'Barrages';
+    await pool.query(
+      "UPDATE organization_settings SET setting_value = $2 WHERE organization_id = $1 AND setting_key = 'unit_vocabulary'",
+      [unit.id, JSON.stringify(custom)]
+    );
+    await request(app).patch('/api/v1/organizations/settings/branch').send({ program_section: 'rovers' });
+    expect(await one('SELECT program_section FROM organizations WHERE id = $1', [unit.id])).toBe('rovers');
+    expect((await storedVocabulary(unit.id)).locales.fr.subgroup_plural).toBe('Barrages');
+
+    const refused = await request(app).patch('/api/v1/organizations/settings/branch').send({ program_section: 'dragons' });
+    expect(refused.status).toBe(400);
+    expect(refused.body.errors).toEqual([{ field: 'program_section', msg: 'program_section_required' }]);
+  });
+
+  test('saving the vocabulary no longer replaces a branch the unit chose', async () => {
+    const unit = await enterNewUnit({ program_section: 'scouts' });
+    const response = await request(app).patch('/api/v1/organizations/settings/vocabulary')
+      .send(await storedVocabulary(unit.id));
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.program_section).toBe('scouts');
+    expect(await one('SELECT program_section FROM organizations WHERE id = $1', [unit.id])).toBe('scouts');
+  });
+
+  test('a unit whose branch was never chosen still takes it from its vocabulary', async () => {
+    const unit = await enterNewUnit({ program_section: 'general' });
+    const { buildVocabularyForProfile } = require('../utils/unitCustomization');
+    await request(app).patch('/api/v1/organizations/settings/vocabulary').send(buildVocabularyForProfile('cubs'));
+
+    expect(await one('SELECT program_section FROM organizations WHERE id = $1', [unit.id])).toBe('cubs');
+  });
+
+  test('a new address is added beside the old one, which keeps answering, and can become the one emails use', async () => {
+    const unit = await enterNewUnit();
+    const { resolveOrganizationBaseUrl } = require('../utils/public-url');
+    const listed = await request(app).get('/api/v1/organizations/domains');
+    expect(listed.body.data).toEqual([expect.objectContaining({ domain: unit.domain, is_primary: true, is_wildcard: false })]);
+
+    const subdomain = freshSubdomain();
+    const added = await request(app).post('/api/v1/organizations/domains').send({ subdomain });
+    expect(added.status).toBe(201);
+    expect(added.body.data).toMatchObject({ domain: `${subdomain}.wampums.app`, is_primary: false });
+    delete process.env.PUBLIC_BASE_URL;
+    delete process.env.APP_URL;
+    expect(await resolveOrganizationBaseUrl(pool, unit.id)).toBe(`https://${unit.domain}`);
+
+    const primary = await request(app).put(`/api/v1/organizations/domains/${added.body.data.id}/primary`);
+    expect(primary.status).toBe(200);
+    expect(await resolveOrganizationBaseUrl(pool, unit.id)).toBe(`https://${subdomain}.wampums.app`);
+    const after = await request(app).get('/api/v1/organizations/domains');
+    expect(after.body.data.map((row) => [row.domain, row.is_primary])).toEqual([
+      [`${subdomain}.wampums.app`, true],
+      [unit.domain, false],
+    ]);
+  });
+
+  test('an address another unit holds, or one the platform keeps, cannot be added', async () => {
+    const other = await enterNewUnit();
+    await enterNewUnit();
+
+    const taken = await request(app).post('/api/v1/organizations/domains')
+      .send({ subdomain: other.domain.split('.')[0].toUpperCase() });
+    expect(taken.status).toBe(409);
+    expect(taken.body.errors).toEqual([{ field: 'subdomain', msg: 'subdomain_taken' }]);
+
+    const reserved = await request(app).post('/api/v1/organizations/domains').send({ subdomain: 'www' });
+    expect(reserved.status).toBe(400);
+    expect(reserved.body.errors).toEqual([{ field: 'subdomain', msg: 'subdomain_reserved' }]);
+  });
+
+  test('the storage address cannot be used to create a unit or add a unit address', async () => {
+    const refused = await create('Unité stockage refusée', { subdomain: 'FILES' });
+    expect(refused.status).toBe(400);
+    expect(refused.body.errors).toContainEqual({ field: 'subdomain', msg: 'subdomain_reserved' });
+
+    const unit = await enterNewUnit();
+    const added = await request(app).post('/api/v1/organizations/domains').send({ subdomain: 'files', make_primary: true });
+    expect(added.status).toBe(400);
+    expect(added.body.errors).toEqual([{ field: 'subdomain', msg: 'subdomain_reserved' }]);
+    expect(await one('SELECT domain FROM organization_domains WHERE organization_id = $1 AND is_primary', [unit.id])).toBe(unit.domain);
+  });
+
+  test('a legacy storage address cannot replace the working primary address', async () => {
+    const unit = await enterNewUnit();
+    const addressId = await one(
+      'INSERT INTO organization_domains (organization_id, domain) VALUES ($1, $2) RETURNING id',
+      [unit.id, 'files.wampums.app'],
+    );
+    const response = await request(app).put(`/api/v1/organizations/domains/${addressId}/primary`);
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe('subdomain_reserved');
+    expect(await one('SELECT domain FROM organization_domains WHERE organization_id = $1 AND is_primary', [unit.id])).toBe(unit.domain);
+  });
+
+  test('the primary address and a unit\'s last address cannot be removed; another one can', async () => {
+    const unit = await enterNewUnit();
+    const primaryId = (await request(app).get('/api/v1/organizations/domains')).body.data[0].id;
+
+    const primary = await request(app).delete(`/api/v1/organizations/domains/${primaryId}`);
+    expect(primary.status).toBe(409);
+    expect(primary.body.message).toBe('domain_is_primary');
+
+    // Unmarked, the only address is still the last one the unit has.
+    await pool.query('UPDATE organization_domains SET is_primary = FALSE WHERE id = $1', [primaryId]);
+    const last = await request(app).delete(`/api/v1/organizations/domains/${primaryId}`);
+    expect(last.status).toBe(409);
+    expect(last.body.message).toBe('domain_last_address');
+
+    const added = await request(app).post('/api/v1/organizations/domains').send({ subdomain: freshSubdomain() });
+    const removed = await request(app).delete(`/api/v1/organizations/domains/${primaryId}`);
+    expect(removed.status).toBe(200);
+    expect(await one('SELECT COUNT(*)::int FROM organization_domains WHERE organization_id = $1', [unit.id])).toBe(1);
+    expect(added.status).toBe(201);
+  });
+
+  test('another unit\'s address can be neither changed nor removed from this one', async () => {
+    const other = await enterNewUnit();
+    const otherId = (await request(app).get('/api/v1/organizations/domains')).body.data[0].id;
+    await enterNewUnit();
+
+    expect((await request(app).put(`/api/v1/organizations/domains/${otherId}/primary`)).status).toBe(404);
+    expect((await request(app).delete(`/api/v1/organizations/domains/${otherId}`)).status).toBe(404);
+    expect(await one('SELECT COUNT(*)::int FROM organization_domains WHERE organization_id = $1 AND is_primary', [other.id])).toBe(1);
   });
 });

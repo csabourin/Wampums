@@ -18,7 +18,7 @@ import { translate } from '../../app.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { setContent, clearElement } from '../../utils/DOMUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
-import { canAccessAdminPanel, canCreateOrganization, canManageUsers, canSendCommunications, canViewUsers } from '../../utils/PermissionUtils.js';
+import { canAccessAdminPanel, canCreateOrganization, canManageUsers, canSendCommunications, canSwitchUnits, canViewUsers } from '../../utils/PermissionUtils.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 import { roleLabel } from '../../utils/RoleLabelUtils.js';
@@ -38,6 +38,7 @@ export class Admin {
     this.permissions = {
       canAccessAdmin: false,
       canCreateOrg: false,
+      canSwitchUnits: false,
       canManageUsers: false,
       canViewUsers: false,
       canSendCommunications: false,
@@ -61,6 +62,7 @@ export class Admin {
     this.permissions = {
       canAccessAdmin: canAccessAdminPanel(),
       canCreateOrg: canCreateOrganization(),
+      canSwitchUnits: canSwitchUnits(),
       canManageUsers: canManageUsers(),
       canViewUsers: canViewUsers(),
       canSendCommunications: canSendCommunications(),
@@ -187,6 +189,7 @@ export class Admin {
 
                         <div class="admin-quick-actions" style="margin: 1rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                 ${this.permissions.canCreateOrg ? `<button type="button" class="button button--primary" id="create-organization-btn">${translate('create_new_unit')}</button>` : ''}
+                                ${this.permissions.canSwitchUnits ? `<a href="/units" class="button button--secondary">${translate('tile_switch_unit')}</a>` : ''}
                                 <a href="/form-builder" class="button button--secondary">${translate('form_builder_title')}</a>
                         </div>
 

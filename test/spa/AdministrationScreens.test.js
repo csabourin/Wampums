@@ -25,7 +25,10 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugWarn: jest.fn(),
   debugInfo: jest.fn(),
 }));
-jest.mock('../../spa/config.js', () => ({ CONFIG: { CACHE_DURATION: {} }, getStorageKey: (key) => key }));
+jest.mock('../../spa/config.js', () => ({
+  CONFIG: { CACHE_DURATION: {}, PROGRAM_SECTIONS: { DEFAULT: [{ key: 'cubs', labelKey: 'program_section_cubs' }] } },
+  getStorageKey: (key) => key,
+}));
 jest.mock('../../spa/utils/DOMUtils.js', () => ({
   ...jest.requireActual('../../spa/utils/DOMUtils.js'),
   // jsdom fires no load event for a stylesheet; the page's styles are not what is tested.
@@ -38,6 +41,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   canAssignRoles: () => true,
   canAccessAdminPanel: () => true,
   canCreateOrganization: () => true,
+  canSwitchUnits: () => true,
   canManageUsers: () => true,
   canViewUsers: () => true,
   canSendCommunications: () => false,
@@ -273,25 +277,30 @@ describe('creating a unit', () => {
     expect(page().querySelector('#submit-organization')).toBeNull();
   });
 
-  test('a refused creation says it was refused; leaving cancels the redirect after a success', async () => {
-    jest.useFakeTimers();
+  test('a refused creation says it was refused; a creation answered after leaving draws nothing', async () => {
     ajax.getOrganizationFormFormats.mockResolvedValue({ organization_info: { fields: [] } });
     const app = makeApp();
     const screen = new CreateOrganization(app);
     await screen.init();
     expect(page().querySelector('#submit-organization').getAttribute('type')).toBe('submit');
+    page().querySelector('[name="program_section"]').checked = true;
+    page().querySelector('[name="subdomain"]').value = 'meute-ada';
+    page().querySelector('[name="leader_email"]').value = 'ada@example.test';
 
     ajax.createOrganization.mockRejectedValueOnce(FORBIDDEN);
     await screen.handleSubmit();
     expect(app.showMessage).toHaveBeenCalledWith('api_error_forbidden', 'error');
 
-    ajax.createOrganization.mockResolvedValueOnce({ success: true });
-    await screen.handleSubmit();
+    let answer;
+    ajax.createOrganization.mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
+    const submitting = screen.handleSubmit();
     screen.destroy();
-    jest.runAllTimers();
-    jest.useRealTimers();
+    page().textContent = 'next screen';
+    answer({ success: true, data: { organization_id: 9, domain: 'meute-ada.wampums.app', leader_invitation: {} } });
+    await submitting;
 
-    expect(app.showMessage).toHaveBeenCalledWith('unit_created_successfully', 'success');
+    expect(page().textContent).toBe('next screen');
+    expect(app.showMessage).not.toHaveBeenCalledWith('unit_created_successfully', 'success');
     expect(app.router.navigate).not.toHaveBeenCalled();
   });
 });

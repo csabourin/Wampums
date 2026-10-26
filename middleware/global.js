@@ -12,6 +12,7 @@ const { setStaticHeaders } = require('../utils/static-cache');
 const { LANDING_HOSTS, LANDING_BASE_URL, LANDING_STATIC_PAGES } = require('../config/landing-pages');
 const { renderBlogIndex, renderBlogPost } = require('../services/blogPages');
 const { landingLimiter, blogRefreshLimiter } = require('../config/rate-limit');
+const { redirectUnassignedUnitHost } = require('./unit-host');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const REQUEST_BODY_LIMIT = '20mb';
@@ -165,6 +166,9 @@ module.exports = (app) => {
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     })
   );
+
+  // Resolve unit hostnames before any static content or application endpoint.
+  app.use(redirectUnassignedUnitHost);
 
   // CORS
   const corsOptions = {

@@ -37,3 +37,12 @@ test('rejects wildcard, credentialed and non-http origins', () => {
   expect(normalizeOrigin('javascript:alert(1)')).toBeNull();
   expect(DEFAULT_PUBLIC_BASE_URL).toBe('https://wampums.app');
 });
+
+test('emailed links use the address the unit marked primary before its oldest one', async () => {
+  delete process.env.PUBLIC_BASE_URL;
+  delete process.env.APP_URL;
+  const pool = { query: jest.fn().mockResolvedValue({ rows: [{ domain: 'nouvelle.wampums.app' }] }) };
+
+  await resolveOrganizationBaseUrl(pool, 9);
+  expect(pool.query.mock.calls[0][0]).toMatch(/ORDER BY is_primary DESC, created_at ASC/);
+});

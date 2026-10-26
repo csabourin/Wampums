@@ -20,6 +20,7 @@ import {
   canApproveBadges,
   // ... (imports continue)
   canCreateOrganization,
+  canSwitchUnits,
   canManageActivities,
   canManageBudget,
   canManageFinance,
@@ -109,6 +110,7 @@ const lazyModules = {
   Reports: () => import('./modules/reports/Reports.js').then(m => m.Reports),
   MeetingPrep: () => import('./modules/meetings/MeetingPrep.js').then(m => m.MeetingPrep),
   CreateOrganization: () => import('./modules/organizations/CreateOrganization.js').then(m => m.CreateOrganization),
+  UnitSwitcher: () => import('./modules/organizations/UnitSwitcher.js').then(m => m.UnitSwitcher),
   PrintableGroupParticipantReport: () => import('./modules/groups/GroupParticipantReport.js').then(m => m.PrintableGroupParticipantReport),
   UpcomingMeeting: () => import('./modules/meetings/UpcomingMeeting.js').then(m => m.UpcomingMeeting),
   Finance: () => import('./modules/finance/Finance.js').then(m => m.Finance),
@@ -216,6 +218,7 @@ const routes = {
   '/preparation-reunions/:date': 'preparation_reunions',
   '/manage-users-participants': 'manageUsersParticipants',
   '/create-organization': 'createOrganization',
+  '/units': 'unitSwitcher',
   '/group-participant-report': 'PrintableGroupParticipantReport',
   '/upcoming-meeting': 'UpcomingMeeting',
   '/finance': 'finance',
@@ -699,6 +702,16 @@ export class Router {
           this.currentModuleInstance = createOrganization;
           await createOrganization.init();
           break;
+        case 'unitSwitcher': {
+          if (!guard(canSwitchUnits())) {
+            break;
+          }
+          const UnitSwitcher = await this.loadModule('UnitSwitcher');
+          const unitSwitcher = new UnitSwitcher(this.app);
+          this.currentModuleInstance = unitSwitcher;
+          await unitSwitcher.init();
+          break;
+        }
         case 'parentDashboard':
           if (!guard(canAccessParentTools())) {
             break;
