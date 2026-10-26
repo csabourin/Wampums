@@ -85,11 +85,35 @@ describe('AI prompt trust boundaries', () => {
     expect(validation.errors).toEqual([]);
     expect(validation.value).toEqual({
       requestType: 'activity_plan',
+      locale: 'fr',
       durationMinutes: 60,
       badgeFocus: 'First aid',
       participantsCount: 20,
     });
     expect(buildMessages('meeting_plan', validation.value)[0].content).not.toContain(INJECTION_SENTINEL);
+  });
+
+  test.each(['fr', 'en', 'uk', 'it', 'id'])('activity plans preserve the requested language %s for both material paths', (locale) => {
+    const validation = validateAIPayload('meeting_plan', {
+      locale: locale.toUpperCase(), durationMinutes: 60, badgeFocus: 'First aid', participantsCount: 20,
+    });
+    expect(validation.errors).toEqual([]);
+    expect(validation.value.locale).toBe(locale);
+
+    [undefined, [{ ref: 'e7', name: 'Rope', unit: 'm' }]].forEach((availableMaterial) => {
+      const messages = buildMessages('meeting_plan', { ...validation.value, availableMaterial });
+      expect(messages[0].content).toContain('Write every human-readable value in the requested locale');
+      expect(messages[0].content).toContain('Keep JSON property names unchanged');
+      expect(JSON.parse(messages[1].content.split('\n').slice(1).join('\n')).locale).toBe(locale);
+    });
+  });
+
+  test('an activity plan refuses a locale containing instructions', () => {
+    const validation = validateAIPayload('meeting_plan', {
+      locale: INJECTION_SENTINEL, durationMinutes: 60, badgeFocus: 'First aid', participantsCount: 20,
+    });
+    expect(validation.errors).toEqual([expect.objectContaining({ field: 'payload.locale' })]);
+    expect(validation.value.locale).toBe('fr');
   });
 
   test('a meeting plan accepts an honour given without a reason', () => {

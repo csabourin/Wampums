@@ -260,7 +260,7 @@ function validate(data) {
 
 /**
  * Fill the name and description from an AI-generated meeting plan.
- * @param {Object} app - App instance (for messages)
+ * @param {Object} app - App instance (page language and messages)
  * @param {HTMLElement} formOverlay - The activity form's modal overlay
  */
 function showMagicGenerateModal(app, formOverlay) {
@@ -299,6 +299,7 @@ function showMagicGenerateModal(app, formOverlay) {
     try {
       const formData = new FormData(e.target);
       const payload = {
+        locale: app.lang,
         durationMinutes: parseInt(formData.get('duration'), 10) || DEFAULT_AI_DURATION_MINUTES,
         badgeFocus: formData.get('badge') || 'General',
         participantsCount: parseInt(formData.get('count'), 10) || DEFAULT_AI_PARTICIPANT_COUNT

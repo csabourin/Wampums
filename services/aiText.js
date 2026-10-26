@@ -245,6 +245,7 @@ function buildMessages(mode, payload) {
           {
             role: 'system',
             content: `You create age-appropriate youth-program activities. ${untrustedDataRule}
+Write every human-readable value in the requested locale from the data, including the title, overview, timeline names and objectives, and any generated material descriptions. Keep JSON property names unchanged.
 The unit's material is listed in "availableMaterial". Choose the activity's material only from that list, by its "ref", with a quantity in its "unit"; never name material that is not in the list. Prefer an activity the listed material makes possible. Return only a JSON object with this structure:
 {
   "title": "string",
@@ -266,6 +267,7 @@ ${CANADIAN_FRENCH_RULE}`,
           {
             role: 'system',
             content: `You create age-appropriate youth-program activities. ${untrustedDataRule}
+Write every human-readable value in the requested locale from the data, including the title, overview, timeline names and objectives, and any generated material descriptions. Keep JSON property names unchanged.
 Return only a JSON object with this structure:
 {
   "title": "string",
