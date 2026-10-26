@@ -927,6 +927,165 @@ describe('camp schedule routes', () => {
 
     expect(res.body.errors[0].dropped_days).toEqual([3, 4]);
   });
+
+  test('each schedule line lists its catalogue articles beside its free-text material', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('GREATEST(') && query.includes('FROM year_plan_meetings m')) {
+        return Promise.resolve({ rows: [meetingRow({ meeting_kind: 'camp', span_days: 2 })] });
+      }
+      if (query.includes('CROSS JOIN GENERATE_SERIES')) {
+        return Promise.resolve({ rows: [
+          { day_offset: 0, date: '2025-10-17', title: null, notes: null },
+          { day_offset: 1, date: '2025-10-18', title: null, notes: null }
+        ] });
+      }
+      if (query.includes('SELECT * FROM year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [{ id: 5, day_offset: 1, name: 'Cooking', material: 'Matches' }] });
+      }
+      if (query.includes('FROM meeting_activity_equipment mae') && query.includes('meeting_activity_id = ANY')) {
+        expect(params).toEqual([ORG_ID, [5]]);
+        return Promise.resolve({ rows: [{
+          meeting_activity_id: 5, catalog_item_id: 3, quantity: '2.50',
+          name: 'Stove', category: 'kitchen', unit_of_measure: 'each', archived_at: null
+        }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/yearly-planner/meetings/${MEETING_ID}/schedule`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .expect(200);
+
+    const line = res.body.data.days[1].activities[0];
+    expect(line.material).toBe('Matches');
+    expect(line.material_items).toEqual([{
+      catalog_item_id: 3, quantity: 2.5, name: 'Stove', category: 'kitchen', unit_of_measure: 'each', archived: false
+    }]);
+  });
+
+  test.each([
+    [[{ catalog_item_id: 3, quantity: 0 }]],
+    [[{ catalog_item_id: 3, quantity: -1 }]],
+    [[{ catalog_item_id: 3, quantity: 1.234 }]],
+    [[{ catalog_item_id: '12abc', quantity: 1 }]],
+    [[{ catalog_item_id: 3000000000, quantity: 1 }]],
+    [[{ catalog_item_id: 3, quantity: 1 }, { catalog_item_id: 3, quantity: 2 }]],
+    [{ catalog_item_id: 3, quantity: 1 }],
+    [['3']],
+  ])('a malformed article list %j is refused before any write', async (materialItems) => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => authStubs(query) || Promise.resolve({ rows: [] }));
+
+    const res = await request(app)
+      .patch('/api/v1/yearly-planner/meeting-activities/5')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ material_items: materialItems });
+
+    expect(res.status).toBe(400);
+    expect(clientQueries().some(sql => sql.includes('meeting_activity_equipment'))).toBe(false);
+  });
+
+  test('an article of another unit, or archived, is refused and nothing is saved', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('SELECT id, meeting_id FROM year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [{ id: 5, meeting_id: MEETING_ID }] });
+      }
+      if (query.includes('UPDATE year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [{ id: 5, name: 'Cooking' }] });
+      }
+      // The unit's catalogue holds article 3 only; 4 belongs elsewhere.
+      if (query.includes('SELECT c.id FROM equipment_catalog_items c')) {
+        return Promise.resolve({ rows: [{ id: 3 }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .patch('/api/v1/yearly-planner/meeting-activities/5')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ name: 'Cooking', material_items: [{ catalog_item_id: 3, quantity: 1 }, { catalog_item_id: 4, quantity: 1 }] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('equipment_catalog_item_unavailable');
+    expect(res.body.errors[0].path).toBe('material_items');
+    const sql = clientQueries();
+    expect(sql).toContain('ROLLBACK');
+    expect(sql).not.toContain('COMMIT');
+    expect(sql.some(text => text.includes('DELETE FROM meeting_activity_equipment'))).toBe(false);
+  });
+
+  test('a line and its articles are saved together, keeping the unit from the token', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('SELECT id, meeting_id FROM year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [{ id: 5, meeting_id: MEETING_ID }] });
+      }
+      if (query.includes('UPDATE year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [{ id: 5, name: 'Cooking' }] });
+      }
+      if (query.includes('SELECT c.id FROM equipment_catalog_items c')) {
+        return Promise.resolve({ rows: [{ id: 3 }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .patch('/api/v1/yearly-planner/meeting-activities/5')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ material_items: [{ catalog_item_id: 3, quantity: '2.5' }], organization_id: 99 });
+
+    expect(res.status).toBe(200);
+    const { __mClient: client } = require('pg');
+    const calls = client.query.mock.calls.map(([sql, params]) => [String(sql), params]);
+    const order = calls.map(([sql]) => sql.trim().split(/\s+/).slice(0, 2).join(' '));
+    expect(order.indexOf('BEGIN')).toBeLessThan(order.findIndex(text => text.startsWith('UPDATE year_plan_meeting_activities')));
+    const insert = calls.find(([sql]) => sql.includes('INSERT INTO meeting_activity_equipment'));
+    expect(insert[1]).toEqual([ORG_ID, 5, [3], [2.5]]);
+    expect(order[order.length - 1]).toBe('COMMIT');
+  });
+
+  test('copying a camp schedule copies each line\'s active articles onto its copy', async () => {
+    const { __mClient, __mPool } = require('pg');
+    let contextCall = 0;
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('GREATEST(')) {
+        contextCall++;
+        return Promise.resolve({ rows: [meetingRow({ id: contextCall === 1 ? MEETING_ID : 99, meeting_kind: 'camp', span_days: 3 })] });
+      }
+      if (query.includes('AS item_count')) {
+        return Promise.resolve({ rows: [{ item_count: 0 }] });
+      }
+      if (query.includes('AS source_id')) {
+        return Promise.resolve({ rows: [{ source_id: 51, target_id: 81 }, { source_id: 52, target_id: 82 }] });
+      }
+      if (query.includes('INSERT INTO year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [{ id: 81 }, { id: 82 }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/yearly-planner/meetings/${MEETING_ID}/schedule/copy-from/99`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({})
+      .expect(201);
+
+    expect(res.body.data.copied_activities).toBe(2);
+    const copy = __mClient.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO meeting_activity_equipment'));
+    expect(String(copy[0])).toContain('archived_at IS NULL');
+    expect(copy[1]).toEqual([ORG_ID, [51, 52], [81, 82]]);
+  });
 });
 
 // ==========================================

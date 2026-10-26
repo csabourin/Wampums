@@ -148,6 +148,7 @@ const lazyModules = {
   WalkInChildren: () => import('./modules/walk-in/WalkInChildren.js').then(m => m.WalkInChildren),
   DisplaySettings: () => import('./modules/display-settings/DisplaySettings.js').then(m => m.DisplaySettings),
   Tasks: () => import('./modules/tasks/Tasks.js').then(m => m.Tasks),
+  EquipmentCatalog: () => import('./modules/equipment-catalog/EquipmentCatalog.js').then(m => m.EquipmentCatalog),
   Messages: () => import('./modules/messages/Messages.js').then(m => m.Messages)
 };
 
@@ -206,6 +207,7 @@ const routes = {
   '/family-access': 'familyAccess',
   '/walk-in-children': 'walkInChildren',
   '/tasks': 'tasks',
+  '/equipment-catalog': 'equipmentCatalog',
   '/messages': 'messages',
   '/messages/:id': 'message',
   '/reports': 'reports',
@@ -1034,6 +1036,13 @@ export class Router {
           if (!guard(hasPermission('tasks.view'))) {break;}
           const Tasks = await this.loadModule('Tasks');
           this.currentModuleInstance = new Tasks(this.app);
+          await this.currentModuleInstance.init();
+          break;
+        }
+        case 'equipmentCatalog': {
+          if (!guard(hasPermission('equipment_catalog.manage'))) {break;}
+          const EquipmentCatalog = await this.loadModule('EquipmentCatalog');
+          this.currentModuleInstance = new EquipmentCatalog(this.app);
           await this.currentModuleInstance.init();
           break;
         }

@@ -510,6 +510,20 @@ adopted by exact legacy name, without changing their text; ambiguous matches are
 reported, never guessed. New units get their branch's standard-supervision entries.
 Rules and the meeting-template links are in `devdocs/ACTIVITY_LIBRARY.md`.
 
+### Equipment catalogue
+
+`/equipment-catalog` (`equipment_catalog.manage`, migration 054) names a unit's articles once:
+name, category (`config/equipment_categories.json`), unit of measure (`config/equipment_units.json`)
+and, optionally, an inventory item the unit may use (`services/equipmentAccess.js`). Articles are
+archived, never deleted; one active name per unit. Those who plan meetings (`meetings.manage`) read
+the catalogue to pick from it. A schedule line (`year_plan_meeting_activities`) lists articles with
+a quantity in `meeting_activity_equipment`, beside its free-text `material`, which stays as it was.
+The yearly planner's line routes accept and return `material_items`
+(`services/equipmentCatalog.js`): sent, it replaces the line's list in the line's transaction;
+omitted, the list is kept. An archived article stays on a line that lists it but is not offered
+for new ones, and copying a camp schedule copies only active articles. Composite foreign keys keep
+a line and its articles in the same unit. Catalogue writes need a connection.
+
 ### Action rosters during activities
 
 Attendance, points and honors share `ActionRoster` and `/api/v1/action-roster`.

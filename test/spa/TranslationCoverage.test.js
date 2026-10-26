@@ -148,6 +148,11 @@ function familyTaskKinds() {
   return [...table.matchAll(/: '([a-z_]+)'/g)].map((match) => match[1]);
 }
 
+/** @returns {string[]} The catalogue's units of measure, from the list the server validates against */
+function equipmentUnits() {
+  return JSON.parse(fs.readFileSync(path.join(ROOT, 'config/equipment_units.json'), 'utf8')).units;
+}
+
 /** @returns {string[]} The equipment category keys, from the list the server validates against */
 function equipmentCategories() {
   return JSON.parse(fs.readFileSync(path.join(ROOT, 'config/equipment_categories.json'), 'utf8')).categories;
@@ -182,6 +187,7 @@ test('every key built from a state exists for each state the server returns', ()
     ...['one', 'other'].map((form) => [`family_tasks_count_${form}`, 'FamilyTasks']),
     ...['treatment', 'administration'].map((kind) => [`authorization_kind_${kind}`, 'FamilyTasks']),
     ...equipmentCategories().map((key) => [`equipment_category_${key}`, 'EquipmentCategoryUtils']),
+    ...equipmentUnits().map((key) => [`equipment_unit_${key}`, 'EquipmentUnitUtils']),
     ...materialSorts().map((sort) => [`material_sort_${sort}`, 'MaterialManagement']),
     ...starterVocabulary('categories').map((key) => [`starter_category_${key}`, 'ActivityLibraryUtils']),
     ...starterVocabulary('branches').map((key) => [`starter_branch_${key}`, 'ActivityLibraryUtils']),
@@ -194,6 +200,7 @@ test('every key built from a state exists for each state the server returns', ()
   expect(loginList('DEMO_VIEWS')).toEqual(['parent', 'leader']);
   expect(familyTaskKinds()).toEqual(['permission', 'form', 'review', 'authorization', 'payment']);
   expect(equipmentCategories()).toContain('other');
+  expect(equipmentUnits()).toContain('each');
   expect(materialSorts()).toEqual(['category', 'name', 'available']);
 
   expect(missing(built)).toEqual([]);
