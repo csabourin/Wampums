@@ -832,6 +832,8 @@
   "create_organization": "Create organization",
   "create_new_unit": "Create new unit",
   "create_unit": "Create unit",
+  "create_unit_logo_invalid": "Enter a web address starting with https:// or a site path starting with /.",
+  "create_unit_field_invalid": "Check this field.",
   "current_stars": "Current Stars",
   "d": "d",
   "dashboard_admin_section": "District management",

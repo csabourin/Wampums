@@ -803,6 +803,8 @@
   "create_organization": "Créer l’organisation",
   "create_new_unit": "Créer une nouvelle unité",
   "create_unit": "Créer l’unité",
+  "create_unit_logo_invalid": "Inscrivez une adresse web qui commence par https:// ou un chemin du site qui commence par /.",
+  "create_unit_field_invalid": "Vérifiez ce champ.",
   "current_stars": "Étoiles actuelles",
   "d": "j",
   "dashboard_admin_section": "Gestion de district",
