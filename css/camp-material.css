@@ -1,0 +1,107 @@
+/*
+ * The collective material list of a camp.
+ *
+ * Every rule is scoped to the screen's root, so nothing here restyles another
+ * page. Mobile first: tables stack into labelled rows (mobile-labeled-table)
+ * and the actions wrap. A status is always written out; its border only
+ * repeats what the text says.
+ */
+
+.camp-material {
+  --camp-material-gap: 0.75rem;
+  max-width: 64rem;
+  margin-inline: auto;
+}
+
+.camp-material__camp {
+  color: var(--color-text-muted);
+  margin-block: 0 var(--camp-material-gap);
+}
+
+.camp-material__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-end: var(--camp-material-gap);
+}
+
+.camp-material__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0;
+  margin-block: 0 var(--camp-material-gap);
+  list-style: none;
+}
+
+.camp-material__group h3 {
+  margin-block: 1rem 0.5rem;
+}
+
+.camp-material__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.camp-material__table :is(th, td) {
+  padding: 0.5rem;
+  text-align: start;
+  vertical-align: top;
+  border-block-end: 1px solid var(--color-border-light);
+}
+
+.camp-material .table-container:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.camp-material__uses {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.camp-material__archived {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.camp-material__status {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.camp-material__status--reserved {
+  border-color: var(--color-success);
+}
+
+.camp-material__status--available {
+  border-color: var(--color-info);
+}
+
+.camp-material__status--missing,
+.camp-material__status--unavailable {
+  border-color: var(--color-error);
+}
+
+.camp-material__free-list {
+  padding: 0;
+  list-style: none;
+}
+
+.camp-material__free-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-block: 0.5rem;
+  border-block-end: 1px solid var(--color-border-light);
+}
+
+.camp-material__free-material {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}

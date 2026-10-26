@@ -136,6 +136,7 @@ const lazyModules = {
   IncidentReport: () => import('./modules/incident-report/incident-report.js').then(m => m.IncidentReport),
   YearlyPlanner: () => import('./modules/yearly-planner/YearlyPlanner.js').then(m => m.YearlyPlanner),
   StarterActivities: () => import('./modules/yearly-planner/StarterActivities.js').then(m => m.StarterActivities),
+  CampMaterialList: () => import('./modules/camp-material/CampMaterialList.js').then(m => m.CampMaterialList),
   ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
   AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink),
   ReactivationLink: () => import('./modules/reactivation/ReactivationLink.js').then(m => m.ReactivationLink),
@@ -251,6 +252,7 @@ const routes = {
   '/yearly-planner': 'yearlyPlanner',
   '/yearly-planner/starter-activities': 'starterActivities',
   '/yearly-planner/:planId': 'yearlyPlannerDetail',
+  '/camp-material/:id': 'campMaterial',
   '/unit-settings': 'unitSettings',
   '/scout-year': 'scoutYear'
 
@@ -780,6 +782,14 @@ export class Router {
           this.currentModuleInstance = yearlyPlanner;
           await yearlyPlanner.init(routeName === 'yearlyPlannerDetail' ? parseInt(param, 10) : null);
           break;
+        case 'campMaterial': {
+          // The list endpoint requires meetings.view, as the camp schedule does.
+          if (!guard(canViewMeetings())) {break;}
+          const CampMaterialList = await this.loadModule('CampMaterialList');
+          this.currentModuleInstance = new CampMaterialList(this.app, { meetingId: Number(param) });
+          await this.currentModuleInstance.init();
+          break;
+        }
         case 'starterActivities': {
           // Both starter endpoints require meetings.manage.
           if (!guard(hasPermission('meetings.manage'))) {break;}

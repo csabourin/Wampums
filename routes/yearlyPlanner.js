@@ -28,6 +28,7 @@ const {
   withMaterialItems,
   copyActivityMaterialItems
 } = require('../services/equipmentCatalog');
+const { buildCampMaterialList } = require('../services/campMaterialList');
 
 /**
  * Kinds of dated block on the planner calendar.
@@ -1578,6 +1579,28 @@ module.exports = (pool, logger) => {
           activities: activitiesByDay.get(Number(day.day_offset)) || []
         }))
       });
+    })
+  );
+
+  /**
+   * GET /v1/yearly-planner/meetings/:id/material-list
+   * The camp's collective material list: every line's articles added up once
+   * each, free-text material beside, and, with inventory.view, how each
+   * inventory item stands over the camp's dates.
+   */
+  router.get('/meetings/:id/material-list',
+    authenticate,
+    requirePermission('meetings.view'),
+    validateIdParam('id'),
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const withInventory = await userHasPermission(req, pool, organizationId, 'inventory.view');
+      const list = await buildCampMaterialList(pool, organizationId, Number(req.params.id), { withInventory });
+      if (!list) {
+        return error(res, 'Meeting not found', HTTP_NOT_FOUND);
+      }
+      return success(res, list);
     })
   );
 

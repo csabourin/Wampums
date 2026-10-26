@@ -303,7 +303,33 @@ try {
   );
 
   const { createCatalogItem } = require(path.join(ROOT, 'services/equipmentCatalog.js'));
-  await createCatalogItem(pool, organizationId, adminId, { name: 'Tente 4 places', category: 'camping', unit_of_measure: 'each' });
+  const tentArticle = await createCatalogItem(pool, organizationId, adminId, {
+    name: 'Tente 4 places', category: 'camping', unit_of_measure: 'each', equipment_item_id: tentsId,
+  });
+
+  // The weekend camp in the planner, with articles on two activities and
+  // free-text material, for the camp material list: the tents add up across
+  // activities and are compared with the reservations above.
+  const campMeetingId = await one(
+    `INSERT INTO year_plan_meetings (organization_id, meeting_date, meeting_kind, theme, activity_id)
+     VALUES ($1, CURRENT_DATE - 3, 'camp', 'Camp d''automne', $2) RETURNING id`,
+    [organizationId, campId]
+  );
+  const setupLineId = await one(
+    `INSERT INTO year_plan_meeting_activities (organization_id, meeting_id, name, start_time, day_offset, material, sort_order)
+     VALUES ($1, $2, 'Montage du camp', '18:30', 0, 'Maillets, piquets de rechange', 1) RETURNING id`,
+    [organizationId, campMeetingId]
+  );
+  const nightLineId = await one(
+    `INSERT INTO year_plan_meeting_activities (organization_id, meeting_id, name, start_time, day_offset, sort_order)
+     VALUES ($1, $2, 'Nuit en forêt', '20:00', 1, 1) RETURNING id`,
+    [organizationId, campMeetingId]
+  );
+  await pool.query(
+    `INSERT INTO meeting_activity_equipment (organization_id, meeting_activity_id, catalog_item_id, equipment_item_id, quantity)
+     VALUES ($1, $2, $4, NULL, 4), ($1, $3, $4, NULL, 2), ($1, $3, NULL, $5, 2)`,
+    [organizationId, setupLineId, nightLineId, tentArticle.id, tarpsId]
+  );
 
   const { saveTask } = require(path.join(ROOT, 'services/activityTasks.js'));
   await saveTask(pool, organizationId, adminId, {
@@ -320,6 +346,7 @@ try {
     programmeDate,
     fundraiserId,
     yearPlanId,
+    campMeetingId,
     messageId,
     incidentId,
     slipToken,
