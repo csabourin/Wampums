@@ -25,14 +25,14 @@ const DATABASE_URL = process.env.SCOUT_YEAR_TEST_DATABASE_URL || process.env.TES
 
 process.env.JWT_SECRET_KEY = process.env.JWT_SECRET_KEY || 'organization-integration-secret';
 
-const mockContext = { userId: null, permissions: [] };
+const mockContext = { userId: null, permissions: [], organizationId: null };
 
 jest.mock('../middleware/auth', () => {
   const actual = jest.requireActual('../middleware/auth');
   return {
     ...actual,
     authenticate: (req, _res, next) => {
-      req.user = { id: mockContext.userId, roleNames: ['district'] };
+      req.user = { id: mockContext.userId, roleNames: ['district'], organizationId: mockContext.organizationId };
       next();
     },
     requirePermission: () => (req, _res, next) => {
@@ -143,6 +143,7 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
     );
     mockContext.userId = ids.userId;
     mockContext.permissions = everyPermission;
+    mockContext.organizationId = null;
     deliverParentInvitation.mockReset();
     deliverParentInvitation.mockResolvedValue(true);
   });
@@ -524,5 +525,143 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
     const refused = await request(app).post('/api/v1/organizations/switch').send({ organization_id: organizationId });
     expect(refused.status).toBe(403);
     expect(refused.body).toMatchObject({ required: [], missing: [], code: 'not_a_member' });
+  });
+  /**
+   * A unit created through the route, with the session then inside it.
+   *
+   * @param {Object} [fields] - Creation fields
+   * @returns {Promise<{id: number, domain: string}>} The unit
+   */
+  async function enterNewUnit(fields = {}) {
+    const response = await create('Unité à modifier', fields);
+    expect(response.status).toBe(201);
+    mockContext.organizationId = response.body.data.organization_id;
+    return { id: response.body.data.organization_id, domain: response.body.data.domain };
+  }
+
+  /** @param {number} organizationId - Unit @returns {Promise<Object>} Stored vocabulary */
+  function storedVocabulary(organizationId) {
+    return one(
+      "SELECT setting_value FROM organization_settings WHERE organization_id = $1 AND setting_key = 'unit_vocabulary'",
+      [organizationId]
+    );
+  }
+
+  test('a unit created for a branch without its own terms speaks the generic vocabulary, not the cubs\'', async () => {
+    const unit = await enterNewUnit({ program_section: 'scouts' });
+    expect((await storedVocabulary(unit.id)).profile).toBe('generic');
+
+    const cubs = await enterNewUnit({ program_section: 'cubs' });
+    expect((await storedVocabulary(cubs.id)).locales.fr.youth_plural).toBe('Louveteaux');
+  });
+
+  test('changing the branch changes its vocabulary, but never terms the unit wrote itself', async () => {
+    const unit = await enterNewUnit({ program_section: 'cubs' });
+
+    const changed = await request(app).patch('/api/v1/organizations/settings/branch').send({ program_section: 'beavers' });
+    expect(changed.status).toBe(200);
+    expect(changed.body.data).toMatchObject({ program_section: 'beavers', unit_vocabulary: { profile: 'beavers' } });
+    expect(await one('SELECT program_section FROM organizations WHERE id = $1', [unit.id])).toBe('beavers');
+
+    const custom = { ...(await storedVocabulary(unit.id)), profile: 'custom' };
+    custom.locales.fr.subgroup_plural = 'Barrages';
+    await pool.query(
+      "UPDATE organization_settings SET setting_value = $2 WHERE organization_id = $1 AND setting_key = 'unit_vocabulary'",
+      [unit.id, JSON.stringify(custom)]
+    );
+    await request(app).patch('/api/v1/organizations/settings/branch').send({ program_section: 'rovers' });
+    expect(await one('SELECT program_section FROM organizations WHERE id = $1', [unit.id])).toBe('rovers');
+    expect((await storedVocabulary(unit.id)).locales.fr.subgroup_plural).toBe('Barrages');
+
+    const refused = await request(app).patch('/api/v1/organizations/settings/branch').send({ program_section: 'dragons' });
+    expect(refused.status).toBe(400);
+    expect(refused.body.errors).toEqual([{ field: 'program_section', msg: 'program_section_required' }]);
+  });
+
+  test('saving the vocabulary no longer replaces a branch the unit chose', async () => {
+    const unit = await enterNewUnit({ program_section: 'scouts' });
+    const response = await request(app).patch('/api/v1/organizations/settings/vocabulary')
+      .send(await storedVocabulary(unit.id));
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.program_section).toBe('scouts');
+    expect(await one('SELECT program_section FROM organizations WHERE id = $1', [unit.id])).toBe('scouts');
+  });
+
+  test('a unit whose branch was never chosen still takes it from its vocabulary', async () => {
+    const unit = await enterNewUnit({ program_section: 'general' });
+    const { buildVocabularyForProfile } = require('../utils/unitCustomization');
+    await request(app).patch('/api/v1/organizations/settings/vocabulary').send(buildVocabularyForProfile('cubs'));
+
+    expect(await one('SELECT program_section FROM organizations WHERE id = $1', [unit.id])).toBe('cubs');
+  });
+
+  test('a new address is added beside the old one, which keeps answering, and can become the one emails use', async () => {
+    const unit = await enterNewUnit();
+    const { resolveOrganizationBaseUrl } = require('../utils/public-url');
+    const listed = await request(app).get('/api/v1/organizations/domains');
+    expect(listed.body.data).toEqual([expect.objectContaining({ domain: unit.domain, is_primary: true, is_wildcard: false })]);
+
+    const subdomain = freshSubdomain();
+    const added = await request(app).post('/api/v1/organizations/domains').send({ subdomain });
+    expect(added.status).toBe(201);
+    expect(added.body.data).toMatchObject({ domain: `${subdomain}.wampums.app`, is_primary: false });
+    delete process.env.PUBLIC_BASE_URL;
+    delete process.env.APP_URL;
+    expect(await resolveOrganizationBaseUrl(pool, unit.id)).toBe(`https://${unit.domain}`);
+
+    const primary = await request(app).put(`/api/v1/organizations/domains/${added.body.data.id}/primary`);
+    expect(primary.status).toBe(200);
+    expect(await resolveOrganizationBaseUrl(pool, unit.id)).toBe(`https://${subdomain}.wampums.app`);
+    const after = await request(app).get('/api/v1/organizations/domains');
+    expect(after.body.data.map((row) => [row.domain, row.is_primary])).toEqual([
+      [`${subdomain}.wampums.app`, true],
+      [unit.domain, false],
+    ]);
+  });
+
+  test('an address another unit holds, or one the platform keeps, cannot be added', async () => {
+    const other = await enterNewUnit();
+    await enterNewUnit();
+
+    const taken = await request(app).post('/api/v1/organizations/domains')
+      .send({ subdomain: other.domain.split('.')[0].toUpperCase() });
+    expect(taken.status).toBe(409);
+    expect(taken.body.errors).toEqual([{ field: 'subdomain', msg: 'subdomain_taken' }]);
+
+    const reserved = await request(app).post('/api/v1/organizations/domains').send({ subdomain: 'www' });
+    expect(reserved.status).toBe(400);
+    expect(reserved.body.errors).toEqual([{ field: 'subdomain', msg: 'subdomain_reserved' }]);
+  });
+
+  test('the primary address and a unit\'s last address cannot be removed; another one can', async () => {
+    const unit = await enterNewUnit();
+    const primaryId = (await request(app).get('/api/v1/organizations/domains')).body.data[0].id;
+
+    const primary = await request(app).delete(`/api/v1/organizations/domains/${primaryId}`);
+    expect(primary.status).toBe(409);
+    expect(primary.body.message).toBe('domain_is_primary');
+
+    // Unmarked, the only address is still the last one the unit has.
+    await pool.query('UPDATE organization_domains SET is_primary = FALSE WHERE id = $1', [primaryId]);
+    const last = await request(app).delete(`/api/v1/organizations/domains/${primaryId}`);
+    expect(last.status).toBe(409);
+    expect(last.body.message).toBe('domain_last_address');
+
+    const added = await request(app).post('/api/v1/organizations/domains').send({ subdomain: freshSubdomain() });
+    const removed = await request(app).delete(`/api/v1/organizations/domains/${primaryId}`);
+    expect(removed.status).toBe(200);
+    expect(await one('SELECT COUNT(*)::int FROM organization_domains WHERE organization_id = $1', [unit.id])).toBe(1);
+    expect(added.status).toBe(201);
+  });
+
+  test('another unit\'s address can be neither changed nor removed from this one', async () => {
+    const other = await enterNewUnit();
+    const otherId = (await request(app).get('/api/v1/organizations/domains')).body.data[0].id;
+    await enterNewUnit();
+
+    expect((await request(app).put(`/api/v1/organizations/domains/${otherId}/primary`)).status).toBe(404);
+    expect((await request(app).delete(`/api/v1/organizations/domains/${otherId}`)).status).toBe(404);
+    expect(await one('SELECT COUNT(*)::int FROM organization_domains WHERE organization_id = $1 AND is_primary', [other.id])).toBe(1);
   });
 });

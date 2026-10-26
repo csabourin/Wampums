@@ -28,7 +28,7 @@ async function resolveOrganizationBaseUrl(pool, organizationId) {
          FROM organization_domains
         WHERE organization_id = $1
           AND domain NOT LIKE '%*%'
-        ORDER BY created_at ASC, domain ASC
+        ORDER BY is_primary DESC, created_at ASC, domain ASC
         LIMIT 1`,
       [organizationId]
     );

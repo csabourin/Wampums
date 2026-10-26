@@ -91,3 +91,26 @@ describe('unit customization validation', () => {
     });
   });
 });
+
+describe('the vocabulary a branch speaks', () => {
+  const {
+    getProfileForProgramSection,
+    buildVocabularyForProfile,
+    validateUnitVocabulary: validate,
+  } = require('../utils/unitCustomization');
+
+  test('cubs and beavers speak their own terms; every other branch the generic ones', () => {
+    expect(getProfileForProgramSection('cubs')).toBe('cubs');
+    expect(getProfileForProgramSection('beavers')).toBe('beavers');
+    ['general', 'scouts', 'pioneers', 'rovers'].forEach((section) => {
+      expect(getProfileForProgramSection(section)).toBe('generic');
+    });
+  });
+
+  test('a branch\'s vocabulary is one the unit settings would accept as saved', () => {
+    ['cubs', 'beavers', 'generic'].forEach((profile) => {
+      const vocabulary = buildVocabularyForProfile(profile);
+      expect(validate(vocabulary)).toEqual({ value: vocabulary, errors: [] });
+    });
+  });
+});

@@ -15,13 +15,16 @@ const meetingSectionDefaults = require('../config/meeting_sections.json');
 const { check, validationResult } = require('express-validator');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { asyncHandler, success, forbidden, error: errorResponse } = require('../middleware/response');
-const { validateIdBody, checkValidation, normalizeEmailValue } = require('../middleware/validation');
+const { validateIdBody, validateIdParam, checkValidation, normalizeEmailValue } = require('../middleware/validation');
 const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 const {
   validateUnitVocabulary,
   validateDashboardConfiguration,
   validateParentDashboardConfiguration,
-  getProgramSectionForProfile
+  getProgramSectionForProfile,
+  getProfileForProgramSection,
+  buildVocabularyForProfile,
+  CUSTOM_PROFILE
 } = require('../utils/unitCustomization');
 
 // Import utilities
@@ -63,6 +66,7 @@ const DEDICATED_SETTING_KEYS = new Set([
 const HTTP_BAD_REQUEST = 400;
 const HTTP_CREATED = 201;
 const HTTP_CONFLICT = 409;
+const HTTP_NOT_FOUND = 404;
 const MAX_EMAIL_LENGTH = 255;
 
 /** The branches a unit may be created for: castors, louveteaux, éclaireurs… */
@@ -78,6 +82,33 @@ const validateLeaderEmail = check('leader_email')
   .bail()
   .isLength({ max: MAX_EMAIL_LENGTH })
   .withMessage('leader_email_invalid');
+
+/**
+ * Whether a domain row is a pattern (`*.example.dev`) rather than an address.
+ *
+ * @param {string} domain - organization_domains.domain
+ * @returns {boolean}
+ */
+function isWildcardDomain(domain) {
+  return String(domain).includes('*');
+}
+
+/**
+ * An organization_domains row as the API returns it.
+ *
+ * @param {{id: number, domain: string, is_primary: boolean, created_at: Date}} row - Database row
+ * @returns {Object} The address, and whether it may be emailed or removed
+ */
+function describeDomain(row) {
+  return {
+    id: row.id,
+    domain: row.domain,
+    is_primary: row.is_primary === true,
+    // A pattern such as *.example.dev routes requests but is no address to send anyone to.
+    is_wildcard: isWildcardDomain(row.domain),
+    created_at: row.created_at,
+  };
+}
 
 /**
  * Whether a unit already answers at this hostname.
@@ -633,18 +664,21 @@ module.exports = (pool, logger) => {
       await client.query('BEGIN');
       await ensureProgramSectionsSeeded(client, organizationId);
 
-      if (programSection) {
-        const organizationResult = await client.query(
-          `UPDATE organizations
-           SET program_section = $2, updated_at = NOW()
-           WHERE id = $1
-           RETURNING id`,
-          [organizationId, programSection]
-        );
-        if (organizationResult.rows.length === 0) {
-          await client.query('ROLLBACK');
-          return errorResponse(res, 'Organization not found', 404);
-        }
+      // A unit whose branch was never chosen ('general') takes it from its
+      // vocabulary, as before the branch had a setting of its own. A chosen
+      // branch is changed only through PATCH /settings/branch.
+      const organizationResult = await client.query(
+        `UPDATE organizations
+         SET program_section = CASE WHEN program_section = 'general' AND $2::text IS NOT NULL
+                                    THEN $2::text ELSE program_section END,
+             updated_at = NOW()
+         WHERE id = $1
+         RETURNING program_section`,
+        [organizationId, programSection]
+      );
+      if (organizationResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return errorResponse(res, 'Organization not found', 404);
       }
 
       await client.query(
@@ -660,7 +694,7 @@ module.exports = (pool, logger) => {
       orgSettingsCache.delete(`org_${organizationId}`);
       return success(
         res,
-        { unit_vocabulary: validation.value, program_section: programSection },
+        { unit_vocabulary: validation.value, program_section: organizationResult.rows[0].program_section },
         'Unit vocabulary updated'
       );
     } catch (updateError) {
@@ -670,6 +704,202 @@ module.exports = (pool, logger) => {
       client.release();
     }
   }));
+
+  /**
+   * Change the unit's branch. Its vocabulary follows, unless the unit wrote
+   * its own terms (profile `custom`), which are kept. The starter activities
+   * already copied stay; the new branch's are offered by the planner's import.
+   */
+  router.patch('/settings/branch', authenticate, blockDemoRoles, requirePermission('org.edit'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const programSection = PROGRAM_SECTION_KEYS.has(req.body?.program_section) ? req.body.program_section : null;
+    if (!programSection) {
+      return errorResponse(res, 'Invalid branch', HTTP_BAD_REQUEST, [{ field: 'program_section', msg: 'program_section_required' }]);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await ensureProgramSectionsSeeded(client, organizationId);
+      const updated = await client.query(
+        `UPDATE organizations SET program_section = $2, updated_at = NOW()
+         WHERE id = $1
+         RETURNING id`,
+        [organizationId, programSection]
+      );
+      if (updated.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return errorResponse(res, 'Organization not found', HTTP_NOT_FOUND);
+      }
+
+      const stored = await client.query(
+        `SELECT setting_value FROM organization_settings
+         WHERE organization_id = $1 AND setting_key = 'unit_vocabulary'
+         FOR UPDATE`,
+        [organizationId]
+      );
+      let vocabulary = stored.rows[0]?.setting_value || null;
+      if (vocabulary?.profile !== CUSTOM_PROFILE) {
+        vocabulary = buildVocabularyForProfile(getProfileForProgramSection(programSection));
+        await client.query(
+          `INSERT INTO organization_settings
+             (organization_id, setting_key, setting_value, created_at, updated_at)
+           VALUES ($1, 'unit_vocabulary', $2::jsonb, NOW(), NOW())
+           ON CONFLICT (organization_id, setting_key)
+           DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW()`,
+          [organizationId, JSON.stringify(vocabulary)]
+        );
+      }
+
+      await client.query('COMMIT');
+      orgSettingsCache.delete(`org_${organizationId}`);
+      return success(res, { program_section: programSection, unit_vocabulary: vocabulary }, 'Unit branch updated');
+    } catch (updateError) {
+      await client.query('ROLLBACK');
+      throw updateError;
+    } finally {
+      client.release();
+    }
+  }));
+
+  /**
+   * The addresses the unit answers at. Every member who may read the unit's
+   * settings sees them; changing them is a district administrator's task.
+   */
+  router.get('/domains', authenticate, requirePermission('org.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const result = await pool.query(
+      `SELECT id, domain, is_primary, created_at FROM organization_domains
+       WHERE organization_id = $1
+       ORDER BY is_primary DESC, created_at ASC, id ASC`,
+      [organizationId]
+    );
+    return success(res, result.rows.map(describeDomain));
+  }));
+
+  /** Add an address under wampums.app; the unit keeps answering at the others. */
+  router.post('/domains', authenticate, blockDemoRoles, requirePermission('org.create'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { hostname, problem } = readUnitSubdomain(req.body?.subdomain);
+    if (problem) {
+      return errorResponse(res, 'Invalid address', HTTP_BAD_REQUEST, [{ field: 'subdomain', msg: problem }]);
+    }
+    const makePrimary = req.body?.make_primary === true;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      if (makePrimary) {
+        await client.query(
+          'UPDATE organization_domains SET is_primary = FALSE, updated_at = NOW() WHERE organization_id = $1 AND is_primary',
+          [organizationId]
+        );
+      }
+      const inserted = await client.query(
+        `INSERT INTO organization_domains (organization_id, domain, is_primary)
+         VALUES ($1, $2, $3)
+         ON CONFLICT ((lower(domain))) DO NOTHING
+         RETURNING id, domain, is_primary, created_at`,
+        [organizationId, hostname, makePrimary]
+      );
+      if (inserted.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return errorResponse(res, 'subdomain_taken', HTTP_CONFLICT, [{ field: 'subdomain', msg: 'subdomain_taken' }]);
+      }
+      await client.query('COMMIT');
+      return success(res, describeDomain(inserted.rows[0]), 'Address added', HTTP_CREATED);
+    } catch (addError) {
+      await client.query('ROLLBACK');
+      throw addError;
+    } finally {
+      client.release();
+    }
+  }));
+
+  /** Make an address the one emailed links are built from. */
+  router.put('/domains/:domainId/primary', authenticate, blockDemoRoles, requirePermission('org.create'),
+    validateIdParam('domainId'), checkValidation, asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const domainId = Number(req.params.domainId);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const target = await client.query(
+          'SELECT id, domain FROM organization_domains WHERE id = $1 AND organization_id = $2 FOR UPDATE',
+          [domainId, organizationId]
+        );
+        if (target.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'Address not found', HTTP_NOT_FOUND);
+        }
+        if (isWildcardDomain(target.rows[0].domain)) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'domain_wildcard_not_primary', HTTP_BAD_REQUEST);
+        }
+        await client.query(
+          'UPDATE organization_domains SET is_primary = FALSE, updated_at = NOW() WHERE organization_id = $1 AND is_primary AND id <> $2',
+          [organizationId, domainId]
+        );
+        const updated = await client.query(
+          `UPDATE organization_domains SET is_primary = TRUE, updated_at = NOW()
+           WHERE id = $1 AND organization_id = $2
+           RETURNING id, domain, is_primary, created_at`,
+          [domainId, organizationId]
+        );
+        await client.query('COMMIT');
+        return success(res, describeDomain(updated.rows[0]), 'Primary address changed');
+      } catch (primaryError) {
+        await client.query('ROLLBACK');
+        throw primaryError;
+      } finally {
+        client.release();
+      }
+    }));
+
+  /**
+   * Stop answering at an address. The primary address is kept until another
+   * is made primary, and a unit always keeps one exact address.
+   */
+  router.delete('/domains/:domainId', authenticate, blockDemoRoles, requirePermission('org.create'),
+    validateIdParam('domainId'), checkValidation, asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const domainId = Number(req.params.domainId);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        // Locks the unit's addresses, so two removals cannot leave it with none.
+        const addresses = await client.query(
+          'SELECT id, domain, is_primary FROM organization_domains WHERE organization_id = $1 ORDER BY id FOR UPDATE',
+          [organizationId]
+        );
+        const target = addresses.rows.find((row) => Number(row.id) === domainId);
+        if (!target) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'Address not found', HTTP_NOT_FOUND);
+        }
+        if (target.is_primary) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'domain_is_primary', HTTP_CONFLICT);
+        }
+        const exactLeft = addresses.rows
+          .filter((row) => Number(row.id) !== domainId && !isWildcardDomain(row.domain));
+        if (!isWildcardDomain(target.domain) && exactLeft.length === 0) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'domain_last_address', HTTP_CONFLICT);
+        }
+        await client.query(
+          'DELETE FROM organization_domains WHERE id = $1 AND organization_id = $2',
+          [domainId, organizationId]
+        );
+        await client.query('COMMIT');
+        return success(res, null, 'Address removed');
+      } catch (removeError) {
+        await client.query('ROLLBACK');
+        throw removeError;
+      } finally {
+        client.release();
+      }
+    }));
 
   /** Update organization-wide dashboard tile visibility. */
   router.patch('/settings/dashboard', authenticate, blockDemoRoles, requirePermission('org.edit'), asyncHandler(async (req, res) => {
@@ -1031,8 +1261,8 @@ module.exports = (pool, logger) => {
       const newOrganizationId = orgResult.rows[0].id;
 
       const domainResult = await client.query(
-        `INSERT INTO organization_domains (organization_id, domain)
-         VALUES ($1, $2)
+        `INSERT INTO organization_domains (organization_id, domain, is_primary)
+         VALUES ($1, $2, TRUE)
          ON CONFLICT ((lower(domain))) DO NOTHING
          RETURNING id`,
         [newOrganizationId, hostname]
@@ -1057,6 +1287,14 @@ module.exports = (pool, logger) => {
          VALUES ($1, 'meeting_sections', $2)
          ON CONFLICT (organization_id, setting_key) DO NOTHING`,
         [newOrganizationId, JSON.stringify(meetingSectionDefaults)]
+      );
+      // The branch's vocabulary (tanières, patrouilles…), saved as the unit
+      // settings would save it, so the unit never shows another branch's terms.
+      await client.query(
+        `INSERT INTO organization_settings (organization_id, setting_key, setting_value)
+         VALUES ($1, 'unit_vocabulary', $2)
+         ON CONFLICT (organization_id, setting_key) DO NOTHING`,
+        [newOrganizationId, JSON.stringify(buildVocabularyForProfile(getProfileForProgramSection(programSection)))]
       );
 
       await ensureProgramSectionsSeeded(client, newOrganizationId);

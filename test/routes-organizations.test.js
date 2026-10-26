@@ -952,3 +952,71 @@ describe('JWT token integrity after organization switch', () => {
     expect(decoded).toBeNull();
   });
 });
+
+describe('the addresses and branch of a unit', () => {
+  const token = () => `Bearer ${generateToken({ organizationId: ORG_ID })}`;
+
+  test('a visitor without a session cannot list a unit\'s addresses', async () => {
+    const res = await request(app).get('/api/v1/organizations/domains');
+    expect(res.status).toBe(401);
+  });
+
+  test('a unit administrator sees the addresses but cannot change them: that is the district\'s', async () => {
+    const queries = mockUnitAdmin(['org.view', 'org.edit']);
+
+    const res = await request(app)
+      .post('/api/v1/organizations/domains')
+      .set('Authorization', token())
+      .send({ subdomain: 'meute-ada' });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ required: ['org.create'], missing: ['org.create'] });
+    expect(queries.some(({ query }) => query.includes('INSERT INTO organization_domains'))).toBe(false);
+  });
+
+  test('removing or choosing an address refuses a malformed id before anything else', async () => {
+    mockUnitAdmin(['org.create']);
+
+    const removed = await request(app).delete('/api/v1/organizations/domains/12abc').set('Authorization', token());
+    const primary = await request(app).put('/api/v1/organizations/domains/0/primary').set('Authorization', token());
+
+    expect(removed.status).toBe(400);
+    expect(primary.status).toBe(400);
+  });
+
+  test('changing the branch requires org.edit', async () => {
+    const queries = mockUnitAdmin(['org.view']);
+
+    const res = await request(app)
+      .patch('/api/v1/organizations/settings/branch')
+      .set('Authorization', token())
+      .send({ program_section: 'scouts' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.missing).toEqual(['org.edit']);
+    expect(queries.some(({ query }) => query.includes('UPDATE organizations'))).toBe(false);
+  });
+
+  test('a demo account can change neither the branch nor the addresses', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes("r.role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [{ role_name: 'demoadmin' }] });
+      }
+      if (query.includes('SELECT DISTINCT p.permission_key')) {
+        return Promise.resolve({ rows: ['org.edit', 'org.create'].map((key) => ({ permission_key: key })) });
+      }
+      return undefined;
+    });
+
+    const branch = await request(app).patch('/api/v1/organizations/settings/branch')
+      .set('Authorization', token()).send({ program_section: 'scouts' });
+    const address = await request(app).post('/api/v1/organizations/domains')
+      .set('Authorization', token()).send({ subdomain: 'meute-ada' });
+
+    expect(branch.status).toBe(403);
+    expect(branch.body.isDemo).toBe(true);
+    expect(address.status).toBe(403);
+    expect(address.body.isDemo).toBe(true);
+  });
+});

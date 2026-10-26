@@ -16,7 +16,7 @@
     "routes/alumni.js": 1,
     "routes/announcements.js": 15,
     "routes/attendance.js": 28,
-    "routes/auth.js": 62,
+    "routes/auth.js": 61,
     "routes/badges.js": 65,
     "routes/budgets.js": 134,
     "routes/calendars.js": 13,

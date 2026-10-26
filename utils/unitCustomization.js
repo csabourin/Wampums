@@ -184,10 +184,42 @@ function getProgramSectionForProfile(profile) {
   return customizationConfig.profiles[profile]?.programSection || null;
 }
 
+/**
+ * The built-in vocabulary profile a branch speaks: its own (cubs, beavers),
+ * or the generic one for a branch without a profile of its own.
+ *
+ * @param {string} programSection - organizations.program_section
+ * @returns {string} Profile key
+ */
+function getProfileForProgramSection(programSection) {
+  const own = Object.entries(customizationConfig.profiles)
+    .find(([, profile]) => profile.programSection === programSection && programSection !== 'general');
+  return own ? own[0] : 'generic';
+}
+
+/**
+ * A unit_vocabulary setting holding a built-in profile's terms, as the unit
+ * settings save it.
+ *
+ * @param {string} profile - Built-in profile key
+ * @returns {{version: number, profile: string, locales: object}} Setting value
+ */
+function buildVocabularyForProfile(profile) {
+  const source = customizationConfig.profiles[profile] || customizationConfig.profiles.generic;
+  const locales = {};
+  SUPPORTED_VOCABULARY_LOCALES.forEach((locale) => {
+    locales[locale] = { ...source.locales[locale] };
+  });
+  return { version: customizationConfig.version, profile, locales };
+}
+
 module.exports = {
   customizationConfig,
   validateUnitVocabulary,
   validateDashboardConfiguration,
   validateParentDashboardConfiguration,
-  getProgramSectionForProfile
+  getProgramSectionForProfile,
+  getProfileForProgramSection,
+  buildVocabularyForProfile,
+  CUSTOM_PROFILE
 };
