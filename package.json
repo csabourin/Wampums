@@ -54,7 +54,7 @@
     "@veryfi/veryfi-sdk": "^1.4.8",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "bcryptjs": "^3.0.3",
-    "body-parser": "^2.2.2",
+    "body-parser": "^2.4.0",
     "compression": "^1.8.2",
     "cors": "^2.8.6",
     "dexie": "^4.4.6",
