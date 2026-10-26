@@ -73,6 +73,11 @@ function resolveMeetingSectionKey(meetingSections, context = {}) {
   if (legacySection && sections[legacySection]) {
     return legacySection;
   }
+  // A branch without a meeting layout of its own (scouts, pioneers, rovers)
+  // uses the general one rather than the cubs' default.
+  if (programSection && programSection !== 'general' && sections.general) {
+    return 'general';
+  }
   return meetingSections.defaultSection;
 }
 

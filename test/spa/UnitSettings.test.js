@@ -18,7 +18,30 @@ jest.mock('../../spa/utils/DOMUtils.js', () => ({
     // eslint-disable-next-line no-param-reassign
     element.innerHTML = html;
   },
-  loadStylesheet: jest.fn(() => Promise.resolve())
+  loadStylesheet: jest.fn(() => Promise.resolve()),
+  withFormBusy: (_form, fn) => fn()
+}));
+
+jest.mock('../../spa/config.js', () => ({
+  CONFIG: {
+    PROGRAM_SECTIONS: {
+      DEFAULT: ['general', 'beavers', 'cubs', 'scouts', 'pioneers', 'rovers']
+        .map((key) => ({ key, labelKey: `program_section_${key}` })),
+    },
+  },
+}));
+
+const mockUpdateUnitBranch = jest.fn();
+const mockGetUnitDomains = jest.fn();
+const mockAddUnitDomain = jest.fn();
+const mockSetPrimaryUnitDomain = jest.fn();
+const mockRemoveUnitDomain = jest.fn();
+jest.mock('../../spa/api/api-organizations.js', () => ({
+  updateUnitBranch: (...args) => mockUpdateUnitBranch(...args),
+  getUnitDomains: (...args) => mockGetUnitDomains(...args),
+  addUnitDomain: (...args) => mockAddUnitDomain(...args),
+  setPrimaryUnitDomain: (...args) => mockSetPrimaryUnitDomain(...args),
+  removeUnitDomain: (...args) => mockRemoveUnitDomain(...args)
 }));
 
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
@@ -78,6 +101,13 @@ import axe from 'axe-core';
 import { UnitSettings } from '../../spa/modules/unit-settings/unit-settings.js';
 import { canManageForms, hasPermission } from '../../spa/utils/PermissionUtils.js';
 
+const flushPromises = () => new Promise((resolve) => { setTimeout(resolve, 0); });
+
+const UNIT_ADDRESSES = [
+  { id: 4, domain: 'meute-ada.wampums.app', is_primary: true, is_wildcard: false },
+  { id: 7, domain: 'ancienne-meute.wampums.app', is_primary: false, is_wildcard: false }
+];
+
 const LOCAL_GROUP_CATALOG = [
   { id: 1, name: 'Groupe 6 Aylmer', slug: 'groupe-6-aylmer' },
   { id: 2, name: 'Hull', slug: 'hull' }
@@ -110,6 +140,13 @@ beforeEach(() => {
   });
   mockLeaveLocalGroup.mockResolvedValue({ data: null });
   mockConfirmDestructive.mockResolvedValue(true);
+  mockGetUnitDomains.mockResolvedValue({ data: UNIT_ADDRESSES });
+  mockUpdateUnitBranch.mockResolvedValue({
+    data: { program_section: 'scouts', unit_vocabulary: { version: 1, profile: 'generic', locales: { en: {}, fr: {} } } }
+  });
+  mockAddUnitDomain.mockResolvedValue({ data: {} });
+  mockSetPrimaryUnitDomain.mockResolvedValue({ data: {} });
+  mockRemoveUnitDomain.mockResolvedValue({ data: null });
 });
 
 test('links authorized unit administrators to the form builder', async () => {
@@ -442,5 +479,192 @@ describe('Unit languages', () => {
       rules: { 'color-contrast': { enabled: false } },
     });
     expect(results.violations).toEqual([]);
+  });
+});
+
+describe('the unit\'s branch', () => {
+  test('shows the branch the unit has, and saving another changes the app\'s vocabulary with it', async () => {
+    const app = { showMessage: jest.fn(), organizationSettings: { program_section: 'cubs' } };
+    const fetchSettings = require('../../spa/api/api-endpoints.js').fetchEditableOrganizationSettings;
+    fetchSettings.mockResolvedValueOnce({ data: { organization_info: { name: 'Meute Ada' }, program_section: 'cubs' } });
+    const module = new UnitSettings(app);
+    await module.init();
+
+    const select = document.getElementById('unit-branch-select');
+    expect(select.value).toBe('cubs');
+    expect(document.getElementById(select.getAttribute('aria-describedby')).textContent).toBe('unit_branch_hint');
+
+    select.value = 'scouts';
+    document.getElementById('unit-branch-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    expect(mockUpdateUnitBranch).toHaveBeenCalledWith('scouts');
+    expect(app.organizationSettings).toMatchObject({ program_section: 'scouts', unit_vocabulary: { profile: 'generic' } });
+    expect(app.showMessage).toHaveBeenCalledWith('unit_branch_saved', 'success');
+    expect(document.activeElement).toBe(document.getElementById('unit-branch-select'));
+  });
+
+  test('a refused change says so and keeps the branch shown', async () => {
+    mockUpdateUnitBranch.mockRejectedValueOnce(Object.assign(new Error('nope'), { status: 403 }));
+    const app = { showMessage: jest.fn(), organizationSettings: {} };
+    await new UnitSettings(app).init();
+
+    document.getElementById('unit-branch-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    expect(app.showMessage).toHaveBeenCalledWith('api_error_forbidden', 'error');
+    expect(app.showMessage).not.toHaveBeenCalledWith('unit_branch_saved', 'success');
+  });
+
+  test('someone who cannot edit the unit sees the branch without a way to change it', async () => {
+    hasPermission.mockImplementation((permission) => permission === 'org.view');
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} }).init();
+
+    expect(document.getElementById('unit-branch-select').disabled).toBe(true);
+    expect(document.getElementById('save-unit-branch-btn')).toBeNull();
+  });
+});
+
+describe('the unit\'s addresses', () => {
+  const asDistrict = () => hasPermission.mockImplementation((permission) => ['org.view', 'org.edit', 'org.create'].includes(permission));
+  const addressItems = () => Array.from(document.querySelectorAll('.unit-addresses-item'));
+
+  test('a unit administrator sees where the unit answers, but changing it is left to the district', async () => {
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} }).init();
+
+    expect(addressItems().map((item) => item.querySelector('.unit-addresses-domain').textContent))
+      .toEqual(['meute-ada.wampums.app', 'ancienne-meute.wampums.app']);
+    expect(addressItems()[0].textContent).toContain('unit_addresses_primary');
+    expect(document.querySelector('[data-domain-remove], [data-domain-primary], #unit-address-form')).toBeNull();
+    expect(document.body.textContent).toContain('unit_addresses_read_only');
+  });
+
+  test('a district administrator adds an address, and the list is read again', async () => {
+    asDistrict();
+    const app = { showMessage: jest.fn(), organizationSettings: {} };
+    await new UnitSettings(app).init();
+
+    const input = document.getElementById('unit-address-subdomain');
+    input.value = ' Meute-Lea ';
+    document.getElementById('unit-address-primary').checked = true;
+    document.getElementById('unit-address-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    expect(mockAddUnitDomain).toHaveBeenCalledWith('meute-lea', true);
+    expect(mockGetUnitDomains).toHaveBeenCalledTimes(2);
+    expect(app.showMessage).toHaveBeenCalledWith('unit_addresses_added', 'success');
+    expect(document.activeElement).toBe(document.getElementById('unit-addresses-title'));
+  });
+
+  test('an unusable address is tied to its field before anything is sent, and goes once it is edited', async () => {
+    asDistrict();
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} }).init();
+
+    const input = document.getElementById('unit-address-subdomain');
+    input.value = 'www';
+    document.getElementById('unit-address-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    expect(mockAddUnitDomain).not.toHaveBeenCalled();
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(input.getAttribute('aria-describedby')).toBe('unit-address-subdomain-hint unit-address-subdomain-error');
+    expect(document.getElementById('unit-address-subdomain-error').textContent).toBe('subdomain_reserved');
+    expect(document.activeElement).toBe(input);
+
+    input.value = 'meute-lea';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(input.hasAttribute('aria-invalid')).toBe(false);
+    expect(document.getElementById('unit-address-subdomain-error')).toBeNull();
+  });
+
+  test('an address another unit holds is explained on the field', async () => {
+    asDistrict();
+    mockAddUnitDomain.mockRejectedValueOnce(Object.assign(new Error('subdomain_taken'), {
+      status: 409, errors: [{ field: 'subdomain', msg: 'subdomain_taken' }]
+    }));
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} }).init();
+
+    document.getElementById('unit-address-subdomain').value = 'meute-prise';
+    document.getElementById('unit-address-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    expect(document.getElementById('unit-address-subdomain-error').textContent).toBe('subdomain_taken');
+  });
+
+  test('another address can become the one emails use; the main one offers no removal', async () => {
+    asDistrict();
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} }).init();
+
+    expect(addressItems()[0].querySelector('button')).toBeNull();
+    const makePrimary = addressItems()[1].querySelector('[data-domain-primary]');
+    expect(makePrimary.getAttribute('aria-label')).toBe('unit_addresses_make_primary_named');
+    makePrimary.click();
+    await flushPromises();
+
+    expect(mockSetPrimaryUnitDomain).toHaveBeenCalledWith(7);
+  });
+
+  test('removing an address asks first, and declining changes nothing', async () => {
+    asDistrict();
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} }).init();
+
+    mockConfirmDestructive.mockResolvedValueOnce(false);
+    addressItems()[1].querySelector('[data-domain-remove]').click();
+    await flushPromises();
+    expect(mockRemoveUnitDomain).not.toHaveBeenCalled();
+
+    addressItems()[1].querySelector('[data-domain-remove]').click();
+    await flushPromises();
+    expect(mockConfirmDestructive).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'unit_addresses_remove_title' }));
+    expect(mockRemoveUnitDomain).toHaveBeenCalledWith(7);
+  });
+
+  test('a refused removal is explained and the address stays', async () => {
+    asDistrict();
+    mockRemoveUnitDomain.mockRejectedValueOnce(Object.assign(new Error('domain_last_address'), { status: 409 }));
+    const app = { showMessage: jest.fn(), organizationSettings: {} };
+    await new UnitSettings(app).init();
+
+    const remove = addressItems()[1].querySelector('[data-domain-remove]');
+    remove.click();
+    await flushPromises();
+
+    expect(app.showMessage).toHaveBeenCalledWith('api_error_conflict', 'error');
+    expect(remove.disabled).toBe(false);
+  });
+
+  test('addresses that did not load are an alert with a retry, not an empty list', async () => {
+    mockGetUnitDomains.mockRejectedValueOnce(new Error('offline'));
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} }).init();
+
+    expect(document.querySelector('#unit-addresses-title').parentElement.querySelector('[role="alert"]').textContent)
+      .toBe('unit_addresses_load_failed');
+    expect(document.body.textContent).not.toContain('unit_addresses_empty');
+
+    document.getElementById('unit-addresses-retry').click();
+    await flushPromises();
+    expect(addressItems()).toHaveLength(2);
+  });
+
+  test('an address made of markup is shown as text', async () => {
+    asDistrict();
+    mockGetUnitDomains.mockResolvedValue({
+      data: [{ id: 9, domain: '<img src=x onerror=alert(1)>', is_primary: false, is_wildcard: false }]
+    });
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} }).init();
+
+    expect(document.querySelector('.unit-addresses-list img')).toBeNull();
+    expect(document.querySelector('.unit-addresses-domain').textContent).toBe('<img src=x onerror=alert(1)>');
+  });
+
+  test('the branch and address sections have no accessibility violations', async () => {
+    asDistrict();
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} }).init();
+
+    for (const id of ['unit-branch-title', 'unit-addresses-title']) {
+      // eslint-disable-next-line no-await-in-loop -- axe runs one at a time
+      const results = await axe.run(document.getElementById(id).closest('section'), AXE_OPTIONS);
+      expect(results.violations).toEqual([]);
+    }
   });
 });

@@ -42,9 +42,14 @@ export function getActiveSectionConfig(meetingSectionConfig, organizationSetting
     ? legacySection
     : programSection || legacySection;
 
+  // A branch without a meeting layout of its own (scouts, pioneers, rovers)
+  // uses the general one rather than the cubs' default, as on the server.
+  const branchFallback = programSection && programSection !== 'general' && mergedConfig.sections.general
+    ? 'general'
+    : mergedConfig.defaultSection;
   const sectionKey = requestedSection && mergedConfig.sections[requestedSection]
     ? requestedSection
-    : mergedConfig.defaultSection;
+    : branchFallback;
 
   return {
     sectionKey,

@@ -31,4 +31,14 @@ describe('SPA meeting section precedence', () => {
 
     expect(result.sectionKey).toBe('general');
   });
+
+  test('a scouts unit uses the general meeting layout, not the cubs\' default', () => {
+    const result = getActiveSectionConfig(null, {
+      program_section: 'scouts',
+      organization_info: {},
+      unit_vocabulary: { profile: 'generic' },
+    });
+
+    expect(result.sectionKey).toBe('general');
+  });
 });

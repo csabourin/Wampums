@@ -67,3 +67,8 @@ describe('meeting section precedence', () => {
     expect(result.defaultSection).toBe('general');
   });
 });
+
+test('a scouts unit uses the general meeting layout, not the cubs\' default', () => {
+  const { mergeMeetingSectionConfig: merge, resolveMeetingSectionKey: resolve } = require('../utils/meeting-sections');
+  expect(resolve(merge(null), { programSection: 'scouts', organizationInfo: {}, hasUnitVocabulary: true })).toBe('general');
+});

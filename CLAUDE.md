@@ -521,6 +521,15 @@ unit's `unitadmin` role (`resolveUnitRoleId`, `checkRolesGrantable`). The email 
 failed send leaves the invitation to resend. `/units` (`org.create`) lists the person's units and
 switches with `POST /api/v1/organizations/switch`, which requires an active membership.
 
+A unit's branch and addresses are changed under Unit settings › General. `PATCH
+/api/v1/organizations/settings/branch` (`org.edit`) sets the branch; its vocabulary follows unless
+the unit wrote its own (`custom`). Saving the vocabulary sets the branch only while it is still
+`general`. A branch without terms or a meeting layout of its own (scouts, pioneers, rovers) uses the
+generic ones, never the cubs'. Addresses are listed with `org.view`; adding one, choosing the
+primary one (`organization_domains.is_primary`, migration 057, used by `resolveOrganizationBaseUrl`)
+and removing one take `org.create`. A unit keeps its primary and at least one exact address. Adding
+an address never replaces one, so links already sent keep working.
+
 ### Equipment catalogue and unit material
 
 `/equipment-catalog` (`equipment_catalog.manage`, migrations 054 and 055) names a unit's articles once:

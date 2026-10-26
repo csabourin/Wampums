@@ -77,6 +77,9 @@ const VOCABULARY_TEMPLATE_KEYS = Object.freeze({
   remove_group: 'vocabulary_remove_group',
 });
 
+/** The branch of every unit created before a branch could be chosen. */
+const LEGACY_PROGRAM_SECTION = 'general';
+
 /**
  * Resolve the effective vocabulary profile while preserving the legacy Cubs
  * experience for organizations that have never saved this setting.
@@ -93,6 +96,11 @@ export function getVocabularyProfile(organizationSettings = {}) {
   const programSection = organizationSettings?.program_section;
   if (programSection && customizationConfig.profiles[programSection]) {
     return programSection;
+  }
+  // A chosen branch without terms of its own (scouts, pioneers, rovers) speaks
+  // the generic ones; only a unit that never chose one keeps the Cubs' terms.
+  if (programSection && programSection !== LEGACY_PROGRAM_SECTION) {
+    return 'generic';
   }
 
   return 'cubs';
