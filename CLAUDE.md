@@ -540,8 +540,8 @@ A camp's collective material list (`/camp-material/:id`, from the camp schedule;
 inventory item listed directly joins the article that stands for it. Free-text material is listed
 apart, line by line, never added up. With `inventory.view` only, each inventory entry is compared over
 the camp's dates as a reservation of those dates is counted: reserved for this camp (by its meeting or
-its outing), still free (loans included), missing, or no longer accessible; reservations for the camp
-that no line lists are returned too. Print and CSV export carry the same content. Each inventory
+its outing, covering all its days), still free (loans included), missing, or no longer accessible; reservations for the camp
+that no line lists are returned too. Print and CSV export carry the same content. Two articles standing for one item are compared with their combined need. Each inventory
 entry carries `to_reserve` (whole units the camp still lacks, at most what is free); "Reserve what is
 missing" sends exactly those to `POST /api/v1/resources/equipment/reservations/camps/:meetingId`
 (`meetings.view`, `inventory.view`, `inventory.reserve`; online only). The server locks the items,

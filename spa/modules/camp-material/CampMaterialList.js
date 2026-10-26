@@ -452,7 +452,7 @@ export class CampMaterialList {
     printWindow.print();
   }
 
-  /** Download the list as CSV: the articles, then the free-text material. */
+  /** Download the list as CSV: the articles, the free-text material, then what is reserved but listed nowhere. */
   exportCsv() {
     const inventory = this.list.inventory_compared;
     const rows = [
@@ -471,6 +471,15 @@ export class CampMaterialList {
         unit: '',
         uses: `${this.dayLabel(entry.day_offset)} · ${entry.name}`,
         status: '',
+      })),
+      // Reserved for the camp although no activity lists it: still to pack.
+      ...(this.list.unlisted_reservations || []).map((item) => ({
+        category: translate('camp_material_unlisted_title'),
+        name: item.name,
+        quantity: item.reserved,
+        unit: equipmentUnitLabel('each'),
+        uses: '',
+        status: translate('camp_material_status_reserved'),
       })),
     ];
     const columns = [

@@ -325,6 +325,33 @@ describe.skipIf(!DATABASE_URL)('Camp material list', () => {
       expect(Number(await one('SELECT reserved_quantity FROM equipment_reservations WHERE equipment_id = $1 AND meeting_id = $2', [lanterns, camp]))).toBe(1);
     });
 
+    test('two articles standing for one item are compared with their combined need, and reserved once', async () => {
+      const pots = await equipment(units[0], 'Chaudrons', 6);
+      const big = await article(units[0], 'Grand chaudron', 'kitchen', 'each', pots);
+      const soup = await article(units[0], 'Chaudron à soupe', 'kitchen', 'each', pots);
+      const supper = await line(units[0], camp, 'Souper', 1);
+      await needs(units[0], supper, { catalogItemId: big }, 2);
+      await needs(units[0], supper, { catalogItemId: soup }, 2);
+      await reserve(units[0], pots, 2, { meetingId: camp, from: '2026-11-13', to: '2026-11-15' });
+
+      const entries = (await list(camp)).body.data.items.filter((item) => item.equipment_item_id === pots);
+      expect(entries.map((item) => item.inventory.status)).toEqual(['available', 'available']);
+      expect(entries.map((item) => item.inventory.to_reserve).sort()).toEqual([0, 2]);
+      expect((await reserveFor(camp, [{ equipment_item_id: pots, quantity: 2 }])).status).toBe(201);
+      const after = (await list(camp)).body.data.items.filter((item) => item.equipment_item_id === pots);
+      expect(after.map((item) => item.inventory.status)).toEqual(['reserved', 'reserved']);
+    });
+
+    test('a reservation of the camp covering only some of its days does not count as the camp\'s', async () => {
+      const axes = await equipment(units[0], 'Haches', 3);
+      const wood = await line(units[0], camp, 'Bois', 0);
+      await needs(units[0], wood, { equipmentItemId: axes }, 2);
+      await reserve(units[0], axes, 2, { meetingId: camp, from: '2026-11-13', to: '2026-11-13' });
+      const entry = (await list(camp)).body.data.items.find((item) => item.name === 'Haches');
+      // The one-day reservation holds two of the three axes on the first day: one free, two needed.
+      expect(entry.inventory).toEqual({ status: 'missing', reserved: 0, free: 1, missing: 1, to_reserve: 1 });
+    });
+
     test('equipment the camp does not list cannot be reserved through it', async () => {
       const other = await equipment(units[0], 'Hors liste', 3);
       expect((await reserveFor(camp, [{ equipment_item_id: other, quantity: 1 }])).status).toBe(409);

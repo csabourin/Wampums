@@ -151,6 +151,13 @@ describe('reserving what a camp still needs', () => {
     expect(pool.connect).not.toHaveBeenCalled();
   });
 
+  test('a whole camp\'s list, beyond one activity\'s fifty entries, is accepted in one request', async () => {
+    pool.connect.mockRejectedValueOnce(new Error('stop after validation'));
+    const items = Array.from({ length: 60 }, (_, index) => ({ equipment_item_id: index + 1, quantity: 1 }));
+    expect((await reserve(items)).status).toBe(500);
+    expect(pool.connect).toHaveBeenCalledTimes(1);
+  });
+
   test('a malformed camp id is refused', async () => {
     expect((await reserve([{ equipment_item_id: 11, quantity: 1 }], '12abc')).status).toBe(400);
   });

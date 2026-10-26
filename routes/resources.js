@@ -106,8 +106,11 @@ const HTTP_CREATED = 201;
 const HTTP_BAD_GATEWAY = 502;
 /** Slips one send or reminder request may name. */
 const MAX_SLIP_IDS_PER_REQUEST = 200;
-/** Most items one camp reservation names, as a material list holds per line. */
-const CAMP_RESERVATION_ITEMS_MAX = 50;
+/**
+ * Most items one camp reservation names: a whole camp's list, across every
+ * activity, in one all-or-none request.
+ */
+const CAMP_RESERVATION_ITEMS_MAX = 1000;
 /** Largest count of one item reserved at once. */
 const CAMP_RESERVATION_QUANTITY_MAX = 99999;
 const POSTGRES_INT_MAX = 2147483647;

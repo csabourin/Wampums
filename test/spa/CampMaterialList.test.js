@@ -235,7 +235,9 @@ test('export downloads the articles, then the free-text material', async () => {
   await openScreen();
   document.getElementById('camp-material-export').click();
   const [rows, columns, filename] = exportToCSV.mock.calls[0];
-  expect(rows.map((row) => row.name)).toEqual(['Tente 4 places', 'Lanternes', HOSTILE, `Maillets ${HOSTILE}`]);
+  expect(rows.map((row) => row.name)).toEqual(['Tente 4 places', 'Lanternes', HOSTILE, `Maillets ${HOSTILE}`, 'Bâche']);
+  // Reserved for the camp though no activity lists it: still on the packing list.
+  expect(rows[4]).toMatchObject({ quantity: 1, status: 'camp_material_status_reserved' });
   expect(rows[0]).toMatchObject({ quantity: 4, status: 'camp_material_status_missing (2 short)' });
   expect(columns.map((column) => column.key)).toEqual(['category', 'name', 'quantity', 'unit', 'uses', 'status']);
   expect(filename).toBe('camp_material_file_name-2026-11-13');

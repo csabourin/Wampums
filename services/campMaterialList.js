@@ -11,8 +11,9 @@
  * consolidated: it is returned beside, line by line, for a person to read.
  *
  * With the inventory right, each entry that is an inventory item is compared
- * with the unit's equipment over the camp's dates: what this camp reserved,
- * what is still free (counted as a reservation of those dates is, loans
+ * with the unit's equipment over the camp's dates: what this camp reserved
+ * for all its days (a reservation of some days only, or of dates the outing
+ * has since left, is not counted as the camp's), what is still free (counted as a reservation of those dates is, loans
  * included), and what is missing. Reservations made for this camp of
  * equipment no line lists are returned too, so nothing reserved is forgotten.
  *
@@ -153,6 +154,8 @@ async function loadInventoryStanding(db, organizationId, camp, equipmentIds) {
                  AND er.organization_id = $1
                  AND er.status IN ('reserved', 'confirmed')
                  AND (er.meeting_id = $4 OR ($5::int IS NOT NULL AND er.activity_id = $5::int))
+                 AND COALESCE(er.date_from, er.meeting_date) <= $2::date
+                 AND COALESCE(er.date_to, er.meeting_date) >= $3::date
             ), 0)::int AS reserved_for_camp,
             GREATEST(0,
               COALESCE(e.quantity_total, 0)
@@ -297,8 +300,23 @@ async function buildCampMaterialList(db, organizationId, meetingId, { withInvent
       listedIds.length ? loadInventoryStanding(db, organizationId, camp, listedIds) : new Map(),
       loadUnlistedReservations(db, organizationId, camp, listedIds),
     ]);
+    // Two articles standing for one item share it: compare the item with
+    // their combined need, and offer what is still to reserve on the first only.
+    const combined = new Map();
     items.forEach((entry) => {
-      entry.inventory = inventoryFor(entry, standing);
+      const id = Number(entry.equipment_item_id);
+      if (id) {
+        combined.set(id, roundQuantity((combined.get(id) || 0) + entry.quantity));
+      }
+    });
+    const offered = new Set();
+    items.forEach((entry) => {
+      const id = Number(entry.equipment_item_id);
+      entry.inventory = inventoryFor(id ? { ...entry, quantity: combined.get(id) } : entry, standing);
+      if (id && offered.has(id) && entry.inventory.to_reserve !== undefined) {
+        entry.inventory.to_reserve = 0;
+      }
+      offered.add(id);
     });
     unlistedReservations = unlisted;
   }
@@ -360,7 +378,8 @@ function needsByEquipment(items) {
  * with the items locked while their standing is counted: an entry asking for
  * more than the camp still lacks, or than is free, is refused, so two people
  * pressing the button at once never reserve twice. Each reservation names the
- * camp's meeting and outing; one already made for this camp grows instead.
+ * camp's meeting and outing; one already made for this camp, covering all its
+ * days, grows instead.
  *
  * @param {Object} pool - pg pool
  * @param {number} organizationId - Unit of the token
@@ -409,8 +428,10 @@ async function reserveCampMaterial(pool, organizationId, userId, meetingId, requ
          date_to = EXCLUDED.date_to,
          updated_at = CURRENT_TIMESTAMP
        WHERE NOT (equipment_reservations.status = ANY($10::text[]))
-          OR equipment_reservations.meeting_id = EXCLUDED.meeting_id
-          OR (EXCLUDED.activity_id IS NOT NULL AND equipment_reservations.activity_id = EXCLUDED.activity_id)
+          OR ((equipment_reservations.meeting_id = EXCLUDED.meeting_id
+               OR (EXCLUDED.activity_id IS NOT NULL AND equipment_reservations.activity_id = EXCLUDED.activity_id))
+              AND COALESCE(equipment_reservations.date_from, equipment_reservations.meeting_date) <= EXCLUDED.date_from
+              AND COALESCE(equipment_reservations.date_to, equipment_reservations.meeting_date) >= EXCLUDED.date_to)
        RETURNING id, equipment_id, reserved_quantity`,
       [
         organizationId, camp.id, camp.activity_id, camp.date_from, camp.date_to,
