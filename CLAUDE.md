@@ -510,6 +510,17 @@ adopted by exact legacy name, without changing their text; ambiguous matches are
 reported, never guessed. New units get their branch's standard-supervision entries.
 Rules and the meeting-template links are in `devdocs/ACTIVITY_LIBRARY.md`.
 
+### Creating a unit
+
+`POST /api/v1/organizations` (`org.create`, district-only) takes the unit's information, its branch
+(`program_section`), its subdomain and its administrator's email. In one transaction it records the
+domain in `organization_domains` (unique without case, migration 056; rules in
+`config/unit_subdomains.json`, read by the server and the SPA), sets the branch before installing
+starter activities, makes the creator a district member, and creates a pending invitation into the
+unit's `unitadmin` role (`resolveUnitRoleId`, `checkRolesGrantable`). The email goes after COMMIT; a
+failed send leaves the invitation to resend. `/units` (`org.create`) lists the person's units and
+switches with `POST /api/v1/organizations/switch`, which requires an active membership.
+
 ### Equipment catalogue and unit material
 
 `/equipment-catalog` (`equipment_catalog.manage`, migrations 054 and 055) names a unit's articles once:
