@@ -33,7 +33,7 @@ const SCREENS = {
   admin: [
     '/dashboard', '/manage-participants', '/invitations',
     '/unit-settings', '/roles', '/finance', '/budgets', '/expenses', '/reports',
-    '/messages', '/yearly-planner', '/medication-management', '/inventory', '/permission-slips',
+    '/tasks', '/messages', '/yearly-planner', '/medication-management', '/inventory', '/permission-slips',
     `/permission-slips/${seededActivityId()}`,
     '/carpool', '/form-builder', '/manage-groups', '/mailing-list', '/communication-history',
     '/incident-reports', '/scout-year', '/participant-duplicates', '/fundraisers', '/resources',
@@ -455,5 +455,24 @@ test.describe('the leaders\' programme bar', () => {
     await page.clock.runFor(12 * 60 * 1000);
     await expect(bar).toContainText('Histoire de la jungle');
     await expect(bar).toContainText('20 min');
+  });
+});
+
+test.describe('task assignment', () => {
+  signedInAs('admin');
+
+  test('the task form is accessible on phones and returns focus after Escape', async ({ page }) => {
+    await openScreen(page, '/tasks');
+    await expect(page.getByRole('heading', { name: 'Vérifier les pagaies' })).toBeVisible();
+    const opener = page.locator('#tasks-create');
+    await opener.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('#tasks-title')).toBeVisible();
+    expect(await axeViolations(page)).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(opener).toBeFocused();
   });
 });

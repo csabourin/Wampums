@@ -43,6 +43,14 @@ export const UNIT_SETTINGS_TILE_PERMISSIONS = [
 ];
 
 export const DASHBOARD_TILES = [
+  {
+    href: '/tasks',
+    icon: 'fa-list-check',
+    label: 'tile_tasks',
+    moment: 'week',
+    domain: 'logistics',
+    gate: { permission: 'tasks.view' },
+  },
   // ---------------------------------------------------------------
   // EN CE MOMENT — actions tied to a meeting happening right now.
   // Attendance leads: you mark who is here before awarding anything.

@@ -284,6 +284,12 @@ try {
     [organizationId, activityId]
   );
 
+  const { saveTask } = require(path.join(ROOT, 'services/activityTasks.js'));
+  await saveTask(pool, organizationId, adminId, {
+    title: 'Vérifier les pagaies', assignee_id: adminId, due_date: programmeDate,
+    activity_id: activityId, meeting_id: null,
+  });
+
   const seed = {
     organizationId,
     database: `postgresql:///${DB}?host=/var/run/postgresql`,
