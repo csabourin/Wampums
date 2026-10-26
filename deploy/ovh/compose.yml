@@ -17,6 +17,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: '5000'
+      STORAGE_DOMAIN: ${STORAGE_DOMAIN:-files.wampums.app}
     volumes:
       - app-logs:/app/logs
     healthcheck:

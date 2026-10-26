@@ -36,9 +36,18 @@ describe('a unit subdomain', () => {
   test('refuses the names the platform keeps for itself', () => {
     expect(readUnitSubdomain('WWW').problem).toBe('subdomain_reserved');
     expect(readUnitSubdomain('demo').problem).toBe('subdomain_reserved');
+    expect(readUnitSubdomain('FILES').problem).toBe('subdomain_reserved');
   });
 
   test('accepts the longest label DNS allows', () => {
     expect(readUnitSubdomain('a'.repeat(subdomainConfig.maxLength)).problem).toBeNull();
   });
+});
+
+afterEach(() => jest.restoreAllMocks());
+
+test('a configured storage hostname cannot be given to a unit', () => {
+  jest.replaceProperty(process, 'env', { ...process.env, STORAGE_DOMAIN: 'Warehouse.Wampums.App.' });
+  expect(readUnitSubdomain('warehouse').problem).toBe('subdomain_reserved');
+  expect(readUnitSubdomain('warehouse-unit').problem).toBeNull();
 });

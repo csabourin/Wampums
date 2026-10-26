@@ -634,6 +634,30 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
     expect(reserved.body.errors).toEqual([{ field: 'subdomain', msg: 'subdomain_reserved' }]);
   });
 
+  test('the storage address cannot be used to create a unit or add a unit address', async () => {
+    const refused = await create('Unité stockage refusée', { subdomain: 'FILES' });
+    expect(refused.status).toBe(400);
+    expect(refused.body.errors).toContainEqual({ field: 'subdomain', msg: 'subdomain_reserved' });
+
+    const unit = await enterNewUnit();
+    const added = await request(app).post('/api/v1/organizations/domains').send({ subdomain: 'files', make_primary: true });
+    expect(added.status).toBe(400);
+    expect(added.body.errors).toEqual([{ field: 'subdomain', msg: 'subdomain_reserved' }]);
+    expect(await one('SELECT domain FROM organization_domains WHERE organization_id = $1 AND is_primary', [unit.id])).toBe(unit.domain);
+  });
+
+  test('a legacy storage address cannot replace the working primary address', async () => {
+    const unit = await enterNewUnit();
+    const addressId = await one(
+      'INSERT INTO organization_domains (organization_id, domain) VALUES ($1, $2) RETURNING id',
+      [unit.id, 'files.wampums.app'],
+    );
+    const response = await request(app).put(`/api/v1/organizations/domains/${addressId}/primary`);
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe('subdomain_reserved');
+    expect(await one('SELECT domain FROM organization_domains WHERE organization_id = $1 AND is_primary', [unit.id])).toBe(unit.domain);
+  });
+
   test('the primary address and a unit\'s last address cannot be removed; another one can', async () => {
     const unit = await enterNewUnit();
     const primaryId = (await request(app).get('/api/v1/organizations/domains')).body.data[0].id;

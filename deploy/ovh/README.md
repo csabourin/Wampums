@@ -77,7 +77,10 @@ organization routing; outbound integrations stay blocked during this stage.
    receive this wildcard on their next deployment without editing `APP_DOMAINS`.
    Keep `APP_DOMAINS` for the apex and any additional exact app hostnames; do not
    put the unit wildcard or `STORAGE_DOMAIN` in that list. The exact storage
-   hostname continues to go to Garage, ahead of the app wildcard.
+   hostname continues to go to Garage, ahead of the app wildcard. `files` is
+   reserved in the shared unit-subdomain rules. Compose also passes the same
+   `STORAGE_DOMAIN` to the app, so a storage hostname override cannot be claimed
+   as a unit address or selected as its primary email address.
 
    In Cloudflare, create a proxied wildcard A record (`*` in the `wampums.app`
    zone) pointing to `148.113.174.196`. Keep the existing apex and explicit

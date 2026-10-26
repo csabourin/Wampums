@@ -39,7 +39,7 @@ const {
   ensureProgramSectionsSeeded,
   getProgramSections
 } = require('../utils/programSections');
-const { readUnitSubdomain } = require('../utils/unitSubdomains');
+const { readUnitSubdomain, isInfrastructureDomain } = require('../utils/unitSubdomains');
 const { installDefaultFormFormats } = require('../services/defaultFormFormats');
 const { checkRolesGrantable } = require('../services/roleAssignment');
 const { resolveUnitRoleId } = require('../services/roleVisibility');
@@ -831,6 +831,10 @@ module.exports = (pool, logger) => {
         if (target.rows.length === 0) {
           await client.query('ROLLBACK');
           return errorResponse(res, 'Address not found', HTTP_NOT_FOUND);
+        }
+        if (isInfrastructureDomain(target.rows[0].domain)) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'subdomain_reserved', HTTP_BAD_REQUEST);
         }
         if (isWildcardDomain(target.rows[0].domain)) {
           await client.query('ROLLBACK');

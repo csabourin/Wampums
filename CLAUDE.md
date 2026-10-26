@@ -533,6 +533,8 @@ static files and routes, using exact case-insensitive domain assignments (no hea
 fallback). Its 302 is not cached, drops path/query, and reflects address changes immediately;
 database failures stay errors. Apex/`www`, local development and other domain suffixes keep their
 existing routing.
+The storage hostname is reserved for infrastructure, including the OVH `STORAGE_DOMAIN` override.
+Saving vocabulary synchronizes both the app and the branch selector with the returned branch.
 Addresses are listed with `org.view`; adding one, choosing the
 primary one (`organization_domains.is_primary`, migration 057, used by `resolveOrganizationBaseUrl`)
 and removing one take `org.create`. A unit keeps its primary and at least one exact address. Adding

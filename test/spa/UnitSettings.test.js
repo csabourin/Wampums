@@ -483,6 +483,30 @@ describe('Unit languages', () => {
 });
 
 describe('the unit\'s branch', () => {
+  test.each(['cubs', 'beavers'])(
+    'saving %s vocabulary updates the branch selector before General can save it again', async (profile) => {
+      const app = { showMessage: jest.fn(), organizationSettings: { program_section: 'general' } };
+      const fetchSettings = require('../../spa/api/api-endpoints.js').fetchEditableOrganizationSettings;
+      fetchSettings.mockResolvedValueOnce({ data: { organization_info: { name: 'Unité Ada' }, program_section: 'general' } });
+      await new UnitSettings(app).init();
+      mockUpdateUnitVocabulary.mockResolvedValueOnce({ data: { program_section: profile } });
+
+      document.getElementById('unit-settings-tab-vocabulary').click();
+      const select = document.getElementById('unit-vocabulary-profile');
+      select.value = profile;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      document.getElementById('unit-vocabulary-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await flushPromises();
+
+      expect(app.organizationSettings.program_section).toBe(profile);
+      document.getElementById('unit-settings-tab-general').click();
+      expect(document.getElementById('unit-branch-select').value).toBe(profile);
+      document.getElementById('unit-branch-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await flushPromises();
+      expect(mockUpdateUnitBranch).toHaveBeenCalledWith(profile);
+    },
+  );
+
   test('shows the branch the unit has, and saving another changes the app\'s vocabulary with it', async () => {
     const app = { showMessage: jest.fn(), organizationSettings: { program_section: 'cubs' } };
     const fetchSettings = require('../../spa/api/api-endpoints.js').fetchEditableOrganizationSettings;

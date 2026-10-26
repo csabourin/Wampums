@@ -16,6 +16,7 @@
     "district",
     "docs",
     "email",
+    "files",
     "ftp",
     "help",
     "info",
@@ -32,5 +33,6 @@
     "test",
     "wampums",
     "www"
-  ]
+  ],
+  "storageDomain": "files.wampums.app"
 }

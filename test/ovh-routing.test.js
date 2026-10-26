@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { baseDomain } = require('../config/unit_subdomains.json');
+const { baseDomain, storageDomain } = require('../config/unit_subdomains.json');
 
 const deploymentFile = (name) => fs.readFileSync(path.join(__dirname, '../deploy/ovh', name), 'utf8');
 
@@ -13,5 +13,7 @@ describe('OVH unit address routing', () => {
 
   test('the storage hostname keeps its own exact route to Garage', () => {
     expect(deploymentFile('Caddyfile')).toMatch(/\{\$STORAGE_DOMAIN\}\s*\{[^}]*reverse_proxy garage:3900/s);
+    expect(deploymentFile('compose.yml').match(/STORAGE_DOMAIN: \$\{STORAGE_DOMAIN:-([^}]+)\}/g))
+      .toEqual(Array(2).fill(`STORAGE_DOMAIN: \${STORAGE_DOMAIN:-${storageDomain}}`));
   });
 });

@@ -1311,12 +1311,12 @@ export class UnitSettings extends BaseModule {
     try {
       const response = await updateUnitVocabulary(payload);
       this.vocabulary = response?.data?.unit_vocabulary || payload;
+      this.programSection = response?.data?.program_section || this.programSection;
       if (this.app) {
         this.app.organizationSettings = {
           ...(this.app.organizationSettings || {}),
           unit_vocabulary: this.vocabulary,
-          program_section: response?.data?.program_section
-            || this.app.organizationSettings?.program_section,
+          program_section: this.programSection,
         };
       }
       this.app?.showMessage?.(translate('unit_vocabulary_saved'), 'success');

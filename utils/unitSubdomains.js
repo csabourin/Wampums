@@ -36,6 +36,20 @@ function subdomainProblem(subdomain) {
 }
 
 /**
+ * Whether a hostname belongs to infrastructure rather than a unit. The app's
+ * storage override is passed by Compose from the same setting Caddy uses.
+ *
+ * @param {string} hostname - Exact hostname being assigned or made primary.
+ * @returns {boolean} Whether the hostname is reserved for storage.
+ */
+function isInfrastructureDomain(hostname) {
+  const normalized = String(hostname).trim().toLowerCase().replace(/\.$/, '');
+  return [subdomainConfig.storageDomain, process.env.STORAGE_DOMAIN]
+    .filter(Boolean)
+    .some((domain) => domain.trim().toLowerCase().replace(/\.$/, '') === normalized);
+}
+
+/**
  * Read the subdomain of a unit being created.
  *
  * @param {*} value - `subdomain` from the request body
@@ -47,10 +61,12 @@ function readUnitSubdomain(value) {
     return { subdomain: null, hostname: null, problem: 'subdomain_required' };
   }
   const subdomain = value.trim().toLowerCase();
-  const problem = subdomainProblem(subdomain);
+  const hostname = `${subdomain}.${subdomainConfig.baseDomain}`;
+  const problem = subdomainProblem(subdomain)
+    || (isInfrastructureDomain(hostname) ? 'subdomain_reserved' : null);
   return problem
     ? { subdomain: null, hostname: null, problem }
-    : { subdomain, hostname: `${subdomain}.${subdomainConfig.baseDomain}`, problem: null };
+    : { subdomain, hostname, problem: null };
 }
 
-module.exports = { subdomainConfig, readUnitSubdomain };
+module.exports = { subdomainConfig, readUnitSubdomain, isInfrastructureDomain };

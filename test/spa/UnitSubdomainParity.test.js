@@ -9,7 +9,7 @@ const { readUnitSubdomain } = require('../../utils/unitSubdomains');
 
 const CASES = [
   '', '   ', 'ab', 'abc', 'Meute-Ada', 'meute--ada', '-meute', 'meute-', 'meute_ada', 'meute.ada',
-  'www', 'DEMO', 'a'.repeat(63), 'a'.repeat(64), 'louveteaux-é', '6e-groupe',
+  'www', 'DEMO', 'files', 'FILES', 'a'.repeat(63), 'a'.repeat(64), 'louveteaux-é', '6e-groupe',
 ];
 
 test.each(CASES)('the form and the server agree on "%s"', (value) => {
