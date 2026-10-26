@@ -68,6 +68,8 @@ export function mergeTimelineWithTemplates(planTimeline, templates, allowedRespo
       typeKey: null,
       responsable,
       materiel,
+      // Chosen by the server among the unit's own material, never invented.
+      material_items: Array.isArray(item.material_items) ? item.material_items : [],
       isDefault: false
     };
   });

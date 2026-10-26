@@ -2,6 +2,7 @@ import { translate } from '../app.js';
 import { getHonorLabel } from '../utils/meetingSections.js';
 import { openPrintWindow, setPrintContent } from '../utils/PrintUtils.js';
 import { escapeHTML } from '../utils/SecurityUtils.js';
+import { renderMaterialItemsList } from './equipment-catalog/MaterialItemsField.js';
 
 /**
  * Paper styles for the printed meeting preparation.
@@ -126,7 +127,7 @@ export class PrintManager {
                 <td>${text(a.duration)}</td>
                 <td>${text(a.activity)}</td>
                 <td>${text(a.responsable)}</td>
-                <td>${text(a.materiel)}</td>
+                <td>${text(a.materiel)}${renderMaterialItemsList(a.material_items, this.activityManager?.app?.lang)}</td>
               </tr>
             `).join('')}
           </tbody>

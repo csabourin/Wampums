@@ -33,7 +33,7 @@ const SCREENS = {
   admin: [
     '/dashboard', '/manage-participants', '/invitations',
     '/unit-settings', '/roles', '/finance', '/budgets', '/expenses', '/reports',
-    '/tasks', '/messages', '/yearly-planner', '/medication-management', '/inventory', '/permission-slips',
+    '/tasks', '/messages', '/yearly-planner', '/medication-management', '/inventory', '/equipment-catalog', '/permission-slips',
     `/permission-slips/${seededActivityId()}`,
     '/carpool', '/form-builder', '/manage-groups', '/mailing-list', '/communication-history',
     '/incident-reports', '/scout-year', '/participant-duplicates', '/fundraisers', '/resources',

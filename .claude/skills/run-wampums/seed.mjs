@@ -302,6 +302,9 @@ try {
     [organizationId, activityId]
   );
 
+  const { createCatalogItem } = require(path.join(ROOT, 'services/equipmentCatalog.js'));
+  await createCatalogItem(pool, organizationId, adminId, { name: 'Tente 4 places', category: 'camping', unit_of_measure: 'each' });
+
   const { saveTask } = require(path.join(ROOT, 'services/activityTasks.js'));
   await saveTask(pool, organizationId, adminId, {
     title: 'Vérifier les pagaies', assignee_id: adminId, due_date: programmeDate,

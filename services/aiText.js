@@ -240,6 +240,27 @@ function buildMessages(mode, payload) {
 
   switch (mode) {
     case 'meeting_plan': {
+      if (payload.requestType === 'activity_plan' && Array.isArray(payload.availableMaterial) && payload.availableMaterial.length > 0) {
+        return [
+          {
+            role: 'system',
+            content: `You create age-appropriate youth-program activities. ${untrustedDataRule}
+The unit's material is listed in "availableMaterial". Choose the activity's material only from that list, by its "ref", with a quantity in its "unit"; never name material that is not in the list. Prefer an activity the listed material makes possible. Return only a JSON object with this structure:
+{
+  "title": "string",
+  "overview": "string",
+  "timeline": [{ "minuteStart": 0, "minuteEnd": 10, "name": "string", "objective": "string" }],
+  "materials": [{ "ref": "string", "quantity": 1 }]
+}
+
+${CANADIAN_FRENCH_RULE}`,
+          },
+          {
+            role: 'user',
+            content: `Create an activity plan from this validated request data:\n${JSON.stringify(payload)}`,
+          },
+        ];
+      }
       if (payload.requestType === 'activity_plan') {
         return [
           {
@@ -258,6 +279,33 @@ ${CANADIAN_FRENCH_RULE}`,
           {
             role: 'user',
             content: `Create an activity plan from this validated request data:\n${JSON.stringify(payload)}`,
+          },
+        ];
+      }
+      if (Array.isArray(payload.availableMaterial) && payload.availableMaterial.length > 0) {
+        return [
+          {
+            role: 'system',
+            content: `You create age-appropriate youth-program meeting plans. ${untrustedDataRule}
+Use the requested locale and unit vocabulary from the data. Preserve the order, start times, and durations of supplied activity templates. Do not invent participant or leader names.
+The unit's material is listed in "availableMaterial". Choose each activity's material only from that list, by its "ref", with a quantity in its "unit"; never name material that is not in the list. Prefer activities the listed material makes possible, and leave "materialItems" empty when an activity needs nothing from the list. Return only a JSON object with this structure:
+{
+  "theme": "string",
+  "goals": "string",
+  "timeline": [{
+    "time": "HH:MM",
+    "duration": "HH:MM",
+    "activity": "string",
+    "responsable": "string",
+    "materialItems": [{ "ref": "string", "quantity": 1 }]
+  }]
+}
+
+${CANADIAN_FRENCH_RULE}`,
+          },
+          {
+            role: 'user',
+            content: `Create a meeting plan from this validated request data:\n${JSON.stringify(payload)}`,
           },
         ];
       }

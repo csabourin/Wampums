@@ -33,6 +33,7 @@ import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { ActivityManager } from './ActivityManager.js';
 import { PrintManager } from '../PrintManager.js';
 import { aiGenerateText } from '../../api/api-ai.js';
+import { getMaterialOptions } from '../../api/api-equipment-catalog.js';
 import { MeetingAutosave, MEETING_SAVE_STATES } from './MeetingAutosave.js';
 import {
   getMeetingActivities,
@@ -104,6 +105,9 @@ export class MeetingPrep extends BaseModule {
         this.app, this.animateurs, this.activitiesCatalog,
         this.sectionConfig, this.badgeTemplates, this.participants
       );
+      if (this.canPickMaterial) {
+        this.activityManager.setMaterialChoices(this.materialChoices, hasPermission('equipment_catalog.manage'));
+      }
       this.printManager = new PrintManager(
         this.activityManager,
         this.sectionConfig,
@@ -127,7 +131,9 @@ export class MeetingPrep extends BaseModule {
   async fetchData() {
     this.organizationSettings = (await this.app.waitForOrganizationSettings()) || {};
 
-    const [catalogResponse, animateursResponse, badgeResponse, participantsResponse, datesResponse, reminderResponse] =
+    // Those who plan meetings pick what activities need from the unit's material.
+    this.canPickMaterial = hasPermission('meetings.manage') || hasPermission('equipment_catalog.manage');
+    const [catalogResponse, animateursResponse, badgeResponse, participantsResponse, datesResponse, reminderResponse, materialResponse] =
       await Promise.all([
         getMeetingActivities().catch(err => {
           debugError('Error loading activity catalog:', err);
@@ -152,7 +158,13 @@ export class MeetingPrep extends BaseModule {
         getReminder().catch(err => {
           debugError('Error loading reminder:', err);
           return { data: null };
-        })
+        }),
+        this.canPickMaterial
+          ? getMaterialOptions().catch(err => {
+            debugError('Error loading the unit material:', err);
+            return { data: null };
+          })
+          : { data: null }
       ]);
 
     this.activitiesCatalog = catalogResponse?.data || [];
@@ -162,6 +174,7 @@ export class MeetingPrep extends BaseModule {
     this.participants = participantsResponse?.data || [];
     this.meetingDates = datesResponse?.data || [];
     this.reminder = reminderResponse?.data || null;
+    this.materialChoices = materialResponse?.data || null;
 
     this.updateSectionConfig(this.organizationSettings.meeting_sections);
   }
@@ -426,12 +439,10 @@ export class MeetingPrep extends BaseModule {
 
   /** @returns {string} Compact, non-banner autosave status markup. */
   renderSaveStatus() {
-    const translationKey = SAVE_STATUS_TRANSLATIONS[this.saveState] ||
-      SAVE_STATUS_TRANSLATIONS[MEETING_SAVE_STATES.SAVED];
     return `
       <span id="meeting-save-status" class="meeting-save-status" data-state="${this.saveState}" role="status" aria-live="polite">
         <span class="meeting-save-status__indicator" aria-hidden="true"></span>
-        <span class="meeting-save-status__label">${translate(translationKey)}</span>
+        <span class="meeting-save-status__label">${escapeHTML(this.saveStatusText())}</span>
       </span>
     `;
   }
@@ -440,8 +451,6 @@ export class MeetingPrep extends BaseModule {
   updateSaveStatus() {
     const status = document.getElementById('meeting-save-status');
     const saveButton = document.getElementById('meeting-save-button');
-    const translationKey = SAVE_STATUS_TRANSLATIONS[this.saveState] ||
-      SAVE_STATUS_TRANSLATIONS[MEETING_SAVE_STATES.SAVED];
 
     if (status) {
       status.dataset.state = this.saveState;
@@ -450,7 +459,7 @@ export class MeetingPrep extends BaseModule {
         this.saveState === MEETING_SAVE_STATES.SAVING ? 'true' : 'false'
       );
       const label = status.querySelector('.meeting-save-status__label');
-      if (label) {label.textContent = translate(translationKey);}
+      if (label) {label.textContent = this.saveStatusText();}
     }
     if (saveButton) {
       saveButton.disabled = this.saveState === MEETING_SAVE_STATES.SAVED ||
@@ -520,7 +529,7 @@ export class MeetingPrep extends BaseModule {
           <div class="form-row">
             <div class="form-group">
               <label for="animateur-responsable">${translate('animateur_responsable')}:</label>
-              <select id="animateur-responsable" required>
+              <select id="animateur-responsable">
                 <option value="">${translate('select_animateur')}</option>
                 ${this.animateurs.map(a => `<option value="${a.id}" ${String(a.id) === String(meeting.animateur_responsable || '') ? 'selected' : ''}>${escapeHTML(memberDisplayName(a))}</option>`).join('')}
               </select>
@@ -540,7 +549,7 @@ export class MeetingPrep extends BaseModule {
             </div>
             <div class="form-group">
               <label for="endroit">${translate('endroit')}:</label>
-              <input type="text" id="endroit" value="${escapeHTML(meeting.endroit || '')}" required>
+              <input type="text" id="endroit" value="${escapeHTML(meeting.endroit || '')}">
             </div>
           </div>
           <div class="form-row">
@@ -789,6 +798,8 @@ export class MeetingPrep extends BaseModule {
         this.activityManager.addActivityRow(e.target.dataset.position);
       } else if (e.target.classList.contains('delete-row-btn')) {
         this.activityManager.deleteActivityRow(e.target.dataset.position);
+      } else if (e.target.closest('.material-items-btn')) {
+        this.activityManager.openMaterialItems(e.target.closest('.material-items-btn'));
       }
     });
   }
@@ -858,16 +869,58 @@ export class MeetingPrep extends BaseModule {
   }
 
   /**
-   * Test whether a local draft is complete enough for a server autosave.
-   * Browser-native required-field validation stays silent in this path.
+   * What the server still needs before it can keep this meeting: the date,
+   * the youth of honour when the unit requires one, and any field the browser
+   * finds invalid. Only these hold a change on this device; the leader in
+   * charge and the place are optional, as on the server.
+   * @param {Object} formData - Meeting preparation payload
+   * @returns {Array<{id: string, label: string}>} The fields, by id and visible label
+   */
+  missingForServer(formData) {
+    const form = document.getElementById('reunion-form');
+    const labelOf = (id) => (form?.querySelector(`label[for="${id}"]`)?.textContent || id)
+      .trim().replace(/\s*:\s*$/, '');
+    const missing = [];
+    if (!formData.date) {
+      missing.push({ id: 'date', label: labelOf('date') });
+    }
+    if (this.sectionConfig?.honorField?.required && formData.youth_of_honor.length === 0) {
+      missing.push({ id: 'youth-of-honor', label: labelOf('youth-of-honor') });
+    }
+    form?.querySelectorAll('input:invalid, select:invalid, textarea:invalid').forEach((control) => {
+      if (control.id && !missing.some((field) => field.id === control.id)) {
+        missing.push({ id: control.id, label: labelOf(control.id) });
+      }
+    });
+    return missing;
+  }
+
+  /**
+   * Test whether a local draft is complete enough for a server autosave,
+   * remembering what is missing so the status can name it.
    * @param {Object} formData - Meeting preparation payload
    * @returns {boolean} True when the server may accept the full snapshot
    */
   isFormDataValid(formData) {
-    const form = document.getElementById('reunion-form');
-    const honorValid = !this.sectionConfig?.honorField?.required ||
-      formData.youth_of_honor.length > 0;
-    return Boolean(formData.date && honorValid && form?.checkValidity());
+    this.missingFields = this.missingForServer(formData);
+    // The state may already read "local" (the draft was written first), and
+    // the autosave reports only changes of state: name what is missing now.
+    this.updateSaveStatus();
+    return this.missingFields.length === 0;
+  }
+
+  /**
+   * The status text. A change kept on this device because something is
+   * missing says what, so it never reads as saved for the team.
+   * @returns {string} Plain text
+   */
+  saveStatusText() {
+    if (this.saveState === MEETING_SAVE_STATES.LOCAL && this.missingFields?.length) {
+      return translate('meeting_autosave_incomplete')
+        .replace('{fields}', this.missingFields.map((field) => field.label).join(', '));
+    }
+    return translate(SAVE_STATUS_TRANSLATIONS[this.saveState] ||
+      SAVE_STATUS_TRANSLATIONS[MEETING_SAVE_STATES.SAVED]);
   }
 
   /**

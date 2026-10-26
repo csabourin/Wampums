@@ -20,6 +20,14 @@ const {
   describeStarterCatalogue,
   importStarterActivities
 } = require('../services/activityLibraryStarter');
+const {
+  CatalogError,
+  isMaterialItems,
+  readMaterialItems,
+  replaceActivityMaterialItems,
+  withMaterialItems,
+  copyActivityMaterialItems
+} = require('../services/equipmentCatalog');
 
 /**
  * Kinds of dated block on the planner calendar.
@@ -29,8 +37,50 @@ const {
  */
 const MEETING_KINDS = ['regular', 'weekend', 'camp', 'special'];
 
+/**
+ * Write a schedule line and its catalogue articles in one transaction.
+ *
+ * @param {Object} pool - pg pool
+ * @param {Function} write - Receives the transaction client, returns the line
+ * @returns {Promise<Object|null>} What `write` returned
+ */
+async function inScheduleTransaction(pool, write) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await write(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Answer a catalogue refusal (an article of another unit, or archived) as a
+ * 400 on `material_items`; anything else goes to the global handler.
+ *
+ * @param {Object} res - Express response
+ * @param {Error} err
+ * @returns {Object} The response sent
+ */
+function catalogRefusal(res, err) {
+  if (err instanceof CatalogError) {
+    return error(res, err.message, err.status, [{ path: err.field || 'material_items', location: 'body', msg: err.message }]);
+  }
+  throw err;
+}
+
+/** express-validator check of an optional `material_items` list. */
+const materialItemsCheck = () => check('material_items').optional()
+  .custom(isMaterialItems).withMessage('equipment_catalog_invalid_items');
+
 /** Status for a starter selection the person must correct. */
 const HTTP_BAD_REQUEST = 400;
+const HTTP_NOT_FOUND = 404;
 
 /** Upper bound on a single batch placement: a school year holds far fewer dates. */
 const MAX_BATCH_MEETINGS = 60;
@@ -314,7 +364,7 @@ module.exports = (pool, logger) => {
       ]);
 
       if (planResult.rows.length === 0) {
-        return error(res, 'Year plan not found', 404);
+        return error(res, 'Year plan not found', HTTP_NOT_FOUND);
       }
 
       const plan = planResult.rows[0];
@@ -505,7 +555,7 @@ module.exports = (pool, logger) => {
         [planId, organizationId]
       );
       if (check_result.rows.length === 0) {
-        return error(res, 'Year plan not found', 404);
+        return error(res, 'Year plan not found', HTTP_NOT_FOUND);
       }
       if ((blackout_dates || anchors) && regenerate !== true) {
         return error(res, 'regenerate_meetings must be true when calendar rules change', 400);
@@ -647,7 +697,7 @@ module.exports = (pool, logger) => {
 
         if (result.rows.length === 0) {
           await client.query('ROLLBACK');
-          return error(res, 'Year plan not found', 404);
+          return error(res, 'Year plan not found', HTTP_NOT_FOUND);
         }
 
         // Keep meetings that carry preparation content or already happened
@@ -735,7 +785,7 @@ module.exports = (pool, logger) => {
         [planId, organizationId]
       );
       if (planCheck.rows.length === 0) {
-        return error(res, 'Year plan not found', 404);
+        return error(res, 'Year plan not found', HTTP_NOT_FOUND);
       }
 
       const result = await pool.query(
@@ -792,7 +842,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Period not found', 404);
+        return error(res, 'Period not found', HTTP_NOT_FOUND);
       }
 
       return success(res, result.rows[0], 'Period updated');
@@ -824,7 +874,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Period not found', 404);
+        return error(res, 'Period not found', HTTP_NOT_FOUND);
       }
 
       return success(res, null, 'Period deleted');
@@ -937,7 +987,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Objective not found', 404);
+        return error(res, 'Objective not found', HTTP_NOT_FOUND);
       }
 
       return success(res, result.rows[0], 'Objective updated');
@@ -963,7 +1013,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Objective not found', 404);
+        return error(res, 'Objective not found', HTTP_NOT_FOUND);
       }
 
       return success(res, null, 'Objective deleted');
@@ -994,7 +1044,7 @@ module.exports = (pool, logger) => {
       );
 
       if (meetingCheck.rows.length === 0) {
-        return error(res, 'Meeting not found', 404);
+        return error(res, 'Meeting not found', HTTP_NOT_FOUND);
       }
 
       // Past meetings stay editable: documenting what actually happened is
@@ -1082,7 +1132,7 @@ module.exports = (pool, logger) => {
       ]);
 
       if (meetingResult.rows.length === 0) {
-        return error(res, 'Meeting not found', 404);
+        return error(res, 'Meeting not found', HTTP_NOT_FOUND);
       }
 
       const meeting = meetingResult.rows[0];
@@ -1121,7 +1171,7 @@ module.exports = (pool, logger) => {
       );
 
       if (meetingResult.rows.length === 0) {
-        return error(res, 'Meeting not found', 404);
+        return error(res, 'Meeting not found', HTTP_NOT_FOUND);
       }
 
       const meeting = meetingResult.rows[0];
@@ -1180,11 +1230,11 @@ module.exports = (pool, logger) => {
         [meetingId, organizationId]
       );
       if (existing.rows.length === 0) {
-        return error(res, 'Meeting not found', 404);
+        return error(res, 'Meeting not found', HTTP_NOT_FOUND);
       }
       const previousActivityId = existing.rows[0].activity_id;
       if (!previousActivityId) {
-        return error(res, 'Meeting is not linked to an activity', 404);
+        return error(res, 'Meeting is not linked to an activity', HTTP_NOT_FOUND);
       }
 
       await pool.query(
@@ -1237,7 +1287,7 @@ module.exports = (pool, logger) => {
         [planId, organizationId]
       );
       if (planCheck.rows.length === 0) {
-        return error(res, 'Year plan not found', 404);
+        return error(res, 'Year plan not found', HTTP_NOT_FOUND);
       }
 
       // A period may only be attached if it belongs to this plan.
@@ -1247,7 +1297,7 @@ module.exports = (pool, logger) => {
           [period_id, planId, organizationId]
         );
         if (periodCheck.rows.length === 0) {
-          return error(res, 'Period not found in this plan', 404);
+          return error(res, 'Period not found in this plan', HTTP_NOT_FOUND);
         }
       }
 
@@ -1372,7 +1422,7 @@ module.exports = (pool, logger) => {
         [meetingId, organizationId]
       );
       if (meetingResult.rows.length === 0) {
-        return error(res, 'Meeting not found', 404);
+        return error(res, 'Meeting not found', HTTP_NOT_FOUND);
       }
       const meeting = meetingResult.rows[0];
 
@@ -1448,7 +1498,7 @@ module.exports = (pool, logger) => {
       const context = await getScheduleContext(pool, meetingId, organizationId);
 
       if (!context) {
-        return error(res, 'Meeting not found', 404);
+        return error(res, 'Meeting not found', HTTP_NOT_FOUND);
       }
 
       const [daysResult, activitiesResult, sourcesResult] = await Promise.all([
@@ -1506,8 +1556,9 @@ module.exports = (pool, logger) => {
         )
       ]);
 
+      const activities = await withMaterialItems(pool, organizationId, activitiesResult.rows);
       const activitiesByDay = new Map();
-      for (const activity of activitiesResult.rows) {
+      for (const activity of activities) {
         const offset = Number(activity.day_offset) || 0;
         if (!activitiesByDay.has(offset)) {
           activitiesByDay.set(offset, []);
@@ -1549,7 +1600,7 @@ module.exports = (pool, logger) => {
       const context = await getScheduleContext(pool, meetingId, organizationId);
 
       if (!context) {
-        return error(res, 'Meeting not found', 404);
+        return error(res, 'Meeting not found', HTTP_NOT_FOUND);
       }
       if (!isDayInSpan(dayOffset, context)) {
         return error(res, 'day_offset is outside the meeting span', 400);
@@ -1592,7 +1643,7 @@ module.exports = (pool, logger) => {
       ]);
 
       if (!target || !source) {
-        return error(res, 'Source or target meeting not found', 404);
+        return error(res, 'Source or target meeting not found', HTTP_NOT_FOUND);
       }
       if (targetMeetingId === sourceMeetingId) {
         return error(res, 'Source and target meetings must differ', 400);
@@ -1636,22 +1687,34 @@ module.exports = (pool, logger) => {
            RETURNING *`,
           [targetMeetingId, sourceMeetingId, organizationId]
         );
+        // Ids are drawn first so each copy's catalogue articles follow it.
+        const pairs = await client.query(
+          `SELECT id AS source_id,
+                  nextval(pg_get_serial_sequence('public.year_plan_meeting_activities', 'id'))::integer AS target_id
+             FROM year_plan_meeting_activities
+            WHERE meeting_id = $1 AND organization_id = $2 AND day_offset > 0
+            ORDER BY day_offset, sort_order, id`,
+          [sourceMeetingId, organizationId]
+        );
+        const sourceIds = pairs.rows.map(pair => pair.source_id);
+        const targetIds = pairs.rows.map(pair => pair.target_id);
         const copiedActivities = await client.query(
           `INSERT INTO year_plan_meeting_activities
-             (organization_id, meeting_id, activity_library_id, name, description,
+             (id, organization_id, meeting_id, activity_library_id, name, description,
               duration_minutes, sort_order, objective_ids, series_id, series_occurrence,
               metadata, start_time, activity_type, responsable, material, is_default,
               badge_template_id, processed, day_offset)
-           SELECT organization_id, $1, activity_library_id, name, description,
-                  duration_minutes, sort_order, objective_ids, series_id, series_occurrence,
-                  metadata, start_time, activity_type, responsable, material, is_default,
-                  badge_template_id, processed, day_offset
-             FROM year_plan_meeting_activities
-            WHERE meeting_id = $2 AND organization_id = $3 AND day_offset > 0
-            ORDER BY day_offset, sort_order, id
+           SELECT pair.target_id, a.organization_id, $1, a.activity_library_id, a.name, a.description,
+                  a.duration_minutes, a.sort_order, a.objective_ids, a.series_id, a.series_occurrence,
+                  a.metadata, a.start_time, a.activity_type, a.responsable, a.material, a.is_default,
+                  a.badge_template_id, a.processed, a.day_offset
+             FROM unnest($2::int[], $3::int[]) AS pair(source_id, target_id)
+             JOIN year_plan_meeting_activities a
+               ON a.id = pair.source_id AND a.organization_id = $4
            RETURNING *`,
-          [targetMeetingId, sourceMeetingId, organizationId]
+          [targetMeetingId, sourceIds, targetIds, organizationId]
         );
+        await copyActivityMaterialItems(client, organizationId, sourceIds, targetIds);
 
         await client.query('COMMIT');
         return success(res, {
@@ -1682,6 +1745,7 @@ module.exports = (pool, logger) => {
       check('start_time').optional({ nullable: true }).matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
       check('responsable').optional({ nullable: true }).trim().isLength({ max: 255 }),
       check('material').optional({ nullable: true }).isString().isLength({ max: 10000 }),
+      materialItemsCheck(),
       validateIdParam('meetingId'),
       checkValidation
     ],
@@ -1693,7 +1757,7 @@ module.exports = (pool, logger) => {
       // whole terms and must not fail on dates that have already gone by.
       const context = await getScheduleContext(pool, meetingId, organizationId);
       if (!context) {
-        return error(res, 'Meeting not found', 404);
+        return error(res, 'Meeting not found', HTTP_NOT_FOUND);
       }
 
       const {
@@ -1706,22 +1770,36 @@ module.exports = (pool, logger) => {
         return error(res, 'day_offset is outside the meeting span', 400);
       }
 
-      const result = await pool.query(
-        `INSERT INTO year_plan_meeting_activities
-         (organization_id, meeting_id, activity_library_id, name, description,
-          duration_minutes, sort_order, objective_ids, series_id, series_occurrence, metadata,
-          day_offset, start_time, activity_type, responsable, material)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-         RETURNING *`,
-        [
-          organizationId, meetingId, activity_library_id || null,
-          name, description || null, duration_minutes || null,
-          sort_order || 0, JSON.stringify(objective_ids || []),
-          series_id || null, series_occurrence || null,
-          JSON.stringify(metadata || {}), dayOffset, start_time || null,
-          activity_type || null, responsable || null, material || null
-        ]
-      );
+      const materialItems = req.body.material_items === undefined
+        ? null : readMaterialItems(req.body.material_items);
+      let created;
+      try {
+        created = await inScheduleTransaction(pool, async (client) => {
+          const inserted = await client.query(
+            `INSERT INTO year_plan_meeting_activities
+             (organization_id, meeting_id, activity_library_id, name, description,
+              duration_minutes, sort_order, objective_ids, series_id, series_occurrence, metadata,
+              day_offset, start_time, activity_type, responsable, material)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+             RETURNING *`,
+            [
+              organizationId, meetingId, activity_library_id || null,
+              name, description || null, duration_minutes || null,
+              sort_order || 0, JSON.stringify(objective_ids || []),
+              series_id || null, series_occurrence || null,
+              JSON.stringify(metadata || {}), dayOffset, start_time || null,
+              activity_type || null, responsable || null, material || null
+            ]
+          );
+          if (materialItems) {
+            await replaceActivityMaterialItems(client, organizationId, inserted.rows[0].id, materialItems);
+          }
+          const [line] = await withMaterialItems(client, organizationId, inserted.rows);
+          return line;
+        });
+      } catch (err) {
+        return catalogRefusal(res, err);
+      }
 
       // Update library usage stats if from library
       if (activity_library_id) {
@@ -1733,7 +1811,7 @@ module.exports = (pool, logger) => {
         );
       }
 
-      return success(res, result.rows[0], 'Activity added to meeting', 201);
+      return success(res, created, 'Activity added to meeting', 201);
     })
   );
 
@@ -1750,6 +1828,7 @@ module.exports = (pool, logger) => {
       check('start_time').optional({ nullable: true }).matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
       check('responsable').optional({ nullable: true }).trim().isLength({ max: 255 }),
       check('material').optional({ nullable: true }).isString().isLength({ max: 10000 }),
+      materialItemsCheck(),
       validateIdParam('id'),
       checkValidation
     ],
@@ -1762,7 +1841,7 @@ module.exports = (pool, logger) => {
         [activityId, organizationId]
       );
       if (existing.rows.length === 0) {
-        return error(res, 'Activity not found', 404);
+        return error(res, 'Activity not found', HTTP_NOT_FOUND);
       }
 
       if (Object.prototype.hasOwnProperty.call(req.body, 'day_offset')) {
@@ -1789,20 +1868,41 @@ module.exports = (pool, logger) => {
         updates.push(`${field} = $${values.length}`);
       }
 
-      if (updates.length === 0) {
+      const materialItems = req.body.material_items === undefined
+        ? null : readMaterialItems(req.body.material_items);
+      if (updates.length === 0 && !materialItems) {
         return success(res, existing.rows[0], 'No changes detected');
       }
 
       values.push(activityId, organizationId);
-      const result = await pool.query(
-        `UPDATE year_plan_meeting_activities
-            SET ${updates.join(', ')}, updated_at = NOW()
-          WHERE id = $${values.length - 1} AND organization_id = $${values.length}
-          RETURNING *`,
-        values
-      );
+      let updated;
+      try {
+        updated = await inScheduleTransaction(pool, async (client) => {
+          // Lock the line even when only its articles change.
+          const result = await client.query(
+            `UPDATE year_plan_meeting_activities
+                SET ${[...updates, 'updated_at = NOW()'].join(', ')}
+              WHERE id = $${values.length - 1} AND organization_id = $${values.length}
+              RETURNING *`,
+            values
+          );
+          if (result.rows.length === 0) {
+            return null;
+          }
+          if (materialItems) {
+            await replaceActivityMaterialItems(client, organizationId, activityId, materialItems);
+          }
+          const [line] = await withMaterialItems(client, organizationId, result.rows);
+          return line;
+        });
+      } catch (err) {
+        return catalogRefusal(res, err);
+      }
+      if (!updated) {
+        return error(res, 'Activity not found', HTTP_NOT_FOUND);
+      }
 
-      return success(res, result.rows[0], 'Activity updated');
+      return success(res, updated, 'Activity updated');
     })
   );
 
@@ -1825,7 +1925,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Activity not found', 404);
+        return error(res, 'Activity not found', HTTP_NOT_FOUND);
       }
 
       return success(res, null, 'Activity removed');
@@ -1872,7 +1972,7 @@ module.exports = (pool, logger) => {
       );
 
       if (verified.rows.length !== meetingIds.length) {
-        return error(res, 'some_meetings_not_found', 404);
+        return error(res, 'some_meetings_not_found', HTTP_NOT_FOUND);
       }
 
       const skipped = verified.rows
@@ -1980,7 +2080,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Series not found', 404);
+        return error(res, 'Series not found', HTTP_NOT_FOUND);
       }
 
       return success(res, { deleted: result.rows.length }, 'Series removed');
@@ -2035,7 +2135,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Series not found', 404);
+        return error(res, 'Series not found', HTTP_NOT_FOUND);
       }
 
       return success(res, result.rows, 'Series updated');
@@ -2184,7 +2284,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Library activity not found', 404);
+        return error(res, 'Library activity not found', HTTP_NOT_FOUND);
       }
 
       return success(res, result.rows[0], 'Library activity updated');
@@ -2212,7 +2312,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Library activity not found', 404);
+        return error(res, 'Library activity not found', HTTP_NOT_FOUND);
       }
 
       return success(res, null, 'Library activity deleted');
@@ -2374,7 +2474,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Achievement not found', 404);
+        return error(res, 'Achievement not found', HTTP_NOT_FOUND);
       }
 
       return success(res, null, 'Achievement removed');
@@ -2438,7 +2538,7 @@ module.exports = (pool, logger) => {
         [planId, organizationId]
       );
       if (planCheck.rows.length === 0) {
-        return error(res, 'Year plan not found', 404);
+        return error(res, 'Year plan not found', HTTP_NOT_FOUND);
       }
 
       const client = await pool.connect();
@@ -2572,7 +2672,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Distribution rule not found', 404);
+        return error(res, 'Distribution rule not found', HTTP_NOT_FOUND);
       }
 
       return success(res, null, 'Distribution rule deleted');
@@ -2608,7 +2708,7 @@ module.exports = (pool, logger) => {
         [meetingId, organizationId]
       );
       if (meeting.rows.length === 0) {
-        return error(res, 'Meeting not found', 404);
+        return error(res, 'Meeting not found', HTTP_NOT_FOUND);
       }
 
       const result = await pool.query(

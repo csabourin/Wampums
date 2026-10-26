@@ -18,9 +18,16 @@ const { validateDate, validateDateOptional, checkValidation } = require('../midd
 const { getMeetingSectionConfig } = require('../utils/meeting-sections');
 const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');
 const { durationToMinutes, getProgrammeForDate } = require('../services/meetingProgramme');
+const {
+  CatalogError,
+  readMaterialItems,
+  replaceActivityMaterialItems,
+  withMaterialItems
+} = require('../services/equipmentCatalog');
 
 const MINUTES_PER_HOUR = 60;
 const UNPROCESSED_MEETINGS_LIMIT = 10;
+const HTTP_BAD_REQUEST = 400;
 /** Length of the date part of an ISO 8601 value (YYYY-MM-DD). */
 const ISO_DATE_LENGTH = 10;
 
@@ -56,6 +63,17 @@ function minutesToDuration(minutes) {
 }
 
 /**
+ * An activity as kept in metadata.legacy: what it needs lives in its own
+ * table, so a stale copy is never stored beside it.
+ * @param {Object} act - Timeline activity from the client
+ * @returns {Object} The same, without material_items
+ */
+function withoutMaterialItems(act) {
+  const { material_items: _materialItems, ...rest } = act || {};
+  return rest;
+}
+
+/**
  * Reconstruct a legacy prep-timeline activity object from a structured
  * year_plan_meeting_activities row. Extra fields the timeline UI relies on
  * (activityKey, typeKey, star_type, participant_ids, ...) are preserved in
@@ -85,7 +103,9 @@ function toTimelineActivity(row) {
     // planner placed across several meetings.
     series_id: row.series_id || null,
     series_occurrence: row.series_occurrence ?? null,
-    day_offset: row.day_offset ?? 0
+    day_offset: row.day_offset ?? 0,
+    // Catalogue articles and inventory items, with quantities (never from legacy).
+    material_items: row.material_items || []
   };
 }
 
@@ -157,7 +177,7 @@ module.exports = (pool, logger) => {
        ORDER BY sort_order, id`,
       [meeting.id, organizationId]
     );
-    return serializeMeeting(meeting, activitiesResult.rows);
+    return serializeMeeting(meeting, await withMaterialItems(pool, organizationId, activitiesResult.rows));
   }
 
   // ===========================================================================
@@ -240,7 +260,7 @@ module.exports = (pool, logger) => {
           : [];
 
       if (honorConfig.required && honorValues.length === 0) {
-        return error(res, 'meeting_section_honor_required', 400);
+        return error(res, 'meeting_section_honor_required', HTTP_BAD_REQUEST);
       }
 
       // Timeline may arrive as an array or a JSON string (legacy clients)
@@ -249,11 +269,19 @@ module.exports = (pool, logger) => {
         try {
           timeline = JSON.parse(timeline);
         } catch (err) {
-          return error(res, 'activities must be a JSON array', 400);
+          return error(res, 'activities must be a JSON array', HTTP_BAD_REQUEST);
         }
       }
       if (!Array.isArray(timeline)) {
         timeline = [];
+      }
+      // What each activity needs, when the client sends it; an activity sent
+      // without material_items keeps what it lists.
+      const materialByIndex = timeline.map(act => (
+        Array.isArray(act?.material_items) ? readMaterialItems(act.material_items) : undefined
+      ));
+      if (materialByIndex.includes(null)) {
+        return error(res, 'equipment_catalog_invalid_items', HTTP_BAD_REQUEST);
       }
 
       const client = await pool.connect();
@@ -328,8 +356,9 @@ module.exports = (pool, logger) => {
             index,
             JSON.stringify(act.objective_ids || []),
             parseInt(act.activity_library_id, 10) || null,
-            JSON.stringify({ legacy: act })
+            JSON.stringify({ legacy: withoutMaterialItems(act) })
           ];
+          const materialItems = materialByIndex[index];
           const existingId = parseInt(act?.id, 10);
 
           if (Number.isInteger(existingId)) {
@@ -347,18 +376,23 @@ module.exports = (pool, logger) => {
               [...activityValues, existingId, meeting.id, organizationId]
             );
             if (updated.rowCount > 0) {
+              if (materialItems) {
+                // eslint-disable-next-line no-await-in-loop -- ordered writes inside one transaction
+                await replaceActivityMaterialItems(client, organizationId, existingId, materialItems);
+              }
               continue;
             }
           }
 
           // eslint-disable-next-line no-await-in-loop -- ordered writes inside one transaction
-          await client.query(
+          const inserted = await client.query(
             `INSERT INTO year_plan_meeting_activities
                (name, description, start_time, duration_minutes,
                 activity_type, responsable, material, is_default, badge_template_id, processed,
                 sort_order, objective_ids, activity_library_id, metadata,
                 organization_id, meeting_id, series_id, series_occurrence)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+             RETURNING id`,
             [
               ...activityValues,
               organizationId, meeting.id,
@@ -368,6 +402,10 @@ module.exports = (pool, logger) => {
                 : null
             ]
           );
+          if (materialItems) {
+            // eslint-disable-next-line no-await-in-loop -- ordered writes inside one transaction
+            await replaceActivityMaterialItems(client, organizationId, inserted.rows[0].id, materialItems);
+          }
         }
 
         await client.query('COMMIT');
@@ -376,6 +414,9 @@ module.exports = (pool, logger) => {
         return success(res, saved, 'Meeting preparation saved');
       } catch (err) {
         await client.query('ROLLBACK');
+        if (err instanceof CatalogError) {
+          return error(res, err.message, err.status, [{ path: 'material_items', location: 'body', msg: err.message }]);
+        }
         throw err;
       } finally {
         client.release();
@@ -685,7 +726,7 @@ module.exports = (pool, logger) => {
         .filter(Number.isInteger);
 
       if (activityIds.length === 0) {
-        return error(res, 'activity_ids must contain integers', 400);
+        return error(res, 'activity_ids must contain integers', HTTP_BAD_REQUEST);
       }
 
       const result = await pool.query(

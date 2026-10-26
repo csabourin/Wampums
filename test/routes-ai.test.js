@@ -38,6 +38,16 @@ const pool = {
     if (query.includes('SELECT DISTINCT p.permission_key')) {
       return Promise.resolve({ rows: scenario.permissions.map((key) => ({ permission_key: key })) });
     }
+    // The unit's material: one catalogue article and one inventory item it may borrow.
+    if (query.includes('FROM equipment_catalog_items c')) {
+      return Promise.resolve({ rows: scenario.material ? [{ id: 3, name: 'Cônes', category: 'sports', unit_of_measure: 'each', equipment_item_id: null, archived_at: null, usage_count: 0 }] : [] });
+    }
+    if (query.includes('SELECT DISTINCT ei.id')) {
+      return Promise.resolve({ rows: scenario.material ? [{ id: 7 }] : [] });
+    }
+    if (query.includes('SELECT id, name, category FROM equipment_items')) {
+      return Promise.resolve({ rows: [{ id: 7, name: 'Parachute de jeu', category: 'games' }] });
+    }
     return Promise.resolve({ rows: [] });
   }),
 };
@@ -56,7 +66,7 @@ beforeAll(() => jest.spyOn(console, 'error').mockImplementation(() => {}));
 
 beforeEach(() => {
   jest.clearAllMocks();
-  scenario = { permissions: ['communications.send'], demo: false };
+  scenario = { permissions: ['communications.send'], demo: false, material: false };
   isAIConfigured.mockReturnValue(true);
 });
 
@@ -140,4 +150,88 @@ test('an unreadable answer from the model is a service error', async () => {
 
   expect(response.status).toBe(502);
   expect(response.body.errors).toEqual({ code: 'AI_SERVICE_ERROR' });
+});
+
+const MEETING_PLAN = {
+  mode: 'meeting_plan',
+  payload: { locale: 'fr', date: '2026-11-04', section: 'Meute', duration: '90 minutes' },
+};
+
+test('a meeting plan chooses its material among what the unit has, and anything else is dropped', async () => {
+  scenario = { permissions: ['meetings.manage'], demo: false, material: true };
+  generateText.mockResolvedValue({
+    data: {
+      theme: 'Jeux',
+      timeline: [{
+        time: '19:00', duration: '00:20', activity: 'Jeu du parachute', materiel: 'Ballons gonflables',
+        materialItems: [{ ref: 'e7', quantity: 1 }, { ref: 'a99', quantity: 4 }, { ref: 'a3', quantity: 6 }],
+      }],
+      materials: ['Ballons gonflables'],
+    },
+    usage: {},
+  });
+
+  const response = await ask(MEETING_PLAN);
+
+  expect(response.status).toBe(200);
+  const [, payload] = generateText.mock.calls[0];
+  expect(payload.availableMaterial).toEqual([
+    { ref: 'a3', name: 'Cônes', category: 'sports', unit: 'each' },
+    { ref: 'e7', name: 'Parachute de jeu', category: 'games', unit: 'each' },
+  ]);
+  const [activity] = response.body.data.data.timeline;
+  expect(activity.materiel).toBe('');
+  expect(activity).not.toHaveProperty('materialItems');
+  expect(activity.material_items).toEqual([
+    expect.objectContaining({ equipment_item_id: 7, catalog_item_id: null, quantity: 1, name: 'Parachute de jeu' }),
+    expect.objectContaining({ catalog_item_id: 3, equipment_item_id: null, quantity: 6, name: 'Cônes' }),
+  ]);
+  expect(response.body.data.data.materials).toEqual(['Parachute de jeu', 'Cônes']);
+});
+
+test('the material offered comes from the unit, never from the request', async () => {
+  scenario = { permissions: ['meetings.manage'], demo: false, material: false };
+  generateText.mockResolvedValue({ data: { timeline: [{ activity: 'Jeu', materiel: 'Cordes' }] }, usage: {} });
+
+  const response = await ask({
+    ...MEETING_PLAN,
+    payload: { ...MEETING_PLAN.payload, availableMaterial: [{ ref: 'a1', name: 'Fusées' }] },
+  });
+
+  expect(response.status).toBe(200);
+  expect(generateText.mock.calls[0][1]).not.toHaveProperty('availableMaterial');
+  // With nothing recorded, the unit keeps the free-text material it had.
+  expect(response.body.data.data.timeline[0].materiel).toBe('Cordes');
+});
+
+const ACTIVITY_PLAN = { mode: 'meeting_plan', payload: { durationMinutes: 120, badgeFocus: 'Orientation', participantsCount: 12 } };
+
+test('an outing plan names only the unit\'s material, and its invented list is dropped', async () => {
+  scenario = { permissions: ['activities.create'], demo: false, material: true };
+  generateText.mockResolvedValue({
+    data: {
+      title: 'Rallye',
+      materials: [{ ref: 'a3', quantity: 10 }, { ref: 'e404', quantity: 2 }],
+      materialsMasterList: ['Drone'],
+    },
+    usage: {},
+  });
+
+  const response = await ask(ACTIVITY_PLAN);
+
+  expect(response.status).toBe(200);
+  expect(generateText.mock.calls[0][1].availableMaterial.map((choice) => choice.ref)).toEqual(['a3', 'e7']);
+  const plan = response.body.data.data;
+  expect(plan).not.toHaveProperty('materialsMasterList');
+  expect(plan).not.toHaveProperty('materials');
+  expect(plan.material_items).toEqual([expect.objectContaining({ catalog_item_id: 3, quantity: 10, name: 'Cônes' })]);
+});
+
+test('an outing plan for a unit with nothing recorded keeps the assistant\'s list', async () => {
+  scenario = { permissions: ['activities.create'], demo: false, material: false };
+  generateText.mockResolvedValue({ data: { title: 'Rallye', materialsMasterList: ['Foulards'] }, usage: {} });
+
+  const response = await ask(ACTIVITY_PLAN);
+
+  expect(response.body.data.data.materialsMasterList).toEqual(['Foulards']);
 });

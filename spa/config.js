@@ -55,7 +55,7 @@ export const CONFIG = {
   ONLINE_REQUIRED_MUTATION_RESOURCES: [
     'parent-invitations', 'parent-onboarding', 'walk-in-children',
     'family-links', 'family-link-requests', 'calendar-feed', 'roles', 'tasks',
-    'yearly-planner/starter-activities',
+    'yearly-planner/starter-activities', 'equipment-catalog',
   ],
   /**
      * Cache Duration Settings

@@ -6,6 +6,8 @@ import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { badgeLabel } from '../../utils/BadgeLabelUtils.js';
 import { memberDisplayName } from '../../utils/DisplayNameUtils.js';
 import { AchievementModal } from '../AchievementModal.js';
+import { openModal } from '../../utils/ModalUtils.js';
+import { MaterialItemsField, renderMaterialItemsList } from '../equipment-catalog/MaterialItemsField.js';
 
 /**
  * What the description dialog shows for a library activity: its summary, then
@@ -50,6 +52,30 @@ export class ActivityManager {
     this.quickEditActive = false;
     this.reorderAbortController = null;
     this.reorderState = null;
+    // What the unit has or may use, once the screen offers it (null: could not be loaded).
+    this.materialPickerEnabled = false;
+    this.materialChoices = null;
+    this.canManageCatalog = false;
+    this.materialModal = null;
+  }
+
+  /**
+   * Offer, on each activity, the unit's catalogue articles and inventory.
+   * @param {{articles: Object[], equipment: Object[]}|null} choices - null when they could not be loaded
+   * @param {boolean} canManageCatalog - Link to the catalogue when there is nothing to choose
+   */
+  setMaterialChoices(choices, canManageCatalog = false) {
+    this.materialPickerEnabled = true;
+    this.materialChoices = choices;
+    this.canManageCatalog = canManageCatalog;
+  }
+
+  /**
+   * @param {Object[]} items - What an activity lists
+   * @returns {string} The button's text, with how many it lists
+   */
+  materialButtonText(items) {
+    return translate('equipment_catalog_items_button').replace('{count}', String(items.length));
   }
 
   /**
@@ -294,6 +320,7 @@ export class ActivityManager {
     const time = a.time || '18:30';
     const duration = safeDuration || '00:00';
     const materiel = a.materiel || '';
+    const materialItems = Array.isArray(a.material_items) ? a.material_items : [];
     // Each field is named after the activity, so the rows stay distinct to a screen reader.
     const fieldLabel = (key) => escapeAttribute(`${translate(key)} — ${activityName}`);
 
@@ -377,6 +404,7 @@ export class ActivityManager {
                                         </div>
                                         <div class="activity-row__materiel">
                                                 <input type="text" value="${escapeAttribute(materiel)}" class="activity-materiel" placeholder="${translate('materiel')}" data-default="${a.isDefault}" aria-label="${fieldLabel('materiel')}">
+                                                ${this.materialPickerEnabled ? `<button type="button" class="button button--small button--ghost material-items-btn" aria-label="${fieldLabel('equipment_catalog_items_legend')}">${escapeHTML(this.materialButtonText(materialItems))}</button>` : ''}
                                         </div>
                                         <div class="activity-row__actions">
                                                 <button type="button" class="toggle-achievement-btn ${hasAchievement ? 'active' : ''}" title="${translate('badge_add_star') || 'Achievement'}" data-activity-index="${index}">★</button>
@@ -390,6 +418,7 @@ export class ActivityManager {
                                      data-participants="${participantIds.join(',')}">
                                         ${this.renderAchievementSummary(a.badge_template_id, starType, participantIds)}
                                 </div>
+                                <div class="activity-material-summary ${materialItems.length ? '' : 'hidden'}">${renderMaterialItemsList(materialItems, this.app.lang)}</div>
                         </div>
                 `;
   }
@@ -1002,6 +1031,64 @@ export class ActivityManager {
     this.reorderAbortController = null;
     this.achievementModal?.close();
     this.achievementModal = null;
+    this.materialModal?.close();
+    this.materialModal = null;
+  }
+
+  /**
+   * Choose, in a dialog, what an activity needs from the unit's catalogue
+   * and inventory. Applying keeps the choice on the activity, shows it under
+   * the row and asks the page to save.
+   * @param {HTMLElement} button - The row's material button
+   */
+  openMaterialItems(button) {
+    const container = button.closest('.activity-row-container');
+    const row = container?.querySelector('.activity-row');
+    const position = parseInt(row?.dataset.position, 10);
+    const activity = this.selectedActivities[position];
+    if (!activity) {
+      return;
+    }
+    const activityName = row.querySelector('.activity-input, .activity-select')?.value || activity.activity || '';
+    const field = new MaterialItemsField({
+      choices: this.materialChoices,
+      items: Array.isArray(activity.material_items) ? activity.material_items : [],
+      idPrefix: `activity-material-${position}`,
+      lang: this.app.lang,
+      canManageCatalog: this.canManageCatalog,
+    });
+    this.materialModal?.close();
+    const modal = openModal({
+      id: 'activity-material-items',
+      title: escapeHTML(translate('equipment_catalog_items_for').replace('{name}', activityName)),
+      body: `<form id="activity-material-form" novalidate>${field.markup()}</form>`,
+      footer: `<button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button>
+        ${this.materialChoices ? `<button type="submit" class="button button--primary" form="activity-material-form">${escapeHTML(translate('done'))}</button>` : ''}`,
+      onClose: () => {
+        if (this.materialModal === modal) {
+          this.materialModal = null;
+        }
+      },
+    });
+    this.materialModal = modal;
+    const form = modal.overlay.querySelector('#activity-material-form');
+    field.attach(form);
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const entries = field.entries();
+      if (entries === null) {
+        return;
+      }
+      if (entries !== undefined) {
+        activity.material_items = entries;
+        const summary = container.querySelector('.activity-material-summary');
+        setContent(summary, renderMaterialItemsList(entries, this.app.lang));
+        summary.classList.toggle('hidden', entries.length === 0);
+        setContent(button, escapeHTML(this.materialButtonText(entries)));
+        this.notifyActivitiesChanged();
+      }
+      modal.close();
+    });
   }
 
   /**

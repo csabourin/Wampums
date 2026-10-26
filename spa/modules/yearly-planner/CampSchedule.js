@@ -9,6 +9,9 @@ import { debugError } from '../../utils/DebugUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { hasPermission } from '../../utils/PermissionUtils.js';
+import { getMaterialOptions } from '../../api/api-equipment-catalog.js';
+import { MaterialItemsField, renderMaterialItemsList } from '../equipment-catalog/MaterialItemsField.js';
 import {
   getMeetingSchedule,
   updateMeetingDay,
@@ -45,6 +48,9 @@ export class CampSchedule extends BaseModule {
     this.quickEdit = false;
     this.changed = false;
     this.modal = null;
+    // What the unit has or may use; null until loaded, or when it could not be.
+    this.materialChoices = null;
+    this.itemFields = new Map();
   }
 
   /** Load and open the camp schedule editor. */
@@ -61,7 +67,40 @@ export class CampSchedule extends BaseModule {
         }
       }
     });
+    if (this.canManage) {
+      await this.loadMaterialChoices();
+    }
     await this.reload();
+  }
+
+  /**
+   * Load what a schedule line may list: catalogue articles and the inventory
+   * the unit may use. Without it, the lines keep what they list and only the
+   * free-text material can be edited.
+   */
+  async loadMaterialChoices() {
+    try {
+      const response = await getMaterialOptions();
+      this.materialChoices = response?.data || null;
+    } catch (err) {
+      debugError('Error loading the unit material:', err);
+      this.materialChoices = null;
+    }
+  }
+
+  /**
+   * @param {string} idPrefix - Unique prefix for the field's ids
+   * @param {Object[]} items - The line's articles
+   * @returns {MaterialItemsField}
+   */
+  materialField(idPrefix, items = []) {
+    return new MaterialItemsField({
+      choices: this.materialChoices,
+      items,
+      idPrefix,
+      lang: this.lang,
+      canManageCatalog: hasPermission('equipment_catalog.manage'),
+    });
   }
 
   /** Fetch the authoritative schedule after every mutation. */
@@ -86,6 +125,7 @@ export class CampSchedule extends BaseModule {
       return;
     }
     const day = this.schedule.days[this.dayOffset];
+    this.itemFields = new Map();
     const isEmpty = this.schedule.days.every(item =>
       !item.title && !item.notes && !item.activities.some(activity => Number(activity.day_offset) > 0)
     );
@@ -188,6 +228,7 @@ export class CampSchedule extends BaseModule {
           <label><span>${escapeHTML(translate('duration_minutes'))}</span><input type="number" data-field="duration_minutes" min="1" max="1440" value="${activity.duration_minutes || ''}"></label>
           <label><span>${escapeHTML(translate('yearly_planner_responsible'))}</span><input type="text" data-field="responsable" maxlength="255" value="${escapeHTML(activity.responsable || '')}"></label>
           <label><span>${escapeHTML(translate('yearly_planner_material'))}</span><textarea data-field="material" rows="2">${escapeHTML(activity.material || '')}</textarea></label>
+          ${this.quickEditItems(activity)}
           <div class="yp-schedule-card__actions">
             <button type="button" class="button button--small button--primary" data-save-activity="${activity.id}">${escapeHTML(translate('save'))}</button>
             <button type="button" class="button button--small button--danger" data-delete-activity="${activity.id}">${escapeHTML(translate('delete'))}</button>
@@ -201,6 +242,7 @@ export class CampSchedule extends BaseModule {
         <div><strong>${escapeHTML(activity.name)}</strong>${activity.duration_minutes ? ` <span>· ${Number(activity.duration_minutes)} min</span>` : ''}</div>
         ${activity.responsable ? `<div><span class="yp-schedule-card__label">${escapeHTML(translate('yearly_planner_responsible'))}</span>${escapeHTML(activity.responsable)}</div>` : ''}
         ${activity.material ? `<div><span class="yp-schedule-card__label">${escapeHTML(translate('yearly_planner_material'))}</span>${escapeHTML(activity.material)}</div>` : ''}
+        ${activity.material_items?.length ? `<div><span class="yp-schedule-card__label">${escapeHTML(translate('equipment_catalog_items_legend'))}</span>${renderMaterialItemsList(activity.material_items, this.lang)}</div>` : ''}
         ${this.canManage ? `
           <div class="yp-schedule-card__actions">
             <button type="button" class="button button--small button--secondary" data-edit-activity="${activity.id}">${escapeHTML(translate('edit'))}</button>
@@ -211,9 +253,28 @@ export class CampSchedule extends BaseModule {
     `;
   }
 
+  /**
+   * The catalogue-article field of a line being edited, kept so Save reads it.
+   *
+   * @param {Object} activity
+   * @returns {string} HTML
+   */
+  quickEditItems(activity) {
+    const items = activity.material_items || [];
+    // Having nothing to choose from is pointed out once, in the add form, not on every line.
+    const choices = this.materialChoices;
+    if (choices && !choices.articles?.length && !choices.equipment?.length && items.length === 0) {
+      return '';
+    }
+    const field = this.materialField(`yp-schedule-items-${Number(activity.id)}`, items);
+    this.itemFields.set(Number(activity.id), field);
+    return field.markup();
+  }
+
   /** Attach handlers to the freshly rendered selected day. */
   wire() {
     const root = this.modal.overlay;
+    this.itemFields.forEach(field => field.attach(root));
     root.querySelectorAll('[data-day-offset]').forEach(button => {
       button.addEventListener('click', () => {
         this.dayOffset = parseInt(button.dataset.dayOffset, 10);
@@ -264,6 +325,7 @@ export class CampSchedule extends BaseModule {
     const activities = this.schedule.days[this.dayOffset].activities;
     const previous = activities[Math.max(0, position - 1)];
     const suggestedTime = position > 0 ? addMinutes(previous?.start_time, previous?.duration_minutes) : '';
+    const newItems = this.materialField('yp-schedule-new-items');
     const modal = openModal({
       id: 'yp-schedule-activity',
       title: escapeHTML(translate('add_activity')),
@@ -275,6 +337,7 @@ export class CampSchedule extends BaseModule {
           <label class="form-group"><span>${escapeHTML(translate('duration_minutes'))}</span><input type="number" id="yp-schedule-new-duration" min="1" max="1440"></label>
           <label class="form-group"><span>${escapeHTML(translate('yearly_planner_responsible'))}</span><input type="text" id="yp-schedule-new-responsible" maxlength="255"></label>
           <label class="form-group"><span>${escapeHTML(translate('yearly_planner_material'))}</span><textarea id="yp-schedule-new-material" rows="2"></textarea></label>
+          ${newItems.markup()}
         </form>
       `,
       footer: `
@@ -283,6 +346,7 @@ export class CampSchedule extends BaseModule {
       `
     });
     const form = modal.overlay.querySelector('#yp-schedule-new-form');
+    newItems.attach(form);
     const nameInput = modal.overlay.querySelector('#yp-schedule-new-name');
     const nameError = modal.overlay.querySelector('#yp-schedule-new-name-error');
     const clearNameError = () => {
@@ -303,7 +367,11 @@ export class CampSchedule extends BaseModule {
         nameInput.focus();
         return;
       }
-      withFormBusy(form, () => this.createActivity(modal, position, name));
+      const materialItems = newItems.value();
+      if (materialItems === null) {
+        return;
+      }
+      withFormBusy(form, () => this.createActivity(modal, position, name, materialItems));
     });
   }
 
@@ -313,11 +381,13 @@ export class CampSchedule extends BaseModule {
    * @param {{overlay: HTMLElement, close: Function}} modal - The add form's dialog
    * @param {number} position - Where the activity goes in the day
    * @param {string} name - Its name, already checked
+   * @param {Object[]|undefined} materialItems - Catalogue articles; undefined without a catalogue
    * @returns {Promise<void>}
    */
-  async createActivity(modal, position, name) {
+  async createActivity(modal, position, name, materialItems) {
     try {
       await addMeetingActivity(this.chip.meetingId, {
+        ...(materialItems ? { material_items: materialItems } : {}),
         day_offset: this.dayOffset,
         sort_order: position,
         start_time: modal.overlay.querySelector('#yp-schedule-new-time')?.value || null,
@@ -346,8 +416,13 @@ export class CampSchedule extends BaseModule {
       this.app.showMessage(translate('plan_fields_required'), 'error');
       return;
     }
+    const materialItems = this.itemFields.get(activityId)?.value();
+    if (materialItems === null) {
+      return;
+    }
     try {
       await updateMeetingActivity(activityId, {
+        ...(materialItems ? { material_items: materialItems } : {}),
         name,
         start_time: field('start_time')?.value || null,
         duration_minutes: parseInt(field('duration_minutes')?.value, 10) || null,

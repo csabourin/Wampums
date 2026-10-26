@@ -22,6 +22,7 @@ import {
 import { plainTextToRichText, richTextOrPlain, richTextToPlainText } from '../../utils/RichTextUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { formatEquipmentQuantity } from '../../utils/EquipmentUnitUtils.js';
 const DEFAULT_AI_DURATION_MINUTES = 120;
 const DEFAULT_AI_PARTICIPANT_COUNT = 12;
 const ACTIVITY_NAME_MAX_LENGTH = 255;
@@ -316,10 +317,17 @@ function showMagicGenerateModal(app, formOverlay) {
         const timeline = (plan.timeline || [])
           .map((t) => `- ${t.minuteStart}-${t.minuteEnd}m: ${t.name} (${t.objective})`)
           .join('\n');
-        const materials = Array.isArray(plan.materialsMasterList)
-          ? `\n\nMaterials: ${plan.materialsMasterList.join(', ')}`
+        // The unit's own material, chosen by the server's list; a unit with
+        // nothing recorded keeps the assistant's free-text list.
+        const materialLines = Array.isArray(plan.material_items)
+          ? plan.material_items.map((item) => `${formatEquipmentQuantity(item.quantity, item.unit_of_measure, app.lang)} · ${item.name}`)
+          : (Array.isArray(plan.materialsMasterList) ? plan.materialsMasterList : []);
+        const materials = materialLines.length
+          ? `\n\n${translate('activity_plan_materials_heading')}\n${materialLines.map((line) => `- ${line}`).join('\n')}`
           : '';
-        setRichTextValue(descInput, plainTextToRichText(`${plan.overview || ''}\n\nTimeline:\n${timeline}${materials}`));
+        setRichTextValue(descInput, plainTextToRichText(
+          `${plan.overview || ''}\n\n${translate('activity_plan_timeline_heading')}\n${timeline}${materials}`,
+        ));
       }
 
       app.showMessage(translate('magic_generated_success'), 'success');

@@ -510,6 +510,34 @@ adopted by exact legacy name, without changing their text; ambiguous matches are
 reported, never guessed. New units get their branch's standard-supervision entries.
 Rules and the meeting-template links are in `devdocs/ACTIVITY_LIBRARY.md`.
 
+### Equipment catalogue and unit material
+
+`/equipment-catalog` (`equipment_catalog.manage`, migrations 054 and 055) names a unit's articles once:
+name, category (`config/equipment_categories.json`), unit of measure (`config/equipment_units.json`)
+and, optionally, an inventory item the unit may use (`services/equipmentAccess.js`). Articles are
+archived, never deleted; one active name per unit.
+
+A schedule line (`year_plan_meeting_activities`: a regular meeting's activity or a camp line) lists
+the unit's material with quantities in `meeting_activity_equipment`, beside its free-text
+`material`, which stays as it was. Each entry names a catalogue article of the unit or an inventory
+item it has or may borrow, never both. `GET /api/v1/equipment-catalog/options` (`meetings.manage`
+or `equipment_catalog.manage`) lists the choices: active articles, then accessible inventory that no
+active article stands for, by name and category only. Meeting preparation and the planner's line
+routes accept and return `material_items` (`services/equipmentCatalog.js`): sent, it replaces the
+line's list in the line's transaction; omitted, the list is kept. Something archived or no longer
+shared stays on a line that lists it but cannot be added; copying a camp schedule copies only what
+is still active. Composite foreign keys keep a line and its articles in the same unit.
+
+The AI meeting plan and outing plan choose material only from that list: `routes/ai.js` reads it
+for the unit of the token (a client cannot supply it) and sends names and categories with short
+references (`a3`, `e7`); the answer keeps only references it was offered and never free-text
+material. A unit with no catalogue and no inventory keeps the free-text answer. Catalogue writes
+need a connection.
+
+Meeting preparation sends a change to the server once the date (and the youth of honour, where
+the unit requires one) is filled; the leader in charge and the place are optional, as on the
+server. Until then the change stays on the device and the status names what is missing.
+
 ### Action rosters during activities
 
 Attendance, points and honors share `ActionRoster` and `/api/v1/action-roster`.

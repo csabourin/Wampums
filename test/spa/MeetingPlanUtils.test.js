@@ -56,4 +56,16 @@ describe('mergeTimelineWithTemplates', () => {
     expect(result[2].activity).toBe('Grand jeu');
     expect(result[2].materiel).toBe('Ballon, Sifflet');
   });
+
+  test('an activity keeps the unit material the plan chose for it, and has none otherwise', () => {
+    const chosen = [{ catalog_item_id: 3, equipment_item_id: null, quantity: 6, name: 'Cônes', unit_of_measure: 'each' }];
+    const result = mergeTimelineWithTemplates(
+      [{ activity: 'Accueil', material_items: chosen }, { activity: 'Présence', material_items: 'Cordes' }],
+      templates, allowedResponsables, translate
+    );
+
+    expect(result[0].material_items).toEqual(chosen);
+    expect(result[1].material_items).toEqual([]);
+    expect(result[2].material_items).toEqual([]);
+  });
 });

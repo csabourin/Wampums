@@ -243,3 +243,104 @@ describe('POST /api/v1/meetings/preparation', () => {
       .expect(403);
   });
 });
+
+describe('the unit material an activity needs', () => {
+  /**
+   * Stub a save in which the unit owns article 3 and may borrow inventory item 7.
+   * @returns {void}
+   */
+  function stubMaterialSave() {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'meetings.manage' }, { permission_key: 'meetings.view' }] });
+      }
+      if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('INSERT INTO year_plan_meetings')) {
+        return Promise.resolve({ rows: [{ id: MEETING_ID, organization_id: ORG_ID, meeting_date: DATE }] });
+      }
+      if (query.includes('UPDATE year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [], rowCount: 1 });
+      }
+      if (query.includes('INSERT INTO year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [{ id: 777 }], rowCount: 1 });
+      }
+      if (query.includes('SELECT c.id FROM equipment_catalog_items c')) {
+        return Promise.resolve({ rows: params[1].filter((id) => id === 3).map((id) => ({ id })) });
+      }
+      if (query.includes('SELECT DISTINCT ei.id')) {
+        return Promise.resolve({ rows: params[1].filter((id) => id === 7).map((id) => ({ id })) });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+  }
+
+  /** @returns {Array} [sql, params] of each material write */
+  function materialWrites() {
+    return clientCalls().filter(([sql]) => /(INSERT INTO|DELETE FROM) meeting_activity_equipment/.test(sql));
+  }
+
+  test('is saved on its row, new or existing, and an activity sent without it keeps what it lists', async () => {
+    stubMaterialSave();
+
+    await request(app)
+      .post('/api/v1/meetings/preparation')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({
+        date: DATE,
+        activities: [
+          { id: 901, activity: 'Jeu de cônes', material_items: [{ catalog_item_id: 3, quantity: 8 }] },
+          { id: 'ai-generated-1', activity: 'Jeu du parachute', material_items: [{ equipment_item_id: 7, quantity: 1 }] },
+          { id: 902, activity: 'Histoire' }
+        ]
+      })
+      .expect(200);
+
+    const inserts = materialWrites().filter(([sql]) => sql.includes('INSERT'));
+    expect(inserts.map(([, params]) => params)).toEqual([
+      [ORG_ID, 901, [3], [null], [8]],
+      [ORG_ID, 777, [null], [7], [1]]
+    ]);
+    const cleared = materialWrites().filter(([sql]) => sql.includes('DELETE')).map(([, params]) => params[1]);
+    expect(cleared).toEqual([901, 777]);
+
+    const update = clientCalls().find(([sql, params]) => sql.includes('UPDATE year_plan_meeting_activities') && params.includes(901));
+    expect(update[1].find((value) => typeof value === 'string' && value.includes('legacy'))).not.toContain('material_items');
+  });
+
+  test.each([
+    [[{ catalog_item_id: 3, equipment_item_id: 7, quantity: 1 }]],
+    [[{ equipment_item_id: '7abc', quantity: 1 }]],
+    [[{ equipment_item_id: 7, quantity: 0 }]],
+    [[{ equipment_item_id: 7, quantity: 1 }, { equipment_item_id: 7, quantity: 2 }]]
+  ])('a malformed list %j is refused before anything is written', async (materialItems) => {
+    stubMaterialSave();
+    const { __mPool } = require('pg');
+
+    const res = await request(app)
+      .post('/api/v1/meetings/preparation')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ date: DATE, activities: [{ id: 901, activity: 'Jeu', material_items: materialItems }] });
+
+    expect(res.status).toBe(400);
+    expect(__mPool.connect).not.toHaveBeenCalled();
+  });
+
+  test('inventory the unit may not use refuses the whole save', async () => {
+    stubMaterialSave();
+
+    const res = await request(app)
+      .post('/api/v1/meetings/preparation')
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ date: DATE, activities: [{ id: 901, activity: 'Jeu', material_items: [{ equipment_item_id: 8, quantity: 1 }] }] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('equipment_catalog_item_unavailable');
+    const sql = clientCalls().map(([text]) => text);
+    expect(sql).toContain('ROLLBACK');
+    expect(sql).not.toContain('COMMIT');
+    expect(materialWrites()).toEqual([]);
+  });
+});

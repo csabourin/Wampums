@@ -307,6 +307,15 @@ export const DASHBOARD_TILES = [
     gate: { any: ['inventory.view', 'inventory.manage', 'inventory.reserve', 'inventory.value'] },
   },
   {
+    href: '/equipment-catalog',
+    icon: 'fa-list-ul',
+    label: 'tile_equipment_catalog',
+    aliases: 'tile_equipment_catalog_aliases',
+    moment: 'tools',
+    domain: 'logistics',
+    gate: { permission: 'equipment_catalog.manage' },
+  },
+  {
     featureKey: 'equipment_loans',
     href: '/equipment-loans',
     icon: 'fa-people-carry-box',
