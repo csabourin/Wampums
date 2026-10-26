@@ -24,10 +24,11 @@ const ENTRY = {
 let permissions;
 let found;
 let failQuery;
+let demo;
 const db = {
   query: jest.fn((sql, params) => {
     if (sql.includes('AS authorization_permissions')) {
-      return authorizationContextRow({ permissions, roles: [{ role_name: 'u7_leader', display_name: 'Leader', data_scope: 'organization' }] });
+      return authorizationContextRow({ permissions, roles: [{ role_name: demo ? 'demoadmin' : 'u7_leader', display_name: 'Leader', data_scope: 'organization' }] });
     }
     if (sql.includes('SELECT organization_id FROM user_organizations')) {return { rows: [{ organization_id: UNIT }] };}
     if (failQuery) {throw new Error('relation "year_plan_meetings" is broken at /srv/app/services');}
@@ -45,6 +46,7 @@ const app = express();
 app.locals.pool = pool;
 app.use(express.json());
 app.use('/api/v1/yearly-planner', require('../routes/yearlyPlanner')(pool, { error: jest.fn(), info: jest.fn(), warn: jest.fn() }));
+app.use('/api/v1/resources', require('../routes/resources')(pool, { error: jest.fn(), info: jest.fn(), warn: jest.fn() }));
 app.use((err, req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
 const token = () => jwt.sign({ user_id: USER, organizationId: UNIT }, process.env.JWT_SECRET_KEY);
 const get = (id = 42) => request(app).get(`/api/v1/yearly-planner/meetings/${id}/material-list`).set('Authorization', `Bearer ${token()}`);
@@ -53,6 +55,7 @@ beforeEach(() => {
   permissions = ['meetings.view', 'inventory.view'];
   found = true;
   failQuery = false;
+  demo = false;
   jest.clearAllMocks();
 });
 
@@ -73,7 +76,7 @@ test('a leader with the inventory right sees how each item stands against the in
   expect(res.body.data.inventory_compared).toBe(true);
   expect(res.body.data.items).toEqual([expect.objectContaining({
     name: 'Réchaud', quantity: 2, equipment_item_id: 11,
-    inventory: { status: 'available', reserved: 1, free: 4, missing: 0 },
+    inventory: { status: 'available', reserved: 1, free: 4, missing: 0, to_reserve: 1 },
   })]);
 });
 
@@ -108,4 +111,47 @@ test('a database failure does not leak its details', async () => {
   const res = await get();
   expect(res.status).toBe(500);
   expect(JSON.stringify(res.body)).not.toMatch(/year_plan_meetings|\/srv\//);
+});
+
+describe('reserving what a camp still needs', () => {
+  const reserve = (items, id = 42) => request(app).post(`/api/v1/resources/equipment/reservations/camps/${id}`)
+    .set('Authorization', `Bearer ${token()}`).send({ items });
+
+  beforeEach(() => {
+    permissions = ['meetings.view', 'inventory.view', 'inventory.reserve'];
+  });
+
+  test('it requires authentication', async () => {
+    expect((await request(app).post('/api/v1/resources/equipment/reservations/camps/42').send({ items: [] })).status).toBe(401);
+  });
+
+  test('a demo account cannot reserve', async () => {
+    demo = true;
+    const res = await reserve([{ equipment_item_id: 11, quantity: 1 }]);
+    expect(res.status).toBe(403);
+    expect(res.body.isDemo).toBe(true);
+    expect(pool.connect).not.toHaveBeenCalled();
+  });
+
+  test('someone without the reservation right is told what is missing', async () => {
+    permissions = ['meetings.view', 'inventory.view'];
+    const res = await reserve([{ equipment_item_id: 11, quantity: 1 }]);
+    expect(res.status).toBe(403);
+    expect(res.body.missing).toEqual(['inventory.reserve']);
+    expect(pool.connect).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['no items', []],
+    ['the same item twice', [{ equipment_item_id: 11, quantity: 1 }, { equipment_item_id: 11, quantity: 1 }]],
+    ['a fractional quantity', [{ equipment_item_id: 11, quantity: 1.5 }]],
+    ['an id beyond an integer', [{ equipment_item_id: 2147483648, quantity: 1 }]],
+  ])('%s is refused before anything is written', async (_label, items) => {
+    expect((await reserve(items)).status).toBe(400);
+    expect(pool.connect).not.toHaveBeenCalled();
+  });
+
+  test('a malformed camp id is refused', async () => {
+    expect((await reserve([{ equipment_item_id: 11, quantity: 1 }], '12abc')).status).toBe(400);
+  });
 });

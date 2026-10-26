@@ -107,7 +107,7 @@ describe.skipIf(!DATABASE_URL)('Camp material list', () => {
     pool = new Pool({ connectionString: DATABASE_URL });
     const first = await unit();
     const second = await unit();
-    quartermaster = await member(first, await role(first, ['meetings.view', 'inventory.view']));
+    quartermaster = await member(first, await role(first, ['meetings.view', 'inventory.view', 'inventory.reserve']));
     planner = await member(first, await role(first, ['meetings.view']));
     outsider = await member(second, await role(second, ['meetings.view', 'inventory.view']));
     ({ meetingId: camp, activityId: outing } = await threeDayCamp(first, '2026-11-13', '2026-11-15'));
@@ -147,6 +147,7 @@ describe.skipIf(!DATABASE_URL)('Camp material list', () => {
     app.locals.pool = pool;
     app.use(express.json());
     app.use('/api/v1/yearly-planner', require('../routes/yearlyPlanner')(pool, { error: jest.fn(), info: jest.fn(), warn: jest.fn() }));
+    app.use('/api/v1/resources', require('../routes/resources')(pool, { error: jest.fn(), info: jest.fn(), warn: jest.fn() }));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
   });
 
@@ -193,9 +194,9 @@ describe.skipIf(!DATABASE_URL)('Camp material list', () => {
     expect(data.camp).toMatchObject({ date_from: '2026-11-13', date_to: '2026-11-15' });
     const byName = Object.fromEntries(data.items.map((item) => [item.name, item.inventory]));
     // Six tents: two reserved for this camp, four taken by another booking; four needed.
-    expect(byName['Tente 4 places']).toEqual({ status: 'missing', reserved: 2, free: 0, missing: 2 });
+    expect(byName['Tente 4 places']).toEqual({ status: 'missing', reserved: 2, free: 0, missing: 2, to_reserve: 0 });
     // Four lanterns: one reserved here, the week-after booking does not overlap; five needed.
-    expect(byName.Lanternes).toEqual({ status: 'missing', reserved: 1, free: 3, missing: 1 });
+    expect(byName.Lanternes).toEqual({ status: 'missing', reserved: 1, free: 3, missing: 1, to_reserve: 3 });
     expect(byName['Réchaud']).toEqual({ status: 'not_in_inventory' });
   });
 
@@ -250,7 +251,105 @@ describe.skipIf(!DATABASE_URL)('Camp material list', () => {
 
     await pool.query('DELETE FROM equipment_item_organizations WHERE equipment_id = $1', [borrowed]);
     const revoked = (await list(camp)).body.data.items.find((item) => item.name === 'Canot emprunté');
-    expect(revoked.inventory).toEqual({ status: 'unavailable', reserved: 0, free: 0, missing: 1 });
+    expect(revoked.inventory).toEqual({ status: 'unavailable', reserved: 0, free: 0, missing: 1, to_reserve: 0 });
+  });
+
+  describe('reserving what the list still needs', () => {
+    let stoves;
+
+    function reserveFor(meetingId, items, userId = quartermaster, organizationId = units[0]) {
+      return request(app).post(`/api/v1/resources/equipment/reservations/camps/${meetingId}`)
+        .set(as(userId, organizationId)).send({ items });
+    }
+    async function stoveEntry() {
+      return (await list(camp)).body.data.items.find((item) => item.name === 'Réchauds du local');
+    }
+
+    beforeAll(async () => {
+      stoves = await equipment(units[0], 'Réchauds du local', 5);
+      const cooking = await line(units[0], camp, 'Cuisine', 1);
+      await needs(units[0], cooking, { equipmentItemId: stoves }, 3);
+    });
+
+    test('the list says how many to reserve', async () => {
+      expect((await stoveEntry()).inventory).toEqual({ status: 'available', reserved: 0, free: 5, missing: 0, to_reserve: 3 });
+    });
+
+    test('reserving it ties the reservation to the camp, over its dates, and the list then reads reserved', async () => {
+      const res = await reserveFor(camp, [{ equipment_item_id: stoves, quantity: 3 }]);
+      expect(res.status).toBe(201);
+      expect(res.body.data.reservations).toEqual([expect.objectContaining({ equipment_item_id: stoves, reserved: 3 })]);
+      const row = (await pool.query(
+        'SELECT meeting_id, activity_id, date_from::text, date_to::text, reserved_quantity, status, created_by FROM equipment_reservations WHERE equipment_id = $1',
+        [stoves],
+      )).rows[0];
+      expect(row).toEqual({
+        meeting_id: camp, activity_id: outing, date_from: '2026-11-13', date_to: '2026-11-15',
+        reserved_quantity: 3, status: 'reserved', created_by: quartermaster,
+      });
+      expect((await stoveEntry()).inventory).toMatchObject({ status: 'reserved', reserved: 3, to_reserve: 0 });
+    });
+
+    test('pressing again from a stale screen reserves nothing more', async () => {
+      const res = await reserveFor(camp, [{ equipment_item_id: stoves, quantity: 3 }]);
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe('camp_material_reservation_stale');
+      expect(Number(await one('SELECT SUM(reserved_quantity) FROM equipment_reservations WHERE equipment_id = $1', [stoves]))).toBe(3);
+    });
+
+    test('a need that grew adds to the camp\'s reservation rather than making a second one', async () => {
+      await pool.query('UPDATE meeting_activity_equipment SET quantity = 4 WHERE equipment_item_id = $1', [stoves]);
+      expect((await stoveEntry()).inventory.to_reserve).toBe(1);
+      expect((await reserveFor(camp, [{ equipment_item_id: stoves, quantity: 1 }])).status).toBe(201);
+      const rows = (await pool.query('SELECT reserved_quantity FROM equipment_reservations WHERE equipment_id = $1', [stoves])).rows;
+      expect(rows).toEqual([{ reserved_quantity: 4 }]);
+    });
+
+    test('two people pressing at once reserve only once', async () => {
+      const kettles = await equipment(units[0], 'Bouilloires', 2);
+      const tea = await line(units[0], camp, 'Thé', 2);
+      await needs(units[0], tea, { equipmentItemId: kettles }, 2);
+      const answers = await Promise.all([
+        reserveFor(camp, [{ equipment_item_id: kettles, quantity: 2 }]),
+        reserveFor(camp, [{ equipment_item_id: kettles, quantity: 2 }]),
+      ]);
+      expect(answers.map((res) => res.status).sort()).toEqual([201, 409]);
+      expect(Number(await one('SELECT SUM(reserved_quantity) FROM equipment_reservations WHERE equipment_id = $1', [kettles]))).toBe(2);
+    });
+
+    test('a batch asking for more than is free reserves nothing at all', async () => {
+      // Lanterns could be reserved, but no tent is free: neither is.
+      const res = await reserveFor(camp, [{ equipment_item_id: lanterns, quantity: 1 }, { equipment_item_id: tentsInStock, quantity: 1 }]);
+      expect(res.status).toBe(409);
+      expect(Number(await one('SELECT COUNT(*) FROM equipment_reservations WHERE equipment_id = $1 AND meeting_id = $2', [lanterns, camp]))).toBe(1);
+      expect(Number(await one('SELECT reserved_quantity FROM equipment_reservations WHERE equipment_id = $1 AND meeting_id = $2', [lanterns, camp]))).toBe(1);
+    });
+
+    test('equipment the camp does not list cannot be reserved through it', async () => {
+      const other = await equipment(units[0], 'Hors liste', 3);
+      expect((await reserveFor(camp, [{ equipment_item_id: other, quantity: 1 }])).status).toBe(409);
+    });
+
+    test('a leader without the reservation right is refused', async () => {
+      const res = await reserveFor(camp, [{ equipment_item_id: lanterns, quantity: 1 }], planner);
+      expect(res.status).toBe(403);
+      expect(res.body.missing).toEqual(expect.arrayContaining(['inventory.reserve']));
+    });
+
+    test('another unit cannot reserve for this camp', async () => {
+      const outsiderReserver = await member(units[1], await role(units[1], ['meetings.view', 'inventory.view', 'inventory.reserve']));
+      expect((await reserveFor(camp, [{ equipment_item_id: lanterns, quantity: 1 }], outsiderReserver, units[1])).status).toBe(404);
+    });
+
+    test.each([
+      [[]],
+      [[{ equipment_item_id: 1, quantity: 1 }, { equipment_item_id: 1, quantity: 2 }]],
+      [[{ equipment_item_id: 1, quantity: 0 }]],
+      [[{ equipment_item_id: 'abc', quantity: 1 }]],
+      ['not a list'],
+    ])('a malformed request (%j) is refused before anything is written', async (items) => {
+      expect((await reserveFor(camp, items)).status).toBe(400);
+    });
   });
 
   test('a malformed camp id is refused', async () => {

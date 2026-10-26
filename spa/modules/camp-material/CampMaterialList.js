@@ -8,20 +8,26 @@
  * out. Free-text material is not added up: it is listed apart, activity by
  * activity, marked as not consolidated.
  *
+ * Someone who may also reserve equipment can reserve, in one step, what the
+ * list still lacks and is free; the server recounts and refuses a stale count.
+ *
  * @module spa/modules/camp-material/CampMaterialList
  */
 import { translate } from '../../app.js';
-import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
+import { setContent, loadStylesheet, withFormBusy } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { hasAllPermissions, isDemoUser } from '../../utils/PermissionUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { openModal } from '../../utils/ModalUtils.js';
 import { pageLoadingMarkup, pageErrorMarkup } from '../../utils/PageStateUtils.js';
 import { equipmentCategoryLabel } from '../../utils/EquipmentCategoryUtils.js';
 import { formatEquipmentQuantity, equipmentUnitLabel } from '../../utils/EquipmentUnitUtils.js';
 import { exportToCSV } from '../../utils/ExportUtils.js';
 import { openPrintWindow, setPrintContent, REPORT_PRINT_STYLES } from '../../utils/PrintUtils.js';
-import { getCampMaterialList } from '../../api/api-yearly-planner.js';
+import { getCampMaterialList, reserveCampMaterial } from '../../api/api-camp-material.js';
 import campMaterialStylesheetUrl from '../../../css/camp-material.css?url';
 
 const BACK_HREF = '/yearly-planner';
@@ -29,6 +35,7 @@ const DAY_LABEL = { weekday: 'short', day: 'numeric', month: 'short' };
 const RANGE_LABEL = { day: 'numeric', month: 'long', year: 'numeric' };
 const ISO_DATE_LENGTH = 10;
 const HTTP_NOT_FOUND = 404;
+const HTTP_CONFLICT = 409;
 
 /** What each inventory standing reads as. Literal keys, so the translation test sees them. */
 const STATUS_LABELS = {
@@ -59,6 +66,9 @@ export class CampMaterialList {
     this.meetingId = meetingId;
     this.list = null;
     this.destroyed = false;
+    this.reserving = false;
+    // The reservation endpoint requires these, as well as meetings.view (the page's guard).
+    this.canReserve = hasAllPermissions('inventory.view', 'inventory.reserve') && !isDemoUser();
   }
 
   destroy() {
@@ -86,20 +96,24 @@ export class CampMaterialList {
       return;
     }
     try {
-      const response = await getCampMaterialList(this.meetingId, { forceRefresh: true });
-      if (this.destroyed) {
-        return;
-      }
-      this.list = response?.data || null;
-      if (!this.list) {
-        this.renderState('error');
-        return;
-      }
-      this.render();
+      await this.load();
     } catch (error) {
       debugError('Failed to load the camp material list:', error);
       this.renderState(error?.status === HTTP_NOT_FOUND ? 'missing' : 'error');
     }
+  }
+
+  /** Fetch the list fresh and show it. Throws when it cannot be loaded. */
+  async load() {
+    const response = await getCampMaterialList(this.meetingId, { forceRefresh: true });
+    if (this.destroyed) {
+      return;
+    }
+    this.list = response?.data || null;
+    if (!this.list) {
+      throw new Error('Empty camp material list response');
+    }
+    this.render();
   }
 
   /** @param {'loading'|'error'|'missing'} state */
@@ -301,6 +315,10 @@ export class CampMaterialList {
             <button type="button" class="button button--secondary" id="camp-material-export">
               ${escapeHTML(translate('export_csv'))}
             </button>
+            ${this.toReserve().length ? `
+              <button type="button" class="button button--primary" id="camp-material-reserve">
+                ${escapeHTML(translate('camp_material_reserve'))}
+              </button>` : ''}
           </div>` : `<p class="empty-state">${escapeHTML(translate('camp_material_empty'))}</p>`}
         ${listMarkup}
         ${this.freeTextMarkup()}
@@ -309,6 +327,89 @@ export class CampMaterialList {
     `);
     document.getElementById('camp-material-print')?.addEventListener('click', () => this.print());
     document.getElementById('camp-material-export')?.addEventListener('click', () => this.exportCsv());
+    document.getElementById('camp-material-reserve')?.addEventListener('click', () => this.openReserve());
+  }
+
+  /** @returns {Object[]} Entries with something still to reserve, when this person may reserve */
+  toReserve() {
+    if (!this.canReserve || !this.list?.inventory_compared) {
+      return [];
+    }
+    return this.list.items.filter((item) => Number(item.inventory?.to_reserve) > 0);
+  }
+
+  /** Ask before reserving: what will be reserved, and what will still be missing. */
+  openReserve() {
+    const entries = this.toReserve();
+    if (!entries.length) {
+      return;
+    }
+    const partial = entries.some((item) => item.inventory.status === 'missing');
+    const modal = openModal({
+      id: 'camp-material-reserve-dialog',
+      title: escapeHTML(translate('camp_material_reserve_title')),
+      body: `
+        <form id="camp-material-reserve-form" novalidate>
+          <p>${escapeHTML(translate('camp_material_reserve_intro').replace('{dates}', this.campLabel()))}</p>
+          <ul class="camp-material__reserve-list">
+            ${entries.map((item) => `<li>${escapeHTML(translate('camp_material_reserve_item')
+    .replace('{name}', item.name).replace('{count}', String(item.inventory.to_reserve)))}</li>`).join('')}
+          </ul>
+          ${partial ? `<p>${escapeHTML(translate('camp_material_reserve_partial'))}</p>` : ''}
+        </form>`,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button>
+        <button type="submit" class="button button--primary" form="camp-material-reserve-form">${escapeHTML(translate('camp_material_reserve_confirm'))}</button>`,
+      canClose: () => !this.reserving,
+    });
+    const form = modal.overlay.querySelector('#camp-material-reserve-form');
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      withFormBusy(form, () => this.reserve(modal, entries));
+    });
+  }
+
+  /**
+   * Reserve what the dialog listed, then reload the list.
+   *
+   * @param {{close: Function}} modal - The confirmation dialog
+   * @param {Object[]} entries - From toReserve()
+   * @returns {Promise<void>}
+   */
+  async reserve(modal, entries) {
+    this.reserving = true;
+    let result;
+    try {
+      result = await reserveCampMaterial(this.meetingId, entries.map((item) => ({
+        equipment_item_id: Number(item.equipment_item_id),
+        quantity: Number(item.inventory.to_reserve),
+      })));
+    } catch (error) {
+      debugError('Failed to reserve camp material:', error);
+      this.reserving = false;
+      this.app.showMessage(apiErrorMessage(error, 'camp_material_reserve_failed'), 'error');
+      // The count changed elsewhere: show the list as it now is.
+      if (error?.status === HTTP_CONFLICT) {
+        modal.close();
+        await this.reload();
+      }
+      return;
+    }
+    this.reserving = false;
+    modal.close();
+    const count = Number(result?.data?.count) || entries.length;
+    this.app.showMessage(translate('camp_material_reserve_done').replace('{count}', String(count)), 'success');
+    await this.reload();
+  }
+
+  /** Reload after a write; the write stands even if this fails. */
+  async reload() {
+    try {
+      await this.load();
+    } catch (error) {
+      debugError('Failed to reload the camp material list:', error);
+      this.renderState('error');
+    }
   }
 
   /** Print the list from its own window, on paper styles. */

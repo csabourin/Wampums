@@ -23,6 +23,12 @@ const { EQUIPMENT_CATEGORIES } = require('./equipmentCategories');
 const { findAccessibleEquipmentIds } = require('./equipmentAccess');
 
 const QUANTITY_DECIMALS = 100;
+const HTTP_NOT_FOUND = 404;
+const HTTP_CONFLICT = 409;
+/** Longest equipment_reservations.reserved_for. */
+const RESERVED_FOR_MAX_LENGTH = 200;
+/** Statuses a reservation still holds equipment in. */
+const ACTIVE_RESERVATION_STATUSES = ['reserved', 'confirmed'];
 /** HH:MM of a database time. */
 const SHORT_TIME_LENGTH = 5;
 
@@ -54,6 +60,7 @@ function roundQuantity(value) {
 async function loadCamp(db, organizationId, meetingId) {
   const result = await db.query(
     `SELECT m.id, m.theme, m.meeting_kind, m.activity_id,
+            COALESCE(NULLIF(btrim(m.theme), ''), act.name, '') AS label,
             m.meeting_date::text AS date_from,
             (m.meeting_date + GREATEST(
               1,
@@ -170,6 +177,18 @@ async function loadInventoryStanding(db, organizationId, camp, equipmentIds) {
 }
 
 /**
+ * Whole units of an inventory item still to reserve for a need: what the need
+ * lacks beyond this camp's reservations, at most what is free.
+ *
+ * @param {number} needed - Quantity the camp needs
+ * @param {{reserved: number, free: number}} standing
+ * @returns {number}
+ */
+function quantityToReserve(needed, standing) {
+  return Math.max(0, Math.min(standing.free, Math.ceil(needed) - standing.reserved));
+}
+
+/**
  * Compare one entry with the inventory.
  *
  * @param {Object} entry - From consolidate
@@ -182,7 +201,7 @@ function inventoryFor(entry, standing) {
   }
   const item = standing.get(Number(entry.equipment_item_id));
   if (!item) {
-    return { status: INVENTORY_STATUS.UNAVAILABLE, reserved: 0, free: 0, missing: entry.quantity };
+    return { status: INVENTORY_STATUS.UNAVAILABLE, reserved: 0, free: 0, missing: entry.quantity, to_reserve: 0 };
   }
   const shortfall = roundQuantity(Math.max(0, entry.quantity - item.reserved - item.free));
   let status = INVENTORY_STATUS.MISSING;
@@ -191,7 +210,10 @@ function inventoryFor(entry, standing) {
   } else if (shortfall === 0) {
     status = INVENTORY_STATUS.AVAILABLE;
   }
-  return { status, reserved: item.reserved, free: item.free, missing: shortfall };
+  return {
+    status, reserved: item.reserved, free: item.free, missing: shortfall,
+    to_reserve: quantityToReserve(entry.quantity, item),
+  };
 }
 
 /**
@@ -302,8 +324,121 @@ async function buildCampMaterialList(db, organizationId, meetingId, { withInvent
   };
 }
 
+/** A refusal of a camp reservation safe to return, as a translation key. */
+class CampMaterialError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/**
+ * What the camp needs of each inventory item, with how it stands. Two
+ * articles standing for one item add up.
+ *
+ * @param {Object[]} items - Entries of buildCampMaterialList, with inventory
+ * @returns {Map<number, {quantity: number, standing: {reserved: number, free: number}}>}
+ */
+function needsByEquipment(items) {
+  const needs = new Map();
+  for (const entry of items) {
+    const usable = entry.equipment_item_id && [
+      INVENTORY_STATUS.RESERVED, INVENTORY_STATUS.AVAILABLE, INVENTORY_STATUS.MISSING,
+    ].includes(entry.inventory?.status);
+    if (usable) {
+      const id = Number(entry.equipment_item_id);
+      const need = needs.get(id) || { quantity: 0, standing: entry.inventory };
+      need.quantity = roundQuantity(need.quantity + entry.quantity);
+      needs.set(id, need);
+    }
+  }
+  return needs;
+}
+
+/**
+ * Reserve, for the camp's dates, equipment its list still needs. All or none,
+ * with the items locked while their standing is counted: an entry asking for
+ * more than the camp still lacks, or than is free, is refused, so two people
+ * pressing the button at once never reserve twice. Each reservation names the
+ * camp's meeting and outing; one already made for this camp grows instead.
+ *
+ * @param {Object} pool - pg pool
+ * @param {number} organizationId - Unit of the token
+ * @param {string} userId - Who reserves
+ * @param {number} meetingId - The camp (year_plan_meetings.id)
+ * @param {Array<{equipment_item_id: number, quantity: number}>} requested - Validated, each item once
+ * @returns {Promise<Object[]>} The reservations written
+ */
+async function reserveCampMaterial(pool, organizationId, userId, meetingId, requested) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'SELECT id FROM equipment_items WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE',
+      [requested.map((item) => item.equipment_item_id)],
+    );
+    const list = await buildCampMaterialList(client, organizationId, meetingId, { withInventory: true });
+    if (!list) {
+      throw new CampMaterialError('Meeting not found', HTTP_NOT_FOUND);
+    }
+    const needs = needsByEquipment(list.items);
+    const stale = requested.some((item) => {
+      const need = needs.get(item.equipment_item_id);
+      return !need || item.quantity > quantityToReserve(need.quantity, need.standing);
+    });
+    if (stale) {
+      throw new CampMaterialError('camp_material_reservation_stale', HTTP_CONFLICT);
+    }
+    const camp = await loadCamp(client, organizationId, meetingId);
+    const written = await client.query(
+      `INSERT INTO equipment_reservations
+         (organization_id, equipment_id, meeting_id, activity_id, meeting_date, date_from, date_to,
+          reserved_quantity, reserved_for, status, created_by)
+       SELECT $1, entry.equipment_id, $2, $3, $4::date, $4::date, $5::date, entry.quantity, $6, 'reserved', $7
+         FROM unnest($8::int[], $9::int[]) AS entry(equipment_id, quantity)
+       ON CONFLICT ON CONSTRAINT equipment_reservations_unique_reservation
+       DO UPDATE SET
+         reserved_quantity = CASE WHEN equipment_reservations.status = ANY($10::text[])
+           THEN equipment_reservations.reserved_quantity + EXCLUDED.reserved_quantity
+           ELSE EXCLUDED.reserved_quantity END,
+         status = CASE WHEN equipment_reservations.status = ANY($10::text[])
+           THEN equipment_reservations.status ELSE 'reserved' END,
+         meeting_id = EXCLUDED.meeting_id,
+         activity_id = COALESCE(EXCLUDED.activity_id, equipment_reservations.activity_id),
+         date_from = EXCLUDED.date_from,
+         date_to = EXCLUDED.date_to,
+         updated_at = CURRENT_TIMESTAMP
+       WHERE NOT (equipment_reservations.status = ANY($10::text[]))
+          OR equipment_reservations.meeting_id = EXCLUDED.meeting_id
+          OR (EXCLUDED.activity_id IS NOT NULL AND equipment_reservations.activity_id = EXCLUDED.activity_id)
+       RETURNING id, equipment_id, reserved_quantity`,
+      [
+        organizationId, camp.id, camp.activity_id, camp.date_from, camp.date_to,
+        camp.label.slice(0, RESERVED_FOR_MAX_LENGTH), userId,
+        requested.map((item) => item.equipment_item_id), requested.map((item) => item.quantity),
+        ACTIVE_RESERVATION_STATUSES,
+      ],
+    );
+    // Another booking of the same name and day holds the row: nothing of this camp to grow.
+    if (written.rows.length !== requested.length) {
+      throw new CampMaterialError('camp_material_reservation_conflict', HTTP_CONFLICT);
+    }
+    await client.query('COMMIT');
+    return written.rows.map((row) => ({
+      id: row.id, equipment_item_id: Number(row.equipment_id), reserved: Number(row.reserved_quantity),
+    }));
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   INVENTORY_STATUS,
+  CampMaterialError,
+  reserveCampMaterial,
   buildCampMaterialList,
   consolidate,
   inventoryFor,

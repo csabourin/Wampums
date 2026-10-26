@@ -26,12 +26,14 @@ jest.mock('../../spa/config.js', () => ({
 const mockTemplates = {
   camp_material_use: '{day} · {activity}: {quantity}',
   camp_material_missing_count: '{count} short',
+  camp_material_reserve_item: '{name}: {count}',
   equipment_quantity_with_unit: '{quantity} {unit}',
 };
 jest.mock('../../spa/app.js', () => ({ translate: (key) => mockTemplates[key] || key }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
-jest.mock('../../spa/api/api-yearly-planner.js', () => ({ getCampMaterialList: jest.fn() }));
+jest.mock('../../spa/api/api-camp-material.js', () => ({ getCampMaterialList: jest.fn(), reserveCampMaterial: jest.fn() }));
 jest.mock('../../spa/utils/ExportUtils.js', () => ({ exportToCSV: jest.fn() }));
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasAllPermissions: jest.fn(), isDemoUser: jest.fn() }));
 jest.mock('../../spa/utils/PrintUtils.js', () => ({
   REPORT_PRINT_STYLES: 'body {}',
   openPrintWindow: jest.fn(),
@@ -39,9 +41,11 @@ jest.mock('../../spa/utils/PrintUtils.js', () => ({
 }));
 
 const { CampMaterialList } = require('../../spa/modules/camp-material/CampMaterialList.js');
-const api = require('../../spa/api/api-yearly-planner.js');
+const api = require('../../spa/api/api-camp-material.js');
 const { exportToCSV } = require('../../spa/utils/ExportUtils.js');
 const { openPrintWindow, setPrintContent } = require('../../spa/utils/PrintUtils.js');
+const { hasAllPermissions, isDemoUser } = require('../../spa/utils/PermissionUtils.js');
+const { closeAllModals } = require('../../spa/utils/ModalUtils.js');
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
@@ -101,6 +105,9 @@ beforeEach(() => {
   jest.clearAllMocks();
   document.body.innerHTML = '<main id="app"></main>';
   app = { showMessage: jest.fn(), lang: 'fr' };
+  closeAllModals();
+  hasAllPermissions.mockImplementation((...keys) => keys.every((key) => ['inventory.view', 'inventory.reserve'].includes(key)));
+  isDemoUser.mockReturnValue(false);
   api.getCampMaterialList.mockResolvedValue({ success: true, data: list() });
 });
 
@@ -278,4 +285,118 @@ test('the table regions can be reached with the keyboard', async () => {
   });
   const buttons = [...document.querySelectorAll('.camp-material__actions button')];
   expect(buttons.map((button) => button.textContent.trim())).toEqual(['print', 'export_csv']);
+});
+
+describe('reserving what is missing', () => {
+  /** @returns {Object} The list with tents partly free and stoves free */
+  function reservable() {
+    const base = list();
+    base.items[0] = { ...base.items[0], name: `Tente ${HOSTILE}`, inventory: { status: 'missing', reserved: 2, free: 1, missing: 1, to_reserve: 1 } };
+    base.items.push({
+      key: 'e30', catalog_item_id: null, equipment_item_id: 30, name: 'Réchauds', category: 'kitchen',
+      unit_of_measure: 'each', archived: false, quantity: 3,
+      uses: [{ activity_id: 3, name: 'Repas', day_offset: 1, quantity: 3 }],
+      inventory: { status: 'available', reserved: 0, free: 5, missing: 0, to_reserve: 3 },
+    });
+    return base;
+  }
+  const dialog = () => document.getElementById('camp-material-reserve-dialog');
+  const confirmButton = () => dialog().querySelector('button[type="submit"]');
+
+  beforeEach(() => {
+    api.getCampMaterialList.mockResolvedValue({ data: reservable() });
+    api.reserveCampMaterial.mockResolvedValue({ success: true, data: { count: 2 } });
+  });
+
+  test('the button is offered only when something can be reserved', async () => {
+    api.getCampMaterialList.mockResolvedValue({ data: list() });
+    await openScreen();
+    expect(document.getElementById('camp-material-reserve')).toBeNull();
+  });
+
+  test.each([
+    ['without the reservation right', () => hasAllPermissions.mockReturnValue(false)],
+    ['for a demo account', () => isDemoUser.mockReturnValue(true)],
+  ])('it is not offered %s', async (_label, arrange) => {
+    arrange();
+    await openScreen();
+    expect(document.getElementById('camp-material-reserve')).toBeNull();
+  });
+
+  test('the dialog says what will be reserved, and that the rest stays missing', async () => {
+    await openScreen();
+    document.getElementById('camp-material-reserve').click();
+    const items = [...dialog().querySelectorAll('.camp-material__reserve-list li')].map((item) => item.textContent);
+    expect(items).toEqual([`Tente ${HOSTILE}: 1`, 'Réchauds: 3']);
+    expect(dialog().textContent).toContain('camp_material_reserve_partial');
+    expect(dialog().querySelector('img')).toBeNull();
+    expect(api.reserveCampMaterial).not.toHaveBeenCalled();
+  });
+
+  test('cancelling reserves nothing and gives focus back to the button', async () => {
+    await openScreen();
+    const opener = document.getElementById('camp-material-reserve');
+    opener.focus();
+    opener.click();
+    dialog().querySelector('[data-modal-close]').click();
+    expect(dialog()).toBeNull();
+    expect(api.reserveCampMaterial).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  test('Escape closes the dialog without reserving', async () => {
+    await openScreen();
+    document.getElementById('camp-material-reserve').click();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(dialog()).toBeNull();
+    expect(api.reserveCampMaterial).not.toHaveBeenCalled();
+  });
+
+  test('confirming reserves exactly what was shown, once, then reloads the list', async () => {
+    await openScreen();
+    document.getElementById('camp-material-reserve').click();
+    confirmButton().click();
+    confirmButton().click();
+    await settle();
+    await settle();
+    expect(api.reserveCampMaterial).toHaveBeenCalledTimes(1);
+    expect(api.reserveCampMaterial).toHaveBeenCalledWith(CAMP_ID, [
+      { equipment_item_id: 11, quantity: 1 },
+      { equipment_item_id: 30, quantity: 3 },
+    ]);
+    expect(app.showMessage).toHaveBeenCalledWith('camp_material_reserve_done', 'success');
+    expect(dialog()).toBeNull();
+    expect(api.getCampMaterialList).toHaveBeenCalledTimes(2);
+    expect(api.getCampMaterialList).toHaveBeenLastCalledWith(CAMP_ID, { forceRefresh: true });
+  });
+
+  test('a stale count is explained, nothing reads as reserved, and the list is reloaded', async () => {
+    api.reserveCampMaterial.mockRejectedValue(Object.assign(new Error('camp_material_reservation_stale'), { status: 409 }));
+    await openScreen();
+    document.getElementById('camp-material-reserve').click();
+    confirmButton().click();
+    await settle();
+    await settle();
+    expect(app.showMessage).toHaveBeenCalledWith(expect.any(String), 'error');
+    expect(app.showMessage).not.toHaveBeenCalledWith(expect.anything(), 'success');
+    expect(dialog()).toBeNull();
+    expect(api.getCampMaterialList).toHaveBeenCalledTimes(2);
+  });
+
+  test('another failure keeps the dialog open to try again', async () => {
+    api.reserveCampMaterial.mockRejectedValue(Object.assign(new Error('offline'), { code: 'online_required' }));
+    await openScreen();
+    document.getElementById('camp-material-reserve').click();
+    confirmButton().click();
+    await settle();
+    expect(app.showMessage).toHaveBeenCalledWith(expect.any(String), 'error');
+    expect(dialog()).not.toBeNull();
+    expect(confirmButton().disabled).toBe(false);
+  });
+
+  test('the dialog meets WCAG A/AA', async () => {
+    await openScreen();
+    document.getElementById('camp-material-reserve').click();
+    expect((await axe.run(document.body, AXE_OPTIONS)).violations).toEqual([]);
+  });
 });

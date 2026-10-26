@@ -4709,5 +4709,15 @@
   "camp_material_unlisted_title": "Réservé pour ce camp, mais inscrit dans aucune activité",
   "camp_material_unlisted_hint": "Ajoutez-le à une activité, ou annulez la réservation si elle n'est plus utile.",
   "camp_material_unlisted_item": "{name} : réservé ({count})",
-  "camp_material_file_name": "materiel-camp"
+  "camp_material_file_name": "materiel-camp",
+  "camp_material_reserve": "Réserver ce qui manque",
+  "camp_material_reserve_title": "Réserver pour ce camp",
+  "camp_material_reserve_intro": "Ces quantités seront réservées dans l'inventaire pour {dates} :",
+  "camp_material_reserve_item": "{name} : {count}",
+  "camp_material_reserve_partial": "Lorsqu'il n'y en a pas assez de libres, seuls ceux qui sont libres sont réservés ; le reste demeure manquant.",
+  "camp_material_reserve_confirm": "Réserver",
+  "camp_material_reserve_done": "Réservé pour le camp : {count} article(s).",
+  "camp_material_reserve_failed": "La réservation n'a pas pu être faite. Rien n'a été réservé.",
+  "camp_material_reservation_stale": "L'inventaire a changé depuis l'affichage de la liste. Rien n'a été réservé ; vérifiez la liste à jour.",
+  "camp_material_reservation_conflict": "Une autre réservation au nom de ce camp existe déjà à cette date. Rien n'a été réservé."
 }

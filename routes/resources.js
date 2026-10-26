@@ -26,6 +26,7 @@ const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { findTestRecipient, markAsTestEmail } = require('../utils/test-email');
 const { findUninvitedParticipants } = require('../services/activityInvitations');
+const { CampMaterialError, reserveCampMaterial } = require('../services/campMaterialList');
 const {
   MAX_FILE_SIZE,
   OUTPUT_MIME_TYPE,
@@ -100,10 +101,16 @@ function parseDate(dateString) {
 const HOLDING_STATUSES = ['reserved', 'confirmed'];
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
+const HTTP_CREATED = 201;
 /** The email service did not accept a message. */
 const HTTP_BAD_GATEWAY = 502;
 /** Slips one send or reminder request may name. */
 const MAX_SLIP_IDS_PER_REQUEST = 200;
+/** Most items one camp reservation names, as a material list holds per line. */
+const CAMP_RESERVATION_ITEMS_MAX = 50;
+/** Largest count of one item reserved at once. */
+const CAMP_RESERVATION_QUANTITY_MAX = 99999;
+const POSTGRES_INT_MAX = 2147483647;
 
 function activeReservationPredicate(alias = '') {
   const prefix = alias ? `${alias}.` : '';
@@ -1729,6 +1736,42 @@ module.exports = (pool, logger) => {
           return;
         }
         return error(res, err.message || 'Error updating reservation', err.statusCode || 500);
+      }
+    }),
+  );
+
+  // What a camp's material list still needs, reserved for the camp's dates.
+  // The server recounts under lock and refuses (409) more than the camp still
+  // lacks or than is free, so a stale screen never over-reserves.
+  router.post(
+    '/equipment/reservations/camps/:meetingId',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('meetings.view', 'inventory.view', 'inventory.reserve'),
+    [
+      validateIdParam('meetingId'),
+      check('items').isArray({ min: 1, max: CAMP_RESERVATION_ITEMS_MAX }).withMessage('invalid_request')
+        .bail()
+        .custom((items) => new Set(items.map((item) => String(item?.equipment_item_id))).size === items.length)
+        .withMessage('invalid_request'),
+      check('items.*.equipment_item_id').isInt({ min: 1, max: POSTGRES_INT_MAX }).withMessage('invalid_request'),
+      check('items.*.quantity').isInt({ min: 1, max: CAMP_RESERVATION_QUANTITY_MAX }).withMessage('invalid_request'),
+    ],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const items = req.body.items.map((item) => ({
+        equipment_item_id: Number(item.equipment_item_id),
+        quantity: Number(item.quantity),
+      }));
+      try {
+        const reservations = await reserveCampMaterial(pool, organizationId, req.user.id, Number(req.params.meetingId), items);
+        return success(res, { reservations, count: reservations.length }, 'Camp material reserved', HTTP_CREATED);
+      } catch (err) {
+        if (err instanceof CampMaterialError) {
+          return error(res, err.message, err.status);
+        }
+        throw err;
       }
     }),
   );

@@ -4709,5 +4709,15 @@
   "camp_material_unlisted_title": "Reserved for this camp, but listed by no activity",
   "camp_material_unlisted_hint": "Add it to an activity, or cancel the reservation if it is no longer needed.",
   "camp_material_unlisted_item": "{name}: reserved ({count})",
-  "camp_material_file_name": "camp-material"
+  "camp_material_file_name": "camp-material",
+  "camp_material_reserve": "Reserve what is missing",
+  "camp_material_reserve_title": "Reserve for this camp",
+  "camp_material_reserve_intro": "These quantities will be reserved from the inventory for {dates}:",
+  "camp_material_reserve_item": "{name}: {count}",
+  "camp_material_reserve_partial": "Where too few are free, only the free ones are reserved; the rest stays missing.",
+  "camp_material_reserve_confirm": "Reserve",
+  "camp_material_reserve_done": "Reserved for the camp: {count} item(s).",
+  "camp_material_reserve_failed": "The reservation could not be made. Nothing was reserved.",
+  "camp_material_reservation_stale": "The inventory changed since this list was shown. Nothing was reserved; check the updated list.",
+  "camp_material_reservation_conflict": "Another reservation with this camp's name already exists on that date. Nothing was reserved."
 }
