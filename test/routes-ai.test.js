@@ -235,3 +235,22 @@ test('an outing plan for a unit with nothing recorded keeps the assistant\'s lis
 
   expect(response.body.data.data.materialsMasterList).toEqual(['Foulards']);
 });
+
+test.each(['fr', 'en', 'uk', 'it', 'id'])('the activity assistant receives the requested %s page language', async (locale) => {
+  generateText.mockResolvedValue({ data: { title: 'Fictional plan' }, usage: {} });
+  const response = await ask({ mode: 'meeting_plan', payload: {
+    locale, durationMinutes: 60, badgeFocus: 'First aid', participantsCount: 20,
+  } });
+  expect(response.status).toBe(200);
+  expect(generateText).toHaveBeenCalledWith('meeting_plan', expect.objectContaining({
+    requestType: 'activity_plan', locale,
+  }), expect.objectContaining({ organizationId: ORGANIZATION_ID }));
+});
+
+test('an unsupported activity-plan language is refused before calling the provider', async () => {
+  const response = await ask({ mode: 'meeting_plan', payload: {
+    locale: 'not-a-language', durationMinutes: 60, badgeFocus: 'First aid', participantsCount: 20,
+  } });
+  expect(response.status).toBe(400);
+  expect(generateText).not.toHaveBeenCalled();
+});

@@ -15,6 +15,14 @@ explicitly directs the model to treat all JSON values as data rather than
 instructions. This separation applies to meeting plans, activity plans,
 rewrites, translations, and risk suggestions.
 
+Meeting and outing activity plans carry the page language in `payload.locale`.
+The shared planning validator allowlists it against the supported interface
+languages, normalizes case, and defaults to French for older callers that omit
+it. Both activity-plan schemas (with unit material and with a free-text material
+list) instruct the model to use this locale for human-readable values while
+keeping JSON property names unchanged. Locale stays in the validated user data;
+it is never interpolated into a system message.
+
 When adding an AI mode:
 
 1. Add a bounded schema to the validator.

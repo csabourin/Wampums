@@ -36,11 +36,12 @@ const PLAN = {
 /**
  * Open the activity form, ask the assistant, and return the description text.
  * @param {Object} plan - What the server answers
+ * @param {string} [lang] - Current page language
  * @returns {Promise<string>} The description, as text
  */
-async function generate(plan) {
+async function generate(plan, lang = 'fr') {
   aiGenerateText.mockResolvedValue({ data: { data: plan } });
-  openActivityFormModal({ showMessage: jest.fn(), lang: 'fr' });
+  openActivityFormModal({ showMessage: jest.fn(), lang });
   await flush();
   const overlay = document.getElementById('activity-modal');
   overlay.querySelector('#magic-generate-btn').click();
@@ -50,6 +51,7 @@ async function generate(plan) {
   return overlay.querySelector('#activity-description').textContent;
 }
 
+beforeEach(() => jest.clearAllMocks());
 afterEach(() => closeAllModals());
 
 test('the material written is the unit\'s own, with quantities and units, under translated headings', async () => {
@@ -80,4 +82,10 @@ test('an outing that needs none of the unit\'s material lists none', async () =>
   const text = await generate({ ...PLAN, material_items: [] });
 
   expect(text).not.toContain('activity_plan_materials_heading');
+});
+
+// The page language, rather than the badge text or browser language, controls generation.
+test.each(['fr', 'en', 'uk', 'it', 'id'])('an activity form on a %s page sends its language to the assistant', async (lang) => {
+  await generate(PLAN, lang);
+  expect(aiGenerateText).toHaveBeenCalledWith('meeting_plan', expect.objectContaining({ locale: lang }));
 });

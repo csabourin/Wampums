@@ -88,6 +88,9 @@ function normalizeVocabulary(value, field, errors) {
 }
 
 function normalizeMeetingPlan(payload, errors) {
+  const locale = typeof payload.locale === 'string' ? payload.locale.toLowerCase() : 'fr';
+  if (!SUPPORTED_LOCALES.has(locale)) {addError(errors, 'payload.locale', 'Unsupported locale');}
+
   const isActivityPlan = payload.durationMinutes !== undefined
     || payload.badgeFocus !== undefined
     || payload.participantsCount !== undefined;
@@ -95,6 +98,7 @@ function normalizeMeetingPlan(payload, errors) {
   if (isActivityPlan) {
     return {
       requestType: 'activity_plan',
+      locale: SUPPORTED_LOCALES.has(locale) ? locale : 'fr',
       durationMinutes: normalizeInteger(
         payload.durationMinutes,
         'payload.durationMinutes',
@@ -114,9 +118,6 @@ function normalizeMeetingPlan(payload, errors) {
       ),
     };
   }
-
-  const locale = typeof payload.locale === 'string' ? payload.locale.toLowerCase() : 'fr';
-  if (!SUPPORTED_LOCALES.has(locale)) {addError(errors, 'payload.locale', 'Unsupported locale');}
 
   const date = normalizeText(payload.date, 'payload.date', errors, { maxLength: 10 });
   if (date && !DATE_PATTERN.test(date)) {addError(errors, 'payload.date', 'Date must use YYYY-MM-DD');}
