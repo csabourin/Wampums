@@ -143,6 +143,7 @@ const lazyModules = {
   ParentOnboarding: () => import('./modules/parent-onboarding/ParentOnboarding.js').then(m => m.ParentOnboarding),
   FamilyAccess: () => import('./modules/family-access/FamilyAccess.js').then(m => m.FamilyAccess),
   WalkInChildren: () => import('./modules/walk-in/WalkInChildren.js').then(m => m.WalkInChildren),
+  Tasks: () => import('./modules/tasks/Tasks.js').then(m => m.Tasks),
   Messages: () => import('./modules/messages/Messages.js').then(m => m.Messages)
 };
 
@@ -200,6 +201,7 @@ const routes = {
   '/parent-onboarding': 'parentOnboarding',
   '/family-access': 'familyAccess',
   '/walk-in-children': 'walkInChildren',
+  '/tasks': 'tasks',
   '/messages': 'messages',
   '/messages/:id': 'message',
   '/reports': 'reports',
@@ -997,6 +999,13 @@ export class Router {
           this.currentModuleInstance = carpoolLanding;
           await carpoolLanding.init();
           break;
+        case 'tasks': {
+          if (!guard(hasPermission('tasks.view'))) {break;}
+          const Tasks = await this.loadModule('Tasks');
+          this.currentModuleInstance = new Tasks(this.app);
+          await this.currentModuleInstance.init();
+          break;
+        }
         case 'messages':
         case 'message': {
           // Every member reads their own messages; the server returns only theirs.

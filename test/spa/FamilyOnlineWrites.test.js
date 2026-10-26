@@ -4,7 +4,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugEr
 jest.mock('../../spa/config.js', () => ({
   CONFIG: {
     API_BASE_URL: 'https://unit.example.test',
-    ONLINE_REQUIRED_MUTATION_RESOURCES: ['parent-invitations', 'parent-onboarding', 'walk-in-children', 'family-links', 'family-link-requests'],
+    ONLINE_REQUIRED_MUTATION_RESOURCES: ['parent-invitations', 'parent-onboarding', 'walk-in-children', 'family-links', 'family-link-requests', 'tasks'],
   },
 }));
 jest.mock('../../spa/jwt-helper.js', () => ({ getOrganizationIdFromJWT: () => null, getUserInfoFromJWT: () => ({}) }));
@@ -60,4 +60,12 @@ test('ordinary offline attendance still queues normally', async () => {
   offlineManager.isOffline = true;
   expect(await API.post('v1/attendance', { participant_id: 1 })).toMatchObject({ success: true, queued: true });
   expect(offlineManager.queueMutation).toHaveBeenCalledTimes(1);
+});
+
+
+test.each([['POST', 'tasks'], ['PUT', 'tasks/3'], ['PATCH', 'tasks/mine/3/status']])('offline task %s writes are never sent or queued', async (method, path) => {
+  offlineManager.isOffline = true;
+  await expect(makeApiRequest(`v1/${path}`, { method, body: {} })).rejects.toMatchObject({ code: 'online_required' });
+  expect(global.fetch).not.toHaveBeenCalled();
+  expect(offlineManager.queueMutation).not.toHaveBeenCalled();
 });
