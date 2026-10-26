@@ -217,3 +217,12 @@ test('the role matrix has translated names for the permission catalog and all lo
   }
   expect(missing(uses)).toEqual([]);
 });
+
+
+test('every shared task status has a label in both languages', () => {
+  const { TASK_STATUSES } = require('../../config/tasks');
+  const config = fs.readFileSync(path.join(ROOT, 'spa/config.js'), 'utf8');
+  const labels = [...config.match(/STATUS_KEYS:\s*\{([^}]+)\}/)[1].matchAll(/([a-z_]+): '([^']+)'/g)];
+  expect(labels.map((match) => match[1])).toEqual(TASK_STATUSES);
+  expect(missing(labels.map((match) => [match[2], 'shared task status']))).toEqual([]);
+});

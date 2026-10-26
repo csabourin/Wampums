@@ -46,10 +46,15 @@ export const CONFIG = {
      */
   API_BASE_URL: import.meta.env?.VITE_API_URL || window.location.origin,
 
+  /** Shared task form and status labels. */
+  TASKS: {
+    TITLE_MAX_LENGTH: 255,
+    STATUS_KEYS: { todo: 'tasks_status_todo', in_progress: 'tasks_status_in_progress', done: 'tasks_status_done' },
+  },
   /** These workflows need a confirmed server result, never an offline replay. */
   ONLINE_REQUIRED_MUTATION_RESOURCES: [
     'parent-invitations', 'parent-onboarding', 'walk-in-children',
-    'family-links', 'family-link-requests', 'calendar-feed', 'roles',
+    'family-links', 'family-link-requests', 'calendar-feed', 'roles', 'tasks',
   ],
   /**
      * Cache Duration Settings

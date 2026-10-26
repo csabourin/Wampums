@@ -67,5 +67,12 @@
   { "method": "POST", "path": "/api/v1/equipment-loans", "routerVariable": "equipmentLoansRoutes", "routeFile": "routes/equipmentLoans.js", "routePath": "/", "clientFile": "spa/api/api-equipment-loans.js", "clientEndpoint": "'v1/equipment-loans'" },
   { "method": "PATCH", "path": "/api/v1/equipment-loans/:id", "routerVariable": "equipmentLoansRoutes", "routeFile": "routes/equipmentLoans.js", "routePath": "/:id", "clientFile": "spa/api/api-equipment-loans.js", "clientEndpoint": "v1/equipment-loans/${encodeURIComponent(loanId)}" },
   { "method": "DELETE", "path": "/api/v1/equipment-loans/:id", "routerVariable": "equipmentLoansRoutes", "routeFile": "routes/equipmentLoans.js", "routePath": "/:id", "clientFile": "spa/api/api-equipment-loans.js", "clientEndpoint": "v1/equipment-loans/${encodeURIComponent(loanId)}" },
-  { "method": "POST", "path": "/api/v1/equipment-suggestions", "routerVariable": "equipmentSuggestionsRoutes", "routeFile": "routes/equipmentSuggestions.js", "routePath": "/", "clientFile": "spa/api/api-ai.js", "clientEndpoint": "'v1/equipment-suggestions'" }
+  { "method": "POST", "path": "/api/v1/equipment-suggestions", "routerVariable": "equipmentSuggestionsRoutes", "routeFile": "routes/equipmentSuggestions.js", "routePath": "/", "clientFile": "spa/api/api-ai.js", "clientEndpoint": "'v1/equipment-suggestions'" },
+  {"method": "GET", "path": "/api/v1/tasks/mine", "routerVariable": "tasksRoutes", "routeFile": "routes/tasks.js", "routePath": "/mine", "clientFile": "spa/api/api-tasks.js", "clientEndpoint": "v1/tasks/mine"},
+  {"method": "GET", "path": "/api/v1/tasks", "routerVariable": "tasksRoutes", "routeFile": "routes/tasks.js", "routePath": "/", "clientFile": "spa/api/api-tasks.js", "clientEndpoint": "v1/tasks"},
+  {"method": "GET", "path": "/api/v1/tasks/options", "routerVariable": "tasksRoutes", "routeFile": "routes/tasks.js", "routePath": "/options", "clientFile": "spa/api/api-tasks.js", "clientEndpoint": "v1/tasks/options"},
+  {"method": "POST", "path": "/api/v1/tasks", "routerVariable": "tasksRoutes", "routeFile": "routes/tasks.js", "routePath": "/", "clientFile": "spa/api/api-tasks.js", "clientEndpoint": "v1/tasks"},
+  {"method": "PUT", "path": "/api/v1/tasks/:id", "routerVariable": "tasksRoutes", "routeFile": "routes/tasks.js", "routePath": "/:id", "clientFile": "spa/api/api-tasks.js", "clientEndpoint": "v1/tasks/${encodeURIComponent(id)}"},
+  {"method": "PATCH", "path": "/api/v1/tasks/mine/:id/status", "routerVariable": "tasksRoutes", "routeFile": "routes/tasks.js", "routePath": "/mine/:id/status"},
+  {"method": "PATCH", "path": "/api/v1/tasks/:id/status", "routerVariable": "tasksRoutes", "routeFile": "routes/tasks.js", "routePath": "/:id/status"}
 ]

@@ -12956,3 +12956,18 @@ body:has(> .settings-icon) .demo-banner__inner {
   min-height: var(--touch-target-min);
 }
 .action-roster-controls p { margin: 0; }
+
+/* Tasks use the same native controls on phones and desktops. */
+.tasks-page .task-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-md);
+}
+.tasks-page .task-card { padding: var(--space-md); overflow-wrap: anywhere; min-width: 0; }
+.task-toolbar, .task-status-form { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
+.task-editor { display: grid; gap: var(--space-sm); min-width: 0; }
+.task-editor input, .task-editor select { width: 100%; min-width: 0; box-sizing: border-box; }
+.tasks-page select, .task-editor input, .task-editor select { min-height: var(--touch-target-min); }
+.tasks-page summary { min-height: var(--touch-target-min); display: list-item; align-content: center; cursor: pointer; }
+.tasks-page details li { overflow-wrap: anywhere; }
