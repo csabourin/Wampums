@@ -18,7 +18,7 @@ const LANGUAGES = ['fr', 'en'];
 const LIST_FIELDS = ['material', 'steps', 'safety', 'variants'];
 const SUPERVISION = ['standard', 'close'];
 const ORIGINS = ['units', 'new'];
-const REVIEWS = ['draft', 'to_confirm'];
+const REVIEWS = ['draft', 'to_confirm', 'reviewed'];
 
 const duplicates = (values) => values.filter((value, index) => values.indexOf(value) !== index);
 
@@ -28,8 +28,8 @@ describe('starter activity library', () => {
     expect(raw).not.toMatch(/Ã|â€|Â|�/);
   });
 
-  it('names every branch, category and tag in both languages', () => {
-    for (const group of ['branches', 'categories', 'tags']) {
+  it('names every branch, category, tag and season in both languages', () => {
+    for (const group of ['branches', 'categories', 'tags', 'seasons']) {
       for (const [key, labels] of Object.entries(library[group])) {
         for (const language of LANGUAGES) {
           expect([group, key, language, typeof labels[language]]).toEqual([group, key, language, 'string']);
@@ -92,6 +92,54 @@ describe('starter activity library', () => {
       .map((activity) => activity.key)).toEqual([]);
     expect(activities.filter((activity) => activity.review === 'to_confirm' && !activity.review_note?.trim())
       .map((activity) => activity.key)).toEqual([]);
+  });
+
+  it('gives every reviewed activity usable instructions, equipment lists and precautions in both languages', () => {
+    const reviewed = activities.filter((activity) => activity.review === 'reviewed');
+    expect(reviewed.length).toBeGreaterThan(0);
+    for (const activity of reviewed) {
+      expect(activity.players).toEqual(expect.objectContaining({ min: expect.any(Number) }));
+      for (const language of LANGUAGES) {
+        for (const field of LIST_FIELDS) {
+          expect(Array.isArray(activity[language][field])).toBe(true);
+          expect(activity[language][field].every((text) => typeof text === 'string' && text.trim().length > 0)).toBe(true);
+        }
+        // No-equipment activities and activities without a proposed variant use [].
+        expect(activity[language].steps.length).toBeGreaterThan(1);
+        expect(activity[language].safety.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('declares a valid season and setting for every activity', () => {
+    const invalid = activities.filter((activity) => !activity.seasons?.length
+      || activity.seasons.some((season) => !(season in library.seasons))
+      || !activity.tags.some((tag) => ['indoor', 'outdoor'].includes(tag)));
+    expect(invalid.map((activity) => activity.key)).toEqual([]);
+  });
+
+  it('keeps withdrawn activities out of the selectable list without losing their old names', () => {
+    const retired = library.retired_activities;
+    expect(retired.find((activity) => activity.key === 'game_den_ball')).toMatchObject({
+      legacy_names: ['Jeu : Ballon tanières'],
+    });
+    const activeKeys = activities.map((activity) => activity.key);
+    for (const activity of retired) {
+      expect(activeKeys).not.toContain(activity.key);
+      for (const language of LANGUAGES) {
+        expect(activity.reason[language].trim().length).toBeGreaterThan(0);
+      }
+    }
+    expect(duplicates([...activities, ...retired].flatMap((activity) => activity.legacy_names))).toEqual([]);
+  });
+
+  it('keeps pigeon ball targets on the floor rather than on gym benches', () => {
+    const pigeonBall = activities.find((activity) => activity.key === 'game_pigeon_ball');
+    for (const language of LANGUAGES) {
+      const setup = [pigeonBall[language].summary, ...pigeonBall[language].material, ...pigeonBall[language].steps].join(' ');
+      expect(setup).toMatch(/\bsol\b|\bfloor\b/);
+      expect(setup).not.toMatch(/\bbanc\b|\bbench\b/i);
+    }
   });
 
   it('maps each old name to exactly one activity, and only the units’ own activities have old names', () => {

@@ -32,7 +32,7 @@ jest.mock('../../spa/utils/meetingSections.js', () => ({
   getSectionActivityTemplates: jest.fn(() => [])
 }));
 
-import { ActivityManager } from '../../spa/modules/ActivityManager.js';
+import { ActivityManager } from '../../spa/modules/meetings/ActivityManager.js';
 
 const ACTIVITIES = [
   { id: 1, activity: 'Opening', time: '18:30', duration: '00:10', responsable: '', materiel: '', position: 0 },

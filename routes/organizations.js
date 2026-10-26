@@ -32,6 +32,7 @@ const {
 } = require('../utils/interfaceLanguages');
 const { ensureProgramSectionsSeeded, getProgramSections } = require('../utils/programSections');
 const { installDefaultFormFormats } = require('../services/defaultFormFormats');
+const { installDefaultStarterActivities } = require('../services/activityLibraryStarter');
 const {
   EMAIL_SENDER_SETTING_KEY,
   getDefaultSenderEmail,
@@ -963,6 +964,10 @@ module.exports = (pool, logger) => {
       );
 
       await ensureProgramSectionsSeeded(client, newOrganizationId);
+
+      // The default starter activities, in the unit's language, so a new
+      // unit's planner and meeting preparation have a repertoire from day one.
+      await installDefaultStarterActivities(client, newOrganizationId, userId);
 
       // Link current user to the new organization with district-level permissions.
       //

@@ -1,5 +1,12 @@
 export default {
   'defaultSection': 'cubs',
+  // Template activityKey -> starter catalogue key (config/activity_library_starter.json).
+  // Mirrors config/meeting_sections.json.
+  'starterBlocks': {
+    'activity_welcome_cubs': 'block_arrival',
+    'activity_water_break': 'block_water_break',
+    'activity_prayer_departure': 'block_closing'
+  },
   'sections': {
     'general': {
       'name': 'Scouts',

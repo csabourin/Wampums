@@ -13,6 +13,7 @@ import { skeletonTable } from '../../utils/SkeletonUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { CONFIG } from '../../config.js';
 import { INTERFACE_LANGS } from '../../config/languages.js';
+import { activityCategoryLabel } from '../../utils/ActivityLibraryUtils.js';
 import { buildYearModel } from './PlannerModel.js';
 import { renderYearGrid, renderYearSummary, renderArmBar, renderLiveRegion } from './YearGridView.js';
 import { openMeetingSheet } from './MeetingSheet.js';
@@ -243,7 +244,7 @@ export class YearlyPlanner extends BaseModule {
               <li>
                 <button type="button" class="yp-picker__item" data-library-id="${item.id}">
                   <span class="yp-picker__name">${escapeHTML(item.name)}</span>
-                  ${item.category ? `<span class="yp-picker__cat">${escapeHTML(item.category)}</span>` : ''}
+                  ${item.category ? `<span class="yp-picker__cat">${escapeHTML(activityCategoryLabel(item.category))}</span>` : ''}
                   ${item.estimated_duration_min
     ? `<span class="yp-picker__dur">${item.estimated_duration_min} min</span>`
     : ''}
@@ -1005,9 +1006,14 @@ export class YearlyPlanner extends BaseModule {
           </button>
           <h1>${translate('yearly_planner_activity_library')}</h1>
           ${this.canManage ? `
-            <button class="button button--primary" id="yp-add-library-btn">
-              <i class="fas fa-plus"></i> ${translate('yearly_planner_add_library_activity')}
-            </button>
+            <div class="page__actions">
+              <a class="button button--secondary" href="/yearly-planner/starter-activities">
+                <i class="fas fa-lightbulb" aria-hidden="true"></i> ${translate('starter_activities_browse')}
+              </a>
+              <button class="button button--primary" id="yp-add-library-btn">
+                <i class="fas fa-plus"></i> ${translate('yearly_planner_add_library_activity')}
+              </button>
+            </div>
           ` : ''}
         </header>
 
@@ -1017,14 +1023,17 @@ export class YearlyPlanner extends BaseModule {
         </div>
 
         ${this.activityLibrary.length === 0 ? `
-          <div class="empty-state"><p>${translate('yearly_planner_library_empty')}</p></div>
+          <div class="empty-state">
+            <p>${translate(this.libraryError ? 'yearly_planner_error_loading' : 'yearly_planner_library_empty')}</p>
+            ${!this.libraryError && this.canManage ? `<p>${translate('starter_activities_suggestion')}</p>` : ''}
+          </div>
         ` : `
           <div class="yp-library-list">
             ${this.activityLibrary.map(a => `
               <div class="yp-library-item" data-lib-id="${a.id}">
                 <div class="yp-library-item__info">
                   <strong>${escapeHTML(a.name)}</strong>
-                  ${a.category ? `<span class="badge">${escapeHTML(a.category)}</span>` : ''}
+                  ${a.category ? `<span class="badge">${escapeHTML(activityCategoryLabel(a.category))}</span>` : ''}
                   ${a.description ? `<p>${escapeHTML(a.description)}</p>` : ''}
                   <div class="yp-library-item__meta">
                     ${a.estimated_duration_min ? `<span>${a.estimated_duration_min}–${a.estimated_duration_max || a.estimated_duration_min} min</span>` : ''}

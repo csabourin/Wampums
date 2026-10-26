@@ -74,5 +74,7 @@
   {"method": "POST", "path": "/api/v1/tasks", "routerVariable": "tasksRoutes", "routeFile": "routes/tasks.js", "routePath": "/", "clientFile": "spa/api/api-tasks.js", "clientEndpoint": "v1/tasks"},
   {"method": "PUT", "path": "/api/v1/tasks/:id", "routerVariable": "tasksRoutes", "routeFile": "routes/tasks.js", "routePath": "/:id", "clientFile": "spa/api/api-tasks.js", "clientEndpoint": "v1/tasks/${encodeURIComponent(id)}"},
   {"method": "PATCH", "path": "/api/v1/tasks/mine/:id/status", "routerVariable": "tasksRoutes", "routeFile": "routes/tasks.js", "routePath": "/mine/:id/status"},
-  {"method": "PATCH", "path": "/api/v1/tasks/:id/status", "routerVariable": "tasksRoutes", "routeFile": "routes/tasks.js", "routePath": "/:id/status"}
+  {"method": "PATCH", "path": "/api/v1/tasks/:id/status", "routerVariable": "tasksRoutes", "routeFile": "routes/tasks.js", "routePath": "/:id/status"},
+  { "method": "GET", "path": "/api/v1/yearly-planner/starter-activities", "routerVariable": "yearlyPlannerRoutes", "routeFile": "routes/yearlyPlanner.js", "routePath": "/starter-activities", "clientFile": "spa/api/api-yearly-planner.js", "clientEndpoint": "'v1/yearly-planner/starter-activities'" },
+  { "method": "POST", "path": "/api/v1/yearly-planner/starter-activities/import", "routerVariable": "yearlyPlannerRoutes", "routeFile": "routes/yearlyPlanner.js", "routePath": "/starter-activities/import", "clientFile": "spa/api/api-yearly-planner.js", "clientEndpoint": "'v1/yearly-planner/starter-activities/import'" }
 ]

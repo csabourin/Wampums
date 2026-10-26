@@ -5743,6 +5743,11 @@ body.online .pending-update {
   transform: translateY(0);
 }
 
+/* Summary and precautions, one per line */
+.activity-description-text {
+  white-space: pre-line;
+}
+
 /* Responsable and Materiel Fields */
 .activity-row__responsable select,
 .activity-row__responsable input,

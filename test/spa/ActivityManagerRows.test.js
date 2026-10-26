@@ -29,7 +29,7 @@ jest.mock('../../spa/utils/meetingSections.js', () => ({
   getSectionActivityTemplates: jest.fn(() => []),
 }));
 
-import { ActivityManager } from '../../spa/modules/ActivityManager.js';
+import { ActivityManager } from '../../spa/modules/meetings/ActivityManager.js';
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },

@@ -1,11 +1,28 @@
-import { translate } from '../app.js';
-import { getSectionActivityTemplates } from '../utils/meetingSections.js';
-import { setContent } from '../utils/DOMUtils.js';
-import { debugLog, debugWarn } from '../utils/DebugUtils.js';
-import { escapeAttribute, escapeHTML } from '../utils/SecurityUtils.js';
-import { badgeLabel } from '../utils/BadgeLabelUtils.js';
-import { memberDisplayName } from '../utils/DisplayNameUtils.js';
-import { AchievementModal } from './AchievementModal.js';
+import { translate } from '../../app.js';
+import { getSectionActivityTemplates, getTemplateStarterKey } from '../../utils/meetingSections.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { debugLog, debugWarn } from '../../utils/DebugUtils.js';
+import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
+import { badgeLabel } from '../../utils/BadgeLabelUtils.js';
+import { memberDisplayName } from '../../utils/DisplayNameUtils.js';
+import { AchievementModal } from '../AchievementModal.js';
+
+/**
+ * What the description dialog shows for a library activity: its summary, then
+ * the precautions a starter copy carries (the closing block's note that the
+ * spiritual moment is secular and optional, for instance).
+ *
+ * @param {Object|null|undefined} activity - Library activity from v1/meetings/activities
+ * @returns {string} Plain text, one paragraph per line
+ */
+export function activityDescriptionText(activity) {
+  const precautions = Array.isArray(activity?.precautions)
+    ? activity.precautions.filter((line) => typeof line === 'string' && line.trim())
+    : [];
+  return [activity?.description, ...precautions]
+    .filter((part) => typeof part === 'string' && part.trim())
+    .join('\n');
+}
 
 /**
  * ActivityManager - Handles all activity-related operations
@@ -133,7 +150,13 @@ export class ActivityManager {
     const placeholders = templates.map((template, index) => {
       const activityKey = template.activityKey;
       const typeKey = template.typeKey;
+      // A block linked to the starter catalogue uses the unit's own copy of it.
+      const starterKey = getTemplateStarterKey(template);
+      const starterCopy = starterKey
+        ? this.activities.find((activity) => activity.starter_key === starterKey)
+        : null;
       return {
+        starterCopy,
         position: template.position ?? index,
         time: template.time || '',
         duration: template.duration || '00:00',
@@ -141,6 +164,7 @@ export class ActivityManager {
         typeKey,
         activity:
                                         template.activity ||
+                                        starterCopy?.activity ||
                                         (activityKey
                                           ? translate(activityKey)
                                           : translate(
@@ -156,8 +180,9 @@ export class ActivityManager {
       };
     });
 
-    const defaultActivities = placeholders.map((ph, index) => {
+    const defaultActivities = placeholders.map(({ starterCopy, ...ph }, index) => {
       const matchingActivity =
+                                starterCopy ||
                                 this.activities.find(
                                   (a) => a.type === ph.type,
                                 ) || {};
@@ -262,6 +287,10 @@ export class ActivityManager {
                         (a.activityKey
                           ? translate(a.activityKey)
                           : translate('default_activity_name'));
+    const libraryActivity = this.activities.find(
+      (activity) => activity.activity === a.activity,
+    );
+    const descriptionText = activityDescriptionText(libraryActivity);
     const time = a.time || '18:30';
     const duration = safeDuration || '00:00';
     const materiel = a.materiel || '';
@@ -340,6 +369,7 @@ export class ActivityManager {
                                                         <option value="">${translate('select_activity')}</option>
                                                         ${this.activities.map((act) => `<option data-id="${Number(act.id)}" value="${escapeAttribute(act.activity)}" ${act.activity === a.activity ? 'selected' : ''}>${escapeHTML(act.activity)}</option>`).join('')}
                                                 </select>
+                                                ${descriptionText ? this.renderDescriptionButton(descriptionText, activityName) : ''}
                                                 <button type="button" class="edit-activity-btn" title="${translate('edit')}" aria-label="${fieldLabel('edit')}">✎</button>
                                         </div>
                                         <div class="activity-row__responsable">
@@ -362,6 +392,25 @@ export class ActivityManager {
                                 </div>
                         </div>
                 `;
+  }
+
+  /**
+   * Accessible name of an activity's description button.
+   * @param {string} activityName - Activity shown in the row
+   * @returns {string} Plain text
+   */
+  descriptionButtonLabel(activityName) {
+    return `${translate('description')} — ${activityName || ''}`;
+  }
+
+  /**
+   * Button opening an activity's description and precautions.
+   * @param {string} descriptionText - activityDescriptionText() result
+   * @param {string} activityName - Activity shown in the row
+   * @returns {string} Escaped markup
+   */
+  renderDescriptionButton(descriptionText, activityName) {
+    return `<button type="button" class="description-btn" data-description="${escapeAttribute(descriptionText)}" aria-label="${escapeAttribute(this.descriptionButtonLabel(activityName))}">?</button>`;
   }
 
   /**
@@ -389,28 +438,20 @@ export class ActivityManager {
                                 this.formatMinutesToHHMM(totalMinutes);
 
       // Handle description button
-      if (activity.description) {
+      const descriptionText = activityDescriptionText(activity);
+      if (descriptionText) {
         if (!descriptionButton) {
-          descriptionButton =
-                                                document.createElement(
-                                                  'button',
-                                                );
-          descriptionButton.classList.add(
-            'description-btn',
-          );
+          descriptionButton = document.createElement('button');
+          descriptionButton.type = 'button';
+          descriptionButton.className = 'description-btn';
           descriptionButton.textContent = '?';
-          descriptionButton.setAttribute(
-            'data-description',
-            activity.description,
-          );
-          selectElement.insertAdjacentElement(
-            'afterend',
-            descriptionButton,
-          );
+          descriptionButton.setAttribute('data-description', descriptionText);
+          descriptionButton.setAttribute('aria-label', this.descriptionButtonLabel(activity.activity));
+          selectElement.insertAdjacentElement('afterend', descriptionButton);
         } else {
           descriptionButton.setAttribute(
             'data-description',
-            activity.description,
+            descriptionText,
           );
           descriptionButton.style.display =
                                                 'inline';

@@ -499,6 +499,17 @@ Task writes require a connection and cannot be queued. Confirmed writes invalida
 task reads through the shared API client. The task screen uses minimal event/member
 choices rather than requesting participants, families, contacts or health forms.
 
+### Starter activities
+
+`config/activity_library_starter.json` is the reviewed bilingual catalogue; only
+`services/activityLibraryStarter.js` copies it into a unit's `activity_library`
+(planner import, unit creation, `seed.mjs`). A copy records `metadata.starter_key`,
+unique per unit with hidden copies included (migration 053); never write that key
+elsewhere. Withdrawn entries are never offered, copied or matched. Older copies are
+adopted by exact legacy name, without changing their text; ambiguous matches are
+reported, never guessed. New units get their branch's standard-supervision entries.
+Rules and the meeting-template links are in `devdocs/ACTIVITY_LIBRARY.md`.
+
 ### Action rosters during activities
 
 Attendance, points and honors share `ActionRoster` and `/api/v1/action-roster`.

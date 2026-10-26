@@ -86,6 +86,8 @@ const MUTATIONS = [
   ['createLibraryActivity', [{ name: 'A' }], {}],
   ['updateLibraryActivity', [1, { name: 'A' }], {}],
   ['deleteLibraryActivity', [1], {}],
+  // Meeting preparation lists the library: adding starter activities refreshes it too.
+  ['importStarterActivities', [['game_sardines']], { includeMeetingPrep: true }],
   ['grantAchievements', [{ objective_id: 1 }], {}],
   ['removeAchievement', [1], {}],
   ['createDistributionRule', [1, {}], {}],
@@ -113,7 +115,7 @@ describe('yearly planner cache invalidation', () => {
     // Exports that only read; everything else must appear in MUTATIONS.
     const readOnly = [
       'getYearPlans', 'getYearPlan', 'getPeriods', 'getObjectives',
-      'getYearPlanMeeting', 'getMeetingSchedule', 'getActivityLibrary', 'getAchievements',
+      'getYearPlanMeeting', 'getMeetingSchedule', 'getActivityLibrary', 'getStarterActivities', 'getAchievements',
       'getDistributionRules', 'getReminders', 'getMeetingReminders'
     ];
     const covered = new Set([...readOnly, ...MUTATIONS.map(([name]) => name)]);

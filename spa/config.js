@@ -55,6 +55,7 @@ export const CONFIG = {
   ONLINE_REQUIRED_MUTATION_RESOURCES: [
     'parent-invitations', 'parent-onboarding', 'walk-in-children',
     'family-links', 'family-link-requests', 'calendar-feed', 'roles', 'tasks',
+    'yearly-planner/starter-activities',
   ],
   /**
      * Cache Duration Settings
@@ -256,6 +257,15 @@ export const CONFIG = {
     DEFAULT_LOAN_DAYS: 7,
     // Length of a loan's notes, as the server stores them.
     MAX_NOTE_LENGTH: 500,
+  },
+
+  /**
+     * Starter activity catalogue browser (yearly planner)
+     */
+  STARTER_ACTIVITIES: {
+    // Duration filter: activities whose shortest run fits in this many minutes.
+    // eslint-disable-next-line no-magic-numbers -- this entry is the named constant
+    DURATION_LIMITS_MINUTES: Object.freeze([15, 30, 60]),
   },
 
   /**

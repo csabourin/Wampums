@@ -185,6 +185,27 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
     expect(await one("SELECT COUNT(*)::int FROM organizations WHERE name = 'Unité orpheline'")).toBe(0);
   });
 
+  test('a new unit receives the default starter activities, once, created by its creator', async () => {
+    const { selectDefaultStarterKeys } = require('../services/activityLibraryStarter');
+    const expected = selectDefaultStarterKeys(null);
+    const response = await create('Unité avec activités de départ');
+    const organizationId = response.body.organization_id;
+
+    const copies = await pool.query(
+      `SELECT metadata ->> 'starter_key' AS key, created_by, metadata ->> 'starter_language' AS language
+       FROM activity_library WHERE organization_id = $1 ORDER BY id`,
+      [organizationId]
+    );
+
+    // A new unit's section is "general": the activities suited to every branch,
+    // meeting blocks included, and none needing close supervision.
+    expect(copies.rows.map(row => row.key)).toEqual(expected);
+    expect(expected).toEqual(expect.arrayContaining(['block_arrival', 'block_water_break', 'block_closing']));
+    expect(expected).not.toContain('expression_campfire');
+    expect(new Set(copies.rows.map(row => row.created_by))).toEqual(new Set([ids.userId]));
+    expect(new Set(copies.rows.map(row => row.language))).toEqual(new Set(['fr']));
+  });
+
   test('rejects a nameless organization without opening a transaction', async () => {
     const response = await request(app).post('/api/v1/organizations').send({});
     expect(response.status).toBe(400);
