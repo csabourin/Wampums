@@ -59,6 +59,8 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
   let app;
   const ids = { created: [] };
   let sequence = 0;
+  // A district administrator holds every permission.
+  let everyPermission = [];
 
   /**
    * Read a single value.
@@ -124,6 +126,7 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
        ON CONFLICT DO NOTHING`,
       [UNIT_ADMIN_PERMISSIONS]
     );
+    everyPermission = (await pool.query('SELECT permission_key FROM permissions')).rows.map((row) => row.permission_key);
   });
 
   afterAll(async () => {
@@ -139,7 +142,7 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
        RETURNING id`
     );
     mockContext.userId = ids.userId;
-    mockContext.permissions = ['org.create', ...UNIT_ADMIN_PERMISSIONS];
+    mockContext.permissions = everyPermission;
     deliverParentInvitation.mockReset();
     deliverParentInvitation.mockResolvedValue(true);
   });
@@ -499,7 +502,27 @@ describe.skipIf(!DATABASE_URL)('Organization creation', () => {
     const response = await create('Meute refusée');
 
     expect(response.status).toBe(403);
-    expect(response.body).toMatchObject({ required: UNIT_ADMIN_PERMISSIONS, missing: UNIT_ADMIN_PERMISSIONS });
+    expect(response.body.required).toEqual(expect.arrayContaining(UNIT_ADMIN_PERMISSIONS));
+    expect(response.body.missing).toEqual(response.body.required);
     expect(await one("SELECT COUNT(*)::int FROM organizations WHERE name = 'Meute refusée'")).toBe(0);
+  });
+  test('the creator can open the unit they just created, and only a unit they belong to', async () => {
+    const jwt = require('jsonwebtoken');
+    const response = await create('Meute à ouvrir');
+    const organizationId = response.body.data.organization_id;
+
+    const switched = await request(app).post('/api/v1/organizations/switch').send({ organization_id: organizationId });
+    expect(switched.status).toBe(200);
+    const claims = jwt.verify(switched.body.data.token, process.env.JWT_SECRET_KEY);
+    expect(claims).toMatchObject({ user_id: ids.userId, organizationId });
+    expect(claims.roleNames).toEqual(['district']);
+
+    await pool.query(
+      "UPDATE user_organizations SET status = 'inactive' WHERE user_id = $1 AND organization_id = $2",
+      [ids.userId, organizationId]
+    );
+    const refused = await request(app).post('/api/v1/organizations/switch').send({ organization_id: organizationId });
+    expect(refused.status).toBe(403);
+    expect(refused.body).toMatchObject({ required: [], missing: [], code: 'not_a_member' });
   });
 });

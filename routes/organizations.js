@@ -1178,7 +1178,7 @@ module.exports = (pool, logger) => {
 
     // Verify user is an active member of this organization
     const membershipCheck = await pool.query(
-      `SELECT role FROM user_organizations WHERE user_id = $1 AND organization_id = $2 AND status = 'active'`,
+      `SELECT id FROM user_organizations WHERE user_id = $1 AND organization_id = $2 AND status = 'active'`,
       [req.user.id, organizationId]
     );
 
@@ -1215,7 +1215,6 @@ module.exports = (pool, logger) => {
         user_id: req.user.id,
         organizationId,
         organization_id: organizationId,
-        role: membershipCheck.rows[0].role,
         roleIds,
         roleNames,
         permissions
