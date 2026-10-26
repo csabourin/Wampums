@@ -7,6 +7,7 @@ const {
 } = require('./index');
 const { escapeHtml } = require('./api-helpers');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
+const { listActivityLeaderContacts } = require('../services/unitLeaders');
 
 const fallbackTranslations = getTranslationsByCode('en');
 
@@ -99,6 +100,36 @@ function buildCancellationEmail({ heading, greeting, activity, dateLabel, date, 
 }
 
 /**
+ * Everyone an activity email goes to: the people it concerns, and the unit's
+ * leaders who follow activities (services/unitLeaders.js), so the team knows
+ * what families were told. Each address is written to once, under the first
+ * name it came with. Should the leaders fail to load, the families are still
+ * told.
+ *
+ * @param {Object} pool - Database connection pool
+ * @param {number} organizationId - Unit of the activity
+ * @param {Array<{email: string, name: string}>} concerned - Families and drivers
+ * @returns {Promise<Array<{email: string, name: string}>>} Recipients
+ */
+async function withActivityLeaders(pool, organizationId, concerned) {
+  let leaders = [];
+  try {
+    leaders = await listActivityLeaderContacts(pool, organizationId);
+  } catch (err) {
+    console.error(`Could not list the activity leaders of unit ${organizationId}:`, err);
+  }
+  const byAddress = new Map();
+  [...concerned, ...leaders.map((leader) => ({ email: leader.email, name: leader.full_name }))]
+    .forEach((recipient) => {
+      const address = String(recipient.email || '').trim().toLowerCase();
+      if (address && !byAddress.has(address)) {
+        byAddress.set(address, recipient);
+      }
+    });
+  return [...byAddress.values()];
+}
+
+/**
  * Send email notifications to affected guardians when a ride is cancelled,
  * each in the guardian's language.
  * @param {Object} pool - Database connection pool
@@ -138,22 +169,20 @@ async function sendRideCancellationNotifications(pool, affectedParticipants, org
 }
 
 /**
- * Send email notifications when activity details are updated
- * @param {Object} pool - Database connection pool
- * @param {Number} activityId - ID of the updated activity
- * @param {Number} organizationId - Organization ID
+ * The accounts an activity concerns, with an address to write to: guardians of
+ * children riding in its carpools, holding one of its permission slips or on
+ * its invitation list, and its drivers. A child can be enrolled in several
+ * units, so only accounts that are active members of the activity's unit count.
+ *
+ * @param {import('pg').Pool|import('pg').PoolClient} db - Pool or client
+ * @param {number} activityId - Activity
+ * @param {number} organizationId - Unit of the activity
  * @param {Object} [options]
- * @param {boolean} [options.wholeUnit=false] - Also reach every family of the
- *   unit: the edit opened an activity for some participants to everyone, so
- *   families who were not invited are newly concerned
+ * @param {boolean} [options.wholeUnit=false] - Also every family of the unit
+ * @returns {Promise<Array<{email: string, name: string}>>} Accounts
  */
-async function sendActivityUpdateNotifications(pool, activityId, organizationId, { wholeUnit = false } = {}) {
-  // Everyone the activity concerns: guardians of children riding in its
-  // carpools, holding one of its permission slips or on its invitation list,
-  // and its drivers. A child
-  // can be enrolled in several units, so only accounts that are active members
-  // of this activity's unit hear about it.
-  const result = await pool.query(
+async function listConcernedAccounts(db, activityId, organizationId, { wholeUnit = false } = {}) {
+  const result = await db.query(
     `WITH recipients AS (
        SELECT up.user_id
          FROM user_participants up
@@ -197,38 +226,59 @@ async function sendActivityUpdateNotifications(pool, activityId, organizationId,
          JOIN participant_organizations po ON po.participant_id = up.participant_id
         WHERE $3::boolean AND po.organization_id = $2
      )
-     SELECT DISTINCT
-      u.email,
-      u.full_name as guardian_name,
-      a.name as activity_name,
-      a.activity_date,
-      a.meeting_location_going,
-      a.meeting_time_going,
-      a.departure_time_going,
-      a.meeting_location_return,
-      a.meeting_time_return,
-      a.departure_time_return
+     SELECT DISTINCT u.email, u.full_name AS name
      FROM recipients r
      JOIN users u ON u.id = r.user_id
      JOIN user_organizations uo
        ON uo.user_id = u.id AND uo.organization_id = $2 AND uo.status = 'active'
-     JOIN activities a ON a.id = $1 AND a.organization_id = $2
      WHERE u.email IS NOT NULL AND u.email <> ''`,
     [activityId, organizationId, wholeUnit]
   );
+  return result.rows;
+}
 
-  if (result.rows.length === 0) {
+/**
+ * Send email notifications when activity details are updated, to the families
+ * and drivers it concerns and to the unit's leaders who follow activities
+ * @param {Object} pool - Database connection pool
+ * @param {Number} activityId - ID of the updated activity
+ * @param {Number} organizationId - Organization ID
+ * @param {Object} [options]
+ * @param {boolean} [options.wholeUnit=false] - Also reach every family of the
+ *   unit: the edit opened an activity for some participants to everyone, so
+ *   families who were not invited are newly concerned
+ */
+async function sendActivityUpdateNotifications(pool, activityId, organizationId, { wholeUnit = false } = {}) {
+  const activityResult = await pool.query(
+    `SELECT name AS activity_name,
+            activity_date,
+            meeting_location_going,
+            meeting_time_going,
+            departure_time_going,
+            meeting_location_return,
+            meeting_time_return,
+            departure_time_return
+       FROM activities
+      WHERE id = $1 AND organization_id = $2`,
+    [activityId, organizationId]
+  );
+  const activity = activityResult.rows[0];
+  if (!activity) {
+    return;
+  }
+
+  const concerned = await listConcernedAccounts(pool, activityId, organizationId, { wholeUnit });
+  const recipients = await withActivityLeaders(pool, organizationId, concerned);
+  if (recipients.length === 0) {
     return; // No one to notify
   }
 
-  const activity = result.rows[0]; // Activity details are the same for all rows
-
   const sender = await resolveOrganizationEmailSender(pool, organizationId);
-  const emailPromises = result.rows.map(async (user) => {
+  const emailPromises = recipients.map(async (user) => {
     const preferredLanguage = await getUserEmailLanguage(pool, user.email, organizationId);
     const translations = getTranslationsByCode(preferredLanguage);
     const localeDate = formatEmailDate(activity.activity_date, preferredLanguage);
-    const safeGuardianName = sanitizeInput(user.guardian_name)
+    const safeGuardianName = sanitizeInput(user.name)
       || translations.activity_update_email_generic_name
       || fallbackTranslations.activity_update_email_generic_name
       || '';
@@ -339,58 +389,57 @@ ${signature}
 }
 
 /**
- * Send email notifications when an activity is cancelled
+ * Who is told that an activity is cancelled, read before the deletion: it
+ * withdraws the carpool offers that identify the drivers. Everyone an update
+ * reaches, the whole unit when every participant was invited, and the unit's
+ * leaders who follow activities.
+ *
  * @param {Object} pool - Database connection pool
- * @param {Number} activityId - ID of the cancelled activity
- * @param {Number} organizationId - Organization ID
+ * @param {number} activityId - Activity about to be cancelled
+ * @param {number} organizationId - Unit of the activity
+ * @returns {Promise<{activity: Object, recipients: Array<{email: string, name: string}>}|null>}
+ *   What to send, or null when the activity is not this unit's
  */
-async function sendActivityCancellationNotifications(pool, activityId, organizationId) {
-  // Get all users who have carpool assignments for this activity
-  const result = await pool.query(
-    `SELECT DISTINCT
-      u.email,
-      u.full_name as guardian_name,
-      a.name as activity_name,
-      a.activity_date
-     FROM users u
-     JOIN user_participants up ON u.id = up.user_id
-     -- user_participants has no unit: only guardians active in this unit.
-     JOIN user_organizations uo
-       ON uo.user_id = u.id AND uo.organization_id = $2 AND uo.status = 'active'
-     JOIN carpool_assignments ca ON up.participant_id = ca.participant_id
-     JOIN carpool_offers co ON ca.carpool_offer_id = co.id
-     JOIN activities a ON co.activity_id = a.id
-     WHERE a.id = $1 AND a.organization_id = $2
-
-     UNION
-
-     SELECT DISTINCT
-      u.email,
-      u.full_name as guardian_name,
-      a.name as activity_name,
-      a.activity_date
-     FROM users u
-     JOIN carpool_offers co ON u.id = co.user_id
-     JOIN activities a ON co.activity_id = a.id
-     WHERE a.id = $1 AND a.organization_id = $2 AND co.is_active = TRUE`,
+async function findActivityCancellationRecipients(pool, activityId, organizationId) {
+  const activityResult = await pool.query(
+    `SELECT name AS activity_name, activity_date, invites_everyone
+       FROM activities
+      WHERE id = $1 AND organization_id = $2`,
     [activityId, organizationId]
   );
+  const activity = activityResult.rows[0];
+  if (!activity) {
+    return null;
+  }
+  const concerned = await listConcernedAccounts(pool, activityId, organizationId, {
+    wholeUnit: activity.invites_everyone !== false
+  });
+  const recipients = await withActivityLeaders(pool, organizationId, concerned);
+  return { activity, recipients };
+}
 
-  if (result.rows.length === 0) {
+/**
+ * Tell each recipient, in their language, that an activity is cancelled.
+ *
+ * @param {Object} pool - Database connection pool
+ * @param {number} organizationId - Unit of the activity, whose sender the emails use
+ * @param {{activity: Object, recipients: Array<{email: string, name: string}>}} notice -
+ *   From findActivityCancellationRecipients
+ */
+async function sendActivityCancellationNotifications(pool, organizationId, { activity, recipients }) {
+  if (recipients.length === 0) {
     return; // No one to notify
   }
 
-  const activity = result.rows[0]; // Activity details are the same for all rows
-
   const sender = await resolveOrganizationEmailSender(pool, organizationId);
   const translatorFor = await loadEmailTranslator(pool, organizationId);
-  const emailPromises = result.rows.map(async (user) => {
+  const emailPromises = recipients.map(async (user) => {
     try {
       const language = await getUserEmailLanguage(pool, user.email, organizationId);
       const t = translatorFor(language);
       const activityName = sanitizeInput(activity.activity_name);
       const date = formatEmailDate(activity.activity_date, language);
-      const name = sanitizeInput(user.guardian_name) || t('activity_update_email_generic_name');
+      const name = sanitizeInput(user.name) || t('activity_update_email_generic_name');
       const { text, html } = buildCancellationEmail({
         heading: t('activity_cancelled_email_heading'),
         greeting: t('activity_update_email_greeting', { name }),
@@ -416,5 +465,6 @@ async function sendActivityCancellationNotifications(pool, activityId, organizat
 module.exports = {
   sendRideCancellationNotifications,
   sendActivityUpdateNotifications,
+  findActivityCancellationRecipients,
   sendActivityCancellationNotifications
 };
