@@ -56,6 +56,8 @@ export const CONFIG = {
     'parent-invitations', 'parent-onboarding', 'walk-in-children',
     'family-links', 'family-link-requests', 'calendar-feed', 'roles', 'tasks',
     'yearly-planner/starter-activities', 'equipment-catalog',
+    // Sending mail needs an explicit result; a lost response must never replay it.
+    'announcements',
     // How the unit is reached and what it is: never replayed later from a queue.
     'organizations/domains', 'organizations/settings/branch',
   ],
@@ -74,6 +76,7 @@ export const CONFIG = {
      * Application Version
      */
   VERSION: '3.1.0',
+  HTTP_SERVER_ERROR_MIN_STATUS: 500,
 
   /**
      * Application Name

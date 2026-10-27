@@ -23,7 +23,6 @@ const {
   UNSUBSCRIBE_PURPOSE
 } = require('../services/alumni');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
-const { WITHDRAWN_FAMILY_ACCOUNT_SQL } = require('../services/parentInvitations');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { resolveDatabaseConnectionString } = require('../config/database-url');
 const {
@@ -299,9 +298,9 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
   // Members reached through their role. A den filter narrows family accounts
   // (roles that see only their own children) to those linked to a youth of
   // the den; leaders belong to no den and stay reached as their role was chosen.
-  // A family account whose invitation the unit withdrew is not reached.
-  // Writing to the families reaches every family account, whatever its role is
-  // called: "Écrire aux familles" lists them all among the parents.
+  // Family ties and contact records are retained after a child leaves. Only an
+  // active enrollment in the active year makes a family a current recipient,
+  // whatever its role is called. The same child must match a chosen den.
   const userRoleQuery = `
     SELECT DISTINCT LOWER(u.email) AS email, u.id AS user_id, u.whatsapp_phone_number
     FROM user_organizations uo
@@ -310,17 +309,22 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
     WHERE uo.organization_id = $1
       AND uo.status = 'active'
       AND (r.role_name = ANY($3::text[]) OR ($4::boolean AND r.data_scope = 'linked'))
-      AND NOT (r.data_scope IS NOT DISTINCT FROM 'linked' AND ${WITHDRAWN_FAMILY_ACCOUNT_SQL})
       AND (
-        cardinality($2::int[]) = 0
-        OR r.data_scope IS DISTINCT FROM 'linked'
+        r.data_scope IS DISTINCT FROM 'linked'
         OR EXISTS (
           SELECT 1
           FROM user_participants up
-          JOIN participant_groups pgroups ON pgroups.participant_id = up.participant_id
+          JOIN participant_enrollments pe ON pe.participant_id = up.participant_id
+            AND pe.organization_id = $1 AND pe.status = 'active'
+          JOIN scout_years sy ON sy.id = pe.scout_year_id
+            AND sy.organization_id = $1 AND sy.status = 'active'
           WHERE up.user_id = u.id
-            AND pgroups.organization_id = $1
-            AND pgroups.group_id = ANY($2::int[])
+            AND (cardinality($2::int[]) = 0 OR EXISTS (
+              SELECT 1 FROM participant_groups pgroups
+              WHERE pgroups.participant_id = pe.participant_id
+                AND pgroups.organization_id = $1
+                AND pgroups.group_id = ANY($2::int[])
+            ))
         )
       )
   `;
@@ -338,7 +342,10 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
                p.first_name || ' ' || p.last_name AS participant_name
         FROM parents_guardians pg
         JOIN participant_guardians pg_rel ON pg_rel.guardian_id = pg.id
-        JOIN participant_organizations po ON po.participant_id = pg_rel.participant_id
+        JOIN participant_enrollments po ON po.participant_id = pg_rel.participant_id
+          AND po.organization_id = $1 AND po.status = 'active'
+        JOIN scout_years sy ON sy.id = po.scout_year_id
+          AND sy.organization_id = $1 AND sy.status = 'active'
         JOIN participants p ON p.id = pg_rel.participant_id
         ${groupIds.length ? 'JOIN participant_groups pgroups ON pgroups.participant_id = pg_rel.participant_id' : ''}
         WHERE po.organization_id = $1
@@ -430,29 +437,41 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
 
   const emailLogs = await Promise.allSettled(
     emails.map(async (email) => {
-      // An alumni mailing carries its own way out. Building the footer per
-      // recipient is what makes the link personal — a shared one could only
-      // unsubscribe everybody or nobody.
-      let footer = null;
-      if (isAlumniSend) {
-        const membership = alumniByEmail.get(email);
-        const language = await getUserEmailLanguage(pool, email, announcement.organization_id);
-        const unsubscribeLink = `${baseUrl}/alumni-unsubscribe?token=${issueAlumniToken(membership, UNSUBSCRIBE_PURPOSE)}`;
-        footer = buildUnsubscribeFooter({ language, unsubscribeLink });
-      }
-      const { subject, textBody, htmlBody } = buildAnnouncementEmail(announcement, footer);
+      let accepted = false;
+      try {
+        // An alumni mailing carries its own way out. Building the footer per
+        // recipient is what makes the link personal — a shared one could only
+        // unsubscribe everybody or nobody.
+        let footer = null;
+        if (isAlumniSend) {
+          const membership = alumniByEmail.get(email);
+          const language = await getUserEmailLanguage(pool, email, announcement.organization_id);
+          const unsubscribeLink = `${baseUrl}/alumni-unsubscribe?token=${issueAlumniToken(membership, UNSUBSCRIBE_PURPOSE)}`;
+          footer = buildUnsubscribeFooter({ language, unsubscribeLink });
+        }
+        const { subject, textBody, htmlBody } = buildAnnouncementEmail(announcement, footer);
 
-      const success = await sendEmail(email, subject, textBody, htmlBody, sender);
-      await pool.query(
-        `INSERT INTO announcement_logs (announcement_id, channel, recipient_email, status, error_message)
-         VALUES ($1, 'email', $2, $3, $4)`,
-        [announcement.id, email, success ? 'sent' : 'failed', success ? null : 'Email send failed'],
-      );
-      return success;
+        accepted = Boolean(await sendEmail(email, subject, textBody, htmlBody, sender));
+      } catch (sendError) {
+        logger.error('Announcement email send failed:', sendError);
+      }
+      // A failed history write must not turn an already accepted email into
+      // a reported send failure and encourage sending that recipient a duplicate.
+      try {
+        await pool.query(
+          `INSERT INTO announcement_logs (announcement_id, channel, recipient_email, status, error_message)
+           VALUES ($1, 'email', $2, $3, $4)`,
+          [announcement.id, email, accepted ? 'sent' : 'failed', accepted ? null : 'Email send failed'],
+        );
+      } catch (logError) {
+        logger.error('Could not record announcement email result:', logError);
+      }
+      return accepted;
     }),
   );
 
   let pushOutcome = { successes: 0, failures: 0 };
+  let pushDeliveryCompleted = false;
   if (subscribers.length) {
     try {
       const webpush = require('web-push');
@@ -492,11 +511,15 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
             tag: 'announcement',
             data: { url: messageUrl(messageIds, subscriber.user_id) },
           }));
-          await pool.query(
-            `INSERT INTO announcement_logs (announcement_id, channel, recipient_user_id, status)
-             VALUES ($1, 'push', $2, 'sent')`,
-            [announcement.id, subscriber.user_id],
-          );
+          try {
+            await pool.query(
+              `INSERT INTO announcement_logs (announcement_id, channel, recipient_user_id, status)
+               VALUES ($1, 'push', $2, 'sent')`,
+              [announcement.id, subscriber.user_id],
+            );
+          } catch (logError) {
+            logger.error('Could not record accepted announcement push:', logError);
+          }
           return true;
         }),
       );
@@ -512,6 +535,7 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
         },
         { successes: 0, failures: 0 },
       );
+      pushDeliveryCompleted = true;
 
       // Devices that will not receive again are forgotten
       try {
@@ -539,12 +563,15 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
         );
       }
     } catch (error) {
-      logger.error('Push notification send failed:', error);
-      await pool.query(
-        `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
-         VALUES ($1, 'push', 'failed', $2)`,
-        [announcement.id, error.message || 'Push send failed'],
-      );
+      logger.error('Announcement push processing failed:', error);
+      if (!pushDeliveryCompleted) {
+        pushOutcome = { successes: 0, failures: subscribers.length };
+        await pool.query(
+          `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
+           VALUES ($1, 'push', 'failed', $2)`,
+          [announcement.id, error.message || 'Push send failed'],
+        );
+      }
     }
   }
 
@@ -556,17 +583,21 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
     const whatsappResults = await Promise.allSettled(
       whatsappNumbers.map(async ({ phone, user_id }) => {
         const success = await sendWhatsApp(phone, whatsappMessage, announcement.organization_id, whatsappService);
-        await pool.query(
-          `INSERT INTO announcement_logs (announcement_id, channel, recipient_user_id, status, error_message, metadata)
-           VALUES ($1, 'whatsapp', $2, $3, $4, $5)`,
-          [
-            announcement.id,
-            user_id,
-            success ? 'sent' : 'failed',
-            success ? null : 'WhatsApp send failed',
-            JSON.stringify({ phone_number: phone })
-          ],
-        );
+        try {
+          await pool.query(
+            `INSERT INTO announcement_logs (announcement_id, channel, recipient_user_id, status, error_message, metadata)
+             VALUES ($1, 'whatsapp', $2, $3, $4, $5)`,
+            [
+              announcement.id,
+              user_id,
+              success ? 'sent' : 'failed',
+              success ? null : 'WhatsApp send failed',
+              JSON.stringify({ phone_number: phone })
+            ],
+          );
+        } catch (logError) {
+          logger.error('Could not record announcement WhatsApp result:', logError);
+        }
         return success;
       }),
     );
@@ -629,33 +660,52 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
         }
       }
     } catch (error) {
-      logger.error('Google Chat broadcast failed:', error);
-      googleChatOutcome.failures = 1;
-
-      await pool.query(
-        `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
-         VALUES ($1, 'google_chat', 'failed', $2)`,
-        [announcement.id, error.message || 'Google Chat send failed']
-      );
+      logger.error('Announcement Google Chat processing failed:', error);
+      if (!googleChatOutcome.successes) {
+        googleChatOutcome.failures = 1;
+        await pool.query(
+          `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
+           VALUES ($1, 'google_chat', 'failed', $2)`,
+          [announcement.id, error.message || 'Google Chat send failed']
+        );
+      }
     }
   }
 
-  const emailFailures = emailLogs.filter((log) => log.status === 'fulfilled' && !log.value).length;
+  const emailSent = emailLogs.filter((log) => log.status === 'fulfilled' && log.value).length;
+  const emailFailures = emailLogs.length - emailSent;
   const pushFailures = pushOutcome.failures;
   const whatsappFailures = whatsappOutcome.failures;
   const googleChatFailures = googleChatOutcome.failures;
   const hasFailures = emailFailures > 0 || pushFailures > 0 || whatsappFailures > 0 || googleChatFailures > 0;
+  const hasSuccesses = emailSent > 0 || pushOutcome.successes > 0
+    || whatsappOutcome.successes > 0 || googleChatOutcome.successes > 0;
+  const status = !hasSuccesses ? 'failed' : hasFailures ? 'partial' : 'sent';
 
-  await pool.query(
+  const updated = await pool.query(
     `UPDATE announcements
      SET status = $1,
-         sent_at = NOW(),
+         sent_at = CASE WHEN $3::boolean THEN NOW() ELSE NULL END,
          updated_at = NOW()
-     WHERE id = $2`,
-    [hasFailures ? 'partial' : 'sent', announcement.id],
+     WHERE id = $2
+     RETURNING sent_at, updated_at`,
+    [status, announcement.id, hasSuccesses],
   );
 
-  return { emailFailures, pushFailures, whatsappFailures, googleChatFailures };
+  return {
+    status,
+    sent_at: updated.rows[0]?.sent_at || null,
+    updated_at: updated.rows[0]?.updated_at || announcement.updated_at,
+    delivery: {
+      email: { total: emails.length, sent: emailSent, failed: emailFailures },
+      push: { total: subscribers.length, sent: pushOutcome.successes, failed: pushFailures },
+      whatsapp: { total: whatsappNumbers.length, sent: whatsappOutcome.successes, failed: whatsappFailures },
+      google_chat: {
+        total: googleChatOutcome.successes + googleChatFailures,
+        sent: googleChatOutcome.successes, failed: googleChatFailures,
+      },
+    },
+  };
 }
 
 /**
@@ -1017,12 +1067,14 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
         ]);
 
         const announcement = rows[0];
+        let result = announcement;
 
         if (initialStatus === 'sending') {
-          await dispatchAnnouncement(pool, logger, announcement, whatsappService, googleChatService);
+          const outcome = await dispatchAnnouncement(pool, logger, announcement, whatsappService, googleChatService);
+          result = { ...announcement, ...outcome };
         }
 
-        res.json({ success: true, data: { ...announcement, status: initialStatus } });
+        return successResponse(res, result);
       } catch (error) {
         if (handleOrganizationResolutionError(res, error, logger)) {
           return;

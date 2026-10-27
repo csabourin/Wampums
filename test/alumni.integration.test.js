@@ -67,6 +67,7 @@ const {
   recordOptOut
 } = require('../services/alumni');
 const { buildRecipientsForTests } = require('../routes/announcements');
+const { grantParticipantAccess, ACCESS_SOURCE } = require('../services/participantAccess');
 
 describe.skipIf(!DATABASE_URL)('Alumni consent', () => {
   let pool;
@@ -169,6 +170,16 @@ describe.skipIf(!DATABASE_URL)('Alumni consent', () => {
     ids.currentMembershipId = await addMembership(
       ids.currentUserId, [ids.parentRoleId], 'active'
     );
+    ids.currentParticipantId = await one(
+      "INSERT INTO participants (first_name, last_name) VALUES ('Current', 'Youth') RETURNING id"
+    );
+    await pool.query(
+      'INSERT INTO participant_organizations (participant_id, organization_id) VALUES ($1, $2)',
+      [ids.currentParticipantId, ids.organizationId]
+    );
+    await grantParticipantAccess(pool, {
+      participantId: ids.currentParticipantId, userId: ids.currentUserId, sourceType: ACCESS_SOURCE.ADMIN,
+    });
 
     // Departed, but a leader: their account answers for the unit's own records.
     ids.leaderUserId = await makeUser('Animatrice partie');
@@ -192,6 +203,13 @@ describe.skipIf(!DATABASE_URL)('Alumni consent', () => {
       await client.query('BEGIN');
       await client.query("SET LOCAL session_replication_role = 'replica'");
       await client.query('DELETE FROM announcement_logs WHERE announcement_id IN (SELECT id FROM announcements WHERE organization_id = $1)', [org]);
+      if (ids.currentParticipantId) {
+        await client.query('DELETE FROM participant_access_grants WHERE participant_id = $1', [ids.currentParticipantId]);
+        await client.query('DELETE FROM user_participants WHERE participant_id = $1', [ids.currentParticipantId]);
+        await client.query('DELETE FROM participant_enrollments WHERE participant_id = $1', [ids.currentParticipantId]);
+        await client.query('DELETE FROM participant_organizations WHERE participant_id = $1', [ids.currentParticipantId]);
+        await client.query('DELETE FROM participants WHERE id = $1', [ids.currentParticipantId]);
+      }
       for (const table of ['announcements', 'user_organizations', 'organization_settings', 'scout_years']) {
         // Table names come from this literal list, never from a request.
         // eslint-disable-next-line no-await-in-loop

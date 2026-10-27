@@ -11,7 +11,13 @@
 
 import axe from 'axe-core';
 
-jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
+jest.mock('../../spa/app.js', () => ({
+  translate: (key) => ({
+    announcement_email_sent: 'Email sent. Recipients: {sent}.',
+    announcement_email_partial: '{sent} sent; {failed} failed. Message kept. Check history before sending again.',
+    announcement_email_failed: 'No emails sent; {failed} failed. Message kept.',
+  }[key] || key),
+}));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn(), debugInfo: jest.fn(),
 }));
@@ -55,7 +61,9 @@ async function renderPage({ groups = [] } = {}) {
     templates: [{ title: 'Rappel', subject: 'Rappel', body: 'Bonjour\n\nÀ <bientôt>' }],
     roles: [{ role_name: 'parent' }],
   });
-  ajax.createAnnouncement.mockResolvedValue({ success: true, data: { id: 1, status: 'sent', subject: 'Camp', logs: [] } });
+  ajax.createAnnouncement.mockResolvedValue({ success: true, data: {
+    id: 1, status: 'sent', subject: 'Camp', delivery: { email: { total: 2, sent: 2, failed: 0 } },
+  } });
   const page = new MailingList({ lang: 'fr', router: { navigate: jest.fn() }, showMessage: jest.fn() });
   await page.init();
   return page;
@@ -216,7 +224,7 @@ test('without any role or den, nothing is sent and the leader is told why', asyn
 
   expect(ajax.createAnnouncement).not.toHaveBeenCalled();
   expect(document.getElementById('announcement-feedback').textContent).toBe('announcement_recipients_required');
-  expect(document.activeElement).toBe(document.querySelector('input[name="recipient-role"]'));
+  expect(document.activeElement).toBe(document.getElementById('announcement-feedback'));
 });
 
 test('the dens are a named group of checkboxes, their names escaped', async () => {
@@ -266,4 +274,140 @@ test('the composer has no WCAG A/AA violations', async () => {
   await renderPage();
   const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
   expect(results.violations).toEqual([]);
+});
+
+describe('sending feedback', () => {
+  async function writeMessage() {
+    const page = await renderPage({ groups: [{ id: 7, name: 'Red den' }] });
+    document.getElementById('announcement-subject').value = 'Camp';
+    messageArea().innerHTML = '<p>Bring <strong>boots</strong>.</p>';
+    document.querySelector('input[name="recipient-group"]').checked = true;
+    return page;
+  }
+
+  test('a confirmed email send leaves a focused persistent result beside the send button', async () => {
+    const page = await writeMessage();
+    const form = document.getElementById('announcement-form');
+    const feedback = document.getElementById('announcement-feedback');
+
+    submit();
+    await flush();
+
+    expect(document.getElementById('announcement-form')).toBe(form);
+    expect(document.getElementById('announcement-feedback')).toBe(feedback);
+    expect(form.contains(feedback)).toBe(true);
+    expect(feedback.textContent).toContain('Email sent. Recipients: 2.');
+    expect(feedback.classList.contains('success')).toBe(true);
+    expect(document.activeElement).toBe(feedback);
+    expect(feedback.querySelector('a').getAttribute('href')).toBe('/communication-history');
+    expect(page.app.showMessage).toHaveBeenCalledWith('Email sent. Recipients: 2.', 'success');
+    expect(messageArea().textContent).toBe('');
+    expect(form.getAttribute('aria-busy')).not.toBe('true');
+  });
+
+  test.each([
+    { status: 'partial', email: { total: 2, sent: 1, failed: 1 }, result: '1 sent; 1 failed.' },
+    { status: 'failed', email: { total: 2, sent: 0, failed: 2 }, result: 'No emails sent; 2 failed.' },
+    { status: 'failed', email: { total: 0, sent: 0, failed: 0 }, result: 'announcement_email_no_recipients' },
+  ])('$status email results keep the message and recipient choices', async ({ status, email, result }) => {
+    await writeMessage();
+    ajax.createAnnouncement.mockResolvedValue({ success: true, data: { id: 1, status, delivery: { email } } });
+
+    submit();
+    await flush();
+
+    const feedback = document.getElementById('announcement-feedback');
+    expect(feedback.textContent).toContain(result);
+    expect(feedback.classList.contains('success')).toBe(false);
+    expect(document.activeElement).toBe(feedback);
+    expect(document.getElementById('announcement-subject').value).toBe('Camp');
+    expect(messageArea().innerHTML).toBe('<p>Bring <strong>boots</strong>.</p>');
+    expect(document.querySelector('input[name="recipient-group"]').checked).toBe(true);
+  });
+
+  test.each([
+    { success: true, queued: true },
+    { success: true, data: { status: 'sending' } },
+    { success: true, data: { status: 'sent' } },
+  ])('an unconfirmed response keeps the draft and never claims that email was sent', async (response) => {
+    await writeMessage();
+    ajax.createAnnouncement.mockResolvedValue(response);
+
+    submit();
+    await flush();
+
+    expect(document.getElementById('announcement-feedback').textContent).toContain('announcement_send_unconfirmed');
+    expect(messageArea().innerHTML).toBe('<p>Bring <strong>boots</strong>.</p>');
+  });
+
+  test('a lost response keeps the draft and asks the leader to check history before retrying', async () => {
+    await writeMessage();
+    ajax.createAnnouncement.mockRejectedValue(Object.assign(new Error('network lost'), { code: 'operation_unconfirmed' }));
+
+    submit();
+    await flush();
+
+    expect(document.getElementById('announcement-feedback').textContent).toContain('announcement_send_unconfirmed');
+    expect(messageArea().innerHTML).toBe('<p>Bring <strong>boots</strong>.</p>');
+    expect(document.getElementById('send-announcement').disabled).toBe(false);
+  });
+
+  test.each(['draft', 'scheduled'])('a saved %s is confirmed without claiming an email send', async (status) => {
+    await writeMessage();
+    ajax.createAnnouncement.mockResolvedValue({ success: true, data: { status } });
+
+    submit();
+    await flush();
+
+    const key = status === 'draft' ? 'announcement_saved' : 'announcement_scheduled';
+    expect(document.getElementById('announcement-feedback').textContent).toContain(key);
+    expect(messageArea().textContent).toBe('');
+  });
+
+  test.each(['sent', 'draft', 'scheduled'])('after an alumni %s the reset audience has visible matching recipient controls', async (status) => {
+    await writeMessage();
+    const alumni = document.querySelector('input[name="announcement-audience"][value="alumni"]');
+    alumni.checked = true;
+    alumni.dispatchEvent(new Event('change'));
+    expect(document.getElementById('announcement-member-filters').hidden).toBe(true);
+    ajax.createAnnouncement.mockResolvedValue({
+      success: true, data: { status, delivery: { email: { total: 2, sent: 2, failed: 0 } } },
+    });
+
+    submit();
+    await flush();
+
+    expect(document.querySelector('input[name="announcement-audience"]:checked').value).toBe('members');
+    expect(document.getElementById('announcement-member-filters').hidden).toBe(false);
+    expect(document.getElementById('announcement-group-filters').hidden).toBe(false);
+  });
+
+  test('while sending, one pending request locks the form and a second click sends nothing', async () => {
+    await writeMessage();
+    let resolve;
+    ajax.createAnnouncement.mockImplementation(() => new Promise((done) => { resolve = done; }));
+
+    submit();
+    submit();
+
+    expect(ajax.createAnnouncement).toHaveBeenCalledTimes(1);
+    expect(document.getElementById('announcement-form').getAttribute('aria-busy')).toBe('true');
+    expect(document.getElementById('send-announcement').disabled).toBe(true);
+    expect(document.getElementById('announcement-feedback').textContent).toContain('announcement_sending');
+    resolve({ success: true, data: { status: 'failed', delivery: { email: { total: 1, sent: 0, failed: 1 } } } });
+    await flush();
+    expect(document.getElementById('send-announcement').disabled).toBe(false);
+  });
+
+  test('a late send response cannot erase the next screen', async () => {
+    const page = await writeMessage();
+    let resolve;
+    ajax.createAnnouncement.mockImplementation(() => new Promise((done) => { resolve = done; }));
+    submit();
+    page.destroy();
+    document.getElementById('app').innerHTML = '<h1>Next screen</h1>';
+    resolve({ success: true, data: { status: 'sent', delivery: { email: { total: 1, sent: 1, failed: 0 } } } });
+    await flush();
+    expect(document.getElementById('app').textContent).toBe('Next screen');
+  });
 });

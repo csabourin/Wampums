@@ -20,6 +20,8 @@ import {
 } from '../rich-text/RichTextEditor.js';
 import { plainTextToRichText, richTextToPlainText } from '../../utils/RichTextUtils.js';
 import { getUnitVocabulary } from '../../utils/UnitVocabularyUtils.js';
+import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 /**
  * The text the writing assistant answered with. The API wraps the model's
@@ -41,6 +43,11 @@ export class MailingList {
     this.templates = [];
     this.unitRoles = [];
     this.isSubmitting = false;
+    this.destroyed = false;
+  }
+
+  destroy() {
+    this.destroyed = true;
   }
 
   async init() {
@@ -49,8 +56,10 @@ export class MailingList {
       return;
     }
 
+    this.renderLoading();
     try {
       await this.fetchData();
+      if (this.destroyed) {return;}
       this.render();
       this.attachEventListeners();
     } catch (error) {
@@ -77,8 +86,9 @@ export class MailingList {
   }
 
   render() {
+    if (this.destroyed) {return;}
     const content = `
-                        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+                        ${renderBackLink()}
                         <h1>${translate('mailing_list')}</h1>
                         <div class="announcement-composer card">
                                 ${this.renderAnnouncementComposer()}
@@ -127,7 +137,6 @@ export class MailingList {
     return `
                         <h2>${translate('compose_announcement')}</h2>
                         <p class="text-muted">${translate('announcement_roles_help')}</p>
-                        <div id="announcement-feedback" class="status-message" role="status" aria-live="polite"></div>
                         <form id="announcement-form">
                                 ${templateOptions}
                                 <label class="input-group">
@@ -176,16 +185,17 @@ export class MailingList {
                                         <input type="datetime-local" id="announcement-scheduled-at" name="announcement-scheduled-at" />
                                 </label>
                                 <div class="form-actions">
-                                        <button type="submit" id="send-announcement" class="primary" ${this.isSubmitting ? 'disabled' : ''}>${translate(
+                                        <button type="submit" id="send-announcement" class="button button--primary" ${this.isSubmitting ? 'disabled' : ''}>${translate(
   'send_now'
 )}</button>
-                                        <button type="button" id="save-announcement-draft" ${this.isSubmitting ? 'disabled' : ''}>${translate(
+                                        <button type="button" id="save-announcement-draft" class="button button--secondary" ${this.isSubmitting ? 'disabled' : ''}>${translate(
   'save_draft'
 )}</button>
-                                        <button type="button" id="send-announcement-test" class="button--ghost" ${this.isSubmitting ? 'disabled' : ''}>${translate(
+                                        <button type="button" id="send-announcement-test" class="button button--ghost" ${this.isSubmitting ? 'disabled' : ''}>${translate(
   'send_test_to_me'
 )}</button>
                                 </div>
+                                <div id="announcement-feedback" class="status-message" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></div>
                         </form>
                 `;
   }
@@ -306,11 +316,8 @@ export class MailingList {
   }
 
   renderEmails(data) {
-    if (!Array.isArray(data)) {
-      data = [data];
-    }
-
-    return data
+    const entries = Array.isArray(data) ? data : [data];
+    return entries
       .map((item, index) => {
         let emailHtml = '';
         let participantsHtml = '';
@@ -519,7 +526,7 @@ export class MailingList {
   }
 
   async handleAnnouncementSubmit(saveAsDraft = false) {
-    if (this.isSubmitting) {return;}
+    if (this.isSubmitting || this.destroyed) {return;}
 
     const draft = this.readMessage();
     if (!draft) {
@@ -542,14 +549,13 @@ export class MailingList {
       return;
     }
     if (!isAlumni && !recipientRoles.length && !recipientGroupIds.length) {
-      this.showFeedback(translate('announcement_recipients_required'), 'error');
-      document.querySelector('input[name="recipient-role"]')?.focus();
+      this.showFeedback(translate('announcement_recipients_required'), 'error', { focus: true });
       return;
     }
 
     this.isSubmitting = true;
     this.toggleFormDisabled(true);
-    this.showFeedback(translate('announcement_sending'), 'info');
+    this.showFeedback(translate(saveAsDraft || scheduledAt ? 'announcement_saving' : 'announcement_sending'), 'info');
 
     try {
       const response = await createAnnouncement({
@@ -564,22 +570,70 @@ export class MailingList {
         send_now: !saveAsDraft && !scheduledAt,
       });
 
+      if (this.destroyed) {return;}
+
       if (!response?.success) {
         throw new Error(response?.message || 'Failed to send announcement');
       }
 
-      this.render();
-      this.attachEventListeners();
-      const feedbackKeys = { draft: 'announcement_saved', scheduled: 'announcement_scheduled' };
-      this.showFeedback(translate(feedbackKeys[response.data?.status] || 'announcement_sent'), 'success');
-      this.clearForm();
+      this.showSendResult(response);
     } catch (error) {
+      if (this.destroyed) {return;}
       debugError('Error sending announcement:', error);
-      this.showFeedback(apiErrorMessage(error, 'announcement_send_failed'), 'error');
+      const code = error?.code ?? error?.cause?.code;
+      const unconfirmed = code === 'operation_unconfirmed' || error?.isNetworkError
+        || error?.status >= CONFIG.HTTP_SERVER_ERROR_MIN_STATUS;
+      const message = code === 'online_required'
+        ? translate('announcement_online_required')
+        : unconfirmed
+          ? translate('announcement_send_unconfirmed')
+          : apiErrorMessage(error, 'announcement_send_failed');
+      this.showFeedback(message, 'error', { focus: true, history: true });
     } finally {
       this.isSubmitting = false;
-      this.toggleFormDisabled(false);
+      if (!this.destroyed) {this.toggleFormDisabled(false);}
     }
+  }
+
+  /**
+   * Confirm only an explicit email outcome. Keep the draft for failures or
+   * uncertain results: a successful HTTP response alone does not prove a send.
+   *
+   * @param {Object} response - Announcement response with per-channel delivery counts
+   * @returns {void}
+   */
+  showSendResult(response) {
+    const result = response?.data;
+    let key = 'announcement_send_unconfirmed';
+    let type = 'error';
+    let clear = false;
+    const email = result?.delivery?.email;
+    const hasEmailResult = email && ['total', 'sent', 'failed'].every((name) =>
+      Number.isSafeInteger(email[name]) && email[name] >= 0)
+      && email.total === email.sent + email.failed;
+
+    if (!response.queued && ['draft', 'scheduled'].includes(result?.status)) {
+      key = result.status === 'draft' ? 'announcement_saved' : 'announcement_scheduled';
+      type = 'success';
+      clear = true;
+    } else if (!response.queued && hasEmailResult && ['sent', 'partial', 'failed'].includes(result?.status)) {
+      if (email.total === 0) {
+        key = 'announcement_email_no_recipients';
+      } else if (email.failed === 0) {
+        key = result.status === 'partial' ? 'announcement_email_other_failed' : 'announcement_email_sent';
+        type = result.status === 'partial' ? 'info' : 'success';
+        clear = true;
+      } else {
+        key = email.sent > 0 ? 'announcement_email_partial' : 'announcement_email_failed';
+      }
+    }
+
+    const numbers = new Intl.NumberFormat(localeForLanguage(this.app.lang || CONFIG.DEFAULT_LANG));
+    const message = translate(key)
+      .replace('{sent}', numbers.format(email?.sent || 0))
+      .replace('{failed}', numbers.format(email?.failed || 0));
+    if (clear) {this.clearForm();}
+    this.showFeedback(message, type, { focus: true, history: true });
   }
 
   applyTemplate(index) {
@@ -623,6 +677,8 @@ export class MailingList {
     const form = document.getElementById('announcement-form');
     if (!form) {return;}
 
+    form.setAttribute('aria-busy', String(disabled));
+
     Array.from(form.elements).forEach((element) => {
       element.disabled = disabled;
     });
@@ -636,17 +692,38 @@ export class MailingList {
     const form = document.getElementById('announcement-form');
     if (!form) {return;}
     form.reset();
+    this.toggleMemberFilters();
     const area = document.getElementById('announcement-message');
     if (area) {
       setRichTextValue(area, '');
     }
   }
 
-  showFeedback(message, type = 'info') {
+  /**
+   * Keep feedback beside the send controls. A completed operation also moves
+   * focus to its persistent result, brings it into view and shows a toast.
+   * @param {string} message - Translated text
+   * @param {string} [type] - success, info or error
+   * @param {{focus?: boolean, history?: boolean}} [options] - Result presentation
+   */
+  showFeedback(message, type = 'info', { focus = false, history = false } = {}) {
+    if (this.destroyed) {return;}
     const feedbackEl = document.getElementById('announcement-feedback');
     if (!feedbackEl) {return;}
     feedbackEl.textContent = message;
     feedbackEl.className = `status-message ${type}`;
+    if (history) {
+      const link = document.createElement('a');
+      link.href = '/communication-history';
+      link.className = 'button button--ghost';
+      link.textContent = translate('communication_history_title');
+      feedbackEl.append(document.createElement('br'), link);
+    }
+    if (focus) {
+      feedbackEl.focus({ preventScroll: true });
+      feedbackEl.scrollIntoView?.({ block: 'center', behavior: 'instant' });
+      this.app.showMessage(message, type);
+    }
   }
 
   copyRoleEmailsToClipboard(role) {
@@ -677,12 +754,23 @@ export class MailingList {
       });
   }
 
+  renderLoading() {
+    if (this.destroyed) {return;}
+    setContent(document.getElementById('app'), `
+      ${renderBackLink()}
+      <h1>${translate('mailing_list')}</h1>
+      <p role="status">${translate('loading')}</p>`);
+  }
+
   renderError() {
+    if (this.destroyed) {return;}
     const errorMessage = `
-                                                <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
-                                                <h1>${translate('error')}</h1>
-                                                <p>${translate('error_loading_mailing_list')}</p>
+                                                ${renderBackLink()}
+                                                <h1>${translate('mailing_list')}</h1>
+                                                <p role="alert">${translate('error_loading_mailing_list')}</p>
+                                                <button type="button" id="mailing-list-retry" class="button button--secondary">${translate('retry')}</button>
                                 `;
     setContent(document.getElementById('app'), errorMessage);
+    document.getElementById('mailing-list-retry')?.addEventListener('click', () => this.init());
   }
 }
