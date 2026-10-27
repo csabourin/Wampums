@@ -95,6 +95,7 @@ const { getActivities } = require('../../spa/api/api-activities.js');
 const { setCachedData, getCachedData } = require('../../spa/indexedDB.js');
 const { formatDate, getTodayISO } = require('../../spa/utils/DateUtils.js');
 const { Attendance } = require('../../spa/modules/attendance/Attendance.js');
+const { ActionRoster } = require('../../spa/components/ActionRoster.js');
 const {
   tr,
   flushPromises,
@@ -175,6 +176,95 @@ beforeEach(() => {
 
 afterEach(() => {
   openedPages.splice(0).forEach((page) => page.destroy());
+});
+
+test('attendance and activity roster start together and the page waits for both', async () => {
+  seedStandardData();
+  let finishRoster;
+  const page = new Attendance(makeAppStub());
+  openedPages.push(page);
+  const attendanceLoad = jest.spyOn(page, 'preloadAttendanceData');
+  const rosterLoad = jest.spyOn(page.roster, 'load').mockImplementation(() => new Promise((resolve) => {
+    finishRoster = resolve;
+  }));
+
+  const loading = page.init();
+  expect(rosterLoad).toHaveBeenCalledWith(TODAY);
+  expect(attendanceLoad).toHaveBeenCalled();
+  await attendanceLoad.mock.results[0].value;
+  expect(ajax.getParticipants).toHaveBeenCalled();
+  expect(document.querySelector('.participant-row[data-participant-id="1"]')).toBeNull();
+
+  finishRoster();
+  await loading;
+  expect(document.querySelector('.participant-row[data-participant-id="1"]')).not.toBeNull();
+});
+
+test('a late attendance error cannot replace a screen opened after navigation', async () => {
+  seedStandardData();
+  let failRoster;
+  const page = new Attendance(makeAppStub());
+  openedPages.push(page);
+  jest.spyOn(page.roster, 'load').mockImplementation(() => new Promise((_resolve, reject) => {
+    failRoster = reject;
+  }));
+  const loading = page.init();
+  page.destroy();
+  document.getElementById('app').innerHTML = '<h1>Next screen</h1>';
+  failRoster(new Error('Connection lost'));
+  await loading;
+  expect(document.querySelector('#app h1').textContent).toBe('Next screen');
+});
+
+test('changing dates starts both reads together and waits for both before carrying attendance', async () => {
+  const page = new Attendance(makeAppStub());
+  openedPages.push(page);
+  let finishAttendance;
+  let finishRoster;
+  const attendanceLoad = jest.spyOn(page, 'fetchData').mockImplementation(() => new Promise((resolve) => {
+    finishAttendance = resolve;
+  }));
+  const rosterLoad = jest.spyOn(ActionRoster.prototype, 'load').mockImplementation(() => new Promise((resolve) => {
+    finishRoster = resolve;
+  }));
+  const carry = jest.spyOn(page, 'autoCarryForward').mockResolvedValue();
+  jest.spyOn(page, 'detectActivityContext').mockResolvedValue();
+
+  const loading = page.loadDate(YESTERDAY);
+  expect(attendanceLoad).toHaveBeenCalledWith(true);
+  expect(rosterLoad).toHaveBeenCalledWith(YESTERDAY);
+  finishAttendance();
+  await flushPromises();
+  expect(carry).not.toHaveBeenCalled();
+  finishRoster();
+  await loading;
+  expect(carry).toHaveBeenCalledTimes(1);
+  rosterLoad.mockRestore();
+});
+
+test('a failed date change keeps the visible date and its activity eligibility', async () => {
+  seedStandardData();
+  const { page, appStub } = await initPage();
+  const previousRoster = page.roster;
+  previousRoster.activities = [{ id: 7, requires_permission: true, signed_participant_ids: [1] }];
+  previousRoster.activityId = 7;
+  const previousParticipants = page.participants;
+  jest.spyOn(page, 'fetchData').mockRejectedValue(new Error('Attendance unavailable'));
+  const rosterLoad = jest.spyOn(ActionRoster.prototype, 'load').mockImplementation(function (date) {
+    this.date = date;
+    this.activities = [{ id: 8, requires_permission: true, signed_participant_ids: [2] }];
+    this.activityId = 8;
+    return Promise.resolve();
+  });
+
+  await page.loadDate(YESTERDAY);
+  expect(page.currentDate).toBe(TODAY);
+  expect(page.roster).toBe(previousRoster);
+  expect(page.roster.includes(1)).toBe(true);
+  expect(page.roster.includes(2)).toBe(false);
+  expect(page.participants).toBe(previousParticipants);
+  expect(appStub.showMessage).toHaveBeenCalledWith(tr('error_loading_attendance'), 'error');
+  rosterLoad.mockRestore();
 });
 
 describe('US-ATT-001 — See my unit grouped, with honest statuses', () => {

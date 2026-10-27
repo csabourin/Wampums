@@ -36,6 +36,14 @@ import { withButtonLoading, debounce } from '../../utils/PerformanceUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+
+/** Wait for every stateful read to settle before allowing a retry or date change. */
+async function waitForAttendanceReads(reads) {
+  const results = await Promise.allSettled(reads);
+  const failure = results.find((result) => result.status === 'rejected');
+  if (failure) { throw failure.reason; }
+}
+
 export class Attendance {
   constructor(app) {
     this.app = app;
@@ -63,6 +71,7 @@ export class Attendance {
     this.pendingDateChange = null;
     this.dateChangeInProgress = false;
     this.searchHandler = null;
+    this.destroyed = false;
   }
 
   async init() {
@@ -78,19 +87,24 @@ export class Attendance {
       this.renderSkeleton();
       this.isLoading = true;
 
-      // Load all required data
-      await Promise.all([
+      // The roster and attendance data describe the same initially selected
+      // date but do not depend on one another. Start them together so a slow
+      // roster request does not add another network round trip to the screen.
+      await waitForAttendanceReads([
         this.fetchAttendanceDates(),
         this.preloadAttendanceData(),
+        this.roster.load(this.currentDate),
       ]);
 
-      await this.roster.load(this.currentDate);
+      if (this.destroyed) { return; }
       // The selected context also controls the camp banner and carry-forward.
       await this.detectActivityContext();
+      if (this.destroyed) { return; }
 
       // During a multi-day activity, automatically carry forward attendance
       // from the previous day (works with or without offline camp mode)
       await this.autoCarryForward();
+      if (this.destroyed) { return; }
       this.roster.setAttendance(this.attendanceData);
 
       // Mark as initialized and not loading
@@ -102,6 +116,7 @@ export class Attendance {
         this.attachEventListeners();
       }
     } catch (error) {
+      if (this.destroyed) { return; }
       debugError('Error initializing attendance:', error);
       this.isLoading = false;
       this.renderError();
@@ -668,7 +683,7 @@ export class Attendance {
   render() {
     // Guard against running after jsdom teardown (e.g. dangling setImmediate
     // callbacks from fake-indexeddb in tests) or in non-browser contexts.
-    if (typeof document === 'undefined') {
+    if (this.destroyed || typeof document === 'undefined') {
       return;
     }
     // Safety check to prevent rendering if we've navigated away
@@ -984,6 +999,7 @@ export class Attendance {
    * Cancel delayed UI work when navigation replaces the attendance module.
    */
   destroy() {
+    this.destroyed = true;
     this.roster.destroy();
     this.searchHandler?.cancel?.();
     this.searchHandler = null;
@@ -1322,6 +1338,32 @@ export class Attendance {
    */
   async loadDate(targetDate) {
     const previousDate = this.currentDate;
+    const previousRoster = this.roster;
+    const nextRoster = new ActionRoster('attendance');
+    // The visible screen stays interactive while the new date loads. Keep its
+    // data and activity filter together if either concurrent read fails or a
+    // newer date supersedes this one.
+    const previous = {
+      participants: this.participants, attendanceData: this.attendanceData,
+      guests: this.guests, groups: this.groups, availableDates: this.availableDates,
+      activeActivity: this.activeActivity,
+      roster: {
+        date: this.roster.date, activities: this.roster.activities,
+        attendance: this.roster.attendance, activityId: this.roster.activityId,
+        showAll: this.roster.showAll,
+      },
+    };
+    const restorePrevious = () => {
+      nextRoster.destroy();
+      this.roster = previousRoster;
+      this.currentDate = previousDate;
+      Object.assign(this, {
+        participants: previous.participants, attendanceData: previous.attendanceData,
+        guests: previous.guests, groups: previous.groups, availableDates: previous.availableDates,
+        activeActivity: previous.activeActivity,
+      });
+      Object.assign(this.roster, previous.roster);
+    };
     this.currentDate = targetDate;
     // A reload after a refused change only reads: carrying forward again could
     // put back the very statuses the server just refused.
@@ -1331,44 +1373,47 @@ export class Attendance {
 
     try {
       // In camp mode, preserve camp-prepared cache and use it
-      if (offlineManager.campMode && offlineManager.isDatePrepared(targetDate)) {
-        debugLog(`Camp mode: Loading prepared data for ${targetDate}`);
-        await this.preloadAttendanceData();
-      } else {
-        // Normal mode: force-refresh from API, bypassing stale cache
-        await this.fetchData(true);
-      }
+      const attendanceReady = offlineManager.campMode && offlineManager.isDatePrepared(targetDate)
+        ? this.preloadAttendanceData()
+        : this.fetchData(true);
+      // These reads use the same date and can run concurrently; mutations and
+      // rendering still wait for both, preserving carry-forward ordering.
+      await waitForAttendanceReads([attendanceReady, nextRoster.load(targetDate)]);
 
-      if (this.pendingDateChange !== null) {
+      if (this.destroyed || this.pendingDateChange !== null) {
         // A newer date was requested while loading; skip the context fetch
         // and render — the loop loads the newer date next.
+        restorePrevious();
         return;
       }
 
       // Resolve the selected activity before carrying attendance into this day.
-      await this.roster.load(this.currentDate);
+      this.roster = nextRoster;
       await this.detectActivityContext();
+      if (this.destroyed || this.pendingDateChange !== null) { restorePrevious(); return; }
       if (carryForward) {
         await this.autoCarryForward();
       }
 
-      if (this.pendingDateChange !== null) {
+      if (this.destroyed || this.pendingDateChange !== null) {
+        restorePrevious();
         return;
       }
 
       this.roster.setAttendance(this.attendanceData);
+      previousRoster.destroy();
       // Re-render the entire view with new data
       this.render();
       // Re-attach event listeners
       this.attachEventListeners();
     } catch (error) {
       debugError(`Error loading attendance for ${targetDate}:`, error);
-      if (this.pendingDateChange !== null) {
+      restorePrevious();
+      if (this.destroyed || this.pendingDateChange !== null) {
         return;
       }
       // Revert so the selector matches the data still on screen instead of
       // silently showing the old list under the new date.
-      this.currentDate = previousDate;
       const dateSelect = typeof document !== 'undefined'
         ? document.getElementById('dateSelect')
         : null;
