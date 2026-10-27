@@ -250,10 +250,11 @@ test('a failed date change keeps the visible date and its activity eligibility',
   previousRoster.activityId = 7;
   const previousParticipants = page.participants;
   jest.spyOn(page, 'fetchData').mockRejectedValue(new Error('Attendance unavailable'));
-  const rosterLoad = jest.spyOn(ActionRoster.prototype, 'load').mockImplementation(async function (date) {
+  const rosterLoad = jest.spyOn(ActionRoster.prototype, 'load').mockImplementation(function (date) {
     this.date = date;
     this.activities = [{ id: 8, requires_permission: true, signed_participant_ids: [2] }];
     this.activityId = 8;
+    return Promise.resolve();
   });
 
   await page.loadDate(YESTERDAY);
