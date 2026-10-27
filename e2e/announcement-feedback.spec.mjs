@@ -31,6 +31,8 @@ for (const outcome of outcomes) {
     if (outcome.cleared) {
       await page.locator('input[name="announcement-audience"][value="alumni"]').check();
       await expect(page.locator('#announcement-member-filters')).toBeHidden();
+    } else {
+      await page.locator('input[name="recipient-role"]').first().check();
     }
     await page.locator('#send-announcement').click();
 
@@ -53,3 +55,25 @@ for (const outcome of outcomes) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }
+
+test('missing recipients are explained visibly at the send controls without sending', async ({ page }) => {
+  let sends = 0;
+  await page.route(/\/api\/v1\/announcements(?:\?.*)?$/, (route) => {
+    if (route.request().method() !== 'POST') {return route.continue();}
+    sends += 1;
+    return route.abort('failed');
+  });
+  await openScreen(page, '/mailing-list');
+  await page.locator('#announcement-subject').fill('Camp de novembre');
+  await page.locator('#announcement-message').fill('Apportez vos bottes.');
+  for (const checkbox of await page.locator('input[name="recipient-role"], input[name="recipient-group"]').all()) {
+    await checkbox.uncheck();
+  }
+  await page.locator('#send-announcement').click();
+  const feedback = page.locator('#announcement-feedback');
+  await expect(feedback).toContainText('Cochez au moins un rôle');
+  await expect(feedback).toBeFocused();
+  await expect(feedback).toBeInViewport();
+  expect(sends).toBe(0);
+  await expect(page.locator('#announcement-message')).toHaveText('Apportez vos bottes.');
+});

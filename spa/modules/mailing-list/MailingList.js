@@ -549,8 +549,7 @@ export class MailingList {
       return;
     }
     if (!isAlumni && !recipientRoles.length && !recipientGroupIds.length) {
-      this.showFeedback(translate('announcement_recipients_required'), 'error');
-      document.querySelector('input[name="recipient-role"]')?.focus();
+      this.showFeedback(translate('announcement_recipients_required'), 'error', { focus: true });
       return;
     }
 

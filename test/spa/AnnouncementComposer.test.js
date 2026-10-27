@@ -224,7 +224,7 @@ test('without any role or den, nothing is sent and the leader is told why', asyn
 
   expect(ajax.createAnnouncement).not.toHaveBeenCalled();
   expect(document.getElementById('announcement-feedback').textContent).toBe('announcement_recipients_required');
-  expect(document.activeElement).toBe(document.querySelector('input[name="recipient-role"]'));
+  expect(document.activeElement).toBe(document.getElementById('announcement-feedback'));
 });
 
 test('the dens are a named group of checkboxes, their names escaped', async () => {
