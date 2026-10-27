@@ -50,7 +50,7 @@ jest.mock('../middleware/auth', () => {
 });
 
 const { sendEmail } = require('../utils/index');
-const { buildRecipientsForTests } = require('../routes/announcements');
+const { buildRecipientsForTests, processScheduledAnnouncementsForTests } = require('../routes/announcements');
 const { grantParticipantAccess, ACCESS_SOURCE } = require('../services/participantAccess');
 
 describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
@@ -193,7 +193,7 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
       return;
     }
     const client = await pool.connect();
-    const youth = [ids.redYouth, ids.blueYouth].filter(Boolean);
+    const youth = [ids.redYouth, ids.blueYouth, ...(ids.extraYouth || [])].filter(Boolean);
     const participantIds = youth.map((entry) => entry.participantId);
     const guardianIds = youth.map((entry) => entry.guardianId);
     const userIds = [ids.leader, ids.redParent, ids.blueParent, ...(ids.extraUsers || [])].filter(Boolean);
@@ -206,7 +206,7 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
       );
       for (const table of [
         'announcements', 'subscribers', 'form_submissions', 'participant_groups', 'groups', 'parent_invitations',
-        'participant_organizations', 'user_organizations', 'user_messages', 'roles',
+        'participant_organizations', 'participant_enrollments', 'user_organizations', 'user_messages', 'roles',
         'scout_years', 'organization_program_sections',
       ]) {
         // Table names come from this literal list, never from a request.
@@ -249,7 +249,7 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
   beforeEach(async () => {
     await cleanup();
     await seed();
-    sendEmail.mockClear();
+    sendEmail.mockReset().mockResolvedValue(true);
   });
 
   /**
@@ -325,6 +325,72 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
     ].sort());
   });
 
+  test.each([{ roles: [] }, { roles: ['parent'] }])('families from a closed year are excluded from current mailings with roles $roles', async ({ roles }) => {
+    const oldYouth = await makeYouth('Former', ids.red, 'guardian-former');
+    ids.extraYouth = [oldYouth];
+    const oldYear = await one(
+      `INSERT INTO scout_years (organization_id, label, start_date, end_date, status)
+       VALUES ($1, '2025-2026', '2025-09-01', '2026-08-31', 'closed') RETURNING id`,
+      [ids.unit]
+    );
+    await pool.query(
+      'UPDATE participant_enrollments SET scout_year_id = $1 WHERE participant_id = $2 AND organization_id = $3',
+      [oldYear, oldYouth.participantId, ids.unit]
+    );
+    const former = await makeChildlessFamily('former-active-account');
+    await grantParticipantAccess(pool, {
+      participantId: oldYouth.participantId, userId: former, sourceType: ACCESS_SOURCE.ADMIN,
+    });
+    await pool.query(
+      `INSERT INTO subscribers (endpoint, p256dh, auth, organization_id, user_id)
+       VALUES ($1, 'k', 'a', $2, $3)`,
+      [`https://push.example.test/${ids.unit}/former`, ids.unit, former]
+    );
+    await pool.query("UPDATE users SET whatsapp_phone_number = '+15555550199' WHERE id = $1", [former]);
+
+    const groups = roles.length ? [] : [ids.red];
+    const recipients = await buildRecipientsForTests(pool, ids.unit, roles, groups, 'members');
+
+    expect(recipients.emails).not.toContain(emails['guardian-former']);
+    expect(recipients.emails).not.toContain(emails['former-active-account']);
+    expect(pushedTo(recipients)).not.toContain(former);
+    expect(recipients.whatsappNumbers).toEqual([]);
+    const report = await request(app).get('/api/v1/reports/mailing-list');
+    expect(report.status).toBe(200);
+    expect(report.body.unique_emails).not.toContain(emails['guardian-former']);
+    expect(report.body.unique_emails).not.toContain(emails['former-active-account']);
+  });
+
+  test.each(['left', 'graduated', 'transferred'])('a %s enrollment does not keep parents in current family mail', async (status) => {
+    await pool.query(
+      'UPDATE participant_enrollments SET status = $1 WHERE participant_id = $2 AND organization_id = $3',
+      [status, ids.redYouth.participantId, ids.unit]
+    );
+
+    const recipients = await buildRecipientsForTests(pool, ids.unit, ['parent'], [], 'members');
+
+    expect(recipients.emails).not.toContain(emails['parent-red']);
+    expect(recipients.emails).not.toContain(emails['guardian-red']);
+    expect(recipients.emails).toEqual(expect.arrayContaining([emails['parent-blue'], emails['guardian-blue']]));
+    expect(pushedTo(recipients)).not.toContain(ids.redParent);
+  });
+
+  test('a current co-parent stays reached even when the same account has an older child in the selected den', async () => {
+    await grantParticipantAccess(pool, {
+      participantId: ids.blueYouth.participantId, userId: ids.redParent, sourceType: ACCESS_SOURCE.ADMIN,
+    });
+    await pool.query(
+      "UPDATE participant_enrollments SET status = 'left' WHERE participant_id = $1 AND organization_id = $2",
+      [ids.redYouth.participantId, ids.unit]
+    );
+
+    const red = await buildRecipientsForTests(pool, ids.unit, ['parent'], [ids.red], 'members');
+    const blue = await buildRecipientsForTests(pool, ids.unit, ['parent'], [ids.blue], 'members');
+
+    expect(red.emails).not.toContain(emails['parent-red']);
+    expect(blue.emails).toContain(emails['parent-red']);
+  });
+
   test('writing to the parents reaches a family account whatever its role is called', async () => {
     const recipients = await buildRecipientsForTests(pool, ids.unit, ['parent'], [], 'members');
 
@@ -394,6 +460,72 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
     expect(sentTo).toEqual([emails['guardian-red'], emails['parent-red']].sort());
   });
 
+  test.each([
+    { label: 'accepted', replies: [true, true], status: 'sent', sent: 2, failed: 0 },
+    { label: 'partly refused', replies: [true, false], status: 'partial', sent: 1, failed: 1 },
+    { label: 'all refused', replies: [false, false], status: 'failed', sent: 0, failed: 2 },
+    { label: 'transport exception', throws: true, status: 'failed', sent: 0, failed: 2 },
+  ])('an immediate $label mailing returns the final result stored in the history', async ({ replies, throws, status, sent, failed }) => {
+    // These scenarios isolate the email result from device notifications.
+    await pool.query('DELETE FROM subscribers WHERE organization_id = $1', [ids.unit]);
+    if (throws) {
+      sendEmail.mockRejectedValue(new Error('transport unavailable'));
+    } else {
+      replies.forEach((reply) => sendEmail.mockResolvedValueOnce(reply));
+    }
+
+    const response = await request(app).post('/api/v1/announcements').send({
+      subject: 'Camp', message: 'Bring boots', recipient_roles: [], recipient_group_ids: [ids.red], send_now: true,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ status, delivery: { email: { total: 2, sent, failed } } });
+    if (sent > 0) {
+      expect(response.body.data.sent_at).not.toBeNull();
+    } else {
+      expect(response.body.data.sent_at).toBeNull();
+    }
+    const storedStatus = await one('SELECT status FROM announcements WHERE id = $1', [response.body.data.id]);
+    expect(storedStatus).toBe(status);
+    const logs = await pool.query(
+      "SELECT status FROM announcement_logs WHERE announcement_id = $1 AND channel = 'email'",
+      [response.body.data.id]
+    );
+    expect(logs.rows.filter((row) => row.status === 'sent')).toHaveLength(sent);
+    expect(logs.rows.filter((row) => row.status === 'failed')).toHaveLength(failed);
+  });
+
+  test.each(['draft', 'scheduled'])('saving a %s confirms its status without sending email', async (status) => {
+    const future = new Date(Date.now() + 86400000).toISOString();
+    const response = await request(app).post('/api/v1/announcements').send({
+      subject: 'Camp', message: 'Bring boots', recipient_roles: ['parent'],
+      save_as_draft: status === 'draft', scheduled_at: status === 'scheduled' ? future : null,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.status).toBe(status);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  test('a scheduled message excludes a family that leaves before dispatch', async () => {
+    await pool.query('DELETE FROM subscribers WHERE organization_id = $1', [ids.unit]);
+    const response = await request(app).post('/api/v1/announcements').send({
+      subject: 'Camp', message: 'Bring boots', recipient_roles: [], recipient_group_ids: [ids.red],
+      scheduled_at: new Date(Date.now() + 86400000).toISOString(),
+    });
+    expect(response.body.data.status).toBe('scheduled');
+    await pool.query(
+      "UPDATE participant_enrollments SET status = 'left' WHERE participant_id = $1 AND organization_id = $2",
+      [ids.redYouth.participantId, ids.unit]
+    );
+    await pool.query('UPDATE announcements SET scheduled_at = now() WHERE id = $1', [response.body.data.id]);
+
+    await processScheduledAnnouncementsForTests(pool, { info: jest.fn(), warn: jest.fn(), error: jest.fn() });
+
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(await one('SELECT status FROM announcements WHERE id = $1', [response.body.data.id])).toBe('failed');
+  });
+
   test('a message to a den that no longer exists, or another unit\'s, is refused and sends nothing', async () => {
     const otherUnitDen = await one(
       "INSERT INTO groups (name, organization_id) VALUES ('Ailleurs', NULL) RETURNING id"
@@ -437,24 +569,24 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
       expect(await listedFamilyAddresses()).not.toContain(emails.withdrawn.toLowerCase());
     });
 
-    test('a family account with no child and no withdrawn invitation stays reached', async () => {
+    test('an active family account with no current child is not reached', async () => {
       await makeChildlessFamily('signed-up');
 
       const recipients = await buildRecipientsForTests(pool, ids.unit, ['parent', ids.familyRole], [], 'members');
 
-      expect(recipients.emails).toContain(emails['signed-up'].toLowerCase());
-      expect(await listedFamilyAddresses()).toContain(emails['signed-up'].toLowerCase());
+      expect(recipients.emails).not.toContain(emails['signed-up'].toLowerCase());
+      expect(await listedFamilyAddresses()).not.toContain(emails['signed-up'].toLowerCase());
     });
 
-    test('an address invited again after the withdrawal is reached', async () => {
+    test('a new invitation alone does not make a childless account a current family recipient', async () => {
       await makeChildlessFamily('reinvited');
       await recordInvitation(emails.reinvited, 'revoked', '2026-09-10');
       await recordInvitation(emails.reinvited, 'accepted', '2026-09-20');
 
       const recipients = await buildRecipientsForTests(pool, ids.unit, ['parent', ids.familyRole], [], 'members');
 
-      expect(recipients.emails).toContain(emails.reinvited.toLowerCase());
-      expect(await listedFamilyAddresses()).toContain(emails.reinvited.toLowerCase());
+      expect(recipients.emails).not.toContain(emails.reinvited.toLowerCase());
+      expect(await listedFamilyAddresses()).not.toContain(emails.reinvited.toLowerCase());
     });
 
     test('a parent with a child in the unit stays reached', async () => {
@@ -530,14 +662,12 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
       ]);
     });
 
-    test('a parent account with no child this year is still listed, without a child', async () => {
+    test('a parent account with no child this year is absent from the family list', async () => {
       const lone = await makeUser('lone-parent');
       ids.extraUsers = [...(ids.extraUsers || []), lone];
       await addMember(lone, [ids.parentRoleId]);
 
-      expect(await familyEntriesFor(emails['lone-parent'])).toEqual([
-        { email: emails['lone-parent'].toLowerCase(), participants: null },
-      ]);
+      expect(await familyEntriesFor(emails['lone-parent'])).toEqual([]);
     });
   });
 });

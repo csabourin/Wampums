@@ -19,7 +19,6 @@ const HAND_WRITTEN_BACK_LINKS = [
   'spa/modules/TabbedPage.js',
   'spa/modules/account-info.js',
   'spa/modules/activities/Activities.js',
-  'spa/modules/mailing-list/MailingList.js',
   'spa/modules/meetings/MeetingPrep.js',
   'spa/modules/permission-slips/PermissionSlipDashboard.js',
   'spa/modules/scout-year/ScoutYearTransition.js',
@@ -32,7 +31,6 @@ const OLD_BUTTON_CLASSES = [];
 
 /** Screens that still give a button a variant without its `button` base class. */
 const VARIANTS_WITHOUT_BASE = [
-  'spa/modules/mailing-list/MailingList.js',
   'spa/modules/participants/ManageUsersParticipants.js',
 ];
 

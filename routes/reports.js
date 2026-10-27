@@ -16,7 +16,6 @@ const { asyncHandler } = require('../middleware/response');
 
 // Import utilities
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
-const { WITHDRAWN_FAMILY_ACCOUNT_SQL } = require('../services/parentInvitations');
 const {
   isAffirmative,
   allergyText,
@@ -139,7 +138,8 @@ module.exports = (pool, _logger) => {
     // reality every year. The join to `roles` is inner rather than outer on
     // purpose too — a role_ids entry pointing at a deleted role used to yield a
     // NULL role_name, which became a section literally headed "null".
-    // A family account whose invitation the unit withdrew is left out too.
+    // A family account must also have a child on the selected year's roster;
+    // active login status alone does not mean the family is still enrolled.
     const usersEmailsQuery = `
       SELECT LOWER(u.email) AS email, r.role_name AS role, r.display_name AS role_display_name
          FROM user_organizations uo
@@ -150,8 +150,14 @@ module.exports = (pool, _logger) => {
          AND uo.status = 'active'
          AND u.email IS NOT NULL
          AND u.email != ''
-         AND NOT (r.data_scope IS NOT DISTINCT FROM 'linked' AND ${WITHDRAWN_FAMILY_ACCOUNT_SQL})`;
-    const usersEmailsResult = await pool.query(usersEmailsQuery, [organizationId]);
+         AND (r.data_scope IS DISTINCT FROM 'linked' OR EXISTS (
+           SELECT 1 FROM user_participants up
+           JOIN participant_enrollments pe ON pe.participant_id = up.participant_id
+             AND pe.organization_id = $1 AND pe.scout_year_id = $2
+             AND pe.status = ANY($3::text[])
+           WHERE up.user_id = u.id
+         ))`;
+    const usersEmailsResult = await pool.query(usersEmailsQuery, [organizationId, req.scoutYear.id, req.rosterStatuses]);
 
     const roleDisplayNames = {};
     const emailsByRole = usersEmailsResult.rows.reduce((acc, user) => {

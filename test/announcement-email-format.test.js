@@ -100,3 +100,48 @@ describe('family email recipients', () => {
     ]);
   });
 });
+
+describe('announcement delivery results', () => {
+  beforeEach(() => sendEmail.mockReset().mockResolvedValue(true));
+
+  test.each([
+    { label: 'accepted', reply: true, status: 'sent', sent: 1, failed: 0 },
+    { label: 'refused', reply: false, status: 'failed', sent: 0, failed: 1 },
+    { label: 'throwing', error: true, status: 'failed', sent: 0, failed: 1 },
+  ])('a $label email send returns and stores its real result', async ({ reply, error, status, sent, failed }) => {
+    if (error) {
+      sendEmail.mockRejectedValue(new Error('mail transport failed'));
+    } else {
+      sendEmail.mockResolvedValue(reply);
+    }
+    const pool = fakePool();
+
+    const result = await dispatchAnnouncementForTests(pool, quiet, announcement());
+
+    expect(result).toMatchObject({ status, delivery: { email: { total: 1, sent, failed } } });
+    const update = pool.query.mock.calls.find(([sql]) => sql.includes('UPDATE announcements'));
+    expect(update[1]).toEqual([status, 7, sent > 0]);
+    const log = pool.query.mock.calls.find(([sql]) => sql.includes('INSERT INTO announcement_logs'));
+    expect(log[1][2]).toBe(sent ? 'sent' : 'failed');
+  });
+
+  test('an announcement with no recipients is failed rather than reported as sent', async () => {
+    const pool = { query: jest.fn(() => Promise.resolve({ rows: [] })) };
+
+    const result = await dispatchAnnouncementForTests(pool, quiet, announcement());
+
+    expect(result).toMatchObject({ status: 'failed', delivery: { email: { total: 0, sent: 0, failed: 0 } } });
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  test('a receipt log failure does not pretend that an accepted email was not sent', async () => {
+    const pool = fakePool();
+    const query = pool.query.getMockImplementation();
+    pool.query.mockImplementation((sql, params) => sql.includes('INSERT INTO announcement_logs')
+      ? Promise.reject(new Error('log unavailable')) : query(sql, params));
+
+    const result = await dispatchAnnouncementForTests(pool, quiet, announcement());
+
+    expect(result).toMatchObject({ status: 'sent', delivery: { email: { total: 1, sent: 1, failed: 0 } } });
+  });
+});
