@@ -326,9 +326,10 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
   `;
   const userRoleResult = await pool.query(userRoleQuery, [organizationId, groupIds, roleFilter, includeParents]);
 
-  // Guardian emails per participant (optional group filter)
+  // Family mail uses adult accounts and guardian contacts only. A courriel
+  // captured on a child's form is the participant's address, not a fallback
+  // family contact. This also applies when a scheduled announcement is sent.
   const guardianEmails = [];
-  const participantEmails = [];
 
   if (includeParents) {
     const guardianQuery = `
@@ -351,20 +352,7 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
     `;
     const guardianResult = await pool.query(guardianQuery, groupParams);
 
-    // Participant emails captured on forms (optional group filter)
-    const participantQuery = `
-      SELECT LOWER(fs.submission_data->>'courriel') AS courriel
-      FROM form_submissions fs
-      ${groupIds.length ? 'JOIN participant_groups pgroups ON pgroups.participant_id = fs.participant_id' : ''}
-      WHERE (fs.submission_data->>'courriel') IS NOT NULL
-        AND (fs.submission_data->>'courriel') != ''
-        AND fs.organization_id = $1
-        ${groupFilterClause}
-    `;
-    const participantResult = await pool.query(participantQuery, groupParams);
-
     guardianEmails.push(...guardianResult.rows.map((row) => row.email));
-    participantEmails.push(...participantResult.rows.map((row) => row.courriel));
   }
   const roleEmails = userRoleResult.rows.map((row) => row.email);
 
@@ -372,7 +360,7 @@ async function buildRecipients(pool, organizationId, roles, groupIds, audience =
     .filter((row) => row.whatsapp_phone_number)
     .map((row) => ({ phone: row.whatsapp_phone_number, user_id: row.user_id }));
 
-  const allEmails = [...roleEmails, ...guardianEmails, ...participantEmails].filter(Boolean);
+  const allEmails = [...roleEmails, ...guardianEmails].filter(Boolean);
   const uniqueEmails = [...new Set(allEmails)];
 
   // Push goes to the same members as above, den filter included.
