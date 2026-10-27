@@ -471,6 +471,7 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
   );
 
   let pushOutcome = { successes: 0, failures: 0 };
+  let pushDeliveryCompleted = false;
   if (subscribers.length) {
     try {
       const webpush = require('web-push');
@@ -510,11 +511,15 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
             tag: 'announcement',
             data: { url: messageUrl(messageIds, subscriber.user_id) },
           }));
-          await pool.query(
-            `INSERT INTO announcement_logs (announcement_id, channel, recipient_user_id, status)
-             VALUES ($1, 'push', $2, 'sent')`,
-            [announcement.id, subscriber.user_id],
-          );
+          try {
+            await pool.query(
+              `INSERT INTO announcement_logs (announcement_id, channel, recipient_user_id, status)
+               VALUES ($1, 'push', $2, 'sent')`,
+              [announcement.id, subscriber.user_id],
+            );
+          } catch (logError) {
+            logger.error('Could not record accepted announcement push:', logError);
+          }
           return true;
         }),
       );
@@ -530,6 +535,7 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
         },
         { successes: 0, failures: 0 },
       );
+      pushDeliveryCompleted = true;
 
       // Devices that will not receive again are forgotten
       try {
@@ -557,13 +563,15 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
         );
       }
     } catch (error) {
-      logger.error('Push notification send failed:', error);
-      pushOutcome = { successes: 0, failures: subscribers.length };
-      await pool.query(
-        `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
-         VALUES ($1, 'push', 'failed', $2)`,
-        [announcement.id, error.message || 'Push send failed'],
-      );
+      logger.error('Announcement push processing failed:', error);
+      if (!pushDeliveryCompleted) {
+        pushOutcome = { successes: 0, failures: subscribers.length };
+        await pool.query(
+          `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
+           VALUES ($1, 'push', 'failed', $2)`,
+          [announcement.id, error.message || 'Push send failed'],
+        );
+      }
     }
   }
 
@@ -575,17 +583,21 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
     const whatsappResults = await Promise.allSettled(
       whatsappNumbers.map(async ({ phone, user_id }) => {
         const success = await sendWhatsApp(phone, whatsappMessage, announcement.organization_id, whatsappService);
-        await pool.query(
-          `INSERT INTO announcement_logs (announcement_id, channel, recipient_user_id, status, error_message, metadata)
-           VALUES ($1, 'whatsapp', $2, $3, $4, $5)`,
-          [
-            announcement.id,
-            user_id,
-            success ? 'sent' : 'failed',
-            success ? null : 'WhatsApp send failed',
-            JSON.stringify({ phone_number: phone })
-          ],
-        );
+        try {
+          await pool.query(
+            `INSERT INTO announcement_logs (announcement_id, channel, recipient_user_id, status, error_message, metadata)
+             VALUES ($1, 'whatsapp', $2, $3, $4, $5)`,
+            [
+              announcement.id,
+              user_id,
+              success ? 'sent' : 'failed',
+              success ? null : 'WhatsApp send failed',
+              JSON.stringify({ phone_number: phone })
+            ],
+          );
+        } catch (logError) {
+          logger.error('Could not record announcement WhatsApp result:', logError);
+        }
         return success;
       }),
     );
@@ -648,14 +660,15 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
         }
       }
     } catch (error) {
-      logger.error('Google Chat broadcast failed:', error);
-      googleChatOutcome.failures = 1;
-
-      await pool.query(
-        `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
-         VALUES ($1, 'google_chat', 'failed', $2)`,
-        [announcement.id, error.message || 'Google Chat send failed']
-      );
+      logger.error('Announcement Google Chat processing failed:', error);
+      if (!googleChatOutcome.successes) {
+        googleChatOutcome.failures = 1;
+        await pool.query(
+          `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
+           VALUES ($1, 'google_chat', 'failed', $2)`,
+          [announcement.id, error.message || 'Google Chat send failed']
+        );
+      }
     }
   }
 

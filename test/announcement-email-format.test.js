@@ -17,7 +17,17 @@ jest.mock('../services/emailSender', () => ({
   resolveOrganizationEmailSender: jest.fn(() => Promise.resolve(null)),
 }));
 
-const { sendEmail } = require('../utils');
+jest.mock('web-push', () => ({
+  setVapidDetails: jest.fn(), sendNotification: jest.fn(() => Promise.resolve()),
+}));
+jest.mock('../utils/web-push', () => ({
+  ...jest.requireActual('../utils/web-push'),
+  getVapidKeys: () => ({ publicKey: 'test-public-key', privateKey: 'test-private-key' }),
+  recordPushOutcomes: jest.fn(() => Promise.resolve()),
+}));
+
+const { sendEmail, sendWhatsApp } = require('../utils');
+const webpush = require('web-push');
 const { dispatchAnnouncementForTests } = require('../routes/announcements');
 
 const quiet = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
@@ -143,5 +153,70 @@ describe('announcement delivery results', () => {
     const result = await dispatchAnnouncementForTests(pool, quiet, announcement());
 
     expect(result).toMatchObject({ status: 'sent', delivery: { email: { total: 1, sent: 1, failed: 0 } } });
+  });
+});
+
+describe('transport outcomes survive history failures', () => {
+  beforeEach(() => {
+    sendEmail.mockReset().mockResolvedValue(true);
+    sendWhatsApp.mockReset().mockResolvedValue(true);
+    webpush.setVapidDetails.mockReset();
+    webpush.sendNotification.mockReset().mockResolvedValue({});
+  });
+
+  /**
+   * One account with configurable channels; history writes fail independently.
+   * @param {{push?: boolean, whatsapp?: boolean, googleChat?: boolean, historyFails?: boolean}} channels
+   * @returns {{query: jest.Mock}}
+   */
+  function channelPool({ push = false, whatsapp = false, googleChat = false, historyFails = true } = {}) {
+    return {
+      query: jest.fn((sql) => {
+        if (sql.includes('LOWER(u.email) AS email')) {
+          return Promise.resolve({ rows: [{ user_id: 'user-1', whatsapp_phone_number: whatsapp ? '+15555550199' : null }] });
+        }
+        if (sql.includes('FROM subscribers')) {
+          return Promise.resolve({ rows: push ? ['one', 'two'].map((name) => ({
+            user_id: 'user-1', endpoint: `https://push.example.test/${name}`, p256dh: 'k', auth: 'a',
+          })) : [] });
+        }
+        if (sql.includes('FROM google_chat_config') || sql.includes('FROM google_chat_spaces')) {
+          return Promise.resolve({ rows: googleChat ? [{ id: 1, space_id: 'test-space' }] : [] });
+        }
+        if (historyFails && sql.includes('INSERT INTO announcement_logs')) {
+          return Promise.reject(new Error('history unavailable'));
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+    };
+  }
+
+  test('mixed push results survive failed success and failure receipt writes', async () => {
+    webpush.sendNotification.mockRejectedValueOnce(new Error('device refused'));
+    const result = await dispatchAnnouncementForTests(channelPool({ push: true }), quiet, announcement());
+    expect(result).toMatchObject({ status: 'partial', delivery: { push: { total: 2, sent: 1, failed: 1 } } });
+  });
+
+  test('accepted pushes stay sent even when their receipt writes fail', async () => {
+    const result = await dispatchAnnouncementForTests(channelPool({ push: true }), quiet, announcement());
+    expect(result).toMatchObject({ status: 'sent', delivery: { push: { total: 2, sent: 2, failed: 0 } } });
+  });
+
+  test('push setup failure counts every device as failed before any delivery attempt', async () => {
+    webpush.setVapidDetails.mockImplementationOnce(() => { throw new Error('setup unavailable'); });
+    const result = await dispatchAnnouncementForTests(channelPool({ push: true, historyFails: false }), quiet, announcement());
+    expect(result).toMatchObject({ status: 'failed', delivery: { push: { total: 2, sent: 0, failed: 2 } } });
+    expect(webpush.sendNotification).not.toHaveBeenCalled();
+  });
+
+  test('accepted WhatsApp messages stay sent when their receipt write fails', async () => {
+    const result = await dispatchAnnouncementForTests(channelPool({ whatsapp: true }), quiet, announcement());
+    expect(result).toMatchObject({ status: 'sent', delivery: { whatsapp: { total: 1, sent: 1, failed: 0 } } });
+  });
+
+  test('an accepted Google Chat broadcast stays sent when its receipt write fails', async () => {
+    const service = { sendBroadcast: jest.fn(() => Promise.resolve()) };
+    const result = await dispatchAnnouncementForTests(channelPool({ googleChat: true }), quiet, announcement(), null, service);
+    expect(result).toMatchObject({ status: 'sent', delivery: { google_chat: { total: 1, sent: 1, failed: 0 } } });
   });
 });
