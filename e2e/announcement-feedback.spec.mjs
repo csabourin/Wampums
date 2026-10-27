@@ -66,9 +66,8 @@ test('missing recipients are explained visibly at the send controls without send
   await openScreen(page, '/mailing-list');
   await page.locator('#announcement-subject').fill('Camp de novembre');
   await page.locator('#announcement-message').fill('Apportez vos bottes.');
-  for (const checkbox of await page.locator('input[name="recipient-role"], input[name="recipient-group"]').all()) {
-    await checkbox.uncheck();
-  }
+  const choices = await page.locator('input[name="recipient-role"], input[name="recipient-group"]').all();
+  await choices.reduce((pending, checkbox) => pending.then(() => checkbox.uncheck()), Promise.resolve());
   await page.locator('#send-announcement').click();
   const feedback = page.locator('#announcement-feedback');
   await expect(feedback).toContainText('Cochez au moins un rôle');
