@@ -177,6 +177,69 @@ afterEach(() => {
   openedPages.splice(0).forEach((page) => page.destroy());
 });
 
+test('attendance and activity roster start together and the page waits for both', async () => {
+  seedStandardData();
+  let finishRoster;
+  const page = new Attendance(makeAppStub());
+  openedPages.push(page);
+  const attendanceLoad = jest.spyOn(page, 'preloadAttendanceData');
+  const rosterLoad = jest.spyOn(page.roster, 'load').mockImplementation(() => new Promise((resolve) => {
+    finishRoster = resolve;
+  }));
+
+  const loading = page.init();
+  expect(rosterLoad).toHaveBeenCalledWith(TODAY);
+  expect(attendanceLoad).toHaveBeenCalled();
+  await attendanceLoad.mock.results[0].value;
+  expect(ajax.getParticipants).toHaveBeenCalled();
+  expect(document.querySelector('.participant-row[data-participant-id="1"]')).toBeNull();
+
+  finishRoster();
+  await loading;
+  expect(document.querySelector('.participant-row[data-participant-id="1"]')).not.toBeNull();
+});
+
+test('a late attendance error cannot replace a screen opened after navigation', async () => {
+  seedStandardData();
+  let failRoster;
+  const page = new Attendance(makeAppStub());
+  openedPages.push(page);
+  jest.spyOn(page.roster, 'load').mockImplementation(() => new Promise((_resolve, reject) => {
+    failRoster = reject;
+  }));
+  const loading = page.init();
+  page.destroy();
+  document.getElementById('app').innerHTML = '<h1>Next screen</h1>';
+  failRoster(new Error('Connection lost'));
+  await loading;
+  expect(document.querySelector('#app h1').textContent).toBe('Next screen');
+});
+
+test('changing dates starts both reads together and waits for both before carrying attendance', async () => {
+  const page = new Attendance(makeAppStub());
+  openedPages.push(page);
+  let finishAttendance;
+  let finishRoster;
+  const attendanceLoad = jest.spyOn(page, 'fetchData').mockImplementation(() => new Promise((resolve) => {
+    finishAttendance = resolve;
+  }));
+  const rosterLoad = jest.spyOn(page.roster, 'load').mockImplementation(() => new Promise((resolve) => {
+    finishRoster = resolve;
+  }));
+  const carry = jest.spyOn(page, 'autoCarryForward').mockResolvedValue();
+  jest.spyOn(page, 'detectActivityContext').mockResolvedValue();
+
+  const loading = page.loadDate(YESTERDAY);
+  expect(attendanceLoad).toHaveBeenCalledWith(true);
+  expect(rosterLoad).toHaveBeenCalledWith(YESTERDAY);
+  finishAttendance();
+  await flushPromises();
+  expect(carry).not.toHaveBeenCalled();
+  finishRoster();
+  await loading;
+  expect(carry).toHaveBeenCalledTimes(1);
+});
+
 describe('US-ATT-001 — See my unit grouped, with honest statuses', () => {
   it('keeps the full year visible with a compact localized date and labels its search', async () => {
     seedStandardData();

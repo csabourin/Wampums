@@ -512,13 +512,15 @@ describe('US-INT-008 — Leaving and returning to a page doesn\'t double anythin
     // A second attach (e.g. after a re-render) must not stack listeners
     page.attachEventListeners();
 
-    ajax.getAttendance.mockClear();
+    const fetchDate = jest.spyOn(page, 'fetchData');
     const dateSelect = document.getElementById('dateSelect');
     dateSelect.value = PAST;
     dateSelect.dispatchEvent(new Event('change', { bubbles: true }));
     await flushPromises();
 
-    const pastFetches = ajax.getAttendance.mock.calls.filter(([date]) => date === PAST);
-    expect(pastFetches).toHaveLength(1);
+    // The roster mock also reads attendance; count the page's date loads,
+    // not the number of reads made by both concurrently running operations.
+    expect(fetchDate).toHaveBeenCalledTimes(1);
+    expect(fetchDate).toHaveBeenCalledWith(true);
   });
 });
