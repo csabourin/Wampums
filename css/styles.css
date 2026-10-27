@@ -628,14 +628,14 @@ button:disabled,
   transform: none !important;
 }
 
-/* A live region stays in the page so assistive technology hears what arrives
-   in it; while it holds nothing it takes no room, whatever a page styles it with. */
-/* `html` lifts it above page rules such as `.status-message.error`, which load later. */
 .announcement-composer .status-message .button--ghost {
   color: inherit;
   text-decoration: underline;
 }
 
+/* A live region stays in the page so assistive technology hears what arrives
+   in it; while it holds nothing it takes no room, whatever a page styles it with. */
+/* `html` lifts it above page rules such as `.status-message.error`, which load later. */
 html .status-message:empty,
 html [role="alert"]:empty {
   margin: 0;
