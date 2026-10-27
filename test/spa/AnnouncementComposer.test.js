@@ -364,6 +364,24 @@ describe('sending feedback', () => {
     expect(messageArea().textContent).toBe('');
   });
 
+  test.each(['sent', 'draft', 'scheduled'])('after an alumni %s the reset audience has visible matching recipient controls', async (status) => {
+    await writeMessage();
+    const alumni = document.querySelector('input[name="announcement-audience"][value="alumni"]');
+    alumni.checked = true;
+    alumni.dispatchEvent(new Event('change'));
+    expect(document.getElementById('announcement-member-filters').hidden).toBe(true);
+    ajax.createAnnouncement.mockResolvedValue({
+      success: true, data: { status, delivery: { email: { total: 2, sent: 2, failed: 0 } } },
+    });
+
+    submit();
+    await flush();
+
+    expect(document.querySelector('input[name="announcement-audience"]:checked').value).toBe('members');
+    expect(document.getElementById('announcement-member-filters').hidden).toBe(false);
+    expect(document.getElementById('announcement-group-filters').hidden).toBe(false);
+  });
+
   test('while sending, one pending request locks the form and a second click sends nothing', async () => {
     await writeMessage();
     let resolve;

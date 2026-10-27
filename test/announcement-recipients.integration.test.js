@@ -498,7 +498,7 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
   test.each(['draft', 'scheduled'])('saving a %s confirms its status without sending email', async (status) => {
     const future = new Date(Date.now() + 86400000).toISOString();
     const response = await request(app).post('/api/v1/announcements').send({
-      subject: 'Camp', message: 'Bring boots', recipient_roles: ['parent'],
+      subject: 'Camp', message: 'Bring boots', recipient_roles: [], recipient_group_ids: [ids.red],
       save_as_draft: status === 'draft', scheduled_at: status === 'scheduled' ? future : null,
     });
 

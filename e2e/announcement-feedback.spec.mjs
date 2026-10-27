@@ -28,6 +28,10 @@ for (const outcome of outcomes) {
     await openScreen(page, '/mailing-list');
     await page.locator('#announcement-subject').fill('Camp de novembre');
     await page.locator('#announcement-message').fill('Apportez vos bottes.');
+    if (outcome.cleared) {
+      await page.locator('input[name="announcement-audience"][value="alumni"]').check();
+      await expect(page.locator('#announcement-member-filters')).toBeHidden();
+    }
     await page.locator('#send-announcement').click();
 
     const result = page.locator('#announcement-feedback');
@@ -40,6 +44,10 @@ for (const outcome of outcomes) {
     await expect(result.locator('a')).toHaveAttribute('href', '/communication-history');
     await expect(page.locator('#announcement-message')).toHaveText(outcome.cleared ? '' : 'Apportez vos bottes.');
     await expect(page.locator('#send-announcement')).toBeEnabled();
+    if (outcome.cleared) {
+      await expect(page.locator('input[name="announcement-audience"][value="members"]')).toBeChecked();
+      await expect(page.locator('#announcement-member-filters')).toBeVisible();
+    }
     expect(sends).toBe(1);
     expect(await axeViolations(page)).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

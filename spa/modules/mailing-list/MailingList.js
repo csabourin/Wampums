@@ -693,6 +693,7 @@ export class MailingList {
     const form = document.getElementById('announcement-form');
     if (!form) {return;}
     form.reset();
+    this.toggleMemberFilters();
     const area = document.getElementById('announcement-message');
     if (area) {
       setRichTextValue(area, '');
