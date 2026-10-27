@@ -34,6 +34,19 @@ notices to administrators (new leader to approve, reactivation request), and
 the public contact form. Security messages should come from one address that
 people can recognise, and replies to them are not meant for the unit.
 
+## Family mailing recipients
+
+Family announcements use parent/family account addresses and the guardian
+contacts linked to participants. A participant's own `courriel` on a form is
+never added, including for den-filtered or scheduled announcements, or used as
+a fallback when an adult contact is missing. Addresses are deduplicated; an
+address independently recorded as an adult contact remains eligible even if
+it also appears on a child's form.
+
+The mailing-list report follows the same rule: `unique_emails` contains only
+account and guardian contact addresses. The legacy `participant_emails` field
+remains an empty array for compatibility. Children's form data is unchanged.
+
 ## Why a Gmail address can't be the From address
 
 Receiving servers check the From domain with **DMARC**. A message passes only

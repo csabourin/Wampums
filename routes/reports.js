@@ -233,36 +233,11 @@ module.exports = (pool, _logger) => {
 
     emailsByRole.parent = [...guardianEntries, ...accountOnlyParents];
 
-    // Participant emails captured on their own forms.
-    //
-    // Restricted to youth on the selected year's roster. This used to sweep
-    // every form_submissions row that had ever held a courriel for the
-    // organization, without even joining to participants, so it accumulated the
-    // address of everyone who had ever registered.
-    //
-    // The roster join is what scopes this to the year — not fs.scout_year_id.
-    // form_submissions is UNIQUE (participant_id, form_type, organization_id):
-    // one row per form type for all time, updated in place, with scout_year_id
-    // left at whatever year the row was created. Matching on it dropped every
-    // returning family's address.
-    const participantEmailsResult = await pool.query(
-      `SELECT DISTINCT LOWER(fs.submission_data->>'courriel') AS courriel
-         FROM form_submissions fs
-         JOIN participant_enrollments pe ON pe.participant_id = fs.participant_id
-          AND pe.organization_id = $1
-          AND pe.scout_year_id = $2
-          AND pe.status = ANY($3::text[])
-         WHERE (fs.submission_data->>'courriel') IS NOT NULL
-         AND (fs.submission_data->>'courriel') != ''
-         AND fs.organization_id = $1`,
-      [organizationId, req.scoutYear.id, req.rosterStatuses]
-    );
-
-    const participantEmails = participantEmailsResult.rows.map(row => row.courriel);
+    // This is an adult contact list, like family announcements. Never add
+    // addresses from the children's forms to the combined mailing list.
     const uniqueEmails = [
       ...new Set([
         ...Object.values(emailsByRole).flat().map(item => (typeof item === 'string' ? item : item.email)),
-        ...participantEmails,
       ]),
     ];
 
@@ -270,7 +245,8 @@ module.exports = (pool, _logger) => {
       success: true,
       emails_by_role: emailsByRole,
       role_display_names: roleDisplayNames,
-      participant_emails: participantEmails,
+      // Retain the response field for older clients without exposing youth addresses.
+      participant_emails: [],
       unique_emails: uniqueEmails,
     });
   }));

@@ -105,6 +105,14 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
       'INSERT INTO participant_guardians (guardian_id, participant_id) VALUES ($1, $2)',
       [guardianId, participantId]
     );
+    // A child's form address is not a family contact, even if it looks valid.
+    const participantEmail = `child-${participantId}@example.test`;
+    emails[`child-${guardianLabel}`] = participantEmail;
+    await pool.query(
+      `INSERT INTO form_submissions (participant_id, organization_id, form_type, submission_data)
+       VALUES ($1, $2, 'registration', jsonb_build_object('courriel', $3::text))`,
+      [participantId, ids.unit, participantEmail]
+    );
     return { participantId, guardianId };
   }
 
@@ -197,7 +205,7 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
         [ids.unit]
       );
       for (const table of [
-        'announcements', 'subscribers', 'participant_groups', 'groups', 'parent_invitations',
+        'announcements', 'subscribers', 'form_submissions', 'participant_groups', 'groups', 'parent_invitations',
         'participant_organizations', 'user_organizations', 'user_messages', 'roles',
         'scout_years', 'organization_program_sections',
       ]) {
@@ -322,6 +330,41 @@ describe.skipIf(!DATABASE_URL)('Writing to a den', () => {
 
     expect(recipients.emails).toEqual(expect.arrayContaining([emails['parent-red'], emails['parent-blue']]));
     expect(recipients.emails).not.toContain(emails.leader);
+  });
+
+  test('a child without an adult contact is skipped instead of using their form email', async () => {
+    await pool.query('DELETE FROM participant_guardians WHERE participant_id = $1', [ids.redYouth.participantId]);
+    await pool.query(
+      "UPDATE user_organizations SET status = 'inactive' WHERE user_id = $1 AND organization_id = $2",
+      [ids.redParent, ids.unit]
+    );
+
+    const recipients = await buildRecipientsForTests(pool, ids.unit, [], [ids.red], 'members');
+
+    expect(recipients.emails).toEqual([]);
+  });
+
+  test('the combined mailing list contains adult contacts without participant form emails', async () => {
+    const response = await request(app).get('/api/v1/reports/mailing-list');
+
+    expect(response.status).toBe(200);
+    expect(response.body.unique_emails.sort()).toEqual([
+      emails.leader, emails['parent-red'], emails['parent-blue'],
+      emails['guardian-red'], emails['guardian-blue'],
+    ].sort());
+    expect(response.body.participant_emails).toEqual([]);
+  });
+
+  test('an adult address also entered on a child form remains a family contact', async () => {
+    await pool.query(
+      `UPDATE form_submissions SET submission_data = jsonb_build_object('courriel', $1::text)
+       WHERE participant_id = $2 AND organization_id = $3`,
+      [emails['guardian-red'], ids.redYouth.participantId, ids.unit]
+    );
+
+    const recipients = await buildRecipientsForTests(pool, ids.unit, [], [ids.red], 'members');
+
+    expect(recipients.emails.sort()).toEqual([emails['guardian-red'], emails['parent-red']].sort());
   });
 
   test('the unit\'s own parent role reaches every family, guardians included, like the parent role', async () => {

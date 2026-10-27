@@ -70,3 +70,33 @@ describe('announcement email format', () => {
     expect(html).toBeNull();
   });
 });
+
+describe('family email recipients', () => {
+  beforeEach(() => sendEmail.mockClear());
+
+  test.each([
+    { label: 'all families', recipient_roles: ['parent'], recipient_groups: [] },
+    { label: 'one den', recipient_roles: [], recipient_groups: [12] },
+  ])('$label receives mail only through adult accounts and guardian contacts', async (audience) => {
+    const pool = {
+      query: jest.fn((sql) => {
+        if (sql.includes('LOWER(u.email) AS email')) {
+          return Promise.resolve({ rows: [{ email: 'parent@unit.test', user_id: 'parent-1' }] });
+        }
+        if (sql.includes('FROM parents_guardians')) {
+          return Promise.resolve({ rows: [{ email: 'guardian@unit.test' }, { email: 'parent@unit.test' }] });
+        }
+        if (sql.includes('FROM form_submissions')) {
+          return Promise.resolve({ rows: [{ courriel: 'fake-child@unit.test' }] });
+        }
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }),
+    };
+
+    await dispatchAnnouncementForTests(pool, quiet, announcement(audience));
+
+    expect(sendEmail.mock.calls.map(([to]) => to).sort()).toEqual([
+      'guardian@unit.test', 'parent@unit.test',
+    ]);
+  });
+});
