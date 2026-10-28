@@ -363,7 +363,7 @@ describe('Equipment sharing and metadata', () => {
         }
 
         if (
-          text.includes('WITH requester_groups') &&
+          text.includes('WITH accessible_reservations') &&
           text.includes('reservation_local_group_names') &&
           text.includes('equipment_reservations er')
         ) {
@@ -376,7 +376,7 @@ describe('Equipment sharing and metadata', () => {
         }
 
         if (
-          text.includes('WITH requester_groups') &&
+          text.includes('WITH accessible_equipment') &&
           text.includes('shared_visibility') &&
           text.includes('accessible_equipment')
         ) {

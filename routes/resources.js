@@ -435,19 +435,9 @@ module.exports = (pool, logger) => {
         // availability sum below reports as unavailable.
         await expireLapsedReservations(pool, organizationId, req.log || null);
         const result = await pool.query(
-          `WITH requester_groups AS (
-             SELECT local_group_id FROM organization_local_groups WHERE organization_id = $1
-           ),
-           accessible_equipment AS (
-             SELECT DISTINCT e.*
+          `WITH accessible_equipment AS (
+             SELECT e.*
              FROM equipment_items e
-             LEFT JOIN equipment_item_organizations eio
-               ON eio.equipment_id = e.id
-              AND eio.organization_id = $1
-             LEFT JOIN organization_local_groups owner_olg
-               ON owner_olg.organization_id = e.organization_id
-             LEFT JOIN requester_groups rg
-               ON rg.local_group_id = owner_olg.local_group_id
              WHERE e.is_active IS DISTINCT FROM false
                AND ${equipmentAccessSql('e', '$1')}
            ),
@@ -1225,11 +1215,8 @@ module.exports = (pool, logger) => {
         }
 
         const result = await pool.query(
-          `WITH requester_groups AS (
-             SELECT local_group_id FROM organization_local_groups WHERE organization_id = $1
-           ),
-           accessible_reservations AS (
-             SELECT DISTINCT er.*,
+          `WITH accessible_reservations AS (
+             SELECT er.*,
                     e.name AS equipment_name,
                     e.category,
                     e.location_type,
@@ -1248,13 +1235,6 @@ module.exports = (pool, logger) => {
                LEFT JOIN organizations owner_org ON owner_org.id = e.organization_id
                LEFT JOIN local_groups group_owner ON group_owner.id = e.owner_local_group_id
                LEFT JOIN activities a ON a.id = er.activity_id
-               LEFT JOIN equipment_item_organizations eio
-                 ON eio.equipment_id = er.equipment_id
-                AND eio.organization_id = $1
-               LEFT JOIN organization_local_groups owner_olg
-                 ON owner_olg.organization_id = e.organization_id
-               LEFT JOIN requester_groups rg
-                 ON rg.local_group_id = owner_olg.local_group_id
               WHERE 1=1 ${filter}
                 AND e.is_active IS DISTINCT FROM false
                 AND ${equipmentAccessSql('e', '$1')}
@@ -3267,11 +3247,8 @@ module.exports = (pool, logger) => {
         );
 
         const reservationSummary = await pool.query(
-          `WITH requester_groups AS (
-             SELECT local_group_id FROM organization_local_groups WHERE organization_id = $1
-           ),
-           accessible_reservations AS (
-             SELECT DISTINCT er.*,
+          `WITH accessible_reservations AS (
+             SELECT er.*,
                     e.name,
                     er.organization_id AS reservation_organization_id,
                     o.name AS organization_name,
@@ -3283,13 +3260,6 @@ module.exports = (pool, logger) => {
                LEFT JOIN organizations o ON o.id = er.organization_id
                LEFT JOIN organizations owner_org ON owner_org.id = e.organization_id
                LEFT JOIN local_groups group_owner ON group_owner.id = e.owner_local_group_id
-               LEFT JOIN equipment_item_organizations eio
-                 ON eio.equipment_id = er.equipment_id
-                AND eio.organization_id = $1
-               LEFT JOIN organization_local_groups owner_olg
-                 ON owner_olg.organization_id = e.organization_id
-               LEFT JOIN requester_groups rg
-                 ON rg.local_group_id = owner_olg.local_group_id
               WHERE er.meeting_date = $2
                 AND e.is_active IS DISTINCT FROM false
                 AND ${equipmentAccessSql('e', '$1')}
