@@ -4890,7 +4890,6 @@
   "camp_lot_save_failed": "The lot could not be saved. Your input is still available.",
   "camp_lot_not_prepared": "This camp’s lots were not prepared on this device. Reconnect and open the lots before changing their state offline.",
   "sync.rejected_kind_camp_lots": "equipment lots",
-<<<<<<< HEAD
   "camp_readiness_title": "Ready for camp",
   "camp_readiness_camp": "Camp",
   "camp_readiness_explanation": "Team preparation, using the sections you may consult. Check each section; this does not confirm offline availability on this device.",
@@ -4908,8 +4907,7 @@
   "camp_readiness_free_text": "Some schedule lines also contain free-text equipment. Check it in the collective list.",
   "camp_readiness_needed": "Needed:",
   "camp_readiness_cancelled": "This camp is cancelled.",
-  "camp_readiness_not_found": "Camp not found."
-=======
+  "camp_readiness_not_found": "Camp not found.",
   "material_title": "Equipment",
   "material_tab_stock": "In stock",
   "material_tab_articles": "All articles",
@@ -4937,5 +4935,4 @@
   "material_owner_group_help": "This is one shared group item, available to the units of that Scout group. Its quantities are not copied into each unit.",
   "material_owner_invalid": "Choose the unit or one of its associated Scout groups as owner.",
   "material_owner_change_unavailable": "Ownership cannot be changed from this unit. Open the record from the unit maintaining it."
->>>>>>> origin/main
 }
