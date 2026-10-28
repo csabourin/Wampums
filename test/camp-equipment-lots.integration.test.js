@@ -121,11 +121,15 @@ describe.skipIf(!DATABASE_URL)('Equipment lots of a camp', () => {
   });
   test('loading and returning update the role tasks and histories once even after a replay', async () => {
     const lot = await create(); const payload = state();
-    const loaded = await changeLotStatus(pool, context(), lot.id, payload);
+    const loadedResponse = await call('patch', `/${lot.id}/status`).send(payload);
+    expect(loadedResponse.status).toBe(200);
+    const loaded = loadedResponse.body.data;
     expect(loaded).toMatchObject({ version: 2, status: 'loaded' });
     expect(loaded.roles.find((role) => role.role === 'transport').status).toBe('done');
     expect(loaded.roles.find((role) => role.role === 'return').status).toBe('todo');
-    expect(await changeLotStatus(pool, context(), lot.id, payload)).toEqual(loaded);
+    const replay = await call('patch', `/${lot.id}/status`).send(payload);
+    expect(replay.status).toBe(200);
+    expect(replay.body.data).toEqual(loaded);
     expect(await one('SELECT COUNT(*)::int FROM camp_equipment_lot_history WHERE lot_id = $1', [lot.id])).toBe(2);
     const returned = await call('patch', `/mine/${lot.id}/status`, ids.returner).send(state({ status: 'returned', expected_version: 2 }));
     expect(returned.status).toBe(200);
