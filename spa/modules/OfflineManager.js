@@ -544,6 +544,7 @@ export class OfflineManager {
    * @returns {Promise<{replayed: number, rejected: Array<Object>}>} Outcome of the replay
    */
   async replayOutbox() {
+    const scope = buildScopedCacheKey('');
     const nothing = { replayed: 0, rejected: [] };
     const pendingData = await getOfflineData();
     if (!pendingData || pendingData.length === 0) {
@@ -603,7 +604,7 @@ export class OfflineManager {
               const result = await response.json();
               if (!result.success || !result.data?.id) { throw new Error('Invalid camp lot replay response'); }
               // eslint-disable-next-line no-await-in-loop -- commit the device snapshot before announcing this receipt
-              await applyReplayedLot(result.data);
+              await applyReplayedLot(result.data, scope);
             }
             await deleteOfflineData(record.key);
             replayed += 1;
@@ -1174,7 +1175,7 @@ export class OfflineManager {
       // carries the same minimal packs, filtered by the server's current permissions.
       for (const pack of bulkData.campLots || []) {
         // eslint-disable-next-line no-await-in-loop -- required camp snapshots must finish before readiness is recorded
-        await storeLotSnapshot(pack.meeting_id, pack.lots, pack.own_only, duration);
+        await storeLotSnapshot(pack.meeting_id, pack.lots, pack.own_only, duration, scope);
         cacheKeys.push(lotSnapshotKey(pack.meeting_id, pack.own_only));
       }
 

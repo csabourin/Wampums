@@ -1,28 +1,33 @@
 /** Lots use the shared API client; only prepared state changes may be queued. */
+import { buildScopedCacheKey } from '../utils/OfflineCacheKeys.js';
 import { debugError } from '../utils/DebugUtils.js';
 import { API } from './api-core.js';
-import { getLotSnapshot, storeLotSnapshot, pendingLotChanges, lotEndpoint, lotOfflineError } from '../modules/camp-lots/CampLotOffline.js';
+import { getLotSnapshot, storeLotSnapshot, pendingLotChanges, lotEndpoint, lotOfflineError, assertLotScope } from '../modules/camp-lots/CampLotOffline.js';
 
 /** Fresh server data online, scoped prepared data when the network is absent. */
 export async function getCampLots(meetingId, ownOnly = false) {
+  const scope = buildScopedCacheKey('');
   if (navigator.onLine === false) {
-    const snapshot = await getLotSnapshot(meetingId, ownOnly);
+    const snapshot = await getLotSnapshot(meetingId, ownOnly, scope);
     if (!snapshot) { throw lotOfflineError(); }
     return { success: true, data: snapshot.lots };
   }
   try {
     const result = await API.getNoCache(lotEndpoint(meetingId, ownOnly));
-    const changes = await pendingLotChanges();
-    const previous = await getLotSnapshot(meetingId, ownOnly);
+    assertLotScope(scope);
+    const changes = await pendingLotChanges(scope);
+    const previous = await getLotSnapshot(meetingId, ownOnly, scope);
     const pendingIds = new Set(changes.map((change) => change.lotId));
     const prepared = result.data.map((lot) => pendingIds.has(lot.id)
       ? previous?.lots.find((entry) => entry.id === lot.id) || lot : lot);
-    try { await storeLotSnapshot(meetingId, prepared, ownOnly); }
-    catch (err) { debugError('Could not prepare camp lots on this device', err); return { ...result, offlinePreparationFailed: true }; }
+    try { await storeLotSnapshot(meetingId, prepared, ownOnly, undefined, scope); }
+    catch (err) { assertLotScope(scope); debugError('Could not prepare camp lots on this device', err); return { ...result, offlinePreparationFailed: true }; }
+    assertLotScope(scope);
     return result;
   } catch (err) {
+    assertLotScope(scope);
     if (!err.isNetworkError) { throw err; }
-    const snapshot = await getLotSnapshot(meetingId, ownOnly);
+    const snapshot = await getLotSnapshot(meetingId, ownOnly, scope);
     if (!snapshot) { throw lotOfflineError(); }
     return { success: true, data: snapshot.lots };
   }

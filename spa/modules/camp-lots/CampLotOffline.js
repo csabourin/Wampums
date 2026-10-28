@@ -12,31 +12,44 @@ export function lotOfflineError() {
   return Object.assign(new Error('camp_lot_not_prepared'), { code: 'camp_lot_not_prepared' });
 }
 export const lotEndpoint = (meetingId, ownOnly) => `v1/camp-equipment-lots/${ownOnly ? 'mine/' : ''}meetings/${encodeURIComponent(meetingId)}`;
-export const lotSnapshotKey = (meetingId, ownOnly) => buildScopedCacheKey(`camp_lots_snapshot_${ownOnly ? 'mine' : 'unit'}_${Number(meetingId)}`);
+export const lotSnapshotKey = (meetingId, ownOnly, scope = buildScopedCacheKey('')) => buildScopedCacheKey(`camp_lots_snapshot_${ownOnly ? 'mine' : 'unit'}_${Number(meetingId)}${scope}`);
+
+/** Stop an in-flight preparation before it can read or return another session's data. */
+export function assertLotScope(scope) {
+  if (scope !== buildScopedCacheKey('')) {
+    throw Object.assign(new Error('Session changed'), { name: 'AbortError' });
+  }
+}
 
 /** Snapshots contain no youth, health, family or account email data. */
-export async function storeLotSnapshot(meetingId, lots, ownOnly, duration = CAMP_LOTS.CACHE_MS) {
-  const snapshot = { schema: CAMP_LOTS.SNAPSHOT_VERSION, scope: buildScopedCacheKey(''), meetingId: Number(meetingId), ownOnly,
+export async function storeLotSnapshot(meetingId, lots, ownOnly, duration = CAMP_LOTS.CACHE_MS, scope = buildScopedCacheKey('')) {
+  assertLotScope(scope);
+  const snapshot = { schema: CAMP_LOTS.SNAPSHOT_VERSION, scope, meetingId: Number(meetingId), ownOnly,
     preparedAt: Date.now(), expiresAt: Date.now() + duration, lots };
-  await setCachedData(lotSnapshotKey(meetingId, ownOnly), snapshot, duration,
+  await setCachedData(lotSnapshotKey(meetingId, ownOnly, scope), snapshot, duration,
     { sources: ['/api/v1/camp-equipment-lots'] });
+  assertLotScope(scope);
   return snapshot;
 }
 
 /** An old, expired, different-account or unproved flag never authorizes queueing. */
-export async function getLotSnapshot(meetingId, ownOnly) {
-  const scope = buildScopedCacheKey('');
-  const snapshot = await getCachedData(lotSnapshotKey(meetingId, ownOnly));
+export async function getLotSnapshot(meetingId, ownOnly, scope = buildScopedCacheKey('')) {
+  assertLotScope(scope);
+  const snapshot = await getCachedData(lotSnapshotKey(meetingId, ownOnly, scope));
+  assertLotScope(scope);
   return scope === buildScopedCacheKey('') && snapshot?.scope === scope && snapshot.schema === CAMP_LOTS.SNAPSHOT_VERSION
     && snapshot.meetingId === Number(meetingId) && snapshot.ownOnly === ownOnly && snapshot.expiresAt > Date.now()
     && Array.isArray(snapshot.lots) ? snapshot : null;
 }
 
 /** Ordered changes belonging to this signed-in account and unit, across all tabs. */
-export async function pendingLotChanges() {
+export async function pendingLotChanges(scope = buildScopedCacheKey('')) {
+  assertLotScope(scope);
   const userId = String(getCurrentUserId());
   const organizationId = String(getCurrentOrganizationId());
-  return (await getOfflineData()).flatMap((record) => {
+  const records = await getOfflineData();
+  assertLotScope(scope);
+  return records.flatMap((record) => {
     const data = record.data;
     const match = data?.url && STATUS_PATH.exec(normalizeApiPath(data.url));
     if (!match || String(record.action || data.method).toUpperCase() !== 'PATCH'
@@ -75,8 +88,8 @@ export async function assertPreparedLotMutation(url, body) {
  * Keep prepared copies current even if the page that queued the change is closed.
  * The response may be an older receipt: it must not replace a newer version.
  */
-export async function applyReplayedLot(lot) {
-  const scope = buildScopedCacheKey('');
+export async function applyReplayedLot(lot, scope = buildScopedCacheKey('')) {
+  if (scope !== buildScopedCacheKey('')) { return; }
   for (const ownOnly of [false, true]) {
     // eslint-disable-next-line no-await-in-loop -- update the two scoped copies in sequence
     const snapshot = await getLotSnapshot(lot.meeting_id, ownOnly);
@@ -85,7 +98,7 @@ export async function applyReplayedLot(lot) {
     const lots = snapshot.lots.map((entry) => entry.id === lot.id && entry.version <= lot.version ? lot : entry);
     const remaining = snapshot.expiresAt - Date.now();
     // eslint-disable-next-line no-await-in-loop -- retain the original expiry, not another full camp period
-    await storeLotSnapshot(lot.meeting_id, lots, ownOnly, remaining);
+    await storeLotSnapshot(lot.meeting_id, lots, ownOnly, remaining, scope);
   }
   if (scope === buildScopedCacheKey('')) { await invalidateForWrite('v1/tasks'); }
 }

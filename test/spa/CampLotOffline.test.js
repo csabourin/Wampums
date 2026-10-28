@@ -7,7 +7,8 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugEr
 jest.mock('../../spa/modules/offline/OfflineAssets.js', () => ({ verifyOfflineAssets: jest.fn() }));
 import { OfflineManager } from '../../spa/modules/OfflineManager.js';
 import { setCachedData, getOfflineData } from '../../spa/indexedDB.js';
-import { storeLotSnapshot, getLotSnapshot, lotSnapshotKey, pendingLotChanges, overlayLotChanges } from '../../spa/modules/camp-lots/CampLotOffline.js';
+import { storeLotSnapshot, getLotSnapshot, lotSnapshotKey, pendingLotChanges, overlayLotChanges, applyReplayedLot } from '../../spa/modules/camp-lots/CampLotOffline.js';
+import { buildScopedCacheKey } from '../../spa/utils/OfflineCacheKeys.js';
 import { verifyOfflineAssets } from '../../spa/modules/offline/OfflineAssets.js';
 import { changeCampLotStatus, getCampLots } from '../../spa/api/api-camp-lots.js';
 const URL = 'http://localhost/api/v1/camp-equipment-lots/mine/3/status';
@@ -97,4 +98,51 @@ test('a replayed old receipt cannot replace a newer prepared version', async () 
   global.fetch.mockResolvedValue(jsonResponse({ success: true, data: { ...LOT, status: 'loaded', version: 2 } }));
   await manager.replayPendingMutations();
   expect((await getLotSnapshot(7, true)).lots[0].version).toBe(3);
+});
+
+test.each([
+  ['account', () => localStorage.setItem('userId', 'other-helper')],
+  ['unit', () => localStorage.setItem('currentOrganizationId', '2')],
+  ['year', () => localStorage.setItem('selectedScoutYear', JSON.stringify({ id: 9, status: 'closed', organizationId: '1' }))],
+])('a lot response arriving after a change of %s cannot prepare or return the previous context', async (_label, changeScope) => {
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+  let release;
+  const received = new Promise((resolve) => { release = resolve; });
+  let started;
+  const requestStarted = new Promise((resolve) => { started = resolve; });
+  global.fetch.mockImplementation(() => { started(); return received; });
+  const loading = getCampLots(7, true);
+  const rejected = expect(loading).rejects.toMatchObject({ name: 'AbortError' });
+  await requestStarted;
+  changeScope();
+  release(jsonResponse({ success: true, data: [LOT] }));
+  await rejected;
+  expect(await getLotSnapshot(7, true)).toBeNull();
+});
+
+test('a failed request from the previous account cannot return the new account prepared data', async () => {
+  localStorage.setItem('userId', 'other-helper');
+  await storeLotSnapshot(7, [{ ...LOT, id: 99 }], true);
+  localStorage.setItem('userId', 'fictional-helper');
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+  global.fetch.mockImplementation(() => {
+    localStorage.setItem('userId', 'other-helper');
+    return Promise.reject(Object.assign(new Error('network'), { isNetworkError: true, name: 'AbortError' }));
+  });
+  await expect(getCampLots(7, true)).rejects.toMatchObject({ name: 'AbortError' });
+});
+
+test('a bulk preparation with an obsolete context cannot store a snapshot in the new unit', async () => {
+  const scope = buildScopedCacheKey('');
+  localStorage.setItem('currentOrganizationId', '2');
+  await expect(storeLotSnapshot(7, [LOT], true, undefined, scope)).rejects.toMatchObject({ name: 'AbortError' });
+  expect(await getLotSnapshot(7, true)).toBeNull();
+});
+
+test('a receipt arriving after an account switch does not update the new account snapshot', async () => {
+  const scope = buildScopedCacheKey('');
+  localStorage.setItem('userId', 'other-helper');
+  await storeLotSnapshot(7, [LOT], true);
+  await applyReplayedLot({ ...LOT, status: 'loaded', version: 2 }, scope);
+  expect((await getLotSnapshot(7, true)).lots).toEqual([LOT]);
 });
