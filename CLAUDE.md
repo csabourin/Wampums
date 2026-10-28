@@ -1518,3 +1518,11 @@ Before submitting code, verify:
 ---
 
 **This document is the source of truth for development practices, after the tests (§12). When in doubt, read the tests of the area, then the reference screens named in §7 and existing code in `routes/` and `middleware/`. When a test and this document disagree, fix this document.**
+
+### Team camp readiness
+
+The camp schedule opens `/camp-readiness/:id` for organization-scoped members with
+`meetings.view`. The read-only summary includes only sections whose destination
+permissions the shared authorization engine confirms; it never equates empty or
+hidden sections with readiness. See `devdocs/CAMP_READINESS.md`. Offline readiness
+still belongs to `CampPreparation` on each device.

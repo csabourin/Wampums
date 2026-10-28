@@ -161,6 +161,7 @@ module.exports = (app, pool) => {
 
   app.use('/api/v1/messages', messagesRoutes);
   app.use('/api/v1/tasks', tasksRoutes);
+  app.use('/api/v1/camp-readiness', require('./camp-readiness')(pool));
 
   app.use('/api/v1/news', newsRoutes);
 

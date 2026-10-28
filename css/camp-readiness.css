@@ -1,0 +1,6 @@
+.camp-readiness { max-width: 70rem; margin-inline: auto; }
+.camp-readiness__section { margin-block: 1.5rem; }
+.camp-readiness__list { padding: 0; list-style: none; }
+.camp-readiness__row { border-block-end: 1px solid var(--color-border); padding-block: .75rem; overflow-wrap: anywhere; }
+.camp-readiness__row p { margin: .25rem 0; }
+.camp-readiness__row a { white-space: normal; text-align: start; }

@@ -9,7 +9,7 @@ import { debugError } from '../../utils/DebugUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
-import { hasPermission } from '../../utils/PermissionUtils.js';
+import { hasOrganizationScope, hasPermission } from '../../utils/PermissionUtils.js';
 import { getMaterialOptions } from '../../api/api-equipment-catalog.js';
 import { MaterialItemsField, renderMaterialItemsList } from '../equipment-catalog/MaterialItemsField.js';
 import {
@@ -60,6 +60,7 @@ export class CampSchedule extends BaseModule {
       title: escapeHTML(translate('yearly_planner_camp_schedule')),
       body: `<div class="loading-spinner" role="status"><span class="sr-only">${escapeHTML(translate('loading'))}</span></div>`,
       footer: `
+        ${hasOrganizationScope() && hasPermission('meetings.view') ? `<a class="button button--secondary" href="/camp-readiness/${Number(this.chip.meetingId)}">${escapeHTML(translate('camp_readiness_title'))}</a>` : ''}
         ${hasPermission('camp_lots.view') ? `<a class="button button--secondary" href="/camp-lots/${Number(this.chip.meetingId)}">${translate('camp_lots_open')}</a>` : ''}
         <a class="button button--secondary" href="/camp-material/${Number(this.chip.meetingId)}">${escapeHTML(translate('camp_material_open'))}</a>
         <button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('close'))}</button>
