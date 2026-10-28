@@ -11,9 +11,8 @@ import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { WCAG_TAGS } from './helpers.mjs';
+import { LANDING_ORIGIN, fetchLocalLanding } from './local-landing.mjs';
 
-const LANDING_ORIGIN = 'https://wampums.app';
-const LOCAL_API = process.env.LANDING_API_URL || 'http://127.0.0.1:5000';
 /** landing/consent.js STORAGE_VERSION: a stored choice of another version is ignored. */
 const CONSENT_VERSION = 1;
 const LANDING_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'landing');
@@ -37,10 +36,7 @@ function landingPages() {
 
 test.beforeEach(async ({ context }) => {
   await context.route(`${LANDING_ORIGIN}/**`, async (route) => {
-    const url = new URL(route.request().url());
-    const response = await context.request.get(`${LOCAL_API}${url.pathname}${url.search}`, {
-      headers: { host: 'wampums.app' },
-    });
+    const response = await fetchLocalLanding(context.request, route.request().url());
     await route.fulfill({ response });
   });
   await context.route(/https:\/\/(?:www\.googletagmanager\.com|fonts\.googleapis\.com|fonts\.gstatic\.com|[^/]*google-analytics\.com)\//, (route) => route.abort());
