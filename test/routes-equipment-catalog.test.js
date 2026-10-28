@@ -213,3 +213,15 @@ test('someone who neither plans meetings nor manages the catalogue gets no mater
   const res = await auth(request(app).get('/api/v1/equipment-catalog/options'));
   expect(res.status).toBe(403);
 });
+
+test.each([['post', '', { ...article, stock: { quantity_total: 1 } }], ['patch', '/3', { sync_stock: true }]])('catalogue permission alone cannot %s physical stock', async (method, path, payload) => {
+  const res = await auth(request(app)[method](`/api/v1/equipment-catalog${path}`)).send(payload);
+  expect(res.status).toBe(403);
+  expect(res.body.missing).toContain('inventory.manage');
+  expect(pool.connect).not.toHaveBeenCalled(); expect(writes()).toHaveLength(0);
+});
+test.each([{ quantity_total: -1 }, { quantity_total: 1.5 }, { quantity_total: '1' }, []])('malformed stock cannot partially create an article: %j', async (stock) => {
+  permissions = ['equipment_catalog.manage', 'inventory.manage'];
+  expect((await auth(request(app).post('/api/v1/equipment-catalog')).send({ ...article, stock })).status).toBe(400);
+  expect(pool.connect).not.toHaveBeenCalled(); expect(writes()).toHaveLength(0);
+});

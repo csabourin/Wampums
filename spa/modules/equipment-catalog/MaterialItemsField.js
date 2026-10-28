@@ -158,7 +158,7 @@ export class MaterialItemsField {
       </div>`;
     } else if (this.allChoices().length === 0) {
       adder = `<p class="material-items__note">${escapeHTML(translate('equipment_catalog_empty_short'))}
-        ${this.canManageCatalog ? `<a href="/equipment-catalog">${escapeHTML(translate('equipment_catalog_open'))}</a>` : ''}</p>`;
+        ${this.canManageCatalog ? `<a href="/material?tab=articles">${escapeHTML(translate('equipment_catalog_open'))}</a>` : ''}</p>`;
     }
     return `${list}${adder}
       <p class="field-error" id="${escapeAttribute(errorId)}" role="alert" hidden></p>`;

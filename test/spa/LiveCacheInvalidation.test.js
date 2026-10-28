@@ -53,6 +53,7 @@ jest.mock('../../spa/modules/OfflineManager.js', () => ({
   },
 }));
 
+import { getEquipmentOwners } from '../../spa/api/api-material.js';
 import { API, makeApiRequestWithCache } from '../../spa/api/api-core.js';
 import {
   setCachedData,
@@ -452,4 +453,13 @@ describe('the roster totals a camp preparation stored', () => {
 
     expect(await getCachedData(keys.participants)).not.toBeNull();
   });
+});
+
+
+test('owner choices remain available from the unit cache after losing the connection', async () => {
+  const choices = { success: true, data: [{ id: 3, name: 'Fictional Scout Group' }] };
+  global.fetch.mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => 'application/json' }, json: () => Promise.resolve(choices) });
+  expect(await getEquipmentOwners()).toEqual(choices);
+  global.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+  expect(await getEquipmentOwners()).toEqual(choices);
 });

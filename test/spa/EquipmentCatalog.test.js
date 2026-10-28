@@ -31,6 +31,8 @@ jest.mock('../../spa/api/api-equipment-catalog.js', () => ({
   getLinkableEquipment: jest.fn(),
 }));
 
+jest.mock('../../spa/api/api-material.js', () => ({ getEquipmentOwners: jest.fn(() => Promise.resolve({ data: [{ id: 3, name: 'Groupe fictif' }] })) }));
+
 const { EquipmentCatalog } = require('../../spa/modules/equipment-catalog/EquipmentCatalog.js');
 const api = require('../../spa/api/api-equipment-catalog.js');
 const { hasPermission, isDemoUser } = require('../../spa/utils/PermissionUtils.js');
@@ -247,4 +249,49 @@ test('the catalogue and its form have no WCAG A/AA violations, and Escape return
   await settle();
   expect(document.getElementById('equipment-catalog-form')).toBeNull();
   expect(document.activeElement).toBe(opener);
+});
+
+
+test('the unified form creates an article and its group stock in one write and preserves zero', async () => {
+  hasPermission.mockReturnValue(true);
+  const screen = new EquipmentCatalog(app, { unified: true }); await screen.init();
+  const form = await openCreateForm();
+  expect(form.elements.namedItem('catalog_equipment')).toBeNull();
+  form.elements.catalog_name.value = 'Marmite';
+  form.elements.track_stock.checked = true; form.elements.track_stock.dispatchEvent(new Event('change'));
+  form.elements.stock_total.value = '0';
+  form.elements.material_owner_type.value = 'group'; form.elements.material_owner_type.dispatchEvent(new Event('change'));
+  submit(form); submit(form); await settle();
+  expect(api.createCatalogItem).toHaveBeenCalledTimes(1);
+  expect(api.createCatalogItem).toHaveBeenCalledWith(expect.objectContaining({ name: 'Marmite', stock: { quantity_total: 0, owner_type: 'group', owner_local_group_id: 3 } }));
+});
+test('a failed stock read shows a retry instead of an incomplete all-articles list', async () => {
+  hasPermission.mockReturnValue(true); api.getLinkableEquipment.mockRejectedValueOnce(new Error('unavailable'));
+  await new EquipmentCatalog(app, { unified: true }).init();
+  expect(document.getElementById('equipment-catalog-retry')).not.toBeNull();
+  expect(document.querySelector('.equipment-catalog__list')).toBeNull();
+});
+
+test('the unified list does not confuse a catalogue article with stock having the same numeric ID', async () => {
+  hasPermission.mockReturnValue(true);
+  api.getEquipmentCatalog.mockResolvedValue({ data: [{
+    id: 3, name: 'Z Rope', category: 'tools', unit_of_measure: 'm',
+    equipment_item_id: 9, equipment_name: 'Linked rope stock', archived: false, usage_count: 0,
+  }] });
+  api.getLinkableEquipment.mockResolvedValue({ data: { equipment: [
+    { id: 3, name: 'A Stove', category: 'kitchen', quantity_total: 1 },
+    { id: 9, name: 'Linked rope stock', category: 'tools', quantity_total: 2 },
+  ] } });
+  await new EquipmentCatalog(app, { unified: true }).init();
+  document.querySelector('[data-catalog-edit="3"]').click();
+  await settle();
+  expect(document.getElementById('equipment-catalog-form').elements.catalog_name.value).toBe('Z Rope');
+});
+
+test('the unified list remains available without inventory.view and does not request stock', async () => {
+  hasPermission.mockImplementation((key) => ['equipment_catalog.manage', 'inventory.reserve'].includes(key));
+  await new EquipmentCatalog(app, { unified: true }).init();
+  expect(api.getLinkableEquipment).not.toHaveBeenCalled();
+  expect(document.querySelector('.equipment-catalog__item h2').textContent).toBe(HOSTILE);
+  expect(document.getElementById('equipment-catalog-retry')).toBeNull();
 });

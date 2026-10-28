@@ -28,6 +28,17 @@ import {
 } from '../utils/PermissionUtils.js';
 
 export const TABBED_PAGES = {
+  material: {
+    path: '/material', titleKey: 'material_title', defaultTab: 'stock',
+    tabs: [
+      { key: 'stock', labelKey: 'material_tab_stock',
+        gate: () => hasAnyPermission('inventory.view', 'inventory.manage', 'inventory.reserve', 'inventory.value'),
+        load: () => import('../modules/resources/Inventory.js').then((m) => m.Inventory) },
+      { key: 'articles', labelKey: 'material_tab_articles', gate: () => hasPermission('equipment_catalog.manage'),
+        options: { unified: true },
+        load: () => import('../modules/equipment-catalog/EquipmentCatalog.js').then((m) => m.EquipmentCatalog) },
+    ],
+  },
   progression: {
     path: '/progression',
     titleKey: 'page_progression_title',
@@ -157,6 +168,8 @@ export function hasVisibleTab(key) {
  * one specific meeting and stays a standalone page.
  */
 export const MERGED_ROUTE_REDIRECTS = {
+  '/inventory': '/material?tab=stock',
+  '/equipment-catalog': '/material?tab=articles',
   '/badge-tracker': '/progression?tab=badges',
   // Former standalone badge pages; the Badges tab covers both.
   '/badge-dashboard': '/progression?tab=badges',
