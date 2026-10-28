@@ -9,6 +9,8 @@ import { formatDate, formatTimestamp } from '../../utils/DateUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { getMyTasks, getUnitTasks, getTaskOptions, saveTask, changeTaskStatus } from '../../api/api-tasks.js';
+import { CAMP_LOTS } from '../../config/camp-lots.js';
+import { getCurrentUserId } from '../../api/api-helpers.js';
 import { openModal } from '../../utils/ModalUtils.js';
 
 export class Tasks {
@@ -64,12 +66,15 @@ export class Tasks {
       <p>${escapeHTML(this.eventName(task))}</p>
       <p>${translate('tasks_assignee')}: ${escapeHTML(task.assignee_name || translate('tasks_member'))}</p>
       <p>${translate('tasks_due')}: <time datetime="${escapeAttribute(task.due_date)}">${escapeHTML(formatDate(task.due_date, this.app.lang))}</time></p>
-      <form data-task-status="${Number(task.id)}" class="task-status-form">
+      ${task.equipment_lot_id ? `<p>${escapeHTML(translate(CAMP_LOTS.ROLE_KEYS[task.equipment_lot_role]))}</p>
+        ${!this.unitView || task.assignee_id === getCurrentUserId() || hasPermission('camp_lots.view')
+    ? `<a class="button button--secondary" href="/${this.unitView && hasPermission('camp_lots.view') ? 'camp-lots' : 'my-camp-lots'}/${Number(task.meeting_id)}">${translate('camp_lots_open')}</a>`
+    : `<p>${translate('camp_lot_task_managed')}</p>`}` : `<form data-task-status="${Number(task.id)}" class="task-status-form">
         <label for="tasks-status-${Number(task.id)}">${translate('tasks_status')}</label>
         <select id="tasks-status-${Number(task.id)}" name="status" ${this.readOnly ? 'disabled' : ''}>${this.statusOptions(task.status)}</select>
         <button type="submit" class="button button--secondary" ${this.readOnly ? 'disabled' : ''}>${translate('save')}</button>
-      </form>
-      ${this.unitView && !this.readOnly ? `<button type="button" class="button button--ghost" data-task-edit="${Number(task.id)}">${translate('edit')}</button>` : ''}
+      </form>`}
+      ${!task.equipment_lot_id && this.unitView && !this.readOnly ? `<button type="button" class="button button--ghost" data-task-edit="${Number(task.id)}">${translate('edit')}</button>` : ''}
       <details><summary>${translate('tasks_history')}</summary><ul>${(task.history || []).map((entry) => `<li>
         ${escapeHTML(translate(CONFIG.TASKS.STATUS_KEYS[entry.status]))} · ${escapeHTML(entry.changed_by_name || translate('tasks_member'))} ·
         ${escapeHTML(formatTimestamp(entry.changed_at, this.app.lang))}</li>`).join('')}</ul></details>

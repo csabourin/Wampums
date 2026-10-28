@@ -1,7 +1,7 @@
 import { OFFLINE_CAMPS } from '../../config/offline-camps.js';
 
 /** Ask the controlling worker to inspect its actual caches, including this tab's shell. */
-export async function verifyOfflineAssets() {
+export async function verifyOfflineAssets({ download = true } = {}) {
   const controller = navigator.serviceWorker?.controller;
   if (!controller || typeof MessageChannel === 'undefined') {
     return false;
@@ -10,7 +10,7 @@ export async function verifyOfflineAssets() {
     const version = window.__wampumsLangVersions?.[language];
     return version ? `/lang/${language}.json?v=${version}` : `/lang/${language}.json`;
   });
-  if (navigator.onLine) {
+  if (navigator.onLine && download) {
     try {
       const responses = await Promise.all(languages.map((url) => fetch(url)));
       if (responses.some((response) => !response.ok)) { return false; }
@@ -21,7 +21,7 @@ export async function verifyOfflineAssets() {
     .map((script) => script.src).filter((src) => new URL(src).origin === location.origin);
   const urls = [...languages, ...scripts];
   const ready = await requestAssetCheck(controller, urls);
-  if (ready || !navigator.onLine) { return ready; }
+  if (ready || !navigator.onLine || !download) { return ready; }
   // Workbox may finish its cache writes just after returning a downloaded response.
   await new Promise((resolve) => setTimeout(resolve, OFFLINE_CAMPS.ASSET_SETTLE_MS));
   return requestAssetCheck(controller, urls);

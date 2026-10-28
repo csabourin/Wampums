@@ -85,6 +85,7 @@ const STABLE_PATHS = [
  * key clears every entry built from any of the listed resources.
  */
 const DERIVED_RESOURCES = {
+  'camp-equipment-lots': ['camp-equipment-lots', 'tasks'],
   points: ['points', 'groups', 'participants', 'honors', 'reports', 'dashboards'],
   attendance: ['attendance', 'points', 'honors', 'action-roster', 'participants', 'meetings', 'reports', 'dashboards'],
   honors: ['honors', 'points', 'participants', 'reports', 'dashboards'],

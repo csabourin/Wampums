@@ -495,9 +495,35 @@ status constraint.
 Regenerating a year plan preserves meetings with assigned tasks. Deleting a plan
 detaches those meetings, preserving assignments and their history.
 
-Task writes require a connection and cannot be queued. Confirmed writes invalidate
+Ordinary task writes require a connection and cannot be queued. Equipment-lot duties
+are edited through their lot and use its preparation and receipt rules below. Confirmed writes invalidate
 task reads through the shared API client. The task screen uses minimal event/member
 choices rather than requesting participants, families, contacts or health forms.
+
+### Camp equipment lots
+
+`/camp-lots/:id` requires `camp_lots.view`; editing additionally requires
+`camp_lots.manage` and `tasks.manage`. `/my-camp-lots/:id` requires only `tasks.view`
+and filters to the caller's assigned duties. The camp schedule and material list
+open the unit page; shared tasks link to the matching lot page instead of editing
+lot-owned tasks independently. Responsibilities, quantities and state history use
+`services/campEquipmentLots.js` and shared rules in `config/camp_equipment_lots.json`.
+
+Opening the page online prepares its minimal lot snapshot, scoped by account,
+unit and selected scout year. Readiness requires the real worker's assets and shell,
+not just a flag. A full camp preparation also carries permission-filtered lot packs.
+Creating/editing lots requires a connection; only state changes may enter the shared
+outbox, and only with a valid prepared snapshot. `CampLotOffline.js` owns those
+checks and pending overlays. Pending states never enter confirmed history.
+
+The receipt id in the body and `Idempotency-Key` are identical from the first
+attempt. A subsequent pending change names `previous_mutation_id`; the server
+requires that receipt's committed lot/version before accepting it, so a refused
+load cannot be bypassed by a later return. Expected versions, membership and duty
+ownership are rechecked on replay. A successful replay updates the retained snapshot
+even with its screen closed; refusals clear only that camp's snapshots and announce
+`sync.rejected_kind_camp_lots`. See `devdocs/CAMP_EQUIPMENT_LOTS.md` and the real-PWA
+browser suite (`playwright.offline.config.mjs`).
 
 ### Starter activities
 

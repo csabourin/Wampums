@@ -161,3 +161,11 @@ test.each([
     title: 'Updated task', activity_id: event.activity_id, meeting_id: event.meeting_id || null,
   }), task.id);
 });
+
+
+test('an equipment duty opens its personal lot instead of offering an independent status change', async () => {
+  api.getMyTasks.mockResolvedValue({ data: [{ ...task, meeting_id: 7, activity_id: null, equipment_lot_id: 3, equipment_lot_role: 'transport' }] });
+  await new Tasks(app).init();
+  expect(document.querySelector('a[href="/my-camp-lots/7"]')).not.toBeNull();
+  expect(document.querySelector('[data-task-status]')).toBeNull();
+});

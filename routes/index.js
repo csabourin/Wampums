@@ -95,6 +95,7 @@ module.exports = (app, pool) => {
   const equipmentSuggestionsRoutes = require('./equipmentSuggestions')(pool);
   const medicationRoutes = require('./medication')(pool, logger);
   const activityAuthorizationsRoutes = require('./activity-authorizations')(pool);
+  const campEquipmentLotsRoutes = require('./camp-equipment-lots')(pool);
   const activitiesRoutes = require('./activities')(pool);
   const offlineRoutes = require('./offline')(pool, logger);
   const carpoolsRoutes = require('./carpools')(pool);
@@ -194,6 +195,7 @@ module.exports = (app, pool) => {
   app.use('/api', medicationRoutes);
 
   app.use('/api/v1/activity-authorizations', activityAuthorizationsRoutes);
+  app.use('/api/v1/camp-equipment-lots', campEquipmentLotsRoutes);
   app.use('/api/v1/activities', activitiesRoutes);
   app.use('/api/v1/offline', offlineRoutes);
   app.use('/api/v1/carpools', carpoolsRoutes);

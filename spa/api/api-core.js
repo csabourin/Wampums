@@ -332,8 +332,10 @@ async function sendApiRequest(endpoint, options = {}) {
   const equipmentLoansWaiting = (method === 'POST' || method === 'PATCH') &&
     (requestPath === '/api/v1/equipment-loans' || requestPath.startsWith('/api/v1/equipment-loans/')) &&
     await offlineManager.hasPendingEquipmentLoans();
+  const campLotsWaiting = method === 'PATCH' && requestPath.startsWith('/api/v1/camp-equipment-lots/')
+    && await offlineManager.hasPendingResource('/api/v1/camp-equipment-lots');
   // Keep arrivals, departures, awards and returns in their original order across reconnects.
-  if ((offlineManager.isOffline || navigator.onLine === false || pointsWaiting || attendanceWaiting || equipmentLoansWaiting)
+  if ((offlineManager.isOffline || navigator.onLine === false || pointsWaiting || attendanceWaiting || equipmentLoansWaiting || campLotsWaiting)
     && method !== 'GET') {
     if (requiresOnline) {
       const offlineError = new Error(offlineManager.getTranslation('family_operation_online_required'));
@@ -358,7 +360,7 @@ async function sendApiRequest(endpoint, options = {}) {
       };
     } catch (error) {
       debugError('Failed to queue offline mutation:', error);
-      throw new Error(`Failed to save offline: ${  error.message}`);
+      throw Object.assign(new Error(`Failed to save offline: ${error.message}`, { cause: error }), { code: error.code, status: error.status });
     }
   }
 
@@ -630,8 +632,9 @@ export const API = {
   /**
      * PUT request
      */
-  async put(endpoint, body = {}, params = {}) {
+  async put(endpoint, body = {}, params = {}, options = {}) {
     return makeApiRequest(endpoint, {
+      ...options,
       method: 'PUT',
       body,
       params
@@ -641,8 +644,9 @@ export const API = {
   /**
      * PATCH request
      */
-  async patch(endpoint, body = {}, params = {}) {
+  async patch(endpoint, body = {}, params = {}, options = {}) {
     return makeApiRequest(endpoint, {
+      ...options,
       method: 'PATCH',
       body,
       params

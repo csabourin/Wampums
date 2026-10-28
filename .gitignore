@@ -94,6 +94,8 @@ replit*
 /e2e/.auth/
 /test-results/
 /playwright-report/
+/test-results-offline/
+/playwright-report-offline/
 
 # Local agent worktrees are separate checkouts, never application source.
 /.claude/worktrees/
