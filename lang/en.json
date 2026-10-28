@@ -4836,5 +4836,17 @@
   "authorization_creation_changed": "This activity was already saved during the previous attempt. Open it from the activity list to edit it.",
   "authorization_transport_required": "Arrange transport",
   "authorization_view_consent": "View the consent text",
-  "authorization_reissue_required": "A request for this activity was archived, revoked or expired. Explicitly reissue it in advanced management before sending it again."
+  "authorization_reissue_required": "A request for this activity was archived, revoked or expired. Explicitly reissue it in advanced management before sending it again.",
+  "camp_lot_saved": "Lot saved",
+  "camp_lot_task_managed": "This task is managed with its equipment lot. Edit the lot to change its assignee or progress.",
+  "camp_lot_not_found": "Lot or camp not found or inaccessible.",
+  "camp_lot_cancelled": "This camp is cancelled. Its lots cannot be changed.",
+  "camp_lot_name_conflict": "A lot with this name already exists in this camp.",
+  "camp_lot_invalid": "Check items and assignees. A preparation assignee is required and each role must appear only once.",
+  "camp_lot_items_conflict": "Items or quantities no longer match the camp material list. Refresh the list.",
+  "camp_lot_version_conflict": "The lot changed or its state does not permit this change. Refresh it before trying again.",
+  "camp_lot_creation_conflict": "This key already belongs to a different change. Check the saved result before trying again.",
+  "role_permission_camp_lots_view": "View camp equipment lots",
+  "role_permission_camp_lots_manage": "Manage camp equipment lots",
+  "role_category_camp_lots": "Camp equipment lots"
 }

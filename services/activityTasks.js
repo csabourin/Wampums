@@ -62,32 +62,45 @@ async function recordStatus(db, organizationId, actorId, task, previousStatus) {
 }
 
 /**
- * Create or replace task details; status changes use changeTaskStatus instead.
- * @param {Object} pool - pg pool
+ * Create or replace task details inside an existing transaction.
+ * The caller owns BEGIN/COMMIT/ROLLBACK; status changes use changeTaskStatus instead.
+ * @param {Object} db - Transaction client
  * @param {number} organizationId - Authenticated unit
  * @param {string} actorId - Authenticated member
  * @param {Object} task - Validated fields
  * @param {number|null} taskId - Existing task, or null to create
  * @returns {Promise<Object>} Saved task
  */
+async function saveTaskInTransaction(db, organizationId, actorId, task, taskId = null) {
+  if (taskId) {
+    const existing = await db.query('SELECT id FROM activity_tasks WHERE organization_id = $1 AND id = $2 FOR UPDATE', [organizationId, taskId]);
+    if (!existing.rows.length) {throw new TaskError('tasks_not_found', HTTP_NOT_FOUND);}
+  }
+  await validateAssignment(db, organizationId, task);
+  const values = [organizationId, task.activity_id || null, task.meeting_id || null, task.title, task.assignee_id, task.due_date];
+  const result = taskId
+    ? await db.query(
+      `UPDATE activity_tasks SET activity_id = $2, meeting_id = $3, title = $4,
+        assignee_id = $5, due_date = $6, updated_at = NOW()
+        WHERE organization_id = $1 AND id = $7 RETURNING *`, [...values, taskId])
+    : await db.query(
+      `INSERT INTO activity_tasks (organization_id, activity_id, meeting_id, title, assignee_id, due_date, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`, [...values, actorId]);
+  if (!taskId) {await recordStatus(db, organizationId, actorId, result.rows[0], null);}
+  return result.rows[0];
+}
+
+/** Lot-owned tasks are edited through their lot, so assignment and progress cannot diverge. */
+async function assertStandaloneTask(db, organizationId, taskId) {
+  const linked = await db.query('SELECT 1 FROM camp_equipment_lot_roles WHERE organization_id = $1 AND task_id = $2', [organizationId, taskId]);
+  if (linked.rows.length) {throw new TaskError('camp_lot_task_managed', HTTP_CONFLICT);}
+}
+
+/** Write an ordinary task through the same transaction-aware implementation used by equipment lots. */
 function saveTask(pool, organizationId, actorId, task, taskId = null) {
   return transaction(pool, async (db) => {
-    if (taskId) {
-      const existing = await db.query('SELECT id FROM activity_tasks WHERE organization_id = $1 AND id = $2 FOR UPDATE', [organizationId, taskId]);
-      if (!existing.rows.length) {throw new TaskError('tasks_not_found', HTTP_NOT_FOUND);}
-    }
-    await validateAssignment(db, organizationId, task);
-    const values = [organizationId, task.activity_id || null, task.meeting_id || null, task.title, task.assignee_id, task.due_date];
-    const result = taskId
-      ? await db.query(
-        `UPDATE activity_tasks SET activity_id = $2, meeting_id = $3, title = $4,
-          assignee_id = $5, due_date = $6, updated_at = NOW()
-          WHERE organization_id = $1 AND id = $7 RETURNING *`, [...values, taskId])
-      : await db.query(
-        `INSERT INTO activity_tasks (organization_id, activity_id, meeting_id, title, assignee_id, due_date, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`, [...values, actorId]);
-    if (!taskId) {await recordStatus(db, organizationId, actorId, result.rows[0], null);}
-    return result.rows[0];
+    if (taskId) {await assertStandaloneTask(db, organizationId, taskId);}
+    return saveTaskInTransaction(db, organizationId, actorId, task, taskId);
   });
 }
 
@@ -110,6 +123,7 @@ function changeTaskStatus(pool, { organizationId, actorId, ownOnly }, taskId, st
     );
     const task = result.rows[0];
     if (!task) {throw new TaskError('tasks_not_found', HTTP_NOT_FOUND);}
+    await assertStandaloneTask(db, organizationId, taskId);
     if (task.status !== expectedStatus) {throw new TaskError('tasks_status_conflict', HTTP_CONFLICT);}
     if (task.status === status) {return task;}
     const saved = await db.query(
@@ -131,7 +145,7 @@ function changeTaskStatus(pool, { organizationId, actorId, ownOnly }, taskId, st
  */
 async function listTasks(db, organizationId, assigneeId) {
   const result = await db.query(
-    `SELECT t.*, u.full_name AS assignee_name, a.name AS activity_name,
+    `SELECT t.*, lr.lot_id AS equipment_lot_id, lr.role AS equipment_lot_role, u.full_name AS assignee_name, a.name AS activity_name,
             m.theme AS meeting_name, m.meeting_date::text,
             t.due_date::text,
             COALESCE((SELECT jsonb_agg(jsonb_build_object('status', h.status,
@@ -140,6 +154,7 @@ async function listTasks(db, organizationId, assigneeId) {
               FROM activity_task_history h LEFT JOIN users actor ON actor.id = h.changed_by
               WHERE h.organization_id = t.organization_id AND h.task_id = t.id), '[]'::jsonb) AS history
        FROM activity_tasks t
+       LEFT JOIN camp_equipment_lot_roles lr ON lr.task_id = t.id AND lr.organization_id = t.organization_id
        JOIN users u ON u.id = t.assignee_id
        LEFT JOIN activities a ON a.id = t.activity_id AND a.organization_id = t.organization_id
        LEFT JOIN year_plan_meetings m ON m.id = t.meeting_id AND m.organization_id = t.organization_id
@@ -150,4 +165,4 @@ async function listTasks(db, organizationId, assigneeId) {
   return result.rows;
 }
 
-module.exports = { TaskError, saveTask, changeTaskStatus, listTasks };
+module.exports = { TaskError, saveTask, saveTaskInTransaction, recordStatus, changeTaskStatus, listTasks };

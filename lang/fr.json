@@ -4836,5 +4836,17 @@
   "authorization_creation_changed": "Cette activité a déjà été enregistrée lors de la tentative précédente. Ouvrez-la dans la liste des activités pour la modifier.",
   "authorization_transport_required": "Organiser le transport",
   "authorization_view_consent": "Voir le texte à signer",
-  "authorization_reissue_required": "Une demande de cette activité a été archivée, révoquée ou expirée. Réémettez-la explicitement dans la gestion avancée avant de l’envoyer de nouveau."
+  "authorization_reissue_required": "Une demande de cette activité a été archivée, révoquée ou expirée. Réémettez-la explicitement dans la gestion avancée avant de l’envoyer de nouveau.",
+  "camp_lot_saved": "Lot enregistré",
+  "camp_lot_task_managed": "Cette tâche est gérée avec son lot de matériel. Modifiez le lot pour changer son responsable ou son état.",
+  "camp_lot_not_found": "Lot ou camp introuvable ou inaccessible.",
+  "camp_lot_cancelled": "Ce camp est annulé. Ses lots ne peuvent plus être modifiés.",
+  "camp_lot_name_conflict": "Un lot porte déjà ce nom dans ce camp.",
+  "camp_lot_invalid": "Vérifiez les articles et les responsables. Un responsable de la préparation est requis et chaque rôle doit apparaître une seule fois.",
+  "camp_lot_items_conflict": "Les articles ou quantités ne correspondent plus au matériel disponible dans la liste du camp. Actualisez la liste.",
+  "camp_lot_version_conflict": "Le lot a changé ou son état ne permet pas cette modification. Actualisez-le avant de réessayer.",
+  "camp_lot_creation_conflict": "Cette clé correspond déjà à une autre modification. Vérifiez le résultat enregistré avant de réessayer.",
+  "role_permission_camp_lots_view": "Consulter les lots de matériel du camp",
+  "role_permission_camp_lots_manage": "Gérer les lots de matériel du camp",
+  "role_category_camp_lots": "Lots de matériel du camp"
 }
