@@ -31,6 +31,8 @@ jest.mock('../../spa/api/api-equipment-catalog.js', () => ({
   getLinkableEquipment: jest.fn(),
 }));
 
+jest.mock('../../spa/api/api-material.js', () => ({ getEquipmentOwners: jest.fn(async () => ({ data: [{ id: 3, name: 'Groupe fictif' }] })) }));
+
 const { EquipmentCatalog } = require('../../spa/modules/equipment-catalog/EquipmentCatalog.js');
 const api = require('../../spa/api/api-equipment-catalog.js');
 const { hasPermission, isDemoUser } = require('../../spa/utils/PermissionUtils.js');
@@ -247,4 +249,24 @@ test('the catalogue and its form have no WCAG A/AA violations, and Escape return
   await settle();
   expect(document.getElementById('equipment-catalog-form')).toBeNull();
   expect(document.activeElement).toBe(opener);
+});
+
+
+test('the unified form creates an article and its group stock in one write and preserves zero', async () => {
+  hasPermission.mockReturnValue(true);
+  const screen = new EquipmentCatalog(app, { unified: true }); await screen.init();
+  const form = await openCreateForm();
+  form.elements.catalog_name.value = 'Marmite';
+  form.elements.track_stock.checked = true; form.elements.track_stock.dispatchEvent(new Event('change'));
+  form.elements.stock_total.value = '0';
+  form.elements.material_owner_type.value = 'group'; form.elements.material_owner_type.dispatchEvent(new Event('change'));
+  submit(form); submit(form); await settle();
+  expect(api.createCatalogItem).toHaveBeenCalledTimes(1);
+  expect(api.createCatalogItem).toHaveBeenCalledWith(expect.objectContaining({ name: 'Marmite', equipment_item_id: null, stock: { quantity_total: 0, owner_type: 'group', owner_local_group_id: 3 } }));
+});
+test('a failed stock read shows a retry instead of an incomplete all-articles list', async () => {
+  hasPermission.mockReturnValue(true); api.getLinkableEquipment.mockRejectedValueOnce(new Error('unavailable'));
+  await new EquipmentCatalog(app, { unified: true }).init();
+  expect(document.getElementById('equipment-catalog-retry')).not.toBeNull();
+  expect(document.querySelector('.equipment-catalog__list')).toBeNull();
 });

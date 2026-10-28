@@ -13122,3 +13122,12 @@ body:has(> .settings-icon) .demo-banner__inner {
   min-block-size: var(--touch-target-min);
   padding-block: var(--space-sm);
 }
+
+/* Material ownership is independent of the unit maintaining the stock record. */
+.material-ownership { display: grid; gap: var(--space-sm); min-width: 0; margin-block: var(--space-sm); border-radius: var(--radius-md); }
+.material-ownership [hidden], .equipment-visibility[hidden] { display: none; }
+.material-ownership select { width: 100%; min-width: 0; min-height: var(--touch-target-min); }
+.material-ownership p { margin: 0; overflow-wrap: anywhere; }
+.material-ownership [data-owner-group] { display: grid; gap: var(--space-xs); min-width: 0; }
+.material-ownership [data-owner-group][hidden] { display: none; }
+.inventory-create > summary { cursor: pointer; min-height: var(--touch-target-min); padding: var(--space-sm); font-weight: bold; }

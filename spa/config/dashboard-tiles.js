@@ -282,19 +282,17 @@ export const DASHBOARD_TILES = [
   },
 
   // ---------------------------------------------------------------
-  // MATÉRIEL ET LOGISTIQUE — the catalogue and the bookings sit
-  // together; splitting them was what made "Inventaire" vs "Gestion
-  // du matériel" impossible to tell apart.
+  // MATÉRIEL ET LOGISTIQUE — stock and articles share one destination.
   // ---------------------------------------------------------------
   {
     featureKey: 'inventory',
-    href: '/inventory',
+    href: '/material',
     icon: 'fa-warehouse',
-    label: 'tile_inventory',
-    aliases: 'tile_inventory_aliases',
+    label: 'material_title',
+    aliases: 'material_aliases',
     moment: 'tools',
     domain: 'logistics',
-    gate: { any: ['inventory.view', 'inventory.manage', 'inventory.reserve', 'inventory.value'] },
+    gate: { any: ['inventory.view', 'inventory.manage', 'inventory.reserve', 'inventory.value', 'equipment_catalog.manage'] },
   },
   {
     featureKey: 'material_management',
@@ -305,15 +303,6 @@ export const DASHBOARD_TILES = [
     moment: 'tools',
     domain: 'logistics',
     gate: { any: ['inventory.view', 'inventory.manage', 'inventory.reserve', 'inventory.value'] },
-  },
-  {
-    href: '/equipment-catalog',
-    icon: 'fa-list-ul',
-    label: 'tile_equipment_catalog',
-    aliases: 'tile_equipment_catalog_aliases',
-    moment: 'tools',
-    domain: 'logistics',
-    gate: { permission: 'equipment_catalog.manage' },
   },
   {
     featureKey: 'equipment_loans',

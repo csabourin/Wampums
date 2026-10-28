@@ -3,7 +3,7 @@
 /**
  * Which equipment a unit may use.
  *
- * A unit uses its own equipment, equipment shared with it explicitly
+ * A unit uses the equipment owned by its Scout group, its unit equipment, and equipment shared with it explicitly
  * (`equipment_item_organizations`), and the equipment of units in its local
  * group unless the owner turned sharing off. Inactive equipment is nobody's.
  * Reservations and loans both check it here, so the two never disagree.
@@ -12,27 +12,11 @@
  */
 
 /** Equipment the unit ($1) may use, among the ids in $2 (every item when NULL). */
+const { equipmentAccessSql } = require('./equipmentOwnership');
 const ACCESSIBLE_EQUIPMENT_SQL = `
-  SELECT DISTINCT ei.id
-    FROM equipment_items ei
-    LEFT JOIN equipment_item_organizations eio
-      ON eio.equipment_id = ei.id
-     AND eio.organization_id = $1
-    LEFT JOIN organization_local_groups owner_olg
-      ON owner_olg.organization_id = ei.organization_id
-    LEFT JOIN organization_local_groups requester_olg
-      ON requester_olg.organization_id = $1
-     AND requester_olg.local_group_id = owner_olg.local_group_id
-   WHERE ($2::int[] IS NULL OR ei.id = ANY($2::int[]))
-     AND ei.is_active IS DISTINCT FROM false
-     AND (
-       eio.organization_id IS NOT NULL
-       OR ei.organization_id = $1
-       OR (
-         COALESCE((ei.attributes->>'share_with_local_group')::boolean, true)
-         AND requester_olg.local_group_id IS NOT NULL
-       )
-     )`;
+  SELECT DISTINCT ei.id FROM equipment_items ei
+  WHERE ($2::int[] IS NULL OR ei.id = ANY($2::int[]))
+    AND ei.is_active IS DISTINCT FROM false AND ${equipmentAccessSql('ei', '$1')}`;
 
 /**
  * Ids, among those given, of the equipment the unit may use.

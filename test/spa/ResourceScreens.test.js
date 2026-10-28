@@ -25,9 +25,11 @@ jest.mock('../../spa/config.js', () => ({
   getStorageKey: (key) => key,
 }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
+  isDemoUser: () => false,
   canViewInventory: () => true,
   hasPermission: () => true,
 }));
+jest.mock('../../spa/api/api-material.js', () => ({ getEquipmentOwners: jest.fn(() => Promise.resolve({ data: [] })) }));
 jest.mock('../../spa/indexedDB.js', () => ({ deleteCachedData: jest.fn() }));
 jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirmDestructive: jest.fn() }));
 jest.mock('../../spa/ajax-functions.js', () => ({ getCurrentOrganizationId: () => '1' }));
@@ -153,7 +155,8 @@ describe('inventory views', () => {
       'equipment_photo', 'equipment_name', 'equipment_category', 'equipment_location',
       'equipment_quantity_total', 'equipment_item_value', 'actions',
     ]);
-    expect(cells[1].textContent).toBe(HOSTILE);
+    expect(cells[1].textContent).toContain(HOSTILE);
+    expect(cells[1].textContent).toContain('material_owner_unknown');
     expect(cells[6].querySelectorAll('button')).toHaveLength(2);
     expect(await violations()).toEqual([]);
   });

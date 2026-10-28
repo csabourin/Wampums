@@ -97,8 +97,8 @@ beforeEach(() => {
       }
       // Grant access to the equipment under test, so the delete handler reaches
       // its reservation guard instead of stopping at a 404.
-      if (/SELECT 1\s+FROM equipment_items/i.test(text)) {
-        return { rows: [{ ok: 1 }] };
+      if (/SELECT DISTINCT ei.id FROM equipment_items/i.test(text)) {
+        return { rows: [{ id: params[1][0] }] };
       }
       if (/COUNT\(\*\) as count/i.test(text)) {
         return { rows: [{ count: '0' }] };
