@@ -5,6 +5,7 @@
  * activity's page.
  */
 
+import { canFollowPermissionSlips } from '../../utils/PermissionUtils.js';
 import { openActivityFormModal } from '../activities/ActivityFormModal.js';
 
 export class QuickCreateActivityModal {
@@ -27,7 +28,8 @@ export class QuickCreateActivityModal {
         if (this.onSuccess) {
           await this.onSuccess(newActivity);
         }
-        if (this.redirectPath && newActivity?.id) {
+        const mayRedirect = !this.redirectPath?.startsWith('/permission-slips/') || canFollowPermissionSlips();
+        if (this.redirectPath && newActivity?.id && !newActivity.authorization_required && mayRedirect) {
           this.app.router.navigate(this.redirectPath.replace('{id}', newActivity.id));
         }
       },

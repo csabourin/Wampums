@@ -92,17 +92,19 @@ async function prepare(pool, organizationId, activityId, deadlineDate) {
       const issued = await client.query(
         `SELECT id, status, meeting_date FROM permission_slips
           WHERE organization_id = $1 AND activity_id = $2 AND participant_id = $3
-            AND status IN ('pending', 'signed', 'declined') FOR UPDATE`,
+            FOR UPDATE`,
         [organizationId, activityId, child.id],
       );
-      if (issued.rows.some((slip) => slip.status !== 'pending')) {continue;}
-      if (issued.rows.length) {
+      if (issued.rows.some((slip) => ['signed', 'declined'].includes(slip.status))) {continue;}
+      const pending = issued.rows.filter((slip) => slip.status === 'pending');
+      if (pending.length) {
         const activityDate = new Date(activity.activity_date).toISOString().slice(0, ISO_DATE_LENGTH);
-        if (!issued.rows.some((slip) => new Date(slip.meeting_date).toISOString().slice(0, ISO_DATE_LENGTH) === activityDate)) {
+        if (!pending.some((slip) => new Date(slip.meeting_date).toISOString().slice(0, ISO_DATE_LENGTH) === activityDate)) {
           throw new AuthorizationFlowError('authorization_date_conflict', HTTP_CONFLICT);
         }
         continue;
       }
+      if (issued.rows.length) {throw new AuthorizationFlowError('authorization_reissue_required', HTTP_CONFLICT);}
       // eslint-disable-next-line no-await-in-loop -- the separate date uniqueness check prevents taking over another activity
       const existing = await client.query(
         `SELECT id, activity_id, status FROM permission_slips

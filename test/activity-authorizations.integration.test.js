@@ -196,13 +196,22 @@ describe.skipIf(!DATABASE_URL)('One activity permission workflow', () => {
     await pool.query("UPDATE permission_slips SET status = 'signed', signed_at = NOW() WHERE activity_id = $1 AND participant_id = $2", [id, ids.ada]);
     const edited = await call('put', `/api/v1/activities/${id}`).send({ authorization_deadline_date: '2026-11-21' });
     expect(edited.status).toBe(200);
-    const deadlines = await pool.query("SELECT participant_id, deadline_date::date::text AS deadline FROM permission_slips WHERE activity_id = $1", [id]);
+    const deadlines = await pool.query('SELECT participant_id, deadline_date::date::text AS deadline FROM permission_slips WHERE activity_id = $1', [id]);
     expect(deadlines.rows.find((row) => row.participant_id === ids.ada).deadline).toBe('2026-11-01');
     expect(deadlines.rows.find((row) => row.participant_id === ids.bob).deadline).toBe('2026-11-21');
     const cleared = await call('put', `/api/v1/activities/${id}`).send({ authorization_deadline_date: '' });
     expect(cleared.status).toBe(200);
     expect(await one('SELECT deadline_date FROM permission_slips WHERE activity_id = $1 AND participant_id = $2', [id, ids.bob])).toBeNull();
     expect(await one('SELECT deadline_date::date::text FROM permission_slips WHERE activity_id = $1 AND participant_id = $2', [id, ids.ada])).toBe('2026-11-01');
+  });
+
+  test('an unrelated activity edit preserves legacy per-request deadlines when the activity has none', async () => {
+    const id = await create();
+    await flow.prepare(pool, ids.unit, id);
+    await pool.query("UPDATE permission_slips SET deadline_date = '2026-11-15' WHERE activity_id = $1", [id]);
+    const response = await call('put', `/api/v1/activities/${id}`).send({ activity_name: 'Updated name', authorization_deadline_date: '' });
+    expect(response.status).toBe(200);
+    expect(await one('SELECT COUNT(*)::int FROM permission_slips WHERE activity_id = $1 AND deadline_date::date = $2::date', [id, '2026-11-15'])).toBe(2);
   });
 
   test.each(['signed', 'declined'])('a %s response is retained after the activity moves to a different date', async (status) => {
@@ -216,6 +225,16 @@ describe.skipIf(!DATABASE_URL)('One activity permission workflow', () => {
     const result = await flow.dispatch(pool, ids.unit, id);
     expect(result).toMatchObject({ requests: 1, participants: 1, state: 'answered' });
     expect(result[status]).toBe(1);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  test.each(['archived', 'revoked', 'expired'])('a %s request is not silently reissued after the activity date changes', async (status) => {
+    const id = await create({ invites_everyone: false, invited_participant_ids: [ids.ada] });
+    await flow.prepare(pool, ids.unit, id);
+    await pool.query('UPDATE permission_slips SET status = $1 WHERE activity_id = $2', [status, id]);
+    await call('put', `/api/v1/activities/${id}`).send({ activity_date: '2026-11-21', activity_start_date: '2026-11-21', activity_end_date: '2026-11-21' });
+    await expect(flow.prepare(pool, ids.unit, id)).rejects.toMatchObject({ message: 'authorization_reissue_required', status: 409 });
+    expect(await one('SELECT COUNT(*)::int FROM permission_slips WHERE activity_id = $1', [id])).toBe(1);
     expect(sendEmail).not.toHaveBeenCalled();
   });
 

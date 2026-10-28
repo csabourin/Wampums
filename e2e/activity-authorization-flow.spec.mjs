@@ -108,5 +108,8 @@ test('previewing the email and consent text creates no requests and sends nothin
   await expect(preview).toContainText('Aperçu seulement');
   expect(writes.activities).toHaveLength(0);
   expect(writes.sends).toBe(0);
+  await preview.evaluate(async (overlay) => {
+    await Promise.all(overlay.getAnimations({ subtree: true }).map((animation) => animation.finished));
+  });
   expect(await axeViolations(page)).toEqual([]);
 });

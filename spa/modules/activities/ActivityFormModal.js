@@ -4,9 +4,10 @@
 // fields, the validation and the permission-slip authorization text stay the
 // same wherever an activity is managed.
 import { authorizationFieldsHTML, attachAuthorizationComposer } from './ActivityAuthorizationComposer.js';
-import { sendActivityAuthorizations } from '../../api/api-activity-authorizations.js';
+import { sendActivityAuthorizations, getActivityAuthorizations } from '../../api/api-activity-authorizations.js';
 import { authorizationResultHTML } from './AuthorizationResult.js';
 import { setContent } from '../../utils/DOMUtils.js';
+import { canFollowPermissionSlips, hasPermission } from '../../utils/PermissionUtils.js';
 import { translate } from '../../app.js';
 import { createActivity, getActivity, updateActivity } from '../../api/api-activities.js';
 import { clearActivityPermissionSlipCaches, clearActivityRelatedCaches } from '../../indexedDB.js';
@@ -369,15 +370,40 @@ export function openActivityFormModal(app, { activity = null, onSaved = null, de
   const isEdit = Boolean(activity);
   let saving = false;
   let persistedActivity = activity;
+  let notifySavedOnClose = false;
   const creationKey = crypto.randomUUID();
+  const canViewDashboard = canFollowPermissionSlips();
 
   const { overlay, close } = openModal({
     id: 'activity-modal',
     title: escapeHTML(isEdit ? translate('edit_activity') : translate('add_activity')),
     body: buildFormHTML(activity, defaultAuthorization),
     canClose: () => !saving,
-    onClose: () => composer?.destroy()
+    onClose: () => {
+      composer?.destroy();
+      if (notifySavedOnClose && typeof onSaved === 'function') {
+        Promise.resolve(onSaved(persistedActivity)).catch((error) => debugError('Activity list refresh failed', error));
+      }
+    }
   });
+
+  const resultLink = (id) => canViewDashboard
+    ? `<a href="/permission-slips/${id}" class="button button--secondary">${escapeHTML(translate('authorization_view_result'))}</a>`
+    : '';
+  const presentResult = (result, id) => {
+    if (!overlay.isConnected) {return;}
+    const feedback = overlay.querySelector('#activity-save-result');
+    setContent(feedback, `${authorizationResultHTML(result, app.lang)}${resultLink(id)}`);
+    feedback.querySelector('a')?.addEventListener('click', (event) => {
+      event.preventDefault(); saving = false; close(true); app.router.navigate(`/permission-slips/${id}`);
+    });
+    feedback.focus(); feedback.scrollIntoView?.({ block: 'center' });
+  };
+  if (activity?.id && activity.authorization_required && !canViewDashboard && hasPermission('activities.edit')) {
+    getActivityAuthorizations(activity.id).then((result) => {
+      if (!saving) {presentResult(result, activity.id);}
+    }).catch((error) => {debugError('Unable to load the stored authorization result', error);});
+  }
 
   const descriptionEditor = overlay.querySelector('#activity-form [data-rte]');
   if (descriptionEditor) {
@@ -447,6 +473,8 @@ export function openActivityFormModal(app, { activity = null, onSaved = null, de
         : await createActivity({ ...data, creation_key: creationKey });
       if (!saved?.id) {throw new Error('authorization_unconfirmed');}
       persistedActivity = saved;
+      notifySavedOnClose = !canViewDashboard && data.authorization_required;
+      overlay.querySelector('#activity-form [data-modal-close]').textContent = translate('close');
       overlay.querySelector('[data-activity-send]').textContent = translate('authorization_save_send');
       if (!overlay.isConnected) {return;}
       let result = null;
@@ -455,14 +483,18 @@ export function openActivityFormModal(app, { activity = null, onSaved = null, de
         result = await sendActivityAuthorizations(saved.id, data.authorization_deadline_date);
         if (!overlay.isConnected) {return;}
         if (result.state !== 'sent') {
-          const feedback = overlay.querySelector('#activity-save-result');
-          setContent(feedback, `${authorizationResultHTML(result, app.lang)}<a href="/permission-slips/${saved.id}" class="button button--secondary">${escapeHTML(translate('authorization_view_result'))}</a>`);
-          feedback.querySelector('a').addEventListener('click', (event) => {
-            event.preventDefault(); saving = false; close(true); app.router.navigate(`/permission-slips/${saved.id}`);
-          });
-          feedback.focus(); feedback.scrollIntoView?.({ block: 'center' });
+          presentResult(result, saved.id);
           return;
         }
+      }
+      if (data.authorization_required && !canViewDashboard) {
+        if (result || hasPermission('activities.edit')) {
+          presentResult(result || await getActivityAuthorizations(saved.id), saved.id);
+        } else {
+          setContent(overlay.querySelector('#activity-save-result'), escapeHTML(translate('authorization_saved_not_sent')));
+        }
+        app.showMessage(result ? translate('authorization_state_sent') : translate('authorization_saved_not_sent'), 'success');
+        return;
       }
       await clearActivityRelatedCaches();
 
@@ -490,14 +522,18 @@ export function openActivityFormModal(app, { activity = null, onSaved = null, de
       if (typeof onSaved === 'function') {
         await onSaved(saved);
       }
-      if (data.authorization_required) {app.router?.navigate(`/permission-slips/${saved.id}`);}
+      if (data.authorization_required && canViewDashboard) {app.router?.navigate(`/permission-slips/${saved.id}`);}
     } catch (err) {
       debugError('Error saving activity:', err);
       if (!overlay.isConnected) {return;}
       const feedback = overlay.querySelector('#activity-save-result');
       const message = persistedActivity ? 'authorization_saved_send_unconfirmed' : 'authorization_unconfirmed';
       setContent(feedback, `${escapeHTML(err.code === 'operation_unconfirmed' ? translate(message) : apiErrorMessage(err, message))}${persistedActivity
-        ? `<p><a href="/permission-slips/${persistedActivity.id}" class="button button--secondary">${escapeHTML(translate('authorization_view_result'))}</a></p>` : ''}`);
+        ? `<p>${resultLink(persistedActivity.id)}</p><button type="button" class="button button--secondary" data-check-authorization>${escapeHTML(translate('authorization_check_status'))}</button>` : ''}`);
+      feedback.querySelector('[data-check-authorization]')?.addEventListener('click', async () => {
+        try {presentResult(await getActivityAuthorizations(persistedActivity.id), persistedActivity.id);}
+        catch (error) {app.showMessage(apiErrorMessage(error, 'authorization_result_failed'), 'error');}
+      });
       feedback.querySelector('a')?.addEventListener('click', (event) => {
         event.preventDefault(); saving = false; close(true); app.router.navigate(`/permission-slips/${persistedActivity.id}`);
       });

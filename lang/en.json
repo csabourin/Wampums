@@ -4835,5 +4835,6 @@
   "authorization_date_conflict": "A child already has another request for this date. No new requests were created. Check existing permission requests.",
   "authorization_creation_changed": "This activity was already saved during the previous attempt. Open it from the activity list to edit it.",
   "authorization_transport_required": "Arrange transport",
-  "authorization_view_consent": "View the consent text"
+  "authorization_view_consent": "View the consent text",
+  "authorization_reissue_required": "A request for this activity was archived, revoked or expired. Explicitly reissue it in advanced management before sending it again."
 }

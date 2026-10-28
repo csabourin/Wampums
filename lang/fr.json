@@ -4835,5 +4835,6 @@
   "authorization_date_conflict": "Un jeune a déjà une autre demande pour cette date. Aucune nouvelle demande n’a été créée. Vérifiez les autorisations existantes.",
   "authorization_creation_changed": "Cette activité a déjà été enregistrée lors de la tentative précédente. Ouvrez-la dans la liste des activités pour la modifier.",
   "authorization_transport_required": "Organiser le transport",
-  "authorization_view_consent": "Voir le texte à signer"
+  "authorization_view_consent": "Voir le texte à signer",
+  "authorization_reissue_required": "Une demande de cette activité a été archivée, révoquée ou expirée. Réémettez-la explicitement dans la gestion avancée avant de l’envoyer de nouveau."
 }

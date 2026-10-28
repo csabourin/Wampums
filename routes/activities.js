@@ -544,7 +544,7 @@ module.exports = (pool) => {
       await client.query('BEGIN');
 
       const existingResult = await client.query(
-        `SELECT name, description, description_html, authorization_text, authorization_required, authorization_deadline_date, transport_required, is_active, invites_everyone,
+        `SELECT name, description, description_html, authorization_text, authorization_required, authorization_deadline_date::text AS authorization_deadline_date, transport_required, is_active, invites_everyone,
                 activity_date::text AS activity_date,
                 activity_start_date::text AS activity_start_date,
                 activity_start_time::text AS activity_start_time,
@@ -734,7 +734,7 @@ module.exports = (pool) => {
           activityId,
           organizationId,
           activity.description_html,
-          has('authorization_deadline_date'),
+          has('authorization_deadline_date') && (existing.authorization_deadline_date || null) !== (activity.authorization_deadline_date || null),
           activity.authorization_deadline_date || null
         ]
       );

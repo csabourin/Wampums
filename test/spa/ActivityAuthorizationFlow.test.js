@@ -9,11 +9,11 @@ jest.mock('../../spa/ajax-functions.js', () => ({ fetchParticipants: jest.fn().m
 jest.mock('../../spa/api/api-endpoints.js', () => ({ getGroups: jest.fn().mockResolvedValue({ data: [] }) }));
 jest.mock('../../spa/api/api-ai.js', () => ({ aiGenerateText: jest.fn() }));
 jest.mock('../../spa/indexedDB.js', () => ({ clearActivityRelatedCaches: jest.fn(), clearActivityPermissionSlipCaches: jest.fn() }));
-jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(() => true) }));
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(() => true), canFollowPermissionSlips: jest.fn(() => true) }));
 
 import { createActivity, updateActivity } from '../../spa/api/api-activities.js';
 import { previewActivityAuthorizations, sendActivityAuthorizations, getActivityAuthorizations } from '../../spa/api/api-activity-authorizations.js';
-import { hasPermission } from '../../spa/utils/PermissionUtils.js';
+import { hasPermission, canFollowPermissionSlips } from '../../spa/utils/PermissionUtils.js';
 import { openActivityFormModal } from '../../spa/modules/activities/ActivityFormModal.js';
 import { ActivityAuthorizationPanel } from '../../spa/modules/activities/ActivityAuthorizationPanel.js';
 
@@ -41,6 +41,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   app = { lang: 'fr', showMessage: jest.fn(), router: { navigate: jest.fn() } };
   hasPermission.mockReturnValue(true);
+  canFollowPermissionSlips.mockReturnValue(true);
   previewActivityAuthorizations.mockResolvedValue({ participants: 2, addresses: 3, missing: [] });
   createActivity.mockResolvedValue({ id: 44 });
   updateActivity.mockResolvedValue({ id: 44 });
@@ -158,4 +159,35 @@ test('a late result never overwrites the next screen', async () => {
   root.textContent = 'Next screen';
   finish(RESULT); await loading;
   expect(root.textContent).toBe('Next screen');
+});
+
+
+test('finishing the consent text does not disable the send button during its click', async () => {
+  const root = open();
+  await flush(); await flush();
+  const send = root.querySelector('[data-activity-send]');
+  expect(send.disabled).toBe(false);
+  root.querySelector('#activity-authorization-text').dispatchEvent(new Event('change', { bubbles: true }));
+  expect(send.disabled).toBe(false);
+  await submit(root, 'send');
+  expect(sendActivityAuthorizations).toHaveBeenCalledTimes(1);
+});
+
+
+test('leaders without the full roster dashboard keep a successful sending result inside the activity form', async () => {
+  canFollowPermissionSlips.mockReturnValue(false);
+  const root = open();
+  await submit(root, 'send');
+  expect(root.querySelector('#activity-save-result').textContent).toContain('authorization_state_sent');
+  expect(root.querySelector('#activity-save-result a')).toBeNull();
+  expect(app.router.navigate).not.toHaveBeenCalled();
+});
+
+test('a restricted editor reopens the durable result inside the activity form', async () => {
+  canFollowPermissionSlips.mockReturnValue(false);
+  const root = open({ activity: { id: 44, authorization_required: true, name: 'Lantern evening' } });
+  await flush(); await flush();
+  expect(getActivityAuthorizations).toHaveBeenCalledWith(44);
+  expect(root.querySelector('#activity-save-result').textContent).toContain('authorization_state_sent');
+  expect(root.querySelector('#activity-save-result a')).toBeNull();
 });

@@ -5,7 +5,7 @@ The shared SPA activity form owns the invitation, activity information and conse
 - **Create activity and send permission requests** saves the activity, creates missing requests for its currently enrolled invitees, then submits their emails. Children are selected once.
 - **Save without sending** saves the activity and consent text only. It creates no permission requests and sends no mail. The activity is not a hidden draft.
 - Preview creates and sends nothing. Family addresses are never returned by the unsaved preview endpoint, only counts and children missing contacts.
-- The activity permission page puts durable sending results before the description. Requests, emails and guardian responses have separate counts. Individual management remains under Advanced management.
+- The activity permission page puts durable sending results before the description. Requests, emails and guardian responses have separate counts. Individual management remains under Advanced management. An editor without the roster dashboard permissions keeps sending results in the activity form and can reopen them by editing the activity; no forbidden dashboard link or redirect is offered.
 
 ## API and persistence
 

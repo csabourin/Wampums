@@ -81,7 +81,10 @@ export function attachAuthorizationComposer(overlay, readInvitation, isEdit = fa
     clearTimeout(timer);
     timer = setTimeout(preview, CONFIG.AUTHORIZATION_FLOW?.PREVIEW_DELAY_MS || PREVIEW_DELAY_MS);
   };
-  overlay.querySelector('#activity-form').addEventListener('change', schedule);
+  overlay.querySelector('#activity-form').addEventListener('change', (event) => {
+    if (['invites_everyone', 'invited_participant_ids'].includes(event.target.name)
+      || event.target.id === 'activity-invitees-keep-off-roster') {schedule();}
+  });
   enabled.addEventListener('change', schedule);
   overlay.querySelector('#activity-authorization-preview').addEventListener('click', () => {
     const data = readInvitation();
