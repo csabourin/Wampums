@@ -129,6 +129,42 @@ beforeEach(() => {
   app = { lang: 'fr', showMessage: jest.fn(), router: { navigate: jest.fn() } };
 });
 
+test.each([
+  ['no activities', []],
+  ['only past activities', [{
+    id: 24, name: 'Sortie fictive passée',
+    activity_start_date: '2000-01-01', activity_end_date: '2000-01-01',
+  }]],
+])('the dashboard with %s offers one creation action that opens the activity form', (_label, activities) => {
+  document.body.innerHTML = '<main id="app"></main>';
+  const { QuickCreateActivityModal } = require('../../spa/modules/modals/QuickCreateActivityModal.js');
+  const ActualModal = jest.requireActual('../../spa/modules/modals/QuickCreateActivityModal.js').QuickCreateActivityModal;
+  const { openActivityFormModal } = require('../../spa/modules/activities/ActivityFormModal.js');
+  QuickCreateActivityModal.mockImplementationOnce((...args) => new ActualModal(...args));
+
+  const dashboard = new PermissionSlipDashboard(app);
+  dashboard.activities = activities;
+  dashboard.render();
+  dashboard.attachEventHandlers();
+
+  const createButtons = Array.from(document.querySelectorAll('#app button'))
+    .filter((button) => button.textContent.includes('quick_create_activity'));
+  expect(createButtons).toHaveLength(1);
+  expect(document.getElementById('app').textContent).toContain('no_upcoming_activities');
+  createButtons[0].click();
+  expect(openActivityFormModal).toHaveBeenCalledTimes(1);
+  expect(openActivityFormModal).toHaveBeenCalledWith(app, expect.objectContaining({ defaultAuthorization: true }));
+
+  if (activities.length > 0) {
+    const pastActivities = document.querySelector('#app details');
+    expect(pastActivities.querySelector('summary').textContent).toContain('past_activities');
+    pastActivities.querySelector('summary').click();
+    expect(pastActivities.open).toBe(true);
+    expect(pastActivities.querySelector('a').getAttribute('href')).toBe('/permission-slips/24');
+    expect(pastActivities.textContent).toContain(activities[0].name);
+  }
+});
+
 test('the toggle opens a form whose buttons say whether they send', async () => {
   await openCreateForm();
 
