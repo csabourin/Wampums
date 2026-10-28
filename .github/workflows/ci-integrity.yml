@@ -174,21 +174,20 @@ jobs:
       - name: Test offline camp lots in the built PWA
         run: npx playwright test --config playwright.offline.config.mjs
 
-<<<<<<< HEAD
       - name: Upload camp preparation previews
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: camp-readiness-previews
           path: test-results/**/camp-readiness.png
-=======
+          if-no-files-found: ignore
+
       - name: Upload material previews
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: material-previews
           path: test-results/**/material*.png
->>>>>>> origin/main
           if-no-files-found: ignore
 
       - name: Upload camp lot previews
