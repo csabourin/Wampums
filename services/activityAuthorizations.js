@@ -13,6 +13,7 @@ const HTTP_CONFLICT = 409;
 const HTTP_TIMEOUT = 408;
 const HTTP_SERVER_ERROR = 500;
 const SMTP_STATUS_LIMIT = 600;
+const ISO_DATE_LENGTH = 10;
 
 /** A validation refusal safe to return through the standard API response. */
 class AuthorizationFlowError extends Error {
@@ -86,7 +87,23 @@ async function prepare(pool, organizationId, activityId, deadlineDate) {
     const children = await audience(client, organizationId, activity);
     if (!children.length) {throw new AuthorizationFlowError('authorization_no_invitees');}
     for (const child of children) {
+      // Responses belong to the activity even after its date changes.
       // eslint-disable-next-line no-await-in-loop -- one transaction, with the activity locked
+      const issued = await client.query(
+        `SELECT id, status, meeting_date FROM permission_slips
+          WHERE organization_id = $1 AND activity_id = $2 AND participant_id = $3
+            AND status IN ('pending', 'signed', 'declined') FOR UPDATE`,
+        [organizationId, activityId, child.id],
+      );
+      if (issued.rows.some((slip) => slip.status !== 'pending')) {continue;}
+      if (issued.rows.length) {
+        const activityDate = new Date(activity.activity_date).toISOString().slice(0, ISO_DATE_LENGTH);
+        if (!issued.rows.some((slip) => new Date(slip.meeting_date).toISOString().slice(0, ISO_DATE_LENGTH) === activityDate)) {
+          throw new AuthorizationFlowError('authorization_date_conflict', HTTP_CONFLICT);
+        }
+        continue;
+      }
+      // eslint-disable-next-line no-await-in-loop -- the separate date uniqueness check prevents taking over another activity
       const existing = await client.query(
         `SELECT id, activity_id, status FROM permission_slips
           WHERE organization_id = $1 AND participant_id = $2 AND meeting_date = $3 FOR UPDATE`,
@@ -173,8 +190,9 @@ async function summary(pool, organizationId, activityId) {
   const activity = await activityFor(pool, organizationId, activityId);
   const children = await audience(pool, organizationId, activity);
   const allSlips = (await pool.query(
-    `SELECT id, participant_id, status, email_sent, email_sent_at FROM permission_slips
-      WHERE organization_id = $1 AND activity_id = $2 AND status IN ('pending', 'signed', 'declined')`,
+    `SELECT DISTINCT ON (participant_id) id, participant_id, status, email_sent, email_sent_at FROM permission_slips
+      WHERE organization_id = $1 AND activity_id = $2 AND status IN ('pending', 'signed', 'declined')
+      ORDER BY participant_id, (status IN ('signed', 'declined')) DESC, updated_at DESC, id DESC`,
     [organizationId, activityId],
   )).rows;
   const slips = allSlips.filter((slip) => children.some((child) => Number(child.id) === Number(slip.participant_id)));
@@ -217,8 +235,13 @@ async function dispatch(pool, organizationId, activityId) {
   const activity = await activityFor(pool, organizationId, activityId);
   const children = await audience(pool, organizationId, activity);
   const slips = (await pool.query(
-    `SELECT ps.*, p.first_name, p.last_name FROM permission_slips ps JOIN participants p ON p.id = ps.participant_id
-      WHERE ps.organization_id = $1 AND ps.activity_id = $2 AND ps.status = 'pending'`, [organizationId, activityId],
+    `SELECT DISTINCT ON (ps.participant_id) ps.*, p.first_name, p.last_name
+       FROM permission_slips ps JOIN participants p ON p.id = ps.participant_id
+      WHERE ps.organization_id = $1 AND ps.activity_id = $2 AND ps.status = 'pending'
+        AND NOT EXISTS (SELECT 1 FROM permission_slips answered
+          WHERE answered.organization_id = ps.organization_id AND answered.activity_id = ps.activity_id
+            AND answered.participant_id = ps.participant_id AND answered.status IN ('signed', 'declined'))
+      ORDER BY ps.participant_id, ps.updated_at DESC, ps.id DESC`, [organizationId, activityId],
   )).rows;
   const sender = await resolveOrganizationEmailSender(pool, organizationId);
   const copies = createPermissionSlipCopies(pool);

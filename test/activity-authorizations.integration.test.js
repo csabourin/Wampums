@@ -190,6 +190,44 @@ describe.skipIf(!DATABASE_URL)('One activity permission workflow', () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
+  test('deadline edits and clearing follow pending requests while answered deadlines remain frozen', async () => {
+    const id = await create({ authorization_deadline_date: '2026-11-01' });
+    await flow.prepare(pool, ids.unit, id);
+    await pool.query("UPDATE permission_slips SET status = 'signed', signed_at = NOW() WHERE activity_id = $1 AND participant_id = $2", [id, ids.ada]);
+    const edited = await call('put', `/api/v1/activities/${id}`).send({ authorization_deadline_date: '2026-11-21' });
+    expect(edited.status).toBe(200);
+    const deadlines = await pool.query("SELECT participant_id, deadline_date::date::text AS deadline FROM permission_slips WHERE activity_id = $1", [id]);
+    expect(deadlines.rows.find((row) => row.participant_id === ids.ada).deadline).toBe('2026-11-01');
+    expect(deadlines.rows.find((row) => row.participant_id === ids.bob).deadline).toBe('2026-11-21');
+    const cleared = await call('put', `/api/v1/activities/${id}`).send({ authorization_deadline_date: '' });
+    expect(cleared.status).toBe(200);
+    expect(await one('SELECT deadline_date FROM permission_slips WHERE activity_id = $1 AND participant_id = $2', [id, ids.bob])).toBeNull();
+    expect(await one('SELECT deadline_date::date::text FROM permission_slips WHERE activity_id = $1 AND participant_id = $2', [id, ids.ada])).toBe('2026-11-01');
+  });
+
+  test.each(['signed', 'declined'])('a %s response is retained after the activity moves to a different date', async (status) => {
+    const id = await create({ invites_everyone: false, invited_participant_ids: [ids.ada] });
+    await flow.prepare(pool, ids.unit, id);
+    await pool.query('UPDATE permission_slips SET status = $1 WHERE activity_id = $2', [status, id]);
+    const moved = await call('put', `/api/v1/activities/${id}`).send({ activity_date: '2026-11-21', activity_start_date: '2026-11-21', activity_end_date: '2026-11-21' });
+    expect(moved.status).toBe(200);
+    await flow.prepare(pool, ids.unit, id);
+    expect(await one('SELECT COUNT(*)::int FROM permission_slips WHERE activity_id = $1', [id])).toBe(1);
+    const result = await flow.dispatch(pool, ids.unit, id);
+    expect(result).toMatchObject({ requests: 1, participants: 1, state: 'answered' });
+    expect(result[status]).toBe(1);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  test('older duplicate pending records cannot override an existing answer or inflate the current summary', async () => {
+    const id = await create({ invites_everyone: false, invited_participant_ids: [ids.ada] });
+    await flow.prepare(pool, ids.unit, id);
+    await pool.query("UPDATE permission_slips SET status = 'signed' WHERE activity_id = $1", [id]);
+    await pool.query("INSERT INTO permission_slips (organization_id, participant_id, activity_id, meeting_date, status) VALUES ($1, $2, $3, '2026-11-21', 'pending')", [ids.unit, ids.ada, id]);
+    expect(await flow.dispatch(pool, ids.unit, id)).toMatchObject({ requests: 1, signed: 1, pending: 0, state: 'answered' });
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
   test('date conflicts roll back every new request instead of attaching a different activity', async () => {
     const first = await create({ invites_everyone: false, invited_participant_ids: [ids.ada] });
     await flow.prepare(pool, ids.unit, first);

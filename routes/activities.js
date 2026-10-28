@@ -713,6 +713,7 @@ module.exports = (pool) => {
                 activity_description = $2,
                 authorization_text = $3,
                 activity_description_html = $7,
+                deadline_date = CASE WHEN $8::boolean THEN $9::date ELSE ps.deadline_date END,
                 meeting_date = CASE
                   WHEN NOT EXISTS (
                     SELECT 1 FROM permission_slips other
@@ -732,7 +733,9 @@ module.exports = (pool) => {
           activity.activity_date,
           activityId,
           organizationId,
-          activity.description_html
+          activity.description_html,
+          has('authorization_deadline_date'),
+          activity.authorization_deadline_date || null
         ]
       );
 

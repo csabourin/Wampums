@@ -49,9 +49,10 @@ async function openForm(page) {
   return form;
 }
 
-test('one form creates the activity and sends its permission requests without selecting the children twice', async ({ page }) => {
+test('one form creates the activity and sends its permission requests without selecting the children twice', async ({ page }, testInfo) => {
   const writes = await installMocks(page, 'success');
   const form = await openForm(page);
+  await testInfo.attach('activity-permission-form', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
   expect(await axeViolations(page)).toEqual([]);
   await expect(form.locator('#activity-transport-fields')).toBeHidden();
   await expect(form.locator('#groupSelect')).toHaveCount(0);
