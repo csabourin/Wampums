@@ -5,7 +5,7 @@
  * unobscured focus, and a dialog driven from the keyboard.
  */
 import { test, expect } from '@playwright/test';
-import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViolations, seededActivityId, seededParticipantId, seededProgrammeDate, seededRecord } from './helpers.mjs';
+import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViolations, waitForAnimations,seededActivityId, seededParticipantId, seededProgrammeDate, seededRecord } from './helpers.mjs';
 
 /**
  * Screens each person reaches from their dashboard or from an emailed link.
@@ -448,9 +448,7 @@ test.describe('the leaders\' programme bar', () => {
     await expect(dialog).toContainText('Programme de la réunion');
     await expect(dialog).toContainText('Matériel : Foulards, 4 cônes');
     // Contrast is measured once the dialog has finished fading in.
-    await page.evaluate(() => Promise.all(document.getAnimations()
-      .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime))
-      .map((animation) => animation.finished.catch(() => {}))));
+    await waitForAnimations(page);
     expect(await axeViolations(page)).toEqual([]);
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
@@ -474,6 +472,8 @@ test.describe('task assignment', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await expect(dialog.locator('#tasks-title')).toBeVisible();
+    // Contrast is measured once the dialog has finished fading in.
+    await waitForAnimations(page);
     expect(await axeViolations(page)).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
     await page.keyboard.press('Escape');
