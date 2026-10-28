@@ -32,6 +32,9 @@ async function campReadiness(db, organizationId, meetingId, allowed) {
     }));
   }
   if (allowed.permissions && camp.activity_id) {
+    // deadline_date is timestamptz, unlike the calendar dates above. Keep the
+    // instant so pg and JSON serialize ISO UTC; a ::text cast produces a SQL
+    // timestamp that the SPA's calendar-date formatter cannot read.
     reads.push(db.query(`SELECT status, COUNT(*)::int AS count, MIN(deadline_date) AS deadline
       FROM permission_slips WHERE organization_id = $1 AND activity_id = $2 AND status != 'archived'
       GROUP BY status ORDER BY status`, [organizationId, camp.activity_id]).then((data) => {

@@ -34,4 +34,16 @@ describe.skipIf(!DATABASE_URL)('Camp preparation isolation', () => {
     expect(all.sections.permissions).toEqual([]); expect(all.sections.lots).toEqual([]);
     expect(all.camp.date_to).toBe('2026-11-16');
   });
+  test('consent deadlines remain ISO instants when the database uses a non-UTC time zone', async () => {
+    const participant = await one("INSERT INTO participants (first_name,last_name) VALUES ('Fictional','Camper') RETURNING id");
+    await db.query(`INSERT INTO permission_slips (organization_id, participant_id, activity_id, meeting_date, deadline_date)
+      VALUES ($1,$2,$3,'2026-11-14','2026-11-10T00:00:00Z')`, [unit, participant, activity]);
+    await db.query("SET LOCAL TIME ZONE 'Pacific/Auckland'");
+    try {
+      const result = JSON.parse(JSON.stringify(await campReadiness(db, unit, camp, { permissions: true })));
+      expect(result.sections.permissions).toEqual([{ status: 'pending', count: 1, deadline: '2026-11-10T00:00:00.000Z' }]);
+    } finally {
+      await db.query("SET LOCAL TIME ZONE 'UTC'");
+    }
+  });
 });

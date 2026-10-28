@@ -33,3 +33,6 @@ isolation test and the seeded phone/desktop accessibility suite cover this scree
 Material quantities retain the article's unit of measure and the interface's number
 format (for example, `2,5 kg` in French). Consent totals are localized counts with
 no equipment unit.
+Consent deadlines are stored as `timestamptz` and serialized as ISO UTC instants,
+including when the database session uses another time zone. Calendar-only dates
+remain `YYYY-MM-DD` strings.
