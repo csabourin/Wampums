@@ -19,6 +19,7 @@ const STATUS_MESSAGE_KEYS = Object.freeze({
  * server sends (`code`, or `error.code` from the AI endpoints).
  */
 const CODE_MESSAGE_KEYS = Object.freeze({
+  camp_lot_not_prepared: 'camp_lot_not_prepared',
   online_required: 'family_operation_online_required',
   demo_read_only: 'demo_read_only_explained',
   operation_unconfirmed: 'family_operation_unconfirmed',

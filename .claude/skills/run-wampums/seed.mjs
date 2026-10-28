@@ -21,6 +21,7 @@
  * Usage (from the repo root): node .claude/skills/run-wampums/seed.mjs
  */
 
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -331,6 +332,12 @@ try {
     [organizationId, setupLineId, nightLineId, tentArticle.id, tarpsId]
   );
 
+  const { saveLot } = require(path.join(ROOT, 'services/campEquipmentLots.js'));
+  const campLot = await saveLot(pool, organizationId, adminId, campMeetingId, {
+    name: 'Tentes du camp', creation_key: randomUUID(), items: [{ catalog_item_id: tentArticle.id, quantity: 2 }],
+    roles: [{ role: 'prepare', user_id: adminId }],
+  });
+
   const { saveTask } = require(path.join(ROOT, 'services/activityTasks.js'));
   await saveTask(pool, organizationId, adminId, {
     title: 'Vérifier les pagaies', assignee_id: adminId, due_date: programmeDate,
@@ -347,6 +354,9 @@ try {
     fundraiserId,
     yearPlanId,
     campMeetingId,
+    campLotId: campLot.id,
+    campLotArticleId: tentArticle.id,
+    adminId,
     messageId,
     incidentId,
     slipToken,

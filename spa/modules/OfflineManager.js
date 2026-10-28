@@ -18,6 +18,7 @@ import {
 } from '../indexedDB.js';
 import { CONFIG } from '../config.js';
 import { isoToDateString } from '../utils/DateUtils.js';
+import { assertPreparedLotMutation, applyReplayedLot, storeLotSnapshot, lotSnapshotKey } from './camp-lots/CampLotOffline.js';
 import { OFFLINE_CAMPS } from '../config/offline-camps.js';
 import {
   buildApiCacheKey,
@@ -58,6 +59,7 @@ const PREPARED_ACTIVITIES_KEY = 'wampums_prepared_activities';
 // `kind` names the change in the message that reports a refused replay
 // (`sync.rejected_kind_<kind>`).
 const SAFE_OFFLINE_MUTATIONS = [
+  { method: 'PATCH', path: /^\/api\/v1\/camp-equipment-lots\/(?:mine\/)?[1-9]\d*\/status$/, kind: 'camp_lots' },
   { method: 'POST', path: /^\/api\/v1\/points$/, kind: 'points' },
   { method: 'POST', path: /^\/api\/v1\/attendance(?:\/(?:carry-forward|departure))?$/, kind: 'attendance' },
   { method: 'PATCH', path: /^\/api\/v1\/medication\/(?:distributions|receptions)\/\d+$/, kind: 'medication' },
@@ -76,6 +78,7 @@ const SAFE_OFFLINE_MUTATIONS = [
  * so a camp's other prepared days survive.
  */
 const SCREEN_CACHE_PREFIXES = {
+  camp_lots: ['/api/v1/tasks'],
   points: ['manage_points_data', 'points_report'],
   medication: [
     'medication_', 'participant_medications', 'fiche_medications',
@@ -329,6 +332,7 @@ export class OfflineManager {
         throw new Error(this.getTranslation('offline.writeUnavailable'));
       }
 
+      if (mutationKind(url, method) === 'camp_lots') { await assertPreparedLotMutation(url, options.body); }
       const currentUserId = getCurrentUserId();
       const organizationId = getCurrentOrganizationId();
       if (!currentUserId) {
@@ -594,12 +598,20 @@ export class OfflineManager {
 
           const method = record.data.method || record.action || 'POST';
           if (response.ok) {
+            if (mutationKind(record.data.url, method) === 'camp_lots') {
+              // eslint-disable-next-line no-await-in-loop -- receipt must be read before deleting this ordered operation
+              const result = await response.json();
+              if (!result.success || !result.data?.id) { throw new Error('Invalid camp lot replay response'); }
+              // eslint-disable-next-line no-await-in-loop -- commit the device snapshot before announcing this receipt
+              await applyReplayedLot(result.data);
+            }
             await deleteOfflineData(record.key);
             replayed += 1;
             replayedPoints ||= normalizeApiPath(record.data.url) === '/api/v1/points';
             this.announceOutboxEvent('offlineMutationReplayed', {
               url: record.data.url,
               method,
+              kind: mutationKind(record.data.url, method),
               mutationId: record.data.idempotencyKey
             });
             debugLog('OfflineManager: Mutation replayed successfully', record.key);
@@ -672,7 +684,7 @@ export class OfflineManager {
           return false;
         }
         const name = key.slice(0, key.length - scope.length);
-        return prefixes.some((prefix) => name.startsWith(prefix));
+        return prefixes.some((prefix) => prefix.startsWith('camp_lots_snapshot_') ? name === prefix : name.startsWith(prefix));
       });
     } catch (error) {
       debugWarn('OfflineManager: Could not clear the cache of a refused change', error);
@@ -709,6 +721,14 @@ export class OfflineManager {
         date = null;
       }
       prefixes.push(...(date ? [`attendance_${date}`, `attendance_api_${date}`] : ['attendance_']));
+    }
+    if (change.kind === 'camp_lots') {
+      try {
+        const meetingId = Number(JSON.parse(body).meeting_id);
+        if (Number.isSafeInteger(meetingId) && meetingId > 0) {
+          prefixes.push(`camp_lots_snapshot_mine_${meetingId}`, `camp_lots_snapshot_unit_${meetingId}`);
+        }
+      } catch { /* The API resource still goes if an old body cannot be read. */ }
     }
     prefixes.push(...(SCREEN_CACHE_PREFIXES[change.kind] || []));
     return prefixes;
@@ -1150,6 +1170,14 @@ export class OfflineManager {
         }
       }
 
+      // Lot-only helpers can prepare from their own page; a full camp snapshot
+      // carries the same minimal packs, filtered by the server's current permissions.
+      for (const pack of bulkData.campLots || []) {
+        // eslint-disable-next-line no-await-in-loop -- required camp snapshots must finish before readiness is recorded
+        await storeLotSnapshot(pack.meeting_id, pack.lots, pack.own_only, duration);
+        cacheKeys.push(lotSnapshotKey(pack.meeting_id, pack.own_only));
+      }
+
       // Step 8: Pre-load JavaScript modules for offline use
       this.updatePreparationProgress(8, this.getTranslation('offline.cachingModules'));
       await this.preloadCampModules();
@@ -1225,6 +1253,8 @@ export class OfflineManager {
      */
   async preloadCampModules() {
     const campModules = [
+      () => import('./camp-lots/CampEquipmentLots.js'),
+      () => import('./tasks/Tasks.js'),
       () => import('./attendance/Attendance.js'),
       () => import('./points/ManagePoints.js'),
       () => import('./honors/ManageHonors.js'),

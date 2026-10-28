@@ -45,7 +45,7 @@ async function campFor(db, organizationId, meetingId, writable = false) {
 async function listLots(db, organizationId, meetingId = null, assigneeId = null) {
   if (meetingId) {await campFor(db, organizationId, meetingId);}
   const result = await db.query(
-    `SELECT l.id, l.meeting_id, l.name, l.status, l.version, l.updated_at, m.theme AS camp_name,
+    `SELECT l.id, l.meeting_id, l.name, l.status, l.version, l.updated_at, m.theme AS camp_name, m.is_cancelled AS camp_cancelled,
       COALESCE((SELECT jsonb_agg(jsonb_build_object('key', i.item_key, 'name', i.name,
         'unit_of_measure', i.unit_of_measure, 'quantity', i.quantity) ORDER BY i.item_key)
         FROM camp_equipment_lot_items i WHERE i.lot_id = l.id AND i.organization_id = l.organization_id), '[]'::jsonb) AS items,
@@ -66,6 +66,17 @@ async function listLots(db, organizationId, meetingId = null, assigneeId = null)
      ORDER BY l.meeting_id, l.name, l.id`, [organizationId, meetingId, assigneeId],
   );
   return result.rows;
+}
+
+/** Minimal packs of the planned camps linked to an outing, respecting personal ownership. */
+async function activityPacks(db, organizationId, activityId, assigneeId = null) {
+  const meetings = await db.query(`SELECT id FROM year_plan_meetings
+    WHERE organization_id = $1 AND activity_id = $2 AND meeting_kind = 'camp' ORDER BY id`, [organizationId, activityId]);
+  const packs = await Promise.all(meetings.rows.map(async (meeting) => ({
+    meeting_id: meeting.id, own_only: Boolean(assigneeId),
+    lots: await listLots(db, organizationId, meeting.id, assigneeId),
+  })));
+  return packs;
 }
 
 /** Current items and active members; no family, youth, health or account-email data. */
@@ -172,7 +183,7 @@ function saveLot(pool, organizationId, actorId, meetingId, input, lotId = null) 
 /** Change state once, rejecting stale devices and atomically updating role tasks. */
 function changeLotStatus(pool, { organizationId, actorId, ownOnly }, lotId, input) {
   return transaction(pool, async (db) => {
-    const hash = digest({ lotId, status: input.status, version: input.expected_version });
+    const hash = digest({ lotId, status: input.status, version: input.expected_version, previous: input.previous_mutation_id || null });
     const initial = (await db.query('SELECT meeting_id FROM camp_equipment_lots WHERE organization_id = $1 AND id = $2', [organizationId, lotId])).rows[0];
     if (!initial) {throw new CampLotError('camp_lot_not_found', HTTP_NOT_FOUND);}
     await campFor(db, organizationId, initial.meeting_id, true);
@@ -195,6 +206,14 @@ function changeLotStatus(pool, { organizationId, actorId, ownOnly }, lotId, inpu
       if (receipt.request_hash !== hash || !receipt.response_data) {throw new CampLotError('camp_lot_creation_conflict', HTTP_CONFLICT);}
       return receipt.response_data;
     }
+    if (input.previous_mutation_id) {
+      const previous = (await db.query(`SELECT response_data FROM camp_equipment_lot_receipts
+        WHERE organization_id = $1 AND actor_id = $2 AND mutation_id = $3`,
+      [organizationId, actorId, input.previous_mutation_id])).rows[0]?.response_data;
+      if (previous?.id !== lotId || previous?.version !== input.expected_version) {
+        throw new CampLotError('camp_lot_version_conflict', HTTP_CONFLICT);
+      }
+    }
     if (lot.version !== input.expected_version || !LOT_TRANSITIONS[lot.status].includes(input.status)) {throw new CampLotError('camp_lot_version_conflict', HTTP_CONFLICT);}
     const saved = (await db.query('UPDATE camp_equipment_lots SET status = $1, version = version + 1, updated_at = NOW() WHERE organization_id = $2 AND id = $3 RETURNING *', [input.status, organizationId, lotId])).rows[0];
     for (const task of roles) {
@@ -213,4 +232,4 @@ function changeLotStatus(pool, { organizationId, actorId, ownOnly }, lotId, inpu
   });
 }
 
-module.exports = { CampLotError, TaskError, readRoles, listLots, options, saveLot, changeLotStatus };
+module.exports = { CampLotError, TaskError, readRoles, listLots, activityPacks, options, saveLot, changeLotStatus };

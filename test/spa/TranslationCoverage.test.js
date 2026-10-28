@@ -263,3 +263,13 @@ test('every permission sending state has English and French labels', () => {
   expect(uses.length).toBeGreaterThan(5);
   expect(missing(uses)).toEqual([]);
 });
+
+
+test('every equipment lot state, duty and transition has labels in both languages', () => {
+  const rules = require('../../config/camp_equipment_lots.json');
+  const uses = [
+    ...rules.LOT_ROLES.map((role) => [`camp_lot_${role}`, 'lot duties']),
+    ...rules.LOT_STATES.flatMap((state) => [[`camp_lot_${state}`, 'lot states'], [`camp_lot_mark_${state}`, 'lot actions']]),
+  ];
+  expect(missing(uses)).toEqual([]);
+});

@@ -1,0 +1,20 @@
+/* Packing cards stay readable, including duties and quantities, at phone width. */
+.camp-lots { max-inline-size: 64rem; margin-inline: auto; overflow-wrap: anywhere; }
+.camp-lots__list { list-style: none; padding: 0; display: grid; gap: var(--space-md, 1rem); }
+.camp-lots__card { padding: var(--space-md, 1rem); min-inline-size: 0; }
+.camp-lots__card h2 { margin-block: 0 0.5rem; }
+.camp-lots__state { font-weight: 700; }
+.camp-lots__actions, .camp-lots__toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.camp-lots__duties { display: grid; gap: 0.75rem; }
+.camp-lots__duties dt { font-weight: 600; }
+.camp-lots__duties dd { margin-inline-start: 0; }
+.camp-lots__device { border: 1px solid var(--color-border, #767676); border-radius: 0.75rem; padding: 1rem; margin-block: 1rem; }
+.camp-lots__notice { font-weight: 600; border-inline-start: 4px solid currentColor; padding-inline-start: 0.75rem; }
+.camp-lots summary, .camp-lot-editor summary { min-block-size: 44px; padding-block: 0.75rem; cursor: pointer; }
+.camp-lot-editor { display: grid; gap: 0.75rem; min-inline-size: 0; }
+.camp-lot-editor fieldset { min-inline-size: 0; border: 1px solid var(--color-border, #767676); padding: 0.75rem; }
+.camp-lot-editor__item { display: grid; gap: 0.5rem; padding-block: 0.75rem; }
+.camp-lot-editor__item > label:first-child { display: flex; align-items: center; gap: 0.5rem; min-block-size: 44px; }
+.camp-lot-editor input:not([type="checkbox"]), .camp-lot-editor select { inline-size: 100%; min-inline-size: 0; min-block-size: 44px; box-sizing: border-box; }
+.camp-lot-editor input[type="checkbox"] { inline-size: 1.5rem; block-size: 1.5rem; flex: 0 0 auto; }
+.camp-lot-editor details[open] { display: grid; gap: 0.75rem; }

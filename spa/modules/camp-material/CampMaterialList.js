@@ -314,6 +314,7 @@ export class CampMaterialList {
         <p class="camp-material__camp">${escapeHTML(this.campLabel())}</p>
         ${this.hasContent() ? `
           <div class="camp-material__actions">
+            ${hasAllPermissions('camp_lots.view') ? `<a class="button button--secondary" href="/camp-lots/${Number(this.meetingId)}">${translate('camp_lots_open')}</a>` : ''}
             <button type="button" class="button button--secondary" id="camp-material-print">
               ${escapeHTML(translate('print'))}
             </button>

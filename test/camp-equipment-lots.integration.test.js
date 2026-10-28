@@ -23,8 +23,8 @@ describe.skipIf(!DATABASE_URL)('Equipment lots of a camp', () => {
     } catch (err) {await db.query('ROLLBACK'); throw err;}
     finally {db.release();}
   }
-  async function member(unitId, keys, name) {
-    const role = await one("INSERT INTO roles (role_name, display_name, data_scope, organization_id) VALUES ('lot_' || gen_random_uuid(), 'Equipment helper', 'linked', $1) RETURNING id", [unitId]);
+  async function member(unitId, keys, name, scope = 'linked') {
+    const role = await one("INSERT INTO roles (role_name, display_name, data_scope, organization_id) VALUES ('lot_' || gen_random_uuid(), 'Equipment helper', $2, $1) RETURNING id", [unitId, scope]);
     await pool.query('INSERT INTO role_permissions (role_id, permission_id) SELECT $1, id FROM permissions WHERE permission_key = ANY($2::text[])', [role, keys]);
     const user = await one("INSERT INTO users (email, password, full_name) VALUES ('lot-' || gen_random_uuid() || '@example.test', 'x', $1) RETURNING id", [name]);
     users.push(user);
@@ -66,6 +66,7 @@ describe.skipIf(!DATABASE_URL)('Equipment lots of a camp', () => {
     app = express(); app.locals.pool = pool; app.use(express.json());
     app.use('/api/v1/camp-equipment-lots', require('../routes/camp-equipment-lots')(pool));
     app.use('/api/v1/tasks', require('../routes/tasks')(pool));
+    app.use('/api/v1/offline', require('../routes/offline')(pool, { info: jest.fn(), error: jest.fn() }));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
   });
   beforeEach(async () => {
@@ -151,6 +152,39 @@ describe.skipIf(!DATABASE_URL)('Equipment lots of a camp', () => {
     const current = (await call('get', `/meetings/${ids.camp}`)).body.data[0];
     expect(current).toMatchObject({ status: 'loaded', version: 2 });
     expect(current.history).toHaveLength(2);
+  });
+  test('a dependent offline return requires its preceding mutation to have succeeded', async () => {
+    const lot = await create(); const load = state();
+    await changeLotStatus(pool, context(), lot.id, load);
+    await expect(changeLotStatus(pool, context(), lot.id,
+      state({ status: 'returned', expected_version: 2, previous_mutation_id: randomUUID() }))).rejects.toMatchObject({ status: 409 });
+    const returned = await changeLotStatus(pool, context(), lot.id,
+      state({ status: 'returned', expected_version: 2, previous_mutation_id: load.mutation_id }));
+    expect(returned).toMatchObject({ status: 'returned', version: 3 });
+    expect(returned.history).toHaveLength(3);
+  });
+  test('a task-only helper prepares only their assigned camp lots without youth access', async () => {
+    const lot = await create();
+    const personal = await call('get', `/mine/meetings/${ids.camp}`, ids.carrier);
+    expect(personal.status).toBe(200);
+    expect(personal.body.data.map((row) => row.id)).toEqual([lot.id]);
+    expect((await call('get', `/mine/meetings/${ids.camp}`, ids.colleague)).body.data).toEqual([]);
+    expect((await call('get', `/mine/meetings/${ids.otherCamp}`, ids.carrier)).status).toBe(404);
+    const youth = await request(app).post('/api/v1/offline/prepare-activity').set(auth(ids.carrier))
+      .send({ start_date: '2026-11-14', end_date: '2026-11-16' });
+    expect(youth.status).toBe(403);
+  });
+  test('full camp preparation includes lot packs only when the person holds the lot or task permission', async () => {
+    const lot = await create();
+    const campPreparer = await member(ids.unit, ['activities.view', 'camp_lots.view'], 'Camp Preparer Fiction', 'organization');
+    const otherPreparer = await member(ids.unit, ['activities.view'], 'Other Preparer Fiction', 'organization');
+    const outing = await one('SELECT activity_id FROM year_plan_meetings WHERE id = $1', [ids.camp]);
+    const prepare = (user) => request(app).post('/api/v1/offline/prepare-activity').set(auth(user))
+      .send({ activity_id: outing, start_date: '2026-11-14', end_date: '2026-11-16' });
+    const allowed = await prepare(campPreparer);
+    expect(allowed.status).toBe(200);
+    expect(allowed.body.data.campLots).toEqual([{ meeting_id: ids.camp, own_only: false, lots: [expect.objectContaining({ id: lot.id })] }]);
+    expect((await prepare(otherPreparer)).body.data.campLots).toEqual([]);
   });
   test('two status changes from the same version cannot silently overwrite each other', async () => {
     const lot = await create();

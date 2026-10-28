@@ -4,11 +4,12 @@
  */
 const express = require('express');
 const router = express.Router();
-const { authenticate, getOrganizationId, requirePermission } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, userHasPermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { getActionRoster } = require('../services/actionRoster');
 const { mayReadInviteeList, getActivityParticipation } = require('../services/activityInvitations');
 const { DATE_LIMITS } = require('../config/constants');
+const { activityPacks } = require('../services/campEquipmentLots');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 
 const HTTP_BAD_REQUEST = 400;
@@ -282,7 +283,13 @@ module.exports = (pool, logger) => {
           honorsByDate[date] = honorsResult.rows.filter(h => h.date === date);
         }
 
+        const mayReadCampLots = await userHasPermission(req, pool, organizationId, 'camp_lots.view');
+        const mayReadOwnLots = await userHasPermission(req, pool, organizationId, 'tasks.view');
+        const preparedOuting = activityResult.rows[0];
+        const campLots = preparedOuting && (mayReadCampLots || mayReadOwnLots)
+          ? await activityPacks(client, organizationId, preparedOuting.id, mayReadCampLots ? null : req.user.id) : [];
         const responseData = {
+          campLots,
           actionRoster: await getActionRoster(client, organizationId, start_date, end_date),
           activity: activityResult.rows[0] || null,
           dates,

@@ -22,6 +22,8 @@ module.exports = (pool) => {
   router.use(authenticate);
   router.get('/mine', requirePermission('tasks.view'), handle(async (req, res) =>
     success(res, await lots.listLots(pool, await getOrganizationId(req, pool), null, req.user.id))));
+  router.get('/mine/meetings/:meetingId', requirePermission('tasks.view'), validateIdParam('meetingId'), checkValidation, handle(async (req, res) =>
+    success(res, await lots.listLots(pool, await getOrganizationId(req, pool), Number(req.params.meetingId), req.user.id))));
   router.get('/meetings/:meetingId', requirePermission('camp_lots.view'), validateIdParam('meetingId'), checkValidation, handle(async (req, res) =>
     success(res, await lots.listLots(pool, await getOrganizationId(req, pool), Number(req.params.meetingId)))));
   router.get('/meetings/:meetingId/options', requirePermission('camp_lots.manage', 'tasks.manage'), validateIdParam('meetingId'), checkValidation, handle(async (req, res) =>
@@ -42,6 +44,7 @@ module.exports = (pool) => {
       success(res, await lots.saveLot(pool, await getOrganizationId(req, pool), req.user.id, Number(req.params.meetingId), { ...req.body, expected_version: Number(req.body.expected_version) }, Number(req.params.id)))));
 
   const stateFields = () => [validateIdParam('id'), versionType(), validateIdBody('expected_version'),
+    body('previous_mutation_id').optional().isString().bail().isUUID('4'),
     body('status').isString().bail().isIn(LOT_STATES), body('mutation_id').isString().bail().isUUID('4'), checkValidation];
   const state = (ownOnly) => handle(async (req, res) => success(res, await lots.changeLotStatus(pool,
     { organizationId: await getOrganizationId(req, pool), actorId: req.user.id, ownOnly }, Number(req.params.id), { ...req.body, expected_version: Number(req.body.expected_version) })));

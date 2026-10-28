@@ -18,7 +18,7 @@ const pool = { query: db.query, connect: jest.fn(() => Promise.resolve(db)) };
 const app = express(); app.locals.pool = pool; app.use(express.json());
 app.use('/api/v1/camp-equipment-lots', require('../routes/camp-equipment-lots')(pool));
 app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
-const paths = [['get', '/mine'], ['get', '/meetings/4'], ['get', '/meetings/4/options'], ['post', '/meetings/4'], ['put', '/meetings/4/3'], ['patch', '/3/status'], ['patch', '/mine/3/status']];
+const paths = [['get', '/mine'], ['get', '/mine/meetings/4'], ['get', '/meetings/4'], ['get', '/meetings/4/options'], ['post', '/meetings/4'], ['put', '/meetings/4/3'], ['patch', '/3/status'], ['patch', '/mine/3/status']];
 const token = () => jwt.sign({ user_id: USER, organizationId: 7 }, process.env.JWT_SECRET_KEY);
 const call = (method, path) => request(app)[method](`/api/v1/camp-equipment-lots${path}`).set('Authorization', `Bearer ${token()}`);
 const assignment = { name: 'Kitchen', creation_key: '00000000-0000-4000-8000-000000000002', items: [{ catalog_item_id: 2, quantity: 1 }], roles: [{ role: 'prepare', user_id: USER }], expected_version: 1 };
@@ -63,7 +63,7 @@ test.each(['12abc', '0', '3000000000'])('malformed lot id %s never reaches a tra
   expect((await call('patch', `/${id}/status`).send(state)).status).toBe(400);
   expect(pool.connect).not.toHaveBeenCalled();
 });
-test.each([{ ...state, status: ['loaded'] }, { ...state, expected_version: [1] }, { ...state, mutation_id: 'wrong' }])('invalid status payloads never reach a transaction', async (data) => {
+test.each([{ ...state, previous_mutation_id: 'invalid' }, { ...state, status: ['loaded'] }, { ...state, expected_version: [1] }, { ...state, mutation_id: 'wrong' }])('invalid status payloads never reach a transaction', async (data) => {
   expect((await call('patch', '/3/status').send(data)).status).toBe(400);
   expect(pool.connect).not.toHaveBeenCalled();
 });
