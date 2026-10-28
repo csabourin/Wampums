@@ -50,7 +50,7 @@ export class EquipmentCatalog {
     this.unified = Boolean(options.unified);
     this.canManageStock = hasPermission('inventory.manage');
     this.readOnly = isDemoUser();
-    this.canLinkInventory = this.unified ? ['inventory.view', 'inventory.manage', 'inventory.reserve', 'inventory.value'].some((key) => hasPermission(key)) : hasPermission('inventory.view');
+    this.canLinkInventory = hasPermission('inventory.view');
     this.showArchived = false;
     this.items = [];
     this.destroyed = false;
@@ -158,11 +158,11 @@ export class EquipmentCatalog {
     document.getElementById('equipment-catalog-create')?.addEventListener('click', () => this.edit());
     root.querySelectorAll('[data-catalog-edit]').forEach((button) => {
       button.addEventListener('click', () =>
-        this.edit(this.items.find((item) => item.id === Number(button.dataset.catalogEdit))));
+        this.edit(this.items.find((item) => !item.inventory_only && item.id === Number(button.dataset.catalogEdit))));
     });
     root.querySelectorAll('[data-catalog-archive]').forEach((button) => {
       button.addEventListener('click', () =>
-        this.toggleArchived(this.items.find((item) => item.id === Number(button.dataset.catalogArchive))));
+        this.toggleArchived(this.items.find((item) => !item.inventory_only && item.id === Number(button.dataset.catalogArchive))));
     });
   }
 

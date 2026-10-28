@@ -271,3 +271,27 @@ test('a failed stock read shows a retry instead of an incomplete all-articles li
   expect(document.getElementById('equipment-catalog-retry')).not.toBeNull();
   expect(document.querySelector('.equipment-catalog__list')).toBeNull();
 });
+
+test('the unified list does not confuse a catalogue article with stock having the same numeric ID', async () => {
+  hasPermission.mockReturnValue(true);
+  api.getEquipmentCatalog.mockResolvedValue({ data: [{
+    id: 3, name: 'Z Rope', category: 'tools', unit_of_measure: 'm',
+    equipment_item_id: 9, equipment_name: 'Linked rope stock', archived: false, usage_count: 0,
+  }] });
+  api.getLinkableEquipment.mockResolvedValue({ data: { equipment: [
+    { id: 3, name: 'A Stove', category: 'kitchen', quantity_total: 1 },
+    { id: 9, name: 'Linked rope stock', category: 'tools', quantity_total: 2 },
+  ] } });
+  await new EquipmentCatalog(app, { unified: true }).init();
+  document.querySelector('[data-catalog-edit="3"]').click();
+  await settle();
+  expect(document.getElementById('equipment-catalog-form').elements.catalog_name.value).toBe('Z Rope');
+});
+
+test('the unified list remains available without inventory.view and does not request stock', async () => {
+  hasPermission.mockImplementation((key) => ['equipment_catalog.manage', 'inventory.reserve'].includes(key));
+  await new EquipmentCatalog(app, { unified: true }).init();
+  expect(api.getLinkableEquipment).not.toHaveBeenCalled();
+  expect(document.querySelector('.equipment-catalog__item h2').textContent).toBe(HOSTILE);
+  expect(document.getElementById('equipment-catalog-retry')).toBeNull();
+});
