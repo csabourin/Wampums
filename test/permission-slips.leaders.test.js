@@ -113,6 +113,7 @@ function mockDatabase({ permissions = ['permission_slips.sign'], ownChild = fals
     if (query.includes('AND ps.email_sent = false') && query.includes('JOIN participants p')) {
       return { rows: [SLIP] };
     }
+    if (query.includes('INSERT INTO permission_slip_deliveries')) {return { rows: [{ id: 1 }] };}
     if (query.includes('FROM participant_guardians pg')) {
       return { rows: [{ id: 2, prenom: 'Julie', nom: 'Tremblay', courriel: 'julie@famille.test' }] };
     }

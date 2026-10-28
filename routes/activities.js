@@ -1,3 +1,4 @@
+const { createHash } = require('node:crypto');
 const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
@@ -16,11 +17,19 @@ const { readRichTextField } = require('../utils/richText');
 const { buildActivitiesCalendar, buildICalFilename } = require('../utils/activityCalendar');
 
 module.exports = (pool) => {
+  /** Creation retry metadata stays on the server. */
+  const publicActivity = (activity) => {
+    const result = { ...activity };
+    delete result.creation_key;
+    delete result.creation_fingerprint;
+    return result;
+  };
   const AUTHORIZATION_TEXT_MAX_LENGTH = 10000;
   const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
   const TIME_PATTERN = /^(\d{2}):(\d{2})(?::(\d{2}))?$/;
   const HTTP_BAD_REQUEST = 400;
   const HTTP_CREATED = 201;
+  const HTTP_CONFLICT = 409;
   const HOURS_PER_DAY = 24;
   const MINUTES_PER_HOUR = 60;
   const SECONDS_PER_MINUTE = 60;
@@ -83,7 +92,7 @@ module.exports = (pool) => {
       [organizationId]
     );
 
-    return success(res, result.rows);
+    return success(res, result.rows.map(publicActivity));
   }));
 
   /**
@@ -204,7 +213,7 @@ module.exports = (pool) => {
     }
 
     // The list of invited children is for those who organize the activity
-    const activity = result.rows[0];
+    const activity = publicActivity(result.rows[0]);
     if (!mayReadInviteeList(req)) {
       delete activity.invited_participant_ids;
     }
@@ -279,7 +288,7 @@ module.exports = (pool) => {
    * @returns {string|null} Error message, or null when the schedule is valid
    */
   const validateSchedule = (activity) => {
-    if (activity.meeting_time_going >= activity.departure_time_going) {
+    if (activity.transport_required !== false && activity.meeting_time_going >= activity.departure_time_going) {
       return 'Departure time must be after meeting time';
     }
     if (activity.meeting_time_return && activity.departure_time_return
@@ -305,6 +314,13 @@ module.exports = (pool) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
 
+    const creationKey = req.body.creation_key;
+    if (creationKey !== undefined && (typeof creationKey !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(creationKey))) {
+      return error(res, 'invalid_request', HTTP_BAD_REQUEST);
+    }
+    if ((req.body.transport_required !== undefined && typeof req.body.transport_required !== 'boolean') || (req.body.authorization_required !== undefined && typeof req.body.authorization_required !== 'boolean')) {
+      return error(res, 'invalid_request', HTTP_BAD_REQUEST);
+    }
     // Debug logging to diagnose form submission issues
     logger.info('[Activity Creation] Request received', {
       organizationId,
@@ -367,7 +383,7 @@ module.exports = (pool) => {
     }
 
     const invalidFields = [
-      ...['activity_date', 'activity_start_date', 'activity_end_date']
+      ...['activity_date', 'activity_start_date', 'activity_end_date', 'authorization_deadline_date']
         .filter((field) => optionalText(req.body[field]) !== null && !isValidDate(req.body[field])),
       ...TIME_FIELDS
         .filter((field) => optionalText(req.body[field]) !== null && normalizeTime(req.body[field]) === null)
@@ -378,6 +394,9 @@ module.exports = (pool) => {
 
     const activity = {
       name: activityName,
+      transport_required: req.body.transport_required !== false,
+      authorization_required: req.body.authorization_required === true,
+      authorization_deadline_date: optionalText(req.body.authorization_deadline_date),
       ...readDescription(req.body),
       authorization_text: optionalText(authorization_text),
       activity_date: normalizedActivityDate,
@@ -403,20 +422,31 @@ module.exports = (pool) => {
       return error(res, invitation.problem, HTTP_BAD_REQUEST);
     }
 
-    if (invitation.invitesEveryone) {
+    if (invitation.invitesEveryone && !creationKey) {
       const created = await insertActivity(pool, activity, userId, organizationId);
-      return success(res, created, 'Activity created successfully', HTTP_CREATED);
+      return success(res, publicActivity(created), 'Activity created successfully', HTTP_CREATED);
     }
 
     // An activity for some participants is saved with its list, or not at all
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      const fingerprint = createHash('sha256').update(JSON.stringify({ activity, invitation })).digest('hex');
+      if (creationKey) {
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`activity:${organizationId}:${creationKey}`]);
+        const previous = await client.query('SELECT * FROM activities WHERE organization_id = $1 AND creation_key = $2', [organizationId, creationKey]);
+        if (previous.rows.length) {
+          await client.query('ROLLBACK');
+          return previous.rows[0].creation_fingerprint === fingerprint
+            ? success(res, publicActivity(previous.rows[0]), 'Activity already created')
+            : error(res, 'authorization_creation_changed', HTTP_CONFLICT);
+        }
+      }
       const created = await insertActivity(client, activity, userId, organizationId);
       const saved = await saveInvitation(client, {
         activityId: created.id,
         organizationId,
-        invitesEveryone: false,
+        invitesEveryone: invitation.invitesEveryone,
         participantIds: invitation.participantIds
       });
       if (saved.unknownParticipantIds.length > 0) {
@@ -424,10 +454,13 @@ module.exports = (pool) => {
         return error(res, 'Some invited participants are not in this unit', HTTP_BAD_REQUEST,
           [{ field: 'invited_participant_ids', value: saved.unknownParticipantIds }]);
       }
+      if (creationKey) {
+        await client.query('UPDATE activities SET creation_key = $1, creation_fingerprint = $2 WHERE id = $3 AND organization_id = $4', [creationKey, fingerprint, created.id, organizationId]);
+      }
       await client.query('COMMIT');
       return success(res, {
-        ...created,
-        invites_everyone: false,
+        ...publicActivity(created),
+        invites_everyone: invitation.invitesEveryone,
         invited_participant_ids: invitation.participantIds,
         invited_count: invitation.participantIds.length
       }, 'Activity created successfully', HTTP_CREATED);
@@ -453,12 +486,12 @@ module.exports = (pool) => {
         name, description, authorization_text, activity_date, activity_start_date, activity_start_time,
         activity_end_date, activity_end_time, meeting_location_going, meeting_time_going,
         departure_time_going, meeting_location_return, meeting_time_return,
-        departure_time_return, created_by, organization_id, description_html
+        departure_time_return, created_by, organization_id, description_html, authorization_required, authorization_deadline_date, transport_required
       ) VALUES (
         $1, $2, $3, $4, $5, $6,
         $7, $8, $9, $10,
         $11, $12, $13,
-        $14, $15, $16, $17
+        $14, $15, $16, $17, $18, $19, $20
       ) RETURNING *`,
       [
         activity.name,
@@ -477,7 +510,10 @@ module.exports = (pool) => {
         activity.departure_time_return,
         userId,
         organizationId,
-        activity.description_html
+        activity.description_html,
+        activity.authorization_required,
+        activity.authorization_deadline_date,
+        activity.transport_required
       ]
     );
     return result.rows[0];
@@ -508,7 +544,7 @@ module.exports = (pool) => {
       await client.query('BEGIN');
 
       const existingResult = await client.query(
-        `SELECT name, description, description_html, authorization_text, is_active, invites_everyone,
+        `SELECT name, description, description_html, authorization_text, authorization_required, authorization_deadline_date, transport_required, is_active, invites_everyone,
                 activity_date::text AS activity_date,
                 activity_start_date::text AS activity_start_date,
                 activity_start_time::text AS activity_start_time,
@@ -541,6 +577,27 @@ module.exports = (pool) => {
         meeting_time_return: normalizeTime(existing.meeting_time_return),
         departure_time_return: normalizeTime(existing.departure_time_return)
       };
+      if (has('transport_required')) {
+        if (typeof body.transport_required !== 'boolean') {
+          await client.query('ROLLBACK');
+          return error(res, 'invalid_request', HTTP_BAD_REQUEST);
+        }
+        activity.transport_required = body.transport_required;
+      }
+      if (has('authorization_required')) {
+        if (typeof body.authorization_required !== 'boolean') {
+          await client.query('ROLLBACK');
+          return error(res, 'invalid_request', HTTP_BAD_REQUEST);
+        }
+        activity.authorization_required = body.authorization_required;
+      }
+      if (has('authorization_deadline_date')) {
+        if (body.authorization_deadline_date && !isValidDate(body.authorization_deadline_date)) {
+          await client.query('ROLLBACK');
+          return error(res, 'invalid_request', HTTP_BAD_REQUEST);
+        }
+        activity.authorization_deadline_date = optionalText(body.authorization_deadline_date);
+      }
       const invalidFields = [];
 
       if (has('activity_name') || has('name')) {
@@ -617,6 +674,9 @@ module.exports = (pool) => {
                 departure_time_return = $14,
                 is_active = $15,
                 description_html = $18,
+                authorization_required = $19,
+                authorization_deadline_date = $20,
+                transport_required = $21,
                 updated_at = CURRENT_TIMESTAMP
           WHERE id = $16 AND organization_id = $17
           RETURNING *`,
@@ -638,7 +698,10 @@ module.exports = (pool) => {
           activity.is_active,
           activityId,
           organizationId,
-          activity.description_html
+          activity.description_html,
+          activity.authorization_required ?? false,
+          activity.authorization_deadline_date || null,
+          activity.transport_required ?? true
         ]
       );
 

@@ -11,6 +11,7 @@ export class QuickCreateActivityModal {
   constructor(app, options = {}) {
     this.app = app;
     this.handle = null;
+    this.defaultAuthorization = options.defaultAuthorization || false;
     this.onSuccess = options.onSuccess || null; // Callback after successful creation
     this.redirectPath = options.redirectPath || null; // e.g., '/permission-slips/{id}' or '/carpool/{id}'
   }
@@ -20,6 +21,7 @@ export class QuickCreateActivityModal {
    */
   show() {
     this.handle = openActivityFormModal(this.app, {
+      defaultAuthorization: this.defaultAuthorization,
       onSaved: async (newActivity) => {
         this.handle = null;
         if (this.onSuccess) {

@@ -3,6 +3,10 @@
 // Every screen that creates or edits an activity opens this modal, so the
 // fields, the validation and the permission-slip authorization text stay the
 // same wherever an activity is managed.
+import { authorizationFieldsHTML, attachAuthorizationComposer } from './ActivityAuthorizationComposer.js';
+import { sendActivityAuthorizations } from '../../api/api-activity-authorizations.js';
+import { authorizationResultHTML } from './AuthorizationResult.js';
+import { setContent } from '../../utils/DOMUtils.js';
 import { translate } from '../../app.js';
 import { createActivity, getActivity, updateActivity } from '../../api/api-activities.js';
 import { clearActivityPermissionSlipCaches, clearActivityRelatedCaches } from '../../indexedDB.js';
@@ -26,7 +30,6 @@ import { formatEquipmentQuantity } from '../../utils/EquipmentUnitUtils.js';
 const DEFAULT_AI_DURATION_MINUTES = 120;
 const DEFAULT_AI_PARTICIPANT_COUNT = 12;
 const ACTIVITY_NAME_MAX_LENGTH = 255;
-const AUTHORIZATION_TEXT_MAX_LENGTH = 10000;
 const TIME_INPUT_LENGTH = 5;
 
 // Defaults offered when creating an activity from scratch
@@ -62,7 +65,7 @@ function tomorrowDate() {
  * @param {Object|null} activity - Activity being edited, or null to create
  * @returns {string} Form HTML
  */
-function buildFormHTML(activity) {
+function buildFormHTML(activity, defaultAuthorization) {
   const isEdit = Boolean(activity);
   const defaults = isEdit ? {} : NEW_ACTIVITY_DEFAULTS;
   const startDate = isEdit ? getActivityStartDate(activity) : tomorrowDate();
@@ -118,15 +121,22 @@ function buildFormHTML(activity) {
 
       ${buildInviteesFieldsetHTML(activity)}
 
-      <fieldset class="form-fieldset">
-        <legend>${translate('going_to_activity')}</legend>
-
         <div class="form-group">
           <label for="meeting-location-going">${translate('meeting_location')} ${required}</label>
           <input type="text" id="meeting-location-going" name="meeting_location_going"
                  value="${value('meeting_location_going')}" required
                  class="form-control" placeholder="${escapeHTML(translate('meeting_location_placeholder'))}">
         </div>
+
+      <div class="checkbox-option">
+        <input type="checkbox" id="activity-transport-required" name="transport_required" ${activity?.transport_required !== false && activity ? 'checked' : ''} aria-controls="activity-transport-fields">
+        <label for="activity-transport-required">${translate('authorization_transport_required')}</label>
+      </div>
+      <div id="activity-transport-fields" ${activity?.transport_required !== false && activity ? '' : 'hidden'}>
+      <details class="activity-transport-details" open>
+      <summary>${translate('authorization_transport_details')}</summary>
+      <fieldset class="form-fieldset">
+        <legend>${translate('going_to_activity')}</legend>
 
         <div class="form-row">
           <div class="form-group">
@@ -166,20 +176,11 @@ function buildFormHTML(activity) {
         </div>
       </fieldset>
 
-      <fieldset class="form-fieldset">
-        <legend>${translate('activity_permission_slip_section')}</legend>
-        <div class="form-group">
-          <label for="activity-authorization-text">${translate('activity_authorization_text_label')}</label>
-          <textarea id="activity-authorization-text" name="authorization_text" class="form-control" rows="5"
-                    maxlength="${AUTHORIZATION_TEXT_MAX_LENGTH}"
-                    aria-describedby="activity-authorization-text-help"
-                    placeholder="${escapeHTML(translate('activity_authorization_text_placeholder'))}">${value('authorization_text')}</textarea>
-          <small class="form-help" id="activity-authorization-text-help">${translate('activity_authorization_text_help')}</small>
-        </div>
-      </fieldset>
+      </details></div>
+      ${authorizationFieldsHTML(activity, defaultAuthorization)}
 
       ${isEdit ? `
-        <div class="form-group">
+        <div class="form-group" data-activity-notify>
           <label>
             <input type="checkbox" name="notify_participants">
             ${translate('activity_notify_updates_label')}
@@ -188,11 +189,15 @@ function buildFormHTML(activity) {
         </div>
       ` : ''}
 
+      <div id="activity-save-result" role="status" tabindex="-1"></div>
       <div class="modal-actions">
         <button type="button" class="button button--secondary" id="magic-generate-btn">✨ ${translate('magic_generate')}</button>
         <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
-        <button type="submit" class="button button--primary">
-          ${isEdit ? translate('save_changes') : translate('create_activity')}
+        <button type="submit" name="intent" value="send" class="button button--primary" data-activity-send hidden>
+          ${translate(isEdit ? 'authorization_save_send' : 'authorization_create_activity_send')}
+        </button>
+        <button type="submit" name="intent" value="save" class="button button--secondary" data-activity-save>
+          ${isEdit ? translate('save_changes') : translate('authorization_save_without_sending')}
         </button>
       </div>
     </form>
@@ -213,6 +218,15 @@ function readForm(form, isEdit) {
     data[key] = typeof fieldValue === 'string' ? fieldValue.trim() : fieldValue;
   });
   data.activity_date = data.activity_start_date;
+  data.authorization_required = formData.get('authorization_required') === 'on';
+  data.transport_required = formData.get('transport_required') === 'on';
+  if (!data.transport_required) {
+    data.meeting_time_going = data.activity_start_time;
+    data.departure_time_going = data.activity_start_time;
+    data.meeting_location_return = '';
+    data.meeting_time_return = '';
+    data.departure_time_return = '';
+  }
   // Both versions travel; the server keeps the plain text it derives from
   // the formatted one.
   const descriptionArea = form.querySelector('#activity-description');
@@ -248,7 +262,7 @@ function validate(data) {
   if (`${data.activity_end_date}T${data.activity_end_time}` < `${data.activity_start_date}T${data.activity_start_time}`) {
     return 'activity_form_end_before_start';
   }
-  if (data.meeting_time_going >= data.departure_time_going) {
+  if (data.transport_required && data.meeting_time_going >= data.departure_time_going) {
     return 'activity_form_departure_before_meeting';
   }
   if (data.meeting_time_return && data.departure_time_return
@@ -351,15 +365,18 @@ function showMagicGenerateModal(app, formOverlay) {
  * @param {Function} [options.onSaved] - Called with the saved activity after the modal closes
  * @returns {{ close: Function }} Modal handle
  */
-export function openActivityFormModal(app, { activity = null, onSaved = null } = {}) {
+export function openActivityFormModal(app, { activity = null, onSaved = null, defaultAuthorization = false } = {}) {
   const isEdit = Boolean(activity);
   let saving = false;
+  let persistedActivity = activity;
+  const creationKey = crypto.randomUUID();
 
   const { overlay, close } = openModal({
     id: 'activity-modal',
     title: escapeHTML(isEdit ? translate('edit_activity') : translate('add_activity')),
-    body: buildFormHTML(activity),
-    canClose: () => !saving
+    body: buildFormHTML(activity, defaultAuthorization),
+    canClose: () => !saving,
+    onClose: () => composer?.destroy()
   });
 
   const descriptionEditor = overlay.querySelector('#activity-form [data-rte]');
@@ -367,6 +384,9 @@ export function openActivityFormModal(app, { activity = null, onSaved = null } =
     attachRichTextEditor(descriptionEditor);
   }
 
+  overlay.querySelector('#activity-transport-required').addEventListener('change', (event) => {
+    overlay.querySelector('#activity-transport-fields').hidden = !event.target.checked;
+  });
   const startDateInput = overlay.querySelector('#activity-start-date');
   const invitees = attachInviteesPicker(overlay, {
     activity,
@@ -383,6 +403,7 @@ export function openActivityFormModal(app, { activity = null, onSaved = null } =
       return details?.invited_participant_ids || [];
     }
   });
+  const composer = attachAuthorizationComposer(overlay, () => invitees.readInto(readForm(overlay.querySelector('#activity-form'), Boolean(persistedActivity))), isEdit);
   const endDateInput = overlay.querySelector('#activity-end-date');
   // Keep a one-day activity one day long when only its start date moves
   let previousStartDate = startDateInput?.value || '';
@@ -409,14 +430,40 @@ export function openActivityFormModal(app, { activity = null, onSaved = null } =
       return;
     }
 
-    const submitButton = form.querySelector('button[type="submit"]');
+    if (saving) {return;}
+    const intent = e.submitter?.value || 'save';
+    if (composer.enabled()) {data.notify_participants = false;}
+    const submitButton = e.submitter || form.querySelector('[data-activity-save]');
     saving = true;
+    form.setAttribute('aria-busy', 'true');
+    const controls = Array.from(form.querySelectorAll('input, textarea, select, button'));
+    const previouslyDisabled = controls.map((control) => control.disabled);
+    controls.forEach((control) => {control.disabled = true;});
     setButtonLoading(submitButton, true);
 
     try {
-      const saved = isEdit
-        ? await updateActivity(activity.id, data)
-        : await createActivity(data);
+      const saved = persistedActivity
+        ? await updateActivity(persistedActivity.id, data)
+        : await createActivity({ ...data, creation_key: creationKey });
+      if (!saved?.id) {throw new Error('authorization_unconfirmed');}
+      persistedActivity = saved;
+      overlay.querySelector('[data-activity-send]').textContent = translate('authorization_save_send');
+      if (!overlay.isConnected) {return;}
+      let result = null;
+      if (composer.enabled() && intent === 'send') {
+        setContent(overlay.querySelector('#activity-save-result'), escapeHTML(translate('authorization_sending')));
+        result = await sendActivityAuthorizations(saved.id, data.authorization_deadline_date);
+        if (!overlay.isConnected) {return;}
+        if (result.state !== 'sent') {
+          const feedback = overlay.querySelector('#activity-save-result');
+          setContent(feedback, `${authorizationResultHTML(result, app.lang)}<a href="/permission-slips/${saved.id}" class="button button--secondary">${escapeHTML(translate('authorization_view_result'))}</a>`);
+          feedback.querySelector('a').addEventListener('click', (event) => {
+            event.preventDefault(); saving = false; close(true); app.router.navigate(`/permission-slips/${saved.id}`);
+          });
+          feedback.focus(); feedback.scrollIntoView?.({ block: 'center' });
+          return;
+        }
+      }
       await clearActivityRelatedCaches();
 
       const updatedSlips = saved?.pending_permission_slips_updated || 0;
@@ -426,7 +473,7 @@ export function openActivityFormModal(app, { activity = null, onSaved = null } =
         await clearActivityPermissionSlipCaches(activity.id);
       }
       const message = [
-        isEdit ? translate('activity_updated_success') : translate('activity_created_success'),
+        result ? translate('authorization_state_sent') : data.notify_participants ? translate('activity_updated_success') : translate('authorization_saved_not_sent'),
         updatedSlips > 0
           ? translate('activity_pending_slips_updated').replace('{count}', updatedSlips)
           : '',
@@ -443,11 +490,22 @@ export function openActivityFormModal(app, { activity = null, onSaved = null } =
       if (typeof onSaved === 'function') {
         await onSaved(saved);
       }
+      if (data.authorization_required) {app.router?.navigate(`/permission-slips/${saved.id}`);}
     } catch (err) {
       debugError('Error saving activity:', err);
-      app.showMessage(apiErrorMessage(err, 'error_saving_activity'), 'error');
+      if (!overlay.isConnected) {return;}
+      const feedback = overlay.querySelector('#activity-save-result');
+      const message = persistedActivity ? 'authorization_saved_send_unconfirmed' : 'authorization_unconfirmed';
+      setContent(feedback, `${escapeHTML(err.code === 'operation_unconfirmed' ? translate(message) : apiErrorMessage(err, message))}${persistedActivity
+        ? `<p><a href="/permission-slips/${persistedActivity.id}" class="button button--secondary">${escapeHTML(translate('authorization_view_result'))}</a></p>` : ''}`);
+      feedback.querySelector('a')?.addEventListener('click', (event) => {
+        event.preventDefault(); saving = false; close(true); app.router.navigate(`/permission-slips/${persistedActivity.id}`);
+      });
+      feedback.focus(); feedback.scrollIntoView?.({ block: 'center' });
     } finally {
       saving = false;
+      form.removeAttribute('aria-busy');
+      controls.forEach((control, index) => {control.disabled = previouslyDisabled[index];});
       setButtonLoading(submitButton, false);
     }
   });

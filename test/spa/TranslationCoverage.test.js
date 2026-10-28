@@ -254,3 +254,12 @@ test('every key the starter activity screen holds in a lookup table exists', () 
   expect(keys.length).toBeGreaterThan(10);
   expect(missing(keys)).toEqual([]);
 });
+
+
+test('every permission sending state has English and French labels', () => {
+  const file = 'spa/modules/activities/AuthorizationResult.js';
+  const source = code(path.join(ROOT, file));
+  const uses = [...source.matchAll(/['"](authorization_state_[a-z_]+)['"]/g)].map((match) => [match[1], file]);
+  expect(uses.length).toBeGreaterThan(5);
+  expect(missing(uses)).toEqual([]);
+});
