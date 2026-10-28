@@ -6,6 +6,9 @@ test.use({ storageState: storageStateFor(ACCOUNTS.admin) });
 const MEETING = seededRecord('campMeetingId');
 
 async function controlWorker(page) {
+  const version = await page.evaluate(() => window.__wampumsLangVersions.en);
+  const bundle = await page.request.get(`/lang/en.json?v=${version}`);
+  expect(bundle.headers()['x-content-version']).toBe(version);
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   // This controlled navigation retains the real HTML shell and entry asset references.

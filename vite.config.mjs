@@ -22,6 +22,20 @@ import {
 function copyStaticLanguageBundlesPlugin() {
   return {
     name: 'copy-static-language-bundles',
+    // Preview must label the actual built bundle just as Express does. The
+    // worker intentionally refuses to cache a versioned file without proof.
+    configurePreviewServer(server) {
+      const staticRoot = path.resolve(server.config.root, server.config.build.outDir);
+      server.middlewares.use((req, res, next) => {
+        const pathname = new URL(req.url, 'http://preview.local').pathname;
+        const language = /^\/lang\/([a-z]+)\.json$/.exec(pathname)?.[1];
+        if (INTERFACE_LANGS.includes(language)) {
+          const version = translationBundleVersion({ filePath: path.join(staticRoot, 'lang', `${language}.json`), staticRoot });
+          if (version) { res.setHeader(CONTENT_VERSION_HEADER, version); }
+        }
+        next();
+      });
+    },
     closeBundle() {
       const projectRoot = process.cwd();
       const sourceDir = path.join(projectRoot, 'lang');
@@ -72,6 +86,7 @@ function copyStaticCssPlugin() {
 // Shared with the server (CommonJS), which must compute the same versions.
 // Vite bundles this config, so resolve it from the project, not this file.
 const { contentVersion } = createRequire(path.join(process.cwd(), 'package.json'))('./utils/asset-version.js');
+const { translationBundleVersion, CONTENT_VERSION_HEADER } = createRequire(path.join(process.cwd(), 'package.json'))('./utils/static-cache.js');
 
 /**
  * Start downloading the visitor's translations from index.html, in parallel

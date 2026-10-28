@@ -76,6 +76,7 @@ describe.skipIf(!DATABASE_URL)('Equipment lots of a camp', () => {
   });
   afterAll(async () => {
     if (!pool) {return;}
+    await pool.query('DELETE FROM scout_years WHERE organization_id = ANY($1::int[])', [units]);
     await pool.query('DELETE FROM organizations WHERE id = ANY($1::int[])', [units]);
     await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [users]);
     await pool.end();
