@@ -191,3 +191,9 @@ test('a restricted editor reopens the durable result inside the activity form', 
   expect(root.querySelector('#activity-save-result').textContent).toContain('authorization_state_sent');
   expect(root.querySelector('#activity-save-result a')).toBeNull();
 });
+
+
+test('the implicit submit action saves without sending', () => {
+  const root = open();
+  expect(root.querySelector('button[type="submit"]').value).toBe('save');
+});

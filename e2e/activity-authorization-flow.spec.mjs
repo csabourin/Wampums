@@ -75,6 +75,15 @@ test('saving without sending shows that no request has been sent', async ({ page
   expect(writes.sends).toBe(0);
 });
 
+test('pressing Enter in an activity field saves without sending to families', async ({ page }) => {
+  const writes = await installMocks(page, 'success');
+  const form = await openForm(page);
+  await form.locator('#activity-name').press('Enter');
+  await expect(page.locator('#activity-authorization-panel')).toContainText('Demandes à créer et envoyer');
+  expect(writes.activities).toHaveLength(1);
+  expect(writes.sends).toBe(0);
+});
+
 for (const outcome of ['partial', 'lost']) {
   test(`a ${outcome} sending result preserves the activity and consent text`, async ({ page }) => {
     const writes = await installMocks(page, outcome);

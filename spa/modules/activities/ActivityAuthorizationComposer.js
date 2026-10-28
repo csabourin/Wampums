@@ -1,6 +1,3 @@
-const AUTHORIZATION_TEXT_MAX_LENGTH = 10000;
-const PREVIEW_DELAY_MS = 250;
-const ISO_DATE_LENGTH = 10;
 import { translate } from '../../app.js';
 import { CONFIG } from '../../config.js';
 import { previewActivityAuthorizations } from '../../api/api-activity-authorizations.js';
@@ -10,6 +7,10 @@ import { setContent } from '../../utils/DOMUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { richTextOrPlain } from '../../utils/RichTextUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+
+const AUTHORIZATION_TEXT_MAX_LENGTH = 10000;
+const PREVIEW_DELAY_MS = 250;
+const ISO_DATE_LENGTH = 10;
 
 /** Shared activity/permission form: one audience and an explicit sending action. */
 export function authorizationFieldsHTML(activity, defaultAuthorization) {

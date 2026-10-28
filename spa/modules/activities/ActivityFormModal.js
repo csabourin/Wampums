@@ -194,11 +194,11 @@ function buildFormHTML(activity, defaultAuthorization) {
       <div class="modal-actions">
         <button type="button" class="button button--secondary" id="magic-generate-btn">✨ ${translate('magic_generate')}</button>
         <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
-        <button type="submit" name="intent" value="send" class="button button--primary" data-activity-send hidden>
-          ${translate(isEdit ? 'authorization_save_send' : 'authorization_create_activity_send')}
-        </button>
         <button type="submit" name="intent" value="save" class="button button--secondary" data-activity-save>
           ${isEdit ? translate('save_changes') : translate('authorization_save_without_sending')}
+        </button>
+        <button type="submit" name="intent" value="send" class="button button--primary" data-activity-send hidden>
+          ${translate(isEdit ? 'authorization_save_send' : 'authorization_create_activity_send')}
         </button>
       </div>
     </form>
