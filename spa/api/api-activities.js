@@ -31,8 +31,8 @@ export async function getActivitiesWithPermissionSlips(options = {}) {
  * @param {number} activityId - Activity ID
  * @returns {Promise<Object>} Activity details
  */
-export async function getActivity(activityId) {
-  const response = await API.get(`v1/activities/${activityId}`);
+export async function getActivity(activityId, options = {}) {
+  const response = await API.get(`v1/activities/${activityId}`, {}, options);
   return response.data;
 }
 

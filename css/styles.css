@@ -13092,3 +13092,33 @@ body:has(> .settings-icon) .demo-banner__inner {
 .unit-switcher__name {
   overflow-wrap: anywhere;
 }
+
+/* Activity permission requests: keep the decision and outcome readable on phones. */
+#activity-form .modal-actions {
+  flex-wrap: wrap;
+  padding-inline: 0;
+}
+#activity-form .modal-actions .button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  flex: 1 1 100%;
+}
+#activity-authorization-panel,
+#activity-save-result {
+  overflow-wrap: anywhere;
+}
+#activity-save-result:not(:empty) {
+  margin-block: var(--space-md);
+  padding: var(--space-md);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+@media (min-width: 768px) {
+  #activity-form .modal-actions .button { flex-basis: auto; }
+}
+#activity-form [hidden] { display: none !important; }
+#activity-form summary,
+#activity-authorization-panel summary {
+  min-block-size: var(--touch-target-min);
+  padding-block: var(--space-sm);
+}

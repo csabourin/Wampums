@@ -4,7 +4,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugEr
 jest.mock('../../spa/config.js', () => ({
   CONFIG: {
     API_BASE_URL: 'https://unit.example.test',
-    ONLINE_REQUIRED_MUTATION_RESOURCES: ['parent-invitations', 'parent-onboarding', 'walk-in-children', 'family-links', 'family-link-requests', 'tasks', 'announcements'],
+    ONLINE_REQUIRED_MUTATION_RESOURCES: ['parent-invitations', 'parent-onboarding', 'walk-in-children', 'family-links', 'family-link-requests', 'tasks', 'announcements', 'activities', 'activity-authorizations', 'resources/permission-slips'],
   },
 }));
 jest.mock('../../spa/jwt-helper.js', () => ({ getOrganizationIdFromJWT: () => null, getUserInfoFromJWT: () => ({}) }));
@@ -33,7 +33,7 @@ beforeEach(() => {
   }));
 });
 
-test.each(['parent-invitations', 'parent-onboarding/children', 'walk-in-children', 'family-link-requests', 'family-links/3', 'announcements', 'announcements/test'])(
+test.each(['parent-invitations', 'parent-onboarding/children', 'walk-in-children', 'family-link-requests', 'family-links/3', 'announcements', 'announcements/test', 'activities', 'activity-authorizations/12', 'resources/permission-slips/send-emails'])(
   'offline %s writes are refused before sending or queueing', async (path) => {
     offlineManager.isOffline = true;
     await expect(makeApiRequest(`v1/${path}`, { method: 'POST', body: {} })).rejects.toMatchObject({ code: 'online_required' });
@@ -75,5 +75,12 @@ test.each([['POST', 'tasks'], ['PUT', 'tasks/3'], ['PATCH', 'tasks/mine/3/status
   offlineManager.isOffline = true;
   await expect(makeApiRequest(`v1/${path}`, { method, body: {} })).rejects.toMatchObject({ code: 'online_required' });
   expect(global.fetch).not.toHaveBeenCalled();
+  expect(offlineManager.queueMutation).not.toHaveBeenCalled();
+});
+
+test('a lost combined permission send is not queued or replayed', async () => {
+  global.fetch.mockRejectedValue(new TypeError('network lost'));
+  await expect(API.post('v1/activity-authorizations/12', {})).rejects.toMatchObject({ code: 'operation_unconfirmed' });
+  expect(global.fetch).toHaveBeenCalledTimes(1);
   expect(offlineManager.queueMutation).not.toHaveBeenCalled();
 });

@@ -282,9 +282,10 @@ async function resolveSender(sender) {
  * @param {string} html - Optional HTML content
  * @param {string|Object|null} sender - Display name, or a unit identity
  *   `{ name, email, replyTo }` from resolveOrganizationEmailSender()
+ * @param {{throwOnError?: boolean}} [options] - Preserve uncertain transport exceptions for durable delivery callers.
  * @returns {Promise<boolean>} Success status
  */
-async function sendEmail(to, subject, message, html = null, sender = null) {
+async function sendEmail(to, subject, message, html = null, sender = null, { throwOnError = false } = {}) {
   try {
     const from = await resolveSender(sender);
     // Prefer Brevo transactional API when available
@@ -350,6 +351,7 @@ async function sendEmail(to, subject, message, html = null, sender = null) {
     );
     return false;
   } catch (error) {
+    if (throwOnError) {throw error;}
     logger.error('Error sending email:', error.message || error);
     if (error.response?.body) {
       logger.error(

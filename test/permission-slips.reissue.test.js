@@ -87,6 +87,7 @@ describe('POST /api/v1/resources/permission-slips — reissue', () => {
     expect(res.body.data.answered_participant_ids).toEqual([SIGNED_PARTICIPANT]);
     expect(upsertSql).toContain("WHERE permission_slips.status NOT IN ('signed', 'declined')");
     expect(upsertSql).toContain('signed_at = NULL');
+    expect(upsertSql).toContain("access_token = CASE WHEN permission_slips.status = 'pending' THEN permission_slips.access_token ELSE gen_random_uuid() END");
     expect(upsertSql).toContain('declined_by = NULL');
   });
 });

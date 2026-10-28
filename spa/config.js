@@ -47,6 +47,7 @@ export const CONFIG = {
   API_BASE_URL: import.meta.env?.VITE_API_URL || window.location.origin,
 
   /** Shared task form and status labels. */
+  AUTHORIZATION_FLOW: { PREVIEW_DELAY_MS: 250 },
   TASKS: {
     TITLE_MAX_LENGTH: 255,
     STATUS_KEYS: { todo: 'tasks_status_todo', in_progress: 'tasks_status_in_progress', done: 'tasks_status_done' },
@@ -57,7 +58,7 @@ export const CONFIG = {
     'family-links', 'family-link-requests', 'calendar-feed', 'roles', 'tasks',
     'yearly-planner/starter-activities', 'equipment-catalog',
     // Sending mail needs an explicit result; a lost response must never replay it.
-    'announcements',
+    'announcements', 'activities', 'activity-authorizations', 'resources/permission-slips',
     // How the unit is reached and what it is: never replayed later from a queue.
     'organizations/domains', 'organizations/settings/branch',
   ],

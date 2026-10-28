@@ -52,9 +52,10 @@ jest.mock('../../spa/utils/DialogUtils.js', () => ({
   confirmDestructive: jest.fn(() => Promise.resolve(true)),
   prompt: jest.fn(),
 }));
-jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(() => true) }));
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(() => true), canFollowPermissionSlips: jest.fn(() => true) }));
 jest.mock('../../spa/utils/PerformanceUtils.js', () => ({ withButtonLoading: (_button, fn) => fn() }));
 jest.mock('../../spa/modules/modals/QuickCreateActivityModal.js', () => ({ QuickCreateActivityModal: jest.fn() }));
+jest.mock('../../spa/api/api-activity-authorizations.js', () => ({ getActivityAuthorizations: jest.fn(() => Promise.resolve({ state: 'not_created', participants: 2, requests: 0, to_create: 2, addresses: 3, sent: 0, failed: 0, unknown: 0, unsent: 3, missing: [], problems: [], signed: 0, declined: 0, pending: 0 })), sendActivityAuthorizations: jest.fn() }));
 jest.mock('../../spa/modules/activities/ActivityFormModal.js', () => ({ openActivityFormModal: jest.fn() }));
 
 const endpoints = require('../../spa/api/api-endpoints.js');

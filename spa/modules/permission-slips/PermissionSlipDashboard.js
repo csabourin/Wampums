@@ -1,3 +1,4 @@
+import { ActivityAuthorizationPanel } from '../activities/ActivityAuthorizationPanel.js';
 import { translate } from '../../app.js';
 import { debugError, debugLog } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
@@ -72,6 +73,7 @@ export class PermissionSlipDashboard {
   /** Called by the router when the person leaves this screen. */
   destroy() {
     this.destroyed = true;
+    this.authorizationPanel?.destroy();
   }
 
   async init() {
@@ -179,10 +181,10 @@ export class PermissionSlipDashboard {
   }
 
   renderActivityView(container) {
-    const permissionSummary = this.dashboardSummary?.permission_summary || [];
+    this.authorizationPanel?.destroy();
 
     setContent(container, `
-      <a href="/permission-slips" class="button button--ghost">← ${translate('back_to_permission_slips')}</a>
+      ${renderBackLink('/permission-slips')}
       <section class="page permission-slip-dashboard">
         <div class="card">
           <h1>${escapeHTML(translate('permission_slips_for_activity'))} "${escapeHTML(this.activity.name)}"</h1>
@@ -190,46 +192,41 @@ export class PermissionSlipDashboard {
             <strong>${translate('activity_start')}:</strong> ${formatDate(getActivityStartDate(this.activity), this.app.lang || 'fr')}${getActivityStartTime(this.activity) ? ` ${escapeHTML(getActivityStartTime(this.activity))}` : ''}
             ${`<span style="margin-left: 0.75rem;"><strong>${translate('activity_end')}:</strong> ${formatDate(getActivityEndDate(this.activity), this.app.lang || 'fr')}${getActivityEndTime(this.activity) ? ` ${escapeHTML(getActivityEndTime(this.activity))}` : ''}</span>`}
           </p>
+          ${hasPermission('activities.edit') ? '<div id="activity-authorization-panel" class="card"></div>' : ''}
+          <details><summary>${escapeHTML(translate('authorization_view_consent'))}</summary>${this.renderAuthorizationText()}</details>
           ${this.activity.description ? `<div class="rich-text">${richTextOrPlain(this.activity.description_html, this.activity.description)}</div>` : ''}
           ${this.renderActivityActions()}
         </div>
 
-        <div class="card permission-slip-authorization">
-          <h2>${escapeHTML(translate('activity_authorization_text_label'))}</h2>
-          ${this.renderAuthorizationText()}
-          <p class="form-help">${escapeHTML(translate('activity_authorization_text_help'))}</p>
-        </div>
-
         <div class="card">
-          <h2>${escapeHTML(translate('dashboard_summary_title'))}</h2>
-          <div class="summary-grid">
-            <div class="summary-tile">
-              <div class="summary-label">${escapeHTML(translate('permission_slip_status'))}</div>
-              <ul class="summary-list">
-                ${permissionSummary.length === 0
-    ? `<li>${escapeHTML(translate('no_data_available'))}</li>`
-    : permissionSummary
-      .map((row) => `<li>${escapeHTML(translate(`permission_slip_status_${row.status}`))}: <strong>${row.count}</strong></li>`)
-      .join('')}
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
-            <h2 style="margin: 0;">${escapeHTML(translate('permission_slip_section_title'))}</h2>
+          <h2>${escapeHTML(translate('permission_slip_section_title'))}</h2>
+          <details><summary>${escapeHTML(translate('authorization_advanced_selection'))}</summary>
+          <div>
             <button id="toggleCreateFormBtn" class="button button--primary" aria-expanded="${this.showCreateForm ? 'true' : 'false'}">
               ${this.showCreateForm ? translate('cancel') : translate('permission_slip_new')}
             </button>
           </div>
 
           ${this.showCreateForm ? this.renderCreateForm() : ''}
-
-          ${this.renderPermissionSlipsTable()}
+          </details>
+          <div id="activity-slip-table">${this.renderPermissionSlipsTable()}</div>
         </div>
       </section>
     `);
+    const panel = container.querySelector('#activity-authorization-panel');
+    if (panel) {
+      this.authorizationPanel = new ActivityAuthorizationPanel(this.app, panel, this.activity, async () => {
+        const response = await getPermissionSlips({ activity_id: this.activityId }, { forceRefresh: true });
+        if (this.destroyed) {return;}
+        this.permissionSlips = response?.data?.permission_slips || [];
+        const table = container.querySelector('#activity-slip-table');
+        if (table) {
+          setContent(table, this.renderPermissionSlipsTable());
+          this.attachSlipTableHandlers(table);
+        }
+      });
+      this.authorizationPanel.load();
+    }
   }
 
   renderAuthorizationText() {
@@ -287,7 +284,7 @@ export class PermissionSlipDashboard {
     });
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+      ${renderBackLink('/dashboard')}
       <section class="page permission-slip-dashboard">
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;">
@@ -768,8 +765,17 @@ export class PermissionSlipDashboard {
       });
     }
 
+    this.attachSlipTableHandlers();
+
+    if (this.showCreateForm && this.selectedAudience) {
+      this.updateParticipantsList();
+    }
+  }
+
+  /** Bind a refreshed table without duplicating the screen's other handlers. */
+  attachSlipTableHandlers(root = document) {
     // Send emails buttons
-    document.querySelectorAll('.btn-send-emails').forEach(btn => {
+    root.querySelectorAll('.btn-send-emails').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         const activityTitle = btn.getAttribute('data-activity-title');
@@ -779,7 +785,7 @@ export class PermissionSlipDashboard {
     });
 
     // Test emails to the signed-in leader
-    document.querySelectorAll('.btn-send-test').forEach(btn => {
+    root.querySelectorAll('.btn-send-test').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         withButtonLoading(btn, () => this.handleSendTest(btn.dataset.reminder === 'true', btn.dataset.slipId));
@@ -787,7 +793,7 @@ export class PermissionSlipDashboard {
     });
 
     // Send reminders buttons
-    document.querySelectorAll('.btn-send-reminders').forEach(btn => {
+    root.querySelectorAll('.btn-send-reminders').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         const activityTitle = btn.getAttribute('data-activity-title');
@@ -797,7 +803,7 @@ export class PermissionSlipDashboard {
     });
 
     // Sign permission slip
-    document.querySelectorAll('.sign-slip').forEach((button) => {
+    root.querySelectorAll('.sign-slip').forEach((button) => {
       button.addEventListener('click', async (event) => {
         event.preventDefault();
         // `event.currentTarget` is nulled once dispatch ends, so capture the
@@ -824,7 +830,7 @@ export class PermissionSlipDashboard {
       });
     });
 
-    document.querySelectorAll('.archive-slip').forEach((button) => {
+    root.querySelectorAll('.archive-slip').forEach((button) => {
       button.addEventListener('click', async (event) => {
         event.preventDefault();
         // `event.currentTarget` is nulled once dispatch ends, so capture the
@@ -867,7 +873,7 @@ export class PermissionSlipDashboard {
     });
 
     // Delete permission slip (only for unsent slips)
-    document.querySelectorAll('.delete-slip').forEach((button) => {
+    root.querySelectorAll('.delete-slip').forEach((button) => {
       button.addEventListener('click', async (event) => {
         event.preventDefault();
         // `event.currentTarget` is nulled once dispatch ends, so capture the
@@ -893,9 +899,6 @@ export class PermissionSlipDashboard {
       });
     });
 
-    if (this.showCreateForm && this.selectedAudience) {
-      this.updateParticipantsList();
-    }
   }
 
   updateParticipantsList() {
@@ -1366,6 +1369,7 @@ export class PermissionSlipDashboard {
 
   async showQuickCreateActivity() {
     const modal = new QuickCreateActivityModal(this.app, {
+      defaultAuthorization: true,
       redirectPath: '/permission-slips/{id}'
     });
     modal.show();

@@ -53,6 +53,7 @@ const PERSONAL_SUB_RESOURCES = { users: new Set(['me']) };
  * POST endpoints that only read. They change nothing, so they invalidate nothing.
  */
 const READ_ONLY_WRITES = [
+  '/api/v1/activity-authorizations/preview',
   '/api/v1/users/permissions/check',
   '/api/v1/transfers/preview'
 ];
@@ -90,7 +91,8 @@ const DERIVED_RESOURCES = {
   badges: ['badges', 'program-progress', 'participants', 'reports', 'dashboards'],
   'program-progress': ['program-progress', 'badges', 'reports'],
   meetings: ['meetings', 'attendance', 'activities', 'yearly-planner', 'dashboards'],
-  activities: ['activities', 'attendance', 'points', 'honors', 'action-roster', 'carpools', 'meetings', 'dashboards'],
+  'activity-authorizations': ['activity-authorizations', 'activities', 'resources', 'action-roster'],
+  activities: ['activity-authorizations', 'activities', 'attendance', 'points', 'honors', 'action-roster', 'carpools', 'meetings', 'dashboards', 'resources'],
   carpools: ['carpools', 'activities'],
   forms: ['forms', 'participants', 'medication', 'reports'],
   medication: ['medication', 'reports'],
