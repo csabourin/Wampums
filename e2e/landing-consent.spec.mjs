@@ -1,9 +1,8 @@
 /** Consent choices on the marketing host, served by the local run-wampums API. */
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { LANDING_ORIGIN, fetchLocalLanding } from './local-landing.mjs';
 
-const LANDING_ORIGIN = 'https://wampums.app';
-const LOCAL_API = process.env.LANDING_API_URL || 'http://127.0.0.1:5000';
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const DENIED = {
   analytics_storage: 'denied', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
@@ -12,10 +11,7 @@ const DENIED = {
 test.beforeEach(async ({ context, page }) => {
   // Serve production-host routes locally, so no visit or analytics reaches production.
   await context.route(`${LANDING_ORIGIN}/**`, async (route) => {
-    const url = new URL(route.request().url());
-    const response = await context.request.get(`${LOCAL_API}${url.pathname}${url.search}`, {
-      headers: { host: 'wampums.app' },
-    });
+    const response = await fetchLocalLanding(context.request, route.request().url());
     await route.fulfill({ response });
   });
   await context.route('https://www.googletagmanager.com/**', (route) => route.fulfill({

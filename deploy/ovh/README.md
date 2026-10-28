@@ -217,6 +217,14 @@ Every push to `main` (including merges) then deploys only if all three CI jobs
 pass. Failed CI leaves the running app untouched. Main-branch CI runs and server
 deployments are serialized to avoid interrupting migrations.
 
+If deployment is skipped, inspect the prerequisite jobs before investigating SSH
+or the VPS. A failed browser test blocks deployment even when quality and database
+checks pass. Public-site tests serve resources through the local API; their shared
+`e2e/local-landing.mjs` helper retries only `ECONNRESET`, at most twice. HTTP errors
+are returned unchanged, persistent connection failures still fail, and browser
+assertions have no whole-test retries. `e2e/landing-transport.spec.mjs` reproduces
+these cases with a disposable local HTTP server.
+
 ## Validation, backups and recovery
 
 Check HTTPS, `/health`, login, organization routing on **each** domain, database

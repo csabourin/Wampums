@@ -70,7 +70,10 @@ before announcing that these lots are available offline. It explicitly says this
 is readiness of the **lots** on **this device**, not all camp records. Refresh/check
 retries preparation. A snapshot has a schema, account/unit/year scope and expiration;
 a legacy flag, missing data/assets or another account's preparation cannot enable
-queueing. Storage failure never claims successful preparation. Lot content and
+queueing. Preparations retain the account/unit/year captured before downloading; a
+context change aborts reads and snapshot writes, including full-camp preparation
+and receipt replay. A delayed response never prepares the newly selected context.
+Storage failure never claims successful preparation. Lot content and
 assignment edits require a connection; only prepared state writes enter the outbox.
 
 Pending states are derived from the shared token-free outbox and labelled awaiting

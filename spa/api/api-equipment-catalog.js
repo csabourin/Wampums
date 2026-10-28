@@ -37,8 +37,8 @@ export function updateCatalogItem(itemId, changes) {
  *
  * @returns {Promise<Object>} The unit's equipment
  */
-export function getLinkableEquipment() {
-  return API.get('v1/resources/equipment');
+export function getLinkableEquipment(options = {}) {
+  return API.get('v1/resources/equipment', {}, options);
 }
 
 /**

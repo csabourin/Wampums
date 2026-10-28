@@ -61,6 +61,9 @@ try {
     client.release();
   }
 
+  const materialGroupId = await one("INSERT INTO local_groups (name, slug) VALUES ('Groupe scout fictif', 'run-material-group') RETURNING id");
+  await pool.query('INSERT INTO organization_local_groups (organization_id, local_group_id) VALUES ($1, $2)', [organizationId, materialGroupId]);
+
   const yearId = await one(
     `INSERT INTO scout_years (organization_id, label, start_date, end_date, status)
      VALUES ($1, '2026-2027', '2026-09-01', '2027-08-31', 'active') RETURNING id`,

@@ -2,6 +2,8 @@
 
 The shared SPA activity form owns the invitation, activity information and consent text. From the permission dashboard it starts with “Request parental permission” checked. Transport is optional for a new simple event; older activities retain their transport fields.
 
+The permission dashboard keeps one quick-create button in its header, including when no activities are upcoming. The empty state explains the absence of upcoming activities without repeating that action; past activities remain available below.
+
 - **Create activity and send permission requests** saves the activity, creates missing requests for its currently enrolled invitees, then submits their emails. Children are selected once.
 - **Save without sending** saves the activity and consent text only. It creates no permission requests and sends no mail. The activity is not a hidden draft.
 - Preview creates and sends nothing. Family addresses are never returned by the unsaved preview endpoint, only counts and children missing contacts.

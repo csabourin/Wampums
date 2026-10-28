@@ -212,7 +212,7 @@ const routes = {
   '/family-access': 'familyAccess',
   '/walk-in-children': 'walkInChildren',
   '/tasks': 'tasks',
-  '/equipment-catalog': 'equipmentCatalog',
+  '/material': 'material',
   '/messages': 'messages',
   '/messages/:id': 'message',
   '/reports': 'reports',
@@ -229,7 +229,6 @@ const routes = {
   '/expenses': 'expenses',
   '/revenue-dashboard': 'revenueDashboard',
   '/resources': 'resourceDashboard',
-  '/inventory': 'inventory',
   '/material-management': 'materialManagement',
   '/equipment-loans': 'equipmentLoans',
   '/medication-management': 'medicationPlanning',
@@ -587,14 +586,9 @@ export class Router {
           this.currentModuleInstance = resourceDashboard;
           await resourceDashboard.init();
           break;
-        case 'inventory':
-          if (!guard(canViewInventory())) {
-            break;
-          }
-          const Inventory = await this.loadModule('Inventory');
-          const inventory = new Inventory(this.app);
-          this.currentModuleInstance = inventory;
-          await inventory.init();
+        case 'material':
+          if (!guard(hasVisibleTab('material'))) { break; }
+          await this.loadTabbedPage('material');
           break;
         case 'medicationPlanning':
         case 'medicationDispensing':
@@ -1080,13 +1074,6 @@ export class Router {
           if (!guard(hasPermission('tasks.view'))) {break;}
           const Tasks = await this.loadModule('Tasks');
           this.currentModuleInstance = new Tasks(this.app);
-          await this.currentModuleInstance.init();
-          break;
-        }
-        case 'equipmentCatalog': {
-          if (!guard(hasPermission('equipment_catalog.manage'))) {break;}
-          const EquipmentCatalog = await this.loadModule('EquipmentCatalog');
-          this.currentModuleInstance = new EquipmentCatalog(this.app);
           await this.currentModuleInstance.init();
           break;
         }

@@ -22,7 +22,11 @@ const {
   listCatalog, createCatalogItem, updateCatalogItem, listMaterialOptions,
 } = require('../services/equipmentCatalog');
 
+const { saveArticleWithStock } = require('../services/materialStock');
 const HTTP_CREATED = 201;
+const STOCK_QUANTITY_MAX = 99999;
+const hasStock = (req) => Object.prototype.hasOwnProperty.call(req.body, 'stock');
+const articlePermissions = (req) => ['equipment_catalog.manage', ...(hasStock(req) || req.body.sync_stock === true ? ['inventory.manage'] : [])];
 
 /** Return known catalogue refusals, forwarding internal failures to the global handler. */
 const catalogHandler = (handler) => asyncHandler(async (req, res) => {
@@ -53,6 +57,10 @@ function articleFields(creating) {
       .withMessage('equipment_catalog_invalid_category'),
     body('unit_of_measure').optional().isString().bail().isIn(EQUIPMENT_UNITS)
       .withMessage('equipment_catalog_invalid_unit'),
+    body('sync_stock').optional().custom((value) => typeof value === 'boolean' && (!creating || !value)).withMessage('invalid_request'),
+    body('stock').optional().custom((value, { req }) => value && typeof value === 'object' && !Array.isArray(value)
+      && Number.isInteger(value.quantity_total) && value.quantity_total >= 0 && value.quantity_total <= STOCK_QUANTITY_MAX
+      && !req.body.equipment_item_id).withMessage('material_stock_invalid'),
     validateIdBody('equipment_item_id').optional({ values: 'null' })
       .custom((value) => ['string', 'number'].includes(typeof value))
       .withMessage('equipment_catalog_equipment_unavailable'),
@@ -85,25 +93,29 @@ module.exports = (pool) => {
 
   router.post('/',
     blockDemoRoles,
-    requirePermission('equipment_catalog.manage'),
+    requirePermission(articlePermissions),
     articleFields(true),
     checkValidation,
     catalogHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const item = await createCatalogItem(pool, organizationId, req.user.id, req.body);
+      const item = hasStock(req)
+        ? await saveArticleWithStock(pool, organizationId, req.user.id, req.body)
+        : await createCatalogItem(pool, organizationId, req.user.id, req.body);
       return success(res, item, 'equipment_catalog_saved', HTTP_CREATED);
     }));
 
   router.patch('/:id',
     blockDemoRoles,
-    requirePermission('equipment_catalog.manage'),
+    requirePermission(articlePermissions),
     validateIdParam('id'),
     articleFields(false),
     body('archived').optional().custom((value) => typeof value === 'boolean').withMessage('invalid_request'),
     checkValidation,
     catalogHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const item = await updateCatalogItem(pool, organizationId, Number(req.params.id), req.body);
+      const item = hasStock(req) || req.body.sync_stock === true
+        ? await saveArticleWithStock(pool, organizationId, req.user.id, req.body, Number(req.params.id))
+        : await updateCatalogItem(pool, organizationId, Number(req.params.id), req.body);
       return success(res, item, 'equipment_catalog_saved');
     }));
 

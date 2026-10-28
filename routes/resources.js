@@ -21,6 +21,9 @@ const {
 } = require('../utils/permission-slip-email');
 const { deliver: deliverAuthorization } = require('../services/activityAuthorizations');
 const createPermissionSlipCopies = require('../services/permissionSlipCopies');
+const { isEquipmentAccessible } = require('../services/equipmentAccess');
+const { OwnershipError, equipmentAccessSql, readEquipmentOwner } = require('../services/equipmentOwnership');
+const EQUIPMENT_UPDATE_PARAM_OFFSET = 2;
 const { EQUIPMENT_CATEGORIES } = require('../services/equipmentCategories');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
@@ -100,6 +103,7 @@ function parseDate(dateString) {
  */
 const HOLDING_STATUSES = ['reserved', 'confirmed'];
 const HTTP_BAD_REQUEST = 400;
+const HTTP_CONFLICT = 409;
 const HTTP_NOT_FOUND = 404;
 const HTTP_CREATED = 201;
 /** The email service did not accept a message. */
@@ -371,32 +375,7 @@ module.exports = (pool, logger) => {
   }
 
   async function verifyEquipmentAccess(equipmentId, organizationId) {
-    const accessResult = await pool.query(
-      `SELECT 1
-         FROM equipment_items ei
-         LEFT JOIN equipment_item_organizations eio
-           ON eio.equipment_id = ei.id
-          AND eio.organization_id = $2
-         LEFT JOIN organization_local_groups owner_olg
-           ON owner_olg.organization_id = ei.organization_id
-         LEFT JOIN organization_local_groups requester_olg
-           ON requester_olg.organization_id = $2
-          AND requester_olg.local_group_id = owner_olg.local_group_id
-        WHERE ei.id = $1
-          AND ei.is_active IS DISTINCT FROM false
-          AND (
-            eio.organization_id IS NOT NULL
-            OR ei.organization_id = $2
-            OR (
-              COALESCE((ei.attributes->>'share_with_local_group')::boolean, true)
-              AND requester_olg.local_group_id IS NOT NULL
-            )
-          )
-        LIMIT 1`,
-      [equipmentId, organizationId],
-    );
-
-    if (accessResult.rows.length === 0) {
+    if (!await isEquipmentAccessible(pool, organizationId, equipmentId)) {
       const accessError = new Error('Equipment not accessible for organization');
       accessError.statusCode = 403;
       throw accessError;
@@ -456,39 +435,17 @@ module.exports = (pool, logger) => {
         // availability sum below reports as unavailable.
         await expireLapsedReservations(pool, organizationId, req.log || null);
         const result = await pool.query(
-          `WITH requester_groups AS (
-             SELECT local_group_id FROM organization_local_groups WHERE organization_id = $1
-           ),
-           accessible_equipment AS (
+          `WITH accessible_equipment AS (
              SELECT e.*
              FROM equipment_items e
-             LEFT JOIN equipment_item_organizations eio
-               ON eio.equipment_id = e.id
-              AND eio.organization_id = $1
-             LEFT JOIN organization_local_groups owner_olg
-               ON owner_olg.organization_id = e.organization_id
-             LEFT JOIN requester_groups rg
-               ON rg.local_group_id = owner_olg.local_group_id
              WHERE e.is_active IS DISTINCT FROM false
-               AND (
-                 eio.organization_id IS NOT NULL
-                 OR e.organization_id = $1
-                 OR (
-                   COALESCE((e.attributes->>'share_with_local_group')::boolean, true)
-                   AND rg.local_group_id IS NOT NULL
-                 )
-               )
+               AND ${equipmentAccessSql('e', '$1')}
            ),
            shared_visibility AS (
              SELECT e.id AS equipment_id,
-                    ARRAY_AGG(DISTINCT org.name ORDER BY org.name) FILTER (WHERE org.name IS NOT NULL) AS shared_organizations
+                    ARRAY(SELECT org.name FROM organizations org
+                      WHERE ${equipmentAccessSql('e', 'org.id')} ORDER BY org.name) AS shared_organizations
                FROM accessible_equipment e
-               LEFT JOIN equipment_item_organizations eio ON eio.equipment_id = e.id
-               LEFT JOIN organization_local_groups owner_olg ON owner_olg.organization_id = e.organization_id
-               LEFT JOIN organization_local_groups olg ON olg.local_group_id = owner_olg.local_group_id
-               LEFT JOIN organizations org ON org.id = COALESCE(eio.organization_id, olg.organization_id)
-              WHERE COALESCE((e.attributes->>'share_with_local_group')::boolean, true) OR eio.organization_id IS NOT NULL
-              GROUP BY e.id
            )
            SELECT e.*,
                   COALESCE((
@@ -509,8 +466,11 @@ module.exports = (pool, logger) => {
                       ), 0)
                     - equipment_loans_beyond_reservations(e.id, $2::date, $3::date, $4::int)
                   )::int END AS available_for_dates,
-                  COALESCE(shared_visibility.shared_organizations, '{}'::text[]) AS shared_organizations
+                  COALESCE(shared_visibility.shared_organizations, '{}'::text[]) AS shared_organizations,
+                  owner_org.name AS owner_organization_name, owner_group.name AS owner_local_group_name
              FROM accessible_equipment e
+             JOIN organizations owner_org ON owner_org.id = e.organization_id
+             LEFT JOIN local_groups owner_group ON owner_group.id = e.owner_local_group_id
              LEFT JOIN shared_visibility ON shared_visibility.equipment_id = e.id
              ORDER BY e.category NULLS LAST, e.name`,
           [organizationId, forDates ? datesFrom : null, forDates ? datesTo : null, forDates ? activityId : null],
@@ -529,12 +489,21 @@ module.exports = (pool, logger) => {
     }),
   );
 
+  router.get('/equipment/owners', authenticate, requirePermission('inventory.manage'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const result = await pool.query(`SELECT lg.id, lg.name FROM local_groups lg JOIN organization_local_groups olg
+      ON olg.local_group_id = lg.id WHERE olg.organization_id = $1 ORDER BY lg.name, lg.id`, [organizationId]);
+    return success(res, result.rows);
+  }));
+
   router.post(
     '/equipment',
     authenticate,
     blockDemoRoles,
     requirePermission('inventory.manage'),
     [
+      check('owner_type').optional({ values: 'null' }).isIn(['unit', 'group']),
+      check('owner_local_group_id').optional({ values: 'null' }).isInt({ min: 1 }),
       check('name').isString().trim().isLength({ min: 2, max: 150 }),
       check('category').optional({ values: 'falsy' }).isIn(EQUIPMENT_CATEGORIES),
       check('description').optional().isString().trim().isLength({ max: 2000 }),
@@ -614,10 +583,11 @@ module.exports = (pool, logger) => {
           storedPhotoReference = extractPathFromUrl(photo_url);
         }
 
+        const owner = await readEquipmentOwner(pool, organizationId, req.body);
         const insertResult = await pool.query(
           `INSERT INTO equipment_items
-           (organization_id, name, category, description, quantity_total, quantity_available, condition_note, attributes, item_value, photo_url, acquisition_date, location_type, location_details)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+           (organization_id, name, category, description, quantity_total, quantity_available, condition_note, attributes, item_value, photo_url, acquisition_date, location_type, location_details, owner_type, owner_local_group_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
            ON CONFLICT (organization_id, name)
            DO UPDATE SET
              category = EXCLUDED.category,
@@ -632,6 +602,7 @@ module.exports = (pool, logger) => {
              location_type = EXCLUDED.location_type,
              location_details = EXCLUDED.location_details,
              updated_at = CURRENT_TIMESTAMP
+           WHERE NOT $16::boolean
            RETURNING *`,
           [
             organizationId,
@@ -648,9 +619,11 @@ module.exports = (pool, logger) => {
             normalizedAcquisitionDate,
             location_type || LOCATION_TYPES[0],
             location_details ?? '',
+            owner.owner_type, owner.owner_local_group_id, Object.hasOwn(req.body, 'owner_type'),
           ],
         );
 
+        if (!insertResult.rows.length) { return error(res, 'material_stock_name_exists', HTTP_CONFLICT); }
         await syncEquipmentOrganizations({
           equipmentId: insertResult.rows[0].id,
           ownerOrganizationId: organizationId,
@@ -668,6 +641,7 @@ module.exports = (pool, logger) => {
           201,
         );
       } catch (err) {
+        if (err instanceof OwnershipError) { return error(res, err.message, err.status); }
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
@@ -683,6 +657,8 @@ module.exports = (pool, logger) => {
     requirePermission('inventory.manage'),
     [
       validateIdParam('id'),
+      check('owner_type').optional({ values: 'null' }).isIn(['unit', 'group']),
+      check('owner_local_group_id').optional({ values: 'null' }).isInt({ min: 1 }),
       check('name').optional().isString().trim().isLength({ min: 2, max: 150 }),
       check('category').optional().isIn(EQUIPMENT_CATEGORIES),
       check('description').optional().isString().trim().isLength({ max: 2000 }),
@@ -736,6 +712,7 @@ module.exports = (pool, logger) => {
         }
 
         const ownerOrganizationId = existingEquipment.rows[0].organization_id;
+        const ownership = await readEquipmentOwner(pool, organizationId, req.body, existingEquipment.rows[0]);
 
         // Handle acquisition_date normalization
         if (req.body.acquisition_date) {
@@ -768,7 +745,9 @@ module.exports = (pool, logger) => {
           'acquisition_date',
           'location_type',
           'location_details',
+          ...(Object.hasOwn(req.body, 'owner_type') || Object.hasOwn(req.body, 'owner_local_group_id') ? ['owner_type', 'owner_local_group_id'] : []),
         ];
+        if (Object.hasOwn(req.body, 'owner_type') || Object.hasOwn(req.body, 'owner_local_group_id')) { Object.assign(req.body, ownership); }
         const updates = [];
         const values = [];
         fields.forEach((field) => {
@@ -836,11 +815,22 @@ module.exports = (pool, logger) => {
         }
 
         // Update equipment (any organization with access can update)
-        const queryText = `UPDATE equipment_items
-          SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
-          WHERE id = $1
-          RETURNING *`;
-        const result = await pool.query(queryText, [equipmentId, ...values]);
+        const queryText = `WITH previous AS (
+            SELECT id, name, category, organization_id FROM equipment_items WHERE id = $1 FOR UPDATE
+          ), changed AS (
+            UPDATE equipment_items SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
+            FROM previous p WHERE equipment_items.id = p.id AND equipment_items.id = $1 RETURNING equipment_items.*
+          ), synced AS (
+            UPDATE equipment_catalog_items c SET
+              name = CASE WHEN c.name = p.name THEN e.name ELSE c.name END,
+              category = CASE WHEN c.category = p.category THEN e.category ELSE c.category END,
+              updated_at = CURRENT_TIMESTAMP
+            FROM previous p, changed e
+            WHERE c.equipment_item_id = p.id AND c.organization_id = p.organization_id
+              AND c.organization_id = $${values.length + EQUIPMENT_UPDATE_PARAM_OFFSET}
+              AND (c.name = p.name OR c.category = p.category)
+          ) SELECT * FROM changed`;
+        const result = await pool.query(queryText, [equipmentId, ...values, organizationId]);
 
         if (result.rows.length === 0) {
           return error(res, 'Equipment not found', 404);
@@ -863,6 +853,7 @@ module.exports = (pool, logger) => {
         const equipment = await resolveEquipmentPhoto(result.rows[0]);
         return success(res, { equipment }, 'Equipment updated');
       } catch (err) {
+        if (err instanceof OwnershipError) { return error(res, err.message, err.status); }
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
@@ -1224,17 +1215,15 @@ module.exports = (pool, logger) => {
         }
 
         const result = await pool.query(
-          `WITH requester_groups AS (
-             SELECT local_group_id FROM organization_local_groups WHERE organization_id = $1
-           ),
-           accessible_reservations AS (
+          `WITH accessible_reservations AS (
              SELECT er.*,
                     e.name AS equipment_name,
                     e.category,
                     e.location_type,
                     e.location_details,
                     e.organization_id AS owner_organization_id,
-                    owner_org.name AS owner_organization_name,
+                    CASE WHEN e.owner_type = 'group' THEN group_owner.name ELSE owner_org.name END AS owner_organization_name,
+                    e.owner_type, e.owner_local_group_id,
                     er.organization_id AS reservation_organization_id,
                     reservation_org.name AS organization_name,
                     a.id AS activity_id,
@@ -1244,24 +1233,11 @@ module.exports = (pool, logger) => {
                JOIN equipment_items e ON e.id = er.equipment_id
                LEFT JOIN organizations reservation_org ON reservation_org.id = er.organization_id
                LEFT JOIN organizations owner_org ON owner_org.id = e.organization_id
+               LEFT JOIN local_groups group_owner ON group_owner.id = e.owner_local_group_id
                LEFT JOIN activities a ON a.id = er.activity_id
-               LEFT JOIN equipment_item_organizations eio
-                 ON eio.equipment_id = er.equipment_id
-                AND eio.organization_id = $1
-               LEFT JOIN organization_local_groups owner_olg
-                 ON owner_olg.organization_id = e.organization_id
-               LEFT JOIN requester_groups rg
-                 ON rg.local_group_id = owner_olg.local_group_id
               WHERE 1=1 ${filter}
                 AND e.is_active IS DISTINCT FROM false
-                AND (
-                  eio.organization_id IS NOT NULL
-                  OR e.organization_id = $1
-                  OR (
-                    COALESCE((e.attributes->>'share_with_local_group')::boolean, true)
-                    AND rg.local_group_id IS NOT NULL
-                  )
-                )
+                AND ${equipmentAccessSql('e', '$1')}
            ),
            owner_local_groups AS (
              SELECT ar.equipment_id,
@@ -1269,6 +1245,7 @@ module.exports = (pool, logger) => {
                     ARRAY_AGG(DISTINCT lg.name ORDER BY lg.name) FILTER (WHERE lg.name IS NOT NULL) AS owner_local_group_names
                FROM accessible_reservations ar
                LEFT JOIN organization_local_groups olg ON olg.organization_id = ar.owner_organization_id
+                 AND (ar.owner_type IS DISTINCT FROM 'group' OR olg.local_group_id = ar.owner_local_group_id)
                LEFT JOIN local_groups lg ON lg.id = olg.local_group_id
               GROUP BY ar.equipment_id
            ),
@@ -3270,37 +3247,22 @@ module.exports = (pool, logger) => {
         );
 
         const reservationSummary = await pool.query(
-          `WITH requester_groups AS (
-             SELECT local_group_id FROM organization_local_groups WHERE organization_id = $1
-           ),
-           accessible_reservations AS (
+          `WITH accessible_reservations AS (
              SELECT er.*,
                     e.name,
                     er.organization_id AS reservation_organization_id,
                     o.name AS organization_name,
                     e.organization_id AS owner_organization_id,
-                    owner_org.name AS owner_organization_name
+                    CASE WHEN e.owner_type = 'group' THEN group_owner.name ELSE owner_org.name END AS owner_organization_name,
+                    e.owner_type, e.owner_local_group_id
                FROM equipment_reservations er
                JOIN equipment_items e ON e.id = er.equipment_id
                LEFT JOIN organizations o ON o.id = er.organization_id
                LEFT JOIN organizations owner_org ON owner_org.id = e.organization_id
-               LEFT JOIN equipment_item_organizations eio
-                 ON eio.equipment_id = er.equipment_id
-                AND eio.organization_id = $1
-               LEFT JOIN organization_local_groups owner_olg
-                 ON owner_olg.organization_id = e.organization_id
-               LEFT JOIN requester_groups rg
-                 ON rg.local_group_id = owner_olg.local_group_id
+               LEFT JOIN local_groups group_owner ON group_owner.id = e.owner_local_group_id
               WHERE er.meeting_date = $2
                 AND e.is_active IS DISTINCT FROM false
-                AND (
-                  eio.organization_id IS NOT NULL
-                  OR e.organization_id = $1
-                  OR (
-                    COALESCE((e.attributes->>'share_with_local_group')::boolean, true)
-                    AND rg.local_group_id IS NOT NULL
-                  )
-                )
+                AND ${equipmentAccessSql('e', '$1')}
            ),
            owner_local_groups AS (
              SELECT ar.equipment_id,
@@ -3308,6 +3270,7 @@ module.exports = (pool, logger) => {
                     ARRAY_AGG(DISTINCT lg.name ORDER BY lg.name) FILTER (WHERE lg.name IS NOT NULL) AS owner_local_group_names
                FROM accessible_reservations ar
                LEFT JOIN organization_local_groups olg ON olg.organization_id = ar.owner_organization_id
+                 AND (ar.owner_type IS DISTINCT FROM 'group' OR olg.local_group_id = ar.owner_local_group_id)
                LEFT JOIN local_groups lg ON lg.id = olg.local_group_id
               GROUP BY ar.equipment_id
            ),

@@ -319,9 +319,6 @@ export class PermissionSlipDashboard {
         ${upcomingActivities.length === 0 ? `
           <div class="card" style="text-align: center; padding: 3rem;">
             <p style="color: #666; margin-bottom: 1rem;">${escapeHTML(translate('no_upcoming_activities'))}</p>
-            <button id="createActivityBtnEmpty" class="button button--primary">
-              ➕ ${translate('quick_create_activity')}
-            </button>
           </div>
         ` : ''}
 
@@ -651,16 +648,9 @@ export class PermissionSlipDashboard {
   attachEventHandlers() {
     // Create Activity button (main dashboard)
     const createActivityBtn = document.getElementById('createActivityBtn');
-    const createActivityBtnEmpty = document.getElementById('createActivityBtnEmpty');
 
     if (createActivityBtn) {
       createActivityBtn.addEventListener('click', async () => {
-        await this.showQuickCreateActivity();
-      });
-    }
-
-    if (createActivityBtnEmpty) {
-      createActivityBtnEmpty.addEventListener('click', async () => {
         await this.showQuickCreateActivity();
       });
     }

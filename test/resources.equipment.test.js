@@ -278,11 +278,11 @@ describe('Equipment sharing and metadata', () => {
         }
 
         if (
-          text.startsWith('SELECT 1') &&
+          text.includes('SELECT DISTINCT ei.id') &&
           text.includes('equipment_items ei') &&
           text.includes('share_with_local_group')
         ) {
-          const [equipmentId, orgId] = params;
+          const [orgId, [equipmentId]] = params;
           const equipment = equipmentItems[equipmentId];
           if (!equipment || equipment.is_active === false) {
             return { rows: [] };
@@ -294,7 +294,7 @@ describe('Equipment sharing and metadata', () => {
             sharesLocalGroup(equipment.organization_id, orgId);
           const isOwner = equipment.organization_id === orgId;
           return explicitShare || localGroupShare || isOwner
-            ? { rows: [{ access: 1 }] }
+            ? { rows: [{ id: equipmentId }] }
             : { rows: [] };
         }
 
@@ -363,7 +363,7 @@ describe('Equipment sharing and metadata', () => {
         }
 
         if (
-          text.includes('WITH requester_groups') &&
+          text.includes('WITH accessible_reservations') &&
           text.includes('reservation_local_group_names') &&
           text.includes('equipment_reservations er')
         ) {
@@ -376,7 +376,7 @@ describe('Equipment sharing and metadata', () => {
         }
 
         if (
-          text.includes('WITH requester_groups') &&
+          text.includes('WITH accessible_equipment') &&
           text.includes('shared_visibility') &&
           text.includes('accessible_equipment')
         ) {
@@ -384,13 +384,13 @@ describe('Equipment sharing and metadata', () => {
           return { rows: buildEquipmentResponse(orgId) };
         }
 
-        if (text.startsWith('UPDATE equipment_items')) {
+        if (text.startsWith('WITH previous AS')) {
           const equipmentId = params[0];
           const equipment = equipmentItems[equipmentId];
           if (!equipment) {
             return { rows: [] };
           }
-          const setClause = text.split('SET')[1].split('WHERE')[0];
+          const setClause = text.split('SET')[1].split('FROM previous')[0];
           const assignments = setClause
             .split(',')
             .map((entry) => entry.trim())

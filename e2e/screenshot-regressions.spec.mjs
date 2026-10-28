@@ -56,9 +56,9 @@ for (const lang of ['en', 'fr']) {
     });
 
     test('inventory keeps quantity, value and editing actions on a phone', async ({ page }) => {
-      await openScreen(page, '/inventory');
+      await openScreen(page, '/material');
       await page.evaluate(() => {
-        const screen = window.app.router.currentModuleInstance;
+        const screen = window.app.router.currentModuleInstance.activeModule;
         screen.equipment = [{ id: 1, name: 'Tente 4 places', category: 'Camping', quantity_total: 2, item_value: 120 }];
         screen.viewMode = 'table';
         screen.render();

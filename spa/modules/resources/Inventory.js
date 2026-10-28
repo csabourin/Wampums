@@ -15,7 +15,12 @@ import {
   deleteEquipmentItem
 } from '../../api/api-endpoints.js';
 import { deleteCachedData } from '../../indexedDB.js';
-import { canViewInventory } from '../../utils/PermissionUtils.js';
+import { getEquipmentOwners } from '../../api/api-material.js';
+import { renderOwnershipFields, bindOwnershipFields, readOwnershipFields, equipmentOwnerLabel } from '../material/OwnershipField.js';
+import { getCurrentOrganizationId } from '../../api/api-helpers.js';
+import { formatEquipmentQuantity } from '../../utils/EquipmentUnitUtils.js';
+import { resolveMountOptions, getMountPoint } from '../../utils/PageMount.js';
+import { hasPermission, isDemoUser, canViewInventory } from '../../utils/PermissionUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 
@@ -112,10 +117,13 @@ function isHeicPhotoFile(file) {
  * Features: equipment CRUD, photo upload, gallery view, mobile-first design
  */
 export class Inventory {
-  constructor(app) {
+  constructor(app, options = {}) {
     this.app = app;
+    Object.assign(this, resolveMountOptions(options));
+    this.canEdit = hasPermission('inventory.manage') && !isDemoUser();
     this.destroyed = false;
     this.equipment = [];
+    this.ownerGroups = [];
     this.viewMode = 'gallery'; // 'gallery' or 'table'
     this.editingEquipment = null;
     this.photoPreview = null;
@@ -135,14 +143,14 @@ export class Inventory {
       return;
     }
 
-    showPageLoading(document.getElementById('app'), this.pageOptions());
+    showPageLoading(getMountPoint(this), this.pageOptions());
     try {
       await this.refreshData();
     } catch (error) {
       // A list that did not load is never shown as an empty one.
       debugError('Error initializing inventory:', error);
       if (!this.destroyed) {
-        showPageError(document.getElementById('app'), this.pageOptions(), () => this.init());
+        showPageError(getMountPoint(this), this.pageOptions(), () => this.init());
       }
       return;
     }
@@ -151,6 +159,8 @@ export class Inventory {
     }
     this.render();
     this.attachEventHandlers();
+    const id = Number(new URL(window.location.href).searchParams.get('item'));
+    if (this.canEdit && this.equipment.some((item) => Number(item.id) === id)) { await this.openEditModal(id); }
   }
 
   /** Called by the router when the person leaves this screen. */
@@ -160,7 +170,7 @@ export class Inventory {
 
   /** @returns {Object} Shared page-state options */
   pageOptions() {
-    return { title: translate('inventory_title'), className: 'inventory-page' };
+    return { title: translate('inventory_title'), className: 'inventory-page', embedded: this.embedded };
   }
 
   /**
@@ -190,6 +200,7 @@ export class Inventory {
     // Force refresh to bypass cache - ensures we get the latest data including updated photos
     const equipmentResponse = await getEquipmentInventory({}, { forceRefresh: true });
     this.equipment = equipmentResponse?.data?.equipment || equipmentResponse?.equipment || [];
+    if (this.canEdit) { this.ownerGroups = (await getEquipmentOwners()).data || []; }
   }
 
   getLocale() {
@@ -235,24 +246,31 @@ export class Inventory {
     return typeLabel;
   }
 
+  /** Ownership and sharing describe one physical item, not another unit stock. */
+  ownerLabel(item) {
+    return equipmentOwnerLabel(item);
+  }
+
+  quantityLabel(item, value) {
+    return formatEquipmentQuantity(value ?? 0, item.attributes?.unit_of_measure || 'each', this.app.lang);
+  }
+
   render() {
-    const container = document.getElementById('app');
+    const container = getMountPoint(this);
     if (!container) {
       return;
     }
 
     setContent(container, `
-      ${renderBackLink()}
+      ${this.embedded ? '' : renderBackLink()}
       <section class="page inventory-page">
-        <div class="card">
-          <h1>${escapeHTML(translate('inventory_title'))}</h1>
-          <p class="subtitle">${escapeHTML(translate('inventory_description'))}</p>
-        </div>
+        ${this.embedded ? '' : `<div class="card"><h1>${escapeHTML(translate('inventory_title'))}</h1></div>`}
+        <p class="subtitle">${escapeHTML(translate('inventory_description'))}</p>
 
-        <!-- Equipment Form for Adding New -->
-        <div class="card">
+        ${this.canEdit ? `${this.embedded ? `<details class="inventory-create"><summary>${translate('material_add_stock')}</summary>` : ''}<div class="card">
           <h2>${escapeHTML(translate('equipment_add_new'))}</h2>
           <form id="equipmentForm" class="stacked">
+            ${renderOwnershipFields('equipment-new', this.ownerGroups)}
             <div class="grid grid-2">
               <label class="stacked">
                 <span>${escapeHTML(translate('equipment_name'))} *</span>
@@ -350,7 +368,7 @@ export class Inventory {
               <button type="submit" class="button button--primary">${escapeHTML(translate('save_equipment'))}</button>
             </div>
           </form>
-        </div>
+        </div>${this.embedded ? '</details>' : ''}` : ''}
 
         <!-- View Toggle and Equipment Display -->
         <div class="card">
@@ -778,14 +796,15 @@ export class Inventory {
             <div class="equipment-card-content">
               <h3 class="equipment-card-title">${escapeHTML(item.name)}</h3>
               <div class="equipment-card-category">${escapeHTML(equipmentCategoryLabel(item.category))}</div>
+              <p>${translate('material_owner')}: ${escapeHTML(this.ownerLabel(item))}</p>
               <div class="equipment-card-details">
                 <div class="equipment-card-detail">
                   <span class="equipment-card-detail-label">${escapeHTML(translate('equipment_quantity_total'))}</span>
-                  <span class="equipment-card-detail-value">${escapeHTML(String(item.quantity_total ?? 0))}</span>
+                  <span class="equipment-card-detail-value">${escapeHTML(this.quantityLabel(item, item.quantity_total))}</span>
                 </div>
                 <div class="equipment-card-detail">
                   <span class="equipment-card-detail-label">${escapeHTML(translate('equipment_reserved'))}</span>
-                  <span class="equipment-card-detail-value">${escapeHTML(String(item.reserved_quantity ?? 0))}</span>
+                  <span class="equipment-card-detail-value">${escapeHTML(this.quantityLabel(item, item.reserved_quantity))}</span>
                 </div>
                 <div class="equipment-card-detail">
                   <span class="equipment-card-detail-label">${escapeHTML(translate('equipment_item_value'))}</span>
@@ -802,8 +821,8 @@ export class Inventory {
               </div>
             </div>
             <div class="equipment-card-actions">
-              <button type="button" class="button button--secondary edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
-              <button type="button" class="button button--danger delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>
+              ${this.canEdit ? `<button type="button" class="button button--secondary edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
+              <button type="button" class="button button--danger delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>` : ''}
             </div>
           </div>
         `).join('')}
@@ -858,15 +877,15 @@ export class Inventory {
     : `<div class="table-no-photo">📦</div>`
 }
                 </td>
-                <td data-label="${escapeAttribute(translate('equipment_name'))}">${escapeHTML(item.name)}</td>
+                <td data-label="${escapeAttribute(translate('equipment_name'))}">${escapeHTML(item.name)}<br>${translate('material_owner')}: ${escapeHTML(this.ownerLabel(item))}</td>
                 <td data-label="${escapeAttribute(translate('equipment_category'))}">${escapeHTML(equipmentCategoryLabel(item.category))}</td>
                 <td data-label="${escapeAttribute(translate('equipment_location'))}">${escapeHTML(this.formatLocation(item))}</td>
-                <td data-label="${escapeAttribute(translate('equipment_quantity_total'))}">${escapeHTML(String(item.quantity_total ?? 0))}</td>
+                <td data-label="${escapeAttribute(translate('equipment_quantity_total'))}">${escapeHTML(this.quantityLabel(item, item.quantity_total))}</td>
                 <td data-label="${escapeAttribute(translate('equipment_item_value'))}">${escapeHTML(this.formatCurrency(item.item_value))}</td>
                 <td data-label="${escapeAttribute(translate('actions'))}">
                   <div class="table-actions">
-                    <button type="button" class="button button--secondary button--small edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
-                    <button type="button" class="button button--danger button--small delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>
+                    ${this.canEdit ? `<button type="button" class="button button--secondary button--small edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
+                    <button type="button" class="button button--danger button--small delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>` : ''}
                   </div>
                 </td>
               </tr>
@@ -904,6 +923,7 @@ export class Inventory {
     // Equipment form handler for creating new
     const equipmentForm = document.getElementById('equipmentForm');
     if (equipmentForm) {
+      bindOwnershipFields(equipmentForm);
       equipmentForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         await this.handleCreateSubmit();
@@ -1402,6 +1422,7 @@ export class Inventory {
     return `
       <form id="editEquipmentForm" class="stacked">
         <input type="hidden" name="equipment_id" id="modal_equipment_id" />
+        ${renderOwnershipFields('equipment-edit', this.ownerGroups, this.editingEquipment, String(this.editingEquipment?.organization_id) === String(getCurrentOrganizationId()))}
 
         <div class="grid grid-2">
           <label class="stacked">
@@ -1719,6 +1740,7 @@ export class Inventory {
         this.clearModalPhotoPreview();
       },
     });
+    bindOwnershipFields(document.getElementById('editEquipmentForm'));
     document.getElementById('editEquipmentForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       await this.handleEditSubmit();
@@ -1731,8 +1753,8 @@ export class Inventory {
     document.getElementById('modal_equipment_category').value = EQUIPMENT_CATEGORIES.includes(equipment.category)
       ? equipment.category
       : 'other';
-    document.getElementById('modal_equipment_quantity_total').value = equipment.quantity_total || 1;
-    document.getElementById('modal_equipment_quantity_available').value = equipment.quantity_available || '';
+    document.getElementById('modal_equipment_quantity_total').value = equipment.quantity_total ?? 1;
+    document.getElementById('modal_equipment_quantity_available').value = equipment.quantity_available ?? '';
     document.getElementById('modal_equipment_item_value').value = equipment.item_value || '';
     document.getElementById('modal_equipment_acquisition_date').value = equipment.acquisition_date ? equipment.acquisition_date.slice(0, 10) : '';
     document.getElementById('modal_equipment_condition_note').value = equipment.condition_note || '';
@@ -1792,7 +1814,8 @@ export class Inventory {
       name: formData.get('equipment_name')?.trim() || '',
       category: formData.get('category') || 'other',
       description: formData.get('description')?.trim() || null,
-      quantity_total: parseInt(formData.get('quantity_total'), 10) || 1,
+      quantity_total: formData.get('quantity_total') === '' ? 1 : Number(formData.get('quantity_total')),
+      ...readOwnershipFields(form),
       quantity_available: formData.get('quantity_available') ? parseInt(formData.get('quantity_available'), 10) : null,
       condition_note: formData.get('condition_note')?.trim() || null,
       item_value: formData.get('item_value') ? parseFloat(formData.get('item_value')) : null,
@@ -1807,7 +1830,7 @@ export class Inventory {
     // Remove null/undefined values to avoid validation issues
     Object.keys(payload).forEach(key => {
       if (payload[key] === null || payload[key] === undefined || payload[key] === '') {
-        if (key !== 'name' && key !== 'location_details') { // name is required, location_details can clear existing data
+        if (!['name', 'location_details', 'owner_type', 'owner_local_group_id'].includes(key)) { // name is required, location_details can clear existing data
           delete payload[key];
         }
       }
@@ -1854,7 +1877,8 @@ export class Inventory {
       name: formData.get('equipment_name')?.trim() || '',
       category: formData.get('category') || 'other',
       description: formData.get('description')?.trim() || null,
-      quantity_total: parseInt(formData.get('quantity_total'), 10) || 1,
+      quantity_total: formData.get('quantity_total') === '' ? 1 : Number(formData.get('quantity_total')),
+      ...readOwnershipFields(form),
       quantity_available: formData.get('quantity_available') ? parseInt(formData.get('quantity_available'), 10) : null,
       condition_note: formData.get('condition_note')?.trim() || null,
       item_value: formData.get('item_value') ? parseFloat(formData.get('item_value')) : null,
@@ -1866,7 +1890,7 @@ export class Inventory {
     // Remove null/undefined values to avoid validation issues
     Object.keys(payload).forEach(key => {
       if (payload[key] === null || payload[key] === undefined || payload[key] === '') {
-        if (key !== 'name' && key !== 'location_details') { // name is required, location_details can clear existing data
+        if (!['name', 'location_details', 'owner_type', 'owner_local_group_id'].includes(key)) { // name is required, location_details can clear existing data
           delete payload[key];
         }
       }
