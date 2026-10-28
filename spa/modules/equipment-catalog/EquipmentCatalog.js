@@ -192,7 +192,7 @@ export class EquipmentCatalog {
    * @param {Object|null} item - Article to edit, or null to create
    */
   async edit(item = null) {
-    const equipment = await this.linkableEquipment();
+    const equipment = this.unified ? [] : await this.linkableEquipment();
     let ownerGroups = [];
     if (this.unified && this.canManageStock) {
       try { ownerGroups = (await getEquipmentOwners()).data || []; }
@@ -205,7 +205,7 @@ export class EquipmentCatalog {
     if (linked && !equipment.some((entry) => Number(entry.id) === linked)) {
       equipment.push({ id: linked, name: item.equipment_name || translate('equipment_catalog_inventory_item') });
     }
-    const equipmentField = equipment.length ? `
+    const equipmentField = !this.unified && equipment.length ? `
       <label for="equipment-catalog-equipment">${translate('equipment_catalog_inventory_item')}</label>
       <select id="equipment-catalog-equipment" name="catalog_equipment">
         <option value="">${translate('equipment_catalog_no_inventory_item')}</option>

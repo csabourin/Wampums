@@ -1,6 +1,7 @@
 /** Physical ownership is distinct from the unit maintaining a record and from sharing. */
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
+const POSTGRES_INT_MAX = 2147483647;
 class OwnershipError extends Error {
   constructor(message, status = HTTP_BAD_REQUEST) { super(message); this.status = status; }
 }
@@ -32,7 +33,7 @@ async function readEquipmentOwner(db, organizationId, fields, current = null) {
   const has = (name) => Object.prototype.hasOwnProperty.call(fields, name);
   const type = has('owner_type') ? fields.owner_type : current ? current.owner_type ?? null : 'unit';
   const groupId = type === 'group' ? Number(has('owner_local_group_id') ? fields.owner_local_group_id : current?.owner_local_group_id) : null;
-  if ((type !== 'group' && fields.owner_local_group_id !== null && fields.owner_local_group_id !== undefined) || ![null, 'unit', 'group'].includes(type) || (type === 'group' && (!['string', 'number'].includes(typeof (has('owner_local_group_id') ? fields.owner_local_group_id : current?.owner_local_group_id)) || !Number.isSafeInteger(groupId) || groupId <= 0))) {
+  if ((type !== 'group' && fields.owner_local_group_id !== null && fields.owner_local_group_id !== undefined) || ![null, 'unit', 'group'].includes(type) || (type === 'group' && (!['string', 'number'].includes(typeof (has('owner_local_group_id') ? fields.owner_local_group_id : current?.owner_local_group_id)) || !Number.isSafeInteger(groupId) || groupId <= 0 || groupId > POSTGRES_INT_MAX))) {
     throw new OwnershipError('material_owner_invalid');
   }
   const changed = !current || type !== (current.owner_type ?? null) || groupId !== (current.owner_local_group_id ?? null);

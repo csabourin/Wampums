@@ -13131,3 +13131,6 @@ body:has(> .settings-icon) .demo-banner__inner {
 .material-ownership [data-owner-group] { display: grid; gap: var(--space-xs); min-width: 0; }
 .material-ownership [data-owner-group][hidden] { display: none; }
 .inventory-create > summary { cursor: pointer; min-height: var(--touch-target-min); padding: var(--space-sm); font-weight: bold; }
+
+.material-stock-toggle { display: flex; align-items: center; gap: var(--space-sm); min-height: var(--touch-target-min); }
+.equipment-catalog__form .material-stock-toggle input { width: var(--touch-target-min); flex-shrink: 0; }

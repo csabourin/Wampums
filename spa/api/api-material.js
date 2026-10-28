@@ -1,3 +1,3 @@
-/** Minimal choices for identifying the real owner; never loads group rosters. */
+/** Fresh owner choices while connected; scoped cached choices remain readable offline. No rosters. */
 import { API } from './api-core.js';
-export const getEquipmentOwners = () => API.getNoCache('v1/resources/equipment/owners');
+export const getEquipmentOwners = () => API.get('v1/resources/equipment/owners', {}, { forceRefresh: true });
