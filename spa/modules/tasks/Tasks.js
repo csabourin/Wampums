@@ -18,7 +18,11 @@ export class Tasks {
     this.app = app;
     this.canManage = hasPermission('tasks.manage');
     this.readOnly = isDemoUser();
-    this.unitView = false;
+    const query = new URLSearchParams(window.location.search);
+    const id = (key) => /^[1-9]\d*$/.test(query.get(key) || '') ? Number(query.get(key)) : null;
+    this.campMeetingId = id('meeting_id');
+    this.campActivityId = id('activity_id');
+    this.unitView = this.canManage && Boolean(this.campMeetingId || this.campActivityId);
     this.tasks = [];
     this.destroyed = false;
   }
@@ -31,7 +35,9 @@ export class Tasks {
     try {
       const response = await (this.unitView ? getUnitTasks : getMyTasks)({ forceRefresh: true });
       if (this.destroyed) {return;}
-      this.tasks = response.data;
+      this.tasks = response.data.filter((task) => (!this.campMeetingId && !this.campActivityId)
+        || (this.campMeetingId && Number(task.meeting_id) === this.campMeetingId)
+        || (this.campActivityId && Number(task.activity_id) === this.campActivityId));
       this.render();
     } catch (err) {
       debugError('Failed to load tasks', err);

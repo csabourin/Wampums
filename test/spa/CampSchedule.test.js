@@ -37,6 +37,7 @@ jest.mock('../../spa/config.js', () => ({
 
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   hasPermission: jest.fn(() => false),
+  hasOrganizationScope: jest.fn(() => true),
 }));
 
 jest.mock('../../spa/api/api-equipment-catalog.js', () => ({

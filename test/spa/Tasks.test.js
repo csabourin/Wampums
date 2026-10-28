@@ -17,6 +17,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 beforeEach(() => {
   jest.clearAllMocks();
+  window.history.replaceState(null, '', '/tasks');
   document.body.innerHTML = '<main id="app"></main>';
   hasPermission.mockReturnValue(false);
   api.getMyTasks.mockResolvedValue({ data: [task] });
@@ -168,4 +169,15 @@ test('an equipment duty opens its personal lot instead of offering an independen
   await new Tasks(app).init();
   expect(document.querySelector('a[href="/my-camp-lots/7"]')).not.toBeNull();
   expect(document.querySelector('[data-task-status]')).toBeNull();
+});
+
+
+test('a camp link opens unit assignments for that camp and its linked outing only', async () => {
+  hasPermission.mockReturnValue(true);
+  window.history.replaceState(null, '', '/tasks?meeting_id=3&activity_id=4');
+  api.getUnitTasks.mockResolvedValue({ data: [task, { ...task, id: 9, activity_id: null, meeting_id: 3, title: 'Pack cooking pot' }, { ...task, id: 10, activity_id: 99, title: 'Other camp' }] });
+  await new Tasks(app).init();
+  expect(api.getUnitTasks).toHaveBeenCalledTimes(1);
+  expect(document.body.textContent).toContain('Pack cooking pot');
+  expect(document.body.textContent).not.toContain('Other camp');
 });
