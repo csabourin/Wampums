@@ -29,7 +29,7 @@ describe.skipIf(!DATABASE_URL)('Material ownership', () => {
       } catch (err) { await db.query('ROLLBACK'); throw err; } finally { db.release(); }
       units.push(id);
       const role = await one("INSERT INTO roles (role_name, display_name, data_scope, organization_id) VALUES ('material_' || gen_random_uuid(), 'Fictional equipment helper', 'organization', $1) RETURNING id", [id]);
-      await pool.query('INSERT INTO role_permissions (role_id, permission_id) SELECT $1, id FROM permissions WHERE permission_key = ANY($2::text[])', [role, ['inventory.view', 'inventory.manage', 'equipment_catalog.manage']]);
+      await pool.query('INSERT INTO role_permissions (role_id, permission_id) SELECT $1, id FROM permissions WHERE permission_key = ANY($2::text[])', [role, ['inventory.view', 'inventory.manage', 'equipment_catalog.manage', 'activities.view']]);
       const user = await one("INSERT INTO users (email, password, full_name) VALUES ('material-' || gen_random_uuid() || '@example.test', 'x', 'Fictional Helper') RETURNING id");
       users.push(user); people.push(user);
       await pool.query('INSERT INTO user_organizations (organization_id, user_id, role_ids) VALUES ($1, $2, $3)', [id, user, JSON.stringify([role])]);

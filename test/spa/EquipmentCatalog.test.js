@@ -31,7 +31,7 @@ jest.mock('../../spa/api/api-equipment-catalog.js', () => ({
   getLinkableEquipment: jest.fn(),
 }));
 
-jest.mock('../../spa/api/api-material.js', () => ({ getEquipmentOwners: jest.fn(async () => ({ data: [{ id: 3, name: 'Groupe fictif' }] })) }));
+jest.mock('../../spa/api/api-material.js', () => ({ getEquipmentOwners: jest.fn(() => Promise.resolve({ data: [{ id: 3, name: 'Groupe fictif' }] })) }));
 
 const { EquipmentCatalog } = require('../../spa/modules/equipment-catalog/EquipmentCatalog.js');
 const api = require('../../spa/api/api-equipment-catalog.js');
