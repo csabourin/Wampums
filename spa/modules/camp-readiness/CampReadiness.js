@@ -8,6 +8,7 @@ import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { formatEquipmentQuantity } from '../../utils/EquipmentUnitUtils.js';
+import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { CAMP_LOTS } from '../../config/camp-lots.js';
 import { getCampReadiness } from '../../api/api-camp-readiness.js';
@@ -65,13 +66,13 @@ export class CampReadiness {
     let body = '';
     if (sections.permissions) {
       body += this.section('permissions', sections.permissions.map((row) => this.row(this.status(row.status),
-        formatEquipmentQuantity(row.count, this.app.lang), `/permission-slips/${Number(camp.activity_id)}`, '', row.deadline)).join(''), `/permission-slips/${Number(camp.activity_id)}`);
+        new Intl.NumberFormat(localeForLanguage(this.app.lang)).format(row.count), `/permission-slips/${Number(camp.activity_id)}`, '', row.deadline)).join(''), `/permission-slips/${Number(camp.activity_id)}`);
     }
     if (sections.material) {
       const material = sections.material;
       const rows = material.items.map((item) => {
         const status = material.inventory_compared ? this.status(item.inventory?.status) : translate('camp_readiness_inventory_unchecked');
-        const quantity = formatEquipmentQuantity(item.quantity, this.app.lang);
+        const quantity = formatEquipmentQuantity(item.quantity, item.unit_of_measure, this.app.lang);
         return this.row(item.name, `${translate('camp_readiness_needed')} ${quantity} · ${status}`, `/camp-material/${meetingId}`);
       }).join('');
       body += this.section('material', rows, `/camp-material/${meetingId}`);

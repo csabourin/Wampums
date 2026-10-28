@@ -1,11 +1,12 @@
 /** @jest-environment jsdom */
 import axe from 'axe-core';
 jest.mock('../../spa/config.js', () => ({ CONFIG: {}, getStorageKey: (key) => key }));
-jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
+jest.mock('../../spa/app.js', () => ({ translate: jest.fn((key) => key) }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
 jest.mock('../../spa/api/api-camp-readiness.js', () => ({ getCampReadiness: jest.fn() }));
 import { getCampReadiness } from '../../spa/api/api-camp-readiness.js';
 import { CampReadiness, READINESS_LABELS } from '../../spa/modules/camp-readiness/CampReadiness.js';
+import { translate } from '../../spa/app.js';
 import en from '../../lang/en.json';
 import fr from '../../lang/fr.json';
 let screen;
@@ -17,7 +18,27 @@ const data = () => ({ camp: { id: 3, activity_id: 8, theme: '<img src=x onerror=
 } });
 beforeEach(() => {
   jest.clearAllMocks(); localStorage.clear(); document.body.innerHTML = '<main id="app"></main>';
+  translate.mockImplementation((key) => key);
   getCampReadiness.mockResolvedValue({ data: data() }); screen = new CampReadiness({ lang: 'fr' }, { meetingId: 3 });
+});
+test.each([
+  ['fr', 'kg', '2,5 kg', '1\u00a0234'],
+  ['en', 'l', '2.5 L', '1,234'],
+])('camp quantities and consent counts use the %s locale without adding an equipment unit to counts', async (lang, unit, quantity, count) => {
+  const messages = lang === 'fr' ? fr : en;
+  translate.mockImplementation((key) => messages[key] || key);
+  screen.app.lang = lang;
+  const payload = data();
+  payload.sections.material.items = [{ name: 'Supplies', quantity: 2.5, unit_of_measure: unit, inventory: { status: 'missing' } }];
+  payload.sections.permissions[0].count = 1234;
+  getCampReadiness.mockResolvedValue({ data: payload });
+
+  await screen.init();
+
+  const materialRow = document.querySelector('a[href="/camp-material/3"]').closest('li');
+  expect(materialRow.querySelector('p').textContent).toContain(quantity);
+  const consentRow = document.querySelector('a[href="/permission-slips/8"]').closest('li');
+  expect(consentRow.querySelector('p').textContent).toBe(count);
 });
 afterEach(() => screen.destroy());
 test('the team can see camp needs, responsible people and deadlines with working action links', async () => {

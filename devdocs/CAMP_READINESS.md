@@ -30,3 +30,6 @@ migration is needed: this read-only composition uses the existing resource right
 
 English/French labels, jsdom/axe, route permission tests, a migrated-PostgreSQL
 isolation test and the seeded phone/desktop accessibility suite cover this screen.
+Material quantities retain the article's unit of measure and the interface's number
+format (for example, `2,5 kg` in French). Consent totals are localized counts with
+no equipment unit.
