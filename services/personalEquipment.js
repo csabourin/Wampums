@@ -135,7 +135,8 @@ function translateList(pool, context, meetingId, language) {
     const cached = (await db.query('SELECT content FROM personal_equipment_translations WHERE organization_id=$1 AND meeting_id=$2 AND version=$3 AND language=$4',
       [context.organizationId, meetingId, list.version, language])).rows[0];
     if (cached) { return cached.content; }
-    const direct = ['fr', 'en'].includes(language) && list.items.every((item) => item[`label_${language}`]);
+    const completeNotes = Boolean(list[`notes_${language}`]?.trim()) || ![list.notes_fr, list.notes_en].some((notes) => notes?.trim());
+    const direct = ['fr', 'en'].includes(language) && completeNotes && list.items.every((item) => item[`label_${language}`]);
     if (direct) { return { notes: list[`notes_${language}`], items: list.items.map((item) => ({ key: item.key, label: item[`label_${language}`] })) }; }
     const input = { targetLocale: language, notes: list.notes_fr || list.notes_en,
       items: list.items.map((item) => ({ key: item.key, label: item.label_fr || item.label_en })) };

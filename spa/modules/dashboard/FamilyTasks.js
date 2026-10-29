@@ -190,7 +190,7 @@ export function buildFamilyTasks(data, filter = ALL_CHILDREN) {
   });
 
   (data.packingLists || []).filter((row) => included.has(Number(row.participant_id)) && row.date >= data.today && hasUnpackedItems(row))
-    .forEach((row) => addRow(tasks, `equipment:${row.meeting_id}`, () => ({ kind: FAMILY_TASK_KIND.EQUIPMENT, title: row.title, date: row.date, meetingId: Number(row.meeting_id) }), childRow(Number(row.participant_id))));
+    .forEach((row) => addRow(tasks, `equipment:${row.meeting_id}`, () => ({ kind: FAMILY_TASK_KIND.EQUIPMENT, title: row.title?.trim() || translate('personal_equipment_camp'), date: row.date, meetingId: Number(row.meeting_id) }), childRow(Number(row.participant_id))));
 
   // An event's deadline is the earliest any of its slips asks for.
   const list = [...tasks.values()].map((task) => {

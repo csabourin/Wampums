@@ -99,6 +99,23 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
     await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1 }));
     await translateList(pool, context(), meetingId, 'es'); expect(generateText).toHaveBeenCalledTimes(2);
   });
+  test.each(['fr', 'en'])('missing %s instructions are translated even when every item already has that label', async (language) => {
+    const source = language === 'en' ? 'fr' : 'en';
+    const notes = source === 'fr' ? 'Identifier les effets.' : 'Label personal items.';
+    const items = input().items.map((item) => ({ ...item, label_en: item.key === 'bag' ? 'Sleeping bag' : 'Socks' }));
+    await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1, items, notes_fr: '', notes_en: '', [`notes_${source}`]: notes }));
+    const translated = { notes: 'Translated instructions', items: items.map((item) => ({ key: item.key, label: item[`label_${language}`] })) };
+    generateText.mockResolvedValue({ data: translated });
+    expect(await translateList(pool, context(), meetingId, language)).toEqual(translated);
+    expect(generateText).toHaveBeenCalledTimes(1);
+    expect(generateText.mock.calls[0][1]).toMatchObject({ targetLocale: language, notes });
+  });
+  test.each(['Label personal items.', ''])('complete authored text bypasses AI when target notes are %p', async (notes) => {
+    const items = input().items.map((item) => ({ ...item, label_en: item.key === 'bag' ? 'Sleeping bag' : 'Socks' }));
+    await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1, items, notes_fr: notes ? 'Identifier les effets.' : '', notes_en: notes }));
+    expect(await translateList(pool, context(), meetingId, 'en')).toEqual({ notes, items: items.map((item) => ({ key: item.key, label: item.label_en })) });
+    expect(generateText).not.toHaveBeenCalled();
+  });
   test('families cannot publish common lists and no packing-state table or endpoint exists', async () => {
     expect((await request(app).put(`/api/v1/personal-equipment/${meetingId}`).set(auth()).send(input())).status).toBe(403);
     expect((await request(app).patch(`/api/v1/personal-equipment/${meetingId}/children/${child}/items/bag`).set(auth()).send({ checked: true })).status).toBe(404);
