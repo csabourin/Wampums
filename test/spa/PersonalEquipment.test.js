@@ -107,3 +107,16 @@ test('a late list cannot redraw another account or the next screen', async () =>
 test('bulk lines keep quantities and ignore blanks and pasted list bullets', () => {
   expect(bulkPackingLines('2 paires de bas\r\n\n• Tuque\n1. Gourde')).toEqual(['2 paires de bas', 'Tuque', 'Gourde']);
 });
+
+
+test('activity checkmarks do not collide with another activity or a camp of the same number', () => {
+  expect(packingKey('activity-7', 2)).not.toBe(packingKey('activity-8', 2));
+  expect(packingKey('activity-7', 2)).not.toBe(packingKey(7, 2));
+});
+
+test('opening a camp from its activity retains the camp checkmarks', async () => {
+  localStorage.setItem(packingKey(7, 2), JSON.stringify(['bag']));
+  api.getPersonalEquipment.mockResolvedValue({ data: { ...fixture(), packing_id: 7 } });
+  await new PersonalEquipment(app, { meetingId: 'activity-44' }).init();
+  expect(document.querySelector('[data-child="2"][data-key="bag"]').checked).toBe(true);
+});

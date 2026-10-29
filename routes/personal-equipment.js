@@ -7,6 +7,7 @@ const { sendAIFailure } = require('../utils/aiFailure');
 const RULES = require('../config/personal_equipment.json');
 const { success, error, asyncHandler } = require('../middleware/response');
 const equipment = require('../services/personalEquipment');
+const activityEquipment = require('../services/activityPersonalEquipment');
 const HTTP_CONFLICT = 409;
 /** Restrict to the caller's linked children unless the route explicitly permits a staff read. */
 async function contextFor(req, pool, write = false) {
@@ -25,7 +26,21 @@ const handle = (handler) => asyncHandler(async (req, res) => {
 module.exports = (pool) => {
   const router = express.Router(); router.use(authenticate);
   router.get('/mine', requirePermission('personal_equipment.view'), handle(async (req, res) =>
-    success(res, await equipment.familyTasks(pool, await contextFor(req, pool)))));
+    success(res, [...await equipment.familyTasks(pool, await contextFor(req, pool)), ...await activityEquipment.tasks(pool, await contextFor(req, pool))])));
+  router.get('/activities/:id/manage', requirePermission({ permissions: ['personal_equipment.manage'], organizationScope: true }), validateIdParam('id'), checkValidation, handle(async (req, res) => {
+    const context = await contextFor(req, pool);
+    const data = await activityEquipment.read(pool, context, Number(req.params.id), true);
+    const catalog = (await pool.query('SELECT id,name FROM equipment_catalog_items WHERE organization_id=$1 AND archived_at IS NULL ORDER BY name,id', [context.organizationId])).rows;
+    return success(res, { ...data, catalog });
+  }));
+  router.get('/activities/:id', requirePermission('personal_equipment.view'), validateIdParam('id'), checkValidation, handle(async (req, res) =>
+    success(res, await activityEquipment.read(pool, await contextFor(req, pool), Number(req.params.id)))));
+  router.put('/activities/:id', requirePermission({ permissions: ['personal_equipment.manage'], organizationScope: true }), blockDemoRoles,
+    validateIdParam('id'), body().custom((value) => Boolean(equipment.readList(value))), checkValidation, handle(async (req, res) =>
+      success(res, await activityEquipment.save(pool, await contextFor(req, pool, true), Number(req.params.id), req.body))));
+  router.post('/activities/:id/translations', requirePermission('personal_equipment.view'), blockDemoRoles,
+    validateIdParam('id'), body('language').isString().bail().isIn(RULES.TRANSLATION_LANGUAGES), checkValidation, handle(async (req, res) =>
+      success(res, await activityEquipment.translate(pool, await contextFor(req, pool), Number(req.params.id), req.body.language))));
   router.get('/:id/manage', requirePermission({ permissions: ['personal_equipment.manage'], organizationScope: true }), validateIdParam('id'), checkValidation,
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);

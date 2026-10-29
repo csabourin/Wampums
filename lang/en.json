@@ -51,6 +51,8 @@
   "personal_equipment_translation_hint": "The team’s text is shown until you request a translation into the selected language.",
   "personal_equipment_translation_failed": "The list could not be translated. The original text and your checkmarks are kept.",
   "family_tasks_kind_equipment": "Bags to prepare",
+  "activity_personal_equipment_help": "Save the activity to prepare its personal packing list. Publishing the list is a separate action.",
+  "activity_save_prepare_packing": "Save and prepare the packing list",
   "role_category_personal_equipment": "Personal packing lists",
   "role_category_communication": "Communication",
   "role_permission_personal_equipment_view": "Read family packing lists",

@@ -9,11 +9,11 @@ jest.mock('../../spa/ajax-functions.js', () => ({ fetchParticipants: jest.fn().m
 jest.mock('../../spa/api/api-endpoints.js', () => ({ getGroups: jest.fn().mockResolvedValue({ data: [] }) }));
 jest.mock('../../spa/api/api-ai.js', () => ({ aiGenerateText: jest.fn() }));
 jest.mock('../../spa/indexedDB.js', () => ({ clearActivityRelatedCaches: jest.fn(), clearActivityPermissionSlipCaches: jest.fn() }));
-jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(() => true), canFollowPermissionSlips: jest.fn(() => true) }));
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasOrganizationScope: jest.fn(() => true), hasPermission: jest.fn(() => true), canFollowPermissionSlips: jest.fn(() => true) }));
 
 import { createActivity, updateActivity } from '../../spa/api/api-activities.js';
 import { previewActivityAuthorizations, sendActivityAuthorizations, getActivityAuthorizations } from '../../spa/api/api-activity-authorizations.js';
-import { hasPermission, canFollowPermissionSlips } from '../../spa/utils/PermissionUtils.js';
+import { hasOrganizationScope, hasPermission, canFollowPermissionSlips } from '../../spa/utils/PermissionUtils.js';
 import { openActivityFormModal } from '../../spa/modules/activities/ActivityFormModal.js';
 import { ActivityAuthorizationPanel } from '../../spa/modules/activities/ActivityAuthorizationPanel.js';
 
@@ -40,6 +40,7 @@ async function submit(root, intent) {
 beforeEach(() => {
   jest.clearAllMocks();
   app = { lang: 'fr', showMessage: jest.fn(), router: { navigate: jest.fn() } };
+  hasOrganizationScope.mockReturnValue(true);
   hasPermission.mockReturnValue(true);
   canFollowPermissionSlips.mockReturnValue(true);
   previewActivityAuthorizations.mockResolvedValue({ participants: 2, addresses: 3, missing: [] });
@@ -196,4 +197,22 @@ test('a restricted editor reopens the durable result inside the activity form', 
 test('the implicit submit action saves without sending', () => {
   const root = open();
   expect(root.querySelector('button[type="submit"]').value).toBe('save');
+});
+
+
+test('creating an activity can save and open its packing editor without sending authorizations', async () => {
+  const root = open();
+  expect(root.querySelector('[value="packing"]')).not.toBeNull();
+  await submit(root, 'packing');
+  expect(createActivity).toHaveBeenCalledTimes(1);
+  expect(sendActivityAuthorizations).not.toHaveBeenCalled();
+  expect(app.router.navigate).toHaveBeenCalledWith('/personal-equipment/activity-44/manage');
+});
+
+test('the packing action is hidden without its management permission or organization scope', () => {
+  hasPermission.mockImplementation((key) => key !== 'personal_equipment.manage');
+  expect(open().querySelector('[value="packing"]')).toBeNull();
+  handle.close(true);
+  hasPermission.mockReturnValue(true); hasOrganizationScope.mockReturnValue(false);
+  expect(open().querySelector('[value="packing"]')).toBeNull();
 });

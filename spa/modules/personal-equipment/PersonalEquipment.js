@@ -43,7 +43,7 @@ export class PersonalEquipment {
   }
   async init() {
     const request = ++this.request;
-    const options = { title: this.title(), backHref: this.manage ? '/yearly-planner' : '/parent-dashboard' };
+    const options = { title: this.title(), backHref: this.manage ? '/activities' : '/parent-dashboard' };
     loadStylesheet(styles).catch((err) => debugError('Personal equipment stylesheet failed', err));
     setContent(this.root(), pageLoadingMarkup(options));
     try {
@@ -71,7 +71,7 @@ export class PersonalEquipment {
       this.draft = this.data.list || { season: 'shoulder', nights: PERSONAL_EQUIPMENT.DEFAULT_NIGHTS, stay_type: 'tent', notes_fr: '', notes_en: '', published: false,
         version: 0, items: personalEquipmentTemplate('shoulder', PERSONAL_EQUIPMENT.DEFAULT_NIGHTS, 'tent') };
       if (!this.manage) {
-        this.data.children.forEach((child) => { child.checked_keys = [...readPacking(packingKey(this.meetingId, child.id))]; });
+        this.data.children.forEach((child) => { child.checked_keys = [...readPacking(packingKey(this.data?.packing_id || this.meetingId, child.id))]; });
       }
       if (this.manage) { this.renderEditor(); } else { this.renderFamily(); }
     } catch (err) {
@@ -84,10 +84,10 @@ export class PersonalEquipment {
   renderIndex(rows) {
     const camps = [...new Map(rows.map((row) => [row.meeting_id, row])).values()];
     setContent(this.root(), `<section class="page personal-equipment">${renderBackLink('/parent-dashboard')}<h1>${escapeHTML(this.title())}</h1>
-      ${camps.length ? `<ul>${camps.map((camp) => `<li><a class="button button--secondary" href="/personal-equipment/${Number(camp.meeting_id)}">${escapeHTML(camp.title || translate('personal_equipment_camp'))} · ${escapeHTML(formatDate(camp.date, this.app.lang))}</a></li>`).join('')}</ul>` : `<p>${escapeHTML(translate('personal_equipment_no_lists'))}</p>`}</section>`);
+      ${camps.length ? `<ul>${camps.map((camp) => `<li><a class="button button--secondary" href="/personal-equipment/${escapeHTML(String(camp.meeting_id))}">${escapeHTML(camp.title || translate('personal_equipment_camp'))} · ${escapeHTML(formatDate(camp.date, this.app.lang))}</a></li>`).join('')}</ul>` : `<p>${escapeHTML(translate('personal_equipment_no_lists'))}</p>`}</section>`);
   }
   header() {
-    return `${renderBackLink(this.manage ? '/yearly-planner' : '/parent-dashboard')}<h1>${escapeHTML(this.title())}</h1>
+    return `${renderBackLink(this.manage ? '/activities' : '/parent-dashboard')}<h1>${escapeHTML(this.title())}</h1>
       <h2>${escapeHTML(this.data.camp.theme || translate('personal_equipment_camp'))}</h2>
       <p>${escapeHTML(formatDate(this.data.camp.meeting_date, this.app.lang))}</p>
       ${this.data.camp.is_cancelled ? `<p role="status">${escapeHTML(translate('personal_equipment_cancelled'))}</p>` : ''}`;
@@ -229,7 +229,7 @@ export class PersonalEquipment {
       const child = children.find((entry) => entry.id === Number(checkbox.dataset.child));
       const feedback = checkbox.closest('li').querySelector('[role="status"]');
       try {
-        child.checked_keys = [...writePacking(packingKey(this.meetingId, child.id), checkbox.dataset.key, checkbox.checked)];
+        child.checked_keys = [...writePacking(packingKey(this.data?.packing_id || this.meetingId, child.id), checkbox.dataset.key, checkbox.checked)];
         feedback.textContent = translate('personal_equipment_local_saved');
       } catch {
         // Keep an honest visible result when the browser refuses persistent storage.

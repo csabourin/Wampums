@@ -48,6 +48,7 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
   });
   beforeEach(async () => {
     jest.clearAllMocks();
+    await pool.query('DELETE FROM activity_personal_equipment_lists WHERE organization_id=$1', [organizationId]);
     await pool.query('DELETE FROM personal_equipment_lists WHERE organization_id=$1', [organizationId]);
     await pool.query('UPDATE year_plan_meetings SET is_cancelled=FALSE WHERE id=$1', [meetingId]);
     await saveList(pool, organizationId, manager, meetingId, input());
@@ -133,4 +134,48 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
     expect((await request(app).post(`/api/v1/personal-equipment/${meetingId}/translations`).set(auth()).send({ language: ['es'] })).status).toBe(400);
     expect((await request(app).get('/api/v1/personal-equipment/12abc')).status).toBe(401);
   });
+  function standaloneActivity() {
+    return one(`INSERT INTO activities (organization_id,created_by,name,activity_date,activity_start_date,activity_end_date,
+      activity_start_time,activity_end_time,meeting_location_going,meeting_time_going,departure_time_going)
+      VALUES ($1,$2,'Fictional day hike',CURRENT_DATE+3,CURRENT_DATE+3,CURRENT_DATE+3,'09:00','15:00','Fictional hall','09:00','09:00') RETURNING id`, [organizationId, manager]);
+  }
+  test('a standalone activity publishes a family list without creating a planner camp or storing packing state', async () => {
+    const id = await standaloneActivity();
+    const activityEquipment = require('../services/activityPersonalEquipment');
+    const content = input({ child: 'ignored', checked_keys: ['bag'] });
+    content.items[0].label_en = '   ';
+    await activityEquipment.save(pool, context(manager), id, content);
+    const res = await request(app).get(`/api/v1/personal-equipment/activities/${id}`).set(auth());
+    expect(res.status).toBe(200); expect(res.body.data.packing_id).toBe(`activity-${id}`);
+    expect(res.body.data.children.map((entry) => entry.id)).toEqual([child]);
+    expect((await activityEquipment.tasks(pool, context())).map((row) => row.meeting_id)).toContain(`activity-${id}`);
+    const stored = await one('SELECT content FROM activity_personal_equipment_lists WHERE organization_id=$1 AND activity_id=$2', [organizationId, id]);
+    expect(stored.child).toBeUndefined(); expect(stored.checked_keys).toBeUndefined();
+    expect(stored.items[0].label_en).toBe('');
+    expect(await one('SELECT count(*) FROM year_plan_meetings WHERE organization_id=$1 AND activity_id=$2', [organizationId, id])).toBe('0');
+    expect((await request(app).get(`/api/v1/personal-equipment/activities/${id}`).set(auth(otherParent))).status).toBe(404);
+    const translated = await activityEquipment.translate(pool, context(), id, 'fr');
+    expect(translated.items.map((item) => item.key)).toEqual(['bag', 'socks']);
+    expect(generateText).not.toHaveBeenCalled();
+    await pool.query('UPDATE activities SET is_active=FALSE WHERE id=$1', [id]);
+    expect((await request(app).get(`/api/v1/personal-equipment/activities/${id}`).set(auth())).status).toBe(404);
+    await pool.query('UPDATE activities SET is_active=TRUE WHERE id=$1', [id]);
+
+    expect((await request(app).get(`/api/v1/personal-equipment/activities/${id}/manage`).set(auth(manager, otherUnit))).status).not.toBe(200);
+    await expect(activityEquipment.save(pool, context(manager), id, input())).rejects.toMatchObject({ status: 409 });
+    await activityEquipment.save(pool, context(manager), id, input({ expected_version: 1, published: false }));
+    expect((await request(app).get(`/api/v1/personal-equipment/activities/${id}`).set(auth())).status).toBe(404);
+  });
+  test('an activity linked to an existing camp shares its list and preserves its packing key', async () => {
+    const id = await standaloneActivity();
+    await pool.query('UPDATE year_plan_meetings SET activity_id=$1 WHERE id=$2', [id, meetingId]);
+    const activityEquipment = require('../services/activityPersonalEquipment');
+    const data = await activityEquipment.read(pool, context(), id);
+    expect(data.packing_id).toBe(meetingId);
+    await activityEquipment.save(pool, context(manager), id, input({ expected_version: 1, notes_fr: 'Updated from activity' }));
+    expect((await readFamilyList(pool, context(), meetingId)).list.notes_fr).toBe('Updated from activity');
+    expect(await one('SELECT count(*) FROM activity_personal_equipment_lists WHERE activity_id=$1', [id])).toBe('0');
+    await pool.query('UPDATE year_plan_meetings SET activity_id=NULL WHERE id=$1', [meetingId]);
+  });
+
 });

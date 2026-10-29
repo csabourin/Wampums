@@ -1080,7 +1080,7 @@ export class Router {
           const manage = routeName === 'personalEquipmentManage';
           if (!guard(hasPermission(manage ? 'personal_equipment.manage' : 'personal_equipment.view') && (!manage || hasOrganizationScope()))) { break; }
           const PersonalEquipment = await this.loadModule('PersonalEquipment');
-          this.currentModuleInstance = new PersonalEquipment(this.app, { meetingId: routeName === 'personalEquipmentIndex' ? null : Number(param), manage });
+          this.currentModuleInstance = new PersonalEquipment(this.app, { meetingId: routeName === 'personalEquipmentIndex' ? null : (/^activity-[1-9]\d*$/.test(param) ? param : Number(param)), manage });
           await this.currentModuleInstance.init();
           break;
         }

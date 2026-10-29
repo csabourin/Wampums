@@ -241,6 +241,7 @@ export class Activities extends BaseModule {
           <button class="button button--small button--secondary view-carpools-btn" data-activity-id="${activity.id}">
             ${translate('view_carpools')}
           </button>
+          ${hasOrganizationScope() && hasPermission('personal_equipment.manage') ? `<a class="button button--small button--secondary" href="/personal-equipment/activity-${Number(activity.id)}/manage">${escapeHTML(translate('personal_equipment_manage'))}</a>` : ''}
           ${canFollowPermissionSlips() ? `
             <button class="button button--small button--secondary view-permission-slips-btn" data-activity-id="${activity.id}">
               ${translate('manage_permission_slips')}

@@ -4,7 +4,7 @@ const PREFIX = 'personal-equipment-checks';
 
 /** A captured scope cannot write into an account selected after navigation. */
 export function packingKey(meetingId, childId) {
-  return buildScopedCacheKey(`${PREFIX}:${Number(meetingId)}:${Number(childId)}`);
+  return buildScopedCacheKey(`${PREFIX}:${/^activity-[1-9]\d*$/.test(String(meetingId)) ? meetingId : Number(meetingId)}:${Number(childId)}`);
 }
 
 /** Corrupt/blocked storage never prevents opening the published list. */

@@ -51,6 +51,8 @@
   "personal_equipment_translation_hint": "Le texte de l’équipe est affiché jusqu’à ce que vous demandiez une traduction dans la langue choisie.",
   "personal_equipment_translation_failed": "La liste n’a pas pu être traduite. Le texte original et vos coches sont conservés.",
   "family_tasks_kind_equipment": "Bagages à préparer",
+  "activity_personal_equipment_help": "Enregistrez l’activité pour préparer sa liste d’effets personnels. La publication de la liste est une action distincte.",
+  "activity_save_prepare_packing": "Enregistrer et préparer les effets personnels",
   "role_category_personal_equipment": "Effets personnels",
   "role_category_communication": "Communication",
   "role_permission_personal_equipment_view": "Consulter les listes d’effets de la famille",

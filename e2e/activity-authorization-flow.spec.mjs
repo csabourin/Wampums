@@ -122,3 +122,21 @@ test('previewing the email and consent text creates no requests and sends nothin
   });
   expect(await axeViolations(page)).toEqual([]);
 });
+
+test('creating a one-day activity opens its packing list without a planner camp or authorization send', async ({ page }, testInfo) => {
+  const writes = await installMocks(page, 'success');
+  await page.route(new RegExp(`/api/v1/personal-equipment/activities/${ID}/manage(?:\\?.*)?$`), (route) => route.fulfill({ json: {
+    success: true, data: { camp: { id: ID, activity_id: ID, theme: ACTIVITY.name, meeting_date: ACTIVITY.activity_date, is_cancelled: false },
+      packing_id: `activity-${ID}`, list: null, catalog: [] },
+  } }));
+  const form = await openForm(page);
+  await expect(form.getByRole('button', { name: 'Enregistrer et préparer les effets personnels' })).toBeVisible();
+  expect(await axeViolations(page)).toEqual([]);
+  await form.getByRole('button', { name: 'Enregistrer et préparer les effets personnels' }).click();
+  await expect(page).toHaveURL(new RegExp(`/personal-equipment/activity-${ID}/manage$`));
+  await expect(page.locator('#personal-bulk')).toBeVisible();
+  expect(writes.activities).toHaveLength(1);
+  expect(writes.sends).toBe(0);
+  expect(await axeViolations(page)).toEqual([]);
+  await testInfo.attach('activity-packing-editor', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+});
