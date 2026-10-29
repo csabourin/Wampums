@@ -13,6 +13,7 @@ test wins and the document gets fixed.
   focus, no sideways scroll at 390px.
 - **No hacks**: no hardcoded values or magic numbers (use `spa/config.js` and named constants), no
   commented-out or duplicate code. Check `spa/utils/` before writing a helper.
+- **AI is staff-only:** require `ai.use`, organization scope and the feature permission on every provider call. Parents only read published results. Every AI button uses the shared visible/accessibility label from `AIUtils.js`; icons alone never identify AI.
 - **Security first**: escape what you inject, parameterized SQL only, validate input, never log or
   return secrets, tokens or stack traces.
 - **Fictional data only**: no real youth's, parent's or leader's information ever goes into an AI tool.

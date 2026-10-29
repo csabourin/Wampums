@@ -37,7 +37,7 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
   beforeAll(async () => {
     pool = new Pool({ connectionString: DATABASE_URL }); organizationId = await unit(); otherUnit = await unit();
     yearId = await one("INSERT INTO scout_years (organization_id,label,start_date,end_date,status) VALUES ($1,'Fictional year',CURRENT_DATE-10,CURRENT_DATE+365,'active') RETURNING id", [organizationId]);
-    manager = await member('organization', ['personal_equipment.manage', 'personal_equipment.view']);
+    manager = await member('organization', ['personal_equipment.manage', 'personal_equipment.view', 'ai.use']);
     parent = await member('linked', ['personal_equipment.view']); otherParent = await member('linked', ['personal_equipment.view']);
     child = await one("INSERT INTO participants (first_name,last_name,date_naissance) VALUES ('Léa','Example','2016-05-01') RETURNING id");
     await pool.query('INSERT INTO participant_enrollments (participant_id,organization_id,scout_year_id) VALUES ($1,$2,$3)', [child, organizationId, yearId]);
@@ -72,10 +72,10 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
     await expect(readFamilyList(pool, context(otherParent), meetingId)).rejects.toMatchObject({ status: 404 });
     await expect(readFamilyList(pool, context(parent, otherUnit), meetingId)).rejects.toMatchObject({ status: 404 });
   });
-  test('unpublished and cancelled lists are never shown to parents', async () => {
+  test('draft edits preserve the last published list while cancellation hides it', async () => {
     await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1, published: false }));
-    await expect(readFamilyList(pool, context(), meetingId)).rejects.toMatchObject({ status: 404 });
-    expect(await familyTasks(pool, context())).toEqual([]);
+    expect((await readFamilyList(pool, context(), meetingId)).list.version).toBe(1);
+    expect(await familyTasks(pool, context())).toHaveLength(1);
     await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 2 }));
     await pool.query('UPDATE year_plan_meetings SET is_cancelled=TRUE WHERE id=$1', [meetingId]);
     await expect(readFamilyList(pool, context(), meetingId)).rejects.toMatchObject({ status: 404 });
@@ -87,18 +87,18 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
   });
   test('parallel requests reuse a common translation, send no child data and cannot invent item keys', async () => {
     generateText.mockResolvedValue({ data: { notes: 'Etiquetar.', items: [{ key: 'bag', label: 'Saco de dormir' }, { key: 'socks', label: 'Calcetines' }] } });
-    const results = await Promise.all([translateList(pool, context(), meetingId, 'es'), translateList(pool, context(), meetingId, 'es')]);
+    const results = await Promise.all([translateList(pool, context(manager), meetingId, 'es'), translateList(pool, context(manager), meetingId, 'es')]);
     expect(results[0]).toEqual(results[1]); expect(generateText).toHaveBeenCalledTimes(1);
     const payload = generateText.mock.calls[0][1]; expect(payload).toEqual({ targetLocale: 'es', notes: 'Identifier les effets.', items: [{ key: 'bag', label: 'Sac de couchage' }, { key: 'socks', label: 'Bas' }] });
     expect(JSON.stringify(payload)).not.toContain('Léa');
     generateText.mockResolvedValueOnce({ data: { notes: '', items: [{ key: 'new', label: 'Invented' }] } });
-    await expect(translateList(pool, context(), meetingId, 'de')).rejects.toMatchObject({ code: 'AI_INVALID_RESPONSE' });
+    await expect(translateList(pool, context(manager), meetingId, 'de')).rejects.toMatchObject({ code: 'AI_INVALID_RESPONSE' });
   });
   test('a new version cannot reuse a stale common translation', async () => {
     generateText.mockResolvedValue({ data: { notes: '', items: [{ key: 'bag', label: 'Saco' }, { key: 'socks', label: 'Calcetines' }] } });
-    await translateList(pool, context(), meetingId, 'es');
+    await translateList(pool, context(manager), meetingId, 'es');
     await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1 }));
-    await translateList(pool, context(), meetingId, 'es'); expect(generateText).toHaveBeenCalledTimes(2);
+    await translateList(pool, context(manager), meetingId, 'es'); expect(generateText).toHaveBeenCalledTimes(2);
   });
   test.each(['fr', 'en'])('missing %s instructions are translated even when every item already has that label', async (language) => {
     const source = language === 'en' ? 'fr' : 'en';
@@ -107,14 +107,14 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
     await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1, items, notes_fr: '', notes_en: '', [`notes_${source}`]: notes }));
     const translated = { notes: 'Translated instructions', items: items.map((item) => ({ key: item.key, label: item[`label_${language}`] })) };
     generateText.mockResolvedValue({ data: translated });
-    expect(await translateList(pool, context(), meetingId, language)).toEqual(translated);
+    expect(await translateList(pool, context(manager), meetingId, language)).toEqual(translated);
     expect(generateText).toHaveBeenCalledTimes(1);
     expect(generateText.mock.calls[0][1]).toMatchObject({ targetLocale: language, notes });
   });
   test.each(['Label personal items.', ''])('complete authored text bypasses AI when target notes are %p', async (notes) => {
     const items = input().items.map((item) => ({ ...item, label_en: item.key === 'bag' ? 'Sleeping bag' : 'Socks' }));
     await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1, items, notes_fr: notes ? 'Identifier les effets.' : '', notes_en: notes }));
-    expect(await translateList(pool, context(), meetingId, 'en')).toEqual({ notes, items: items.map((item) => ({ key: item.key, label: item.label_en })) });
+    expect(await translateList(pool, context(manager), meetingId, 'en')).toEqual({ notes, items: items.map((item) => ({ key: item.key, label: item.label_en })) });
     expect(generateText).not.toHaveBeenCalled();
   });
   test('families cannot publish common lists and no packing-state table or endpoint exists', async () => {
@@ -131,7 +131,7 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
   });
   test('anonymous requests and malformed translation languages are rejected', async () => {
     expect((await request(app).get('/api/v1/personal-equipment/mine')).status).toBe(401);
-    expect((await request(app).post(`/api/v1/personal-equipment/${meetingId}/translations`).set(auth()).send({ language: ['es'] })).status).toBe(400);
+    expect((await request(app).post(`/api/v1/personal-equipment/${meetingId}/translations`).set(auth(manager)).send({ language: ['es'] })).status).toBe(400);
     expect((await request(app).get('/api/v1/personal-equipment/12abc')).status).toBe(401);
   });
   function standaloneActivity() {
@@ -164,7 +164,7 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
     expect((await request(app).get(`/api/v1/personal-equipment/activities/${id}/manage`).set(auth(manager, otherUnit))).status).not.toBe(200);
     await expect(activityEquipment.save(pool, context(manager), id, input())).rejects.toMatchObject({ status: 409 });
     await activityEquipment.save(pool, context(manager), id, input({ expected_version: 1, published: false }));
-    expect((await request(app).get(`/api/v1/personal-equipment/activities/${id}`).set(auth())).status).toBe(404);
+    expect((await request(app).get(`/api/v1/personal-equipment/activities/${id}`).set(auth())).status).toBe(200);
   });
   test('an activity linked to an existing camp shares its list and preserves its packing key', async () => {
     const id = await standaloneActivity();
@@ -176,6 +176,27 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
     expect((await readFamilyList(pool, context(), meetingId)).list.notes_fr).toBe('Updated from activity');
     expect(await one('SELECT count(*) FROM activity_personal_equipment_lists WHERE activity_id=$1', [id])).toBe('0');
     await pool.query('UPDATE year_plan_meetings SET activity_id=NULL WHERE id=$1', [meetingId]);
+  });
+
+  test('only staff generate translations, and parents receive them only after explicit publication', async () => {
+    generateText.mockResolvedValue({ data: { notes: 'Instrucciones', items: [{ key: 'bag', label: 'Saco' }, { key: 'socks', label: 'Calcetines' }] } });
+    const endpoint = `/api/v1/personal-equipment/${meetingId}/translations`;
+    expect((await request(app).post(endpoint).set(auth()).send({ language: 'es' })).status).toBe(403);
+    expect(generateText).not.toHaveBeenCalled();
+    expect((await request(app).post(endpoint).set(auth(manager)).send({ language: 'es' })).status).toBe(200);
+    expect((await readFamilyList(pool, context(), meetingId)).translations.es).toBeUndefined();
+    await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1 }));
+    expect((await readFamilyList(pool, context(), meetingId)).translations.es.items[0].label).toBe('Saco');
+    const correction = { expected_version: 2, content: { notes: 'Revisado', items: [{ key: 'bag', label: 'Bolsa' }, { key: 'socks', label: 'Calcetines' }] } };
+    expect((await request(app).put(`${endpoint}/es`).set(auth()).send(correction)).status).toBe(403);
+    expect((await request(app).put(`${endpoint}/es`).set(auth(manager)).send(correction)).status).toBe(200);
+    expect(generateText).toHaveBeenCalledTimes(1);
+    expect((await readFamilyList(pool, context(), meetingId)).translations.es.items[0].label).toBe('Saco');
+    await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 2 }));
+    expect((await readFamilyList(pool, context(), meetingId)).translations.es.items[0].label).toBe('Bolsa');
+    await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 3, published: false, notes_fr: 'Nouvelle consigne' }));
+    expect((await readFamilyList(pool, context(), meetingId)).list.notes_fr).toBe('Identifier les effets.');
+    expect((await request(app).put(`${endpoint}/es`).set(auth(manager)).send(correction)).status).toBe(409);
   });
 
 });

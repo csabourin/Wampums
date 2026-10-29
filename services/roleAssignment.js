@@ -211,6 +211,9 @@ function checkPermissionChange({ role, catalog, currentKeys, requestedKeys, held
   }
   const current = new Set(currentKeys);
   const requested = new Set(requestedKeys);
+  if (role.data_scope === 'linked' && requested.has('ai.use')) {
+    return { status: 409, message: 'AI is reserved for organization-scoped staff' };
+  }
   const financial = catalog.find((p) => requested.has(p.permission_key)
     && role.data_scope === 'linked' && UNIT_FINANCE_PERMISSIONS.includes(p.permission_key));
   if (financial) {
@@ -238,6 +241,7 @@ function checkPermissionChange({ role, catalog, currentKeys, requestedKeys, held
 /** Explain the static constraint on a matrix cell; dependency locks are dynamic. */
 function permissionLockReason(role, permission, heldPermissions, catalog = []) {
   if (role.is_system_role) { return 'system_role'; }
+  if (role.data_scope === 'linked' && permission.permission_key === 'ai.use') { return 'linked_ai'; }
   if (permission.district_only && !heldPermissions.includes('roles.manage_district')) { return 'district_only'; }
   if (role.data_scope === 'linked' && UNIT_FINANCE_PERMISSIONS.includes(permission.permission_key)) { return 'linked_finance'; }
   if (permissionCountsAgainstGrantor(permission, role) && !heldPermissions.includes(permission.permission_key)) { return 'not_held'; }

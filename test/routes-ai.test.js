@@ -35,6 +35,7 @@ const pool = {
     if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
       return Promise.resolve({ rows: scenario.demo ? [{ role_name: 'demoadmin' }] : [] });
     }
+    if (query.includes('SELECT DISTINCT r.data_scope')) { return Promise.resolve({ rows: [{ data_scope: scenario.scope || 'organization' }] }); }
     if (query.includes('SELECT DISTINCT p.permission_key')) {
       return Promise.resolve({ rows: scenario.permissions.map((key) => ({ permission_key: key })) });
     }
@@ -66,7 +67,7 @@ beforeAll(() => jest.spyOn(console, 'error').mockImplementation(() => {}));
 
 beforeEach(() => {
   jest.clearAllMocks();
-  scenario = { permissions: ['communications.send'], demo: false, material: false };
+  scenario = { permissions: ['ai.use', 'communications.send'], demo: false, material: false };
   isAIConfigured.mockReturnValue(true);
 });
 
@@ -78,7 +79,7 @@ test('is refused without a token', async () => {
 });
 
 test('is refused to someone with no feature that offers the assistant', async () => {
-  scenario.permissions = ['participants.view'];
+  scenario.permissions = ['ai.use', 'participants.view'];
   const response = await ask(REWRITE);
 
   expect(response.status).toBe(403);
@@ -158,7 +159,7 @@ const MEETING_PLAN = {
 };
 
 test('a meeting plan chooses its material among what the unit has, and anything else is dropped', async () => {
-  scenario = { permissions: ['meetings.manage'], demo: false, material: true };
+  scenario = { permissions: ['ai.use', 'meetings.manage'], demo: false, material: true };
   generateText.mockResolvedValue({
     data: {
       theme: 'Jeux',
@@ -190,7 +191,7 @@ test('a meeting plan chooses its material among what the unit has, and anything 
 });
 
 test('the material offered comes from the unit, never from the request', async () => {
-  scenario = { permissions: ['meetings.manage'], demo: false, material: false };
+  scenario = { permissions: ['ai.use', 'meetings.manage'], demo: false, material: false };
   generateText.mockResolvedValue({ data: { timeline: [{ activity: 'Jeu', materiel: 'Cordes' }] }, usage: {} });
 
   const response = await ask({
@@ -207,7 +208,7 @@ test('the material offered comes from the unit, never from the request', async (
 const ACTIVITY_PLAN = { mode: 'meeting_plan', payload: { durationMinutes: 120, badgeFocus: 'Orientation', participantsCount: 12 } };
 
 test('an outing plan names only the unit\'s material, and its invented list is dropped', async () => {
-  scenario = { permissions: ['activities.create'], demo: false, material: true };
+  scenario = { permissions: ['ai.use', 'activities.create'], demo: false, material: true };
   generateText.mockResolvedValue({
     data: {
       title: 'Rallye',
@@ -228,7 +229,7 @@ test('an outing plan names only the unit\'s material, and its invented list is d
 });
 
 test('an outing plan for a unit with nothing recorded keeps the assistant\'s list', async () => {
-  scenario = { permissions: ['activities.create'], demo: false, material: false };
+  scenario = { permissions: ['ai.use', 'activities.create'], demo: false, material: false };
   generateText.mockResolvedValue({ data: { title: 'Rallye', materialsMasterList: ['Foulards'] }, usage: {} });
 
   const response = await ask(ACTIVITY_PLAN);
@@ -252,5 +253,17 @@ test('an unsupported activity-plan language is refused before calling the provid
     locale: 'not-a-language', durationMinutes: 60, badgeFocus: 'First aid', participantsCount: 20,
   } });
   expect(response.status).toBe(400);
+  expect(generateText).not.toHaveBeenCalled();
+});
+
+
+test('a linked family scope cannot spend AI even with a mistakenly granted permission', async () => {
+  scenario.permissions = ['ai.use', 'communications.send']; scenario.scope = 'linked';
+  expect((await ask(REWRITE)).status).toBe(403);
+  expect(generateText).not.toHaveBeenCalled();
+});
+test('a staff feature permission alone does not authorize AI', async () => {
+  scenario.permissions = ['communications.send'];
+  expect((await ask(REWRITE)).status).toBe(403);
   expect(generateText).not.toHaveBeenCalled();
 });

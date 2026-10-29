@@ -11,6 +11,7 @@
  * validation hints without extra round-trips.
  */
 const SHARED_ADMIN_PERMISSIONS = [
+  'ai.use',
   'users.view',
   'users.edit',
   'users.delete',
@@ -99,6 +100,7 @@ export const ROLE_BUNDLES = {
     description:
       'Program leader with permissions to manage participants, attendance, activities, and group logistics.',
     permissions: [
+      'ai.use',
       'participants.view',
       'participants.edit',
       'participants.create',
@@ -129,6 +131,7 @@ export const ROLE_BUNDLES = {
     description:
       'Financial manager with access to budgets, fundraisers, payments, and inventory valuations.',
     permissions: [
+      'ai.use',
       'finance.view',
       'finance.manage',
       'budget.view',
@@ -150,6 +153,7 @@ export const ROLE_BUNDLES = {
     description:
       'Inventory steward with authority to manage and reserve equipment, including local group sharing.',
     permissions: [
+      'ai.use',
       'inventory.view',
       'inventory.manage',
       'inventory.reserve',
@@ -166,7 +170,8 @@ export const ROLE_BUNDLES = {
     displayName: 'Administration',
     description:
       'Administrative reporter with access to organization-wide reports and communications tools.',
-    permissions: ['reports.view', 'communications.send', 'participants.view'],
+    permissions: [
+      'ai.use','reports.view', 'communications.send', 'participants.view'],
     level: 1,
     scope: 'organization',
     conflictsWith: ['demoadmin', 'demoparent'],

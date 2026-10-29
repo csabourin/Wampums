@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const router = express.Router();
-const { authenticate, blockDemoRoles, getOrganizationId, requireAnyPermission } = require('../middleware/auth');
+const { authenticate, blockDemoRoles, getOrganizationId, requireAnyPermission, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { generateText, isAIConfigured } = require('../services/aiText');
 const { parseReceipt } = require('../services/veryfi');
@@ -97,6 +97,7 @@ router.post(
   '/text',
   authenticate,
   blockDemoRoles,
+  requirePermission({ permissions: ['ai.use'], organizationScope: true }),
   requireAnyPermission(...AI_TEXT_PERMISSIONS),
   asyncHandler(async (req, res) => {
     const { mode, payload } = req.body || {};
@@ -147,6 +148,7 @@ router.post(
   '/receipt',
   authenticate,
   blockDemoRoles,
+  requirePermission({ permissions: ['ai.use'], organizationScope: true }),
   requireAnyPermission(...AI_RECEIPT_PERMISSIONS),
   upload.single('file'),
   asyncHandler(async (req, res) => {
