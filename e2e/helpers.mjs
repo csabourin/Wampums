@@ -114,6 +114,19 @@ export async function openScreen(page, target) {
 }
 
 /**
+ * Wait for every animation that ends, such as a dialog fading in. Playwright
+ * counts an element at opacity 0 as visible, so contrast measured before the
+ * fade ends is measured through a half-transparent dialog.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+export async function waitForAnimations(page) {
+  await page.evaluate(() => Promise.all(document.getAnimations()
+    .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime))
+    .map((animation) => animation.finished.catch(() => {}))));
+}
+
+/**
  * Run axe on the whole page (#app and the chrome around it).
  *
  * @param {import('@playwright/test').Page} page
