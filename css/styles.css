@@ -13136,3 +13136,6 @@ body:has(> .settings-icon) .demo-banner__inner {
 .equipment-catalog__form .material-stock-toggle input { width: var(--touch-target-min); flex-shrink: 0; }
 
 .equipment-reminder-materials { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.equipment-reminder-toggle { display: flex; align-items: center; gap: .75rem; min-height: var(--touch-target-min); }
+.equipment-reminder-toggle input[type="checkbox"] { flex: 0 0 auto; width: 24px; height: 24px; margin: 0; }

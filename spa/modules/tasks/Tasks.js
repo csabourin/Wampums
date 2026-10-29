@@ -168,7 +168,7 @@ export class Tasks {
       canClose: () => document.getElementById('equipment-reminder-form')?.getAttribute('aria-busy') !== 'true',
       body: `<form id="equipment-reminder-form" class="task-editor">
         <p>${escapeHTML(task.title)}</p><p>${translate('equipment_reminder_intro')}</p>
-        <label for="equipment-reminder-enabled"><input id="equipment-reminder-enabled" type="checkbox" name="reminder_enabled" checked>${translate('equipment_reminder_enable')}</label>
+        <label class="equipment-reminder-toggle" for="equipment-reminder-enabled"><input id="equipment-reminder-enabled" type="checkbox" name="reminder_enabled" checked>${translate('equipment_reminder_enable')}</label>
         <label for="equipment-reminder-materials">${translate('equipment_reminder_materials')}</label>
         <textarea id="equipment-reminder-materials" name="reminder_materials" required maxlength="${limits.MATERIALS_MAX_LENGTH}" rows="6">${escapeHTML(value?.materials || task.title)}</textarea>
         <label for="equipment-reminder-lead">${translate('equipment_reminder_lead')}</label>
