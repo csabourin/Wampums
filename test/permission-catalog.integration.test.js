@@ -79,4 +79,51 @@ describe.skipIf(!DATABASE_URL)('The permission catalog', () => {
     expect(keys.size).toBeGreaterThan(0);
     expect(missing).toEqual([]);
   });
+
+  test('district holds every catalog permission, including those added by later migrations', async () => {
+    const district = (await pool.query("SELECT id, grants_all_permissions FROM roles WHERE role_name='district' AND organization_id IS NULL")).rows;
+    expect(district).toHaveLength(1);
+    expect(district[0].grants_all_permissions).toBe(true);
+    const missing = (await pool.query(`SELECT p.permission_key FROM permissions p
+      WHERE NOT EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_id=$1 AND rp.permission_id=p.id)
+      ORDER BY p.permission_key`, [district[0].id])).rows;
+    expect(missing).toEqual([]);
+  });
+
+  test('every declared catalog permission and category has a bilingual matrix label', async () => {
+    const catalog = (await pool.query('SELECT permission_key, category FROM permissions ORDER BY permission_key')).rows;
+    // Other integration suites insert intentionally synthetic permissions into
+    // the shared database. Audit shipped declarations, not their test fixtures.
+    const sqlFiles = fs.readdirSync(path.join(ROOT, 'migrations')).filter((file) => file.endsWith('.sql'))
+      .map((file) => path.join(ROOT, 'migrations', file));
+    sqlFiles.push(path.join(ROOT, 'attached_assets/permissions_list.sql'));
+    const declared = new Set(sqlFiles.flatMap((file) => [...fs.readFileSync(file, 'utf8')
+      .matchAll(/'([a-z_]+\.[a-z_]+)'\s*,\s*'[^']*'\s*,\s*'([a-z_]+)'/g)].map((match) => match[1])));
+    expect(catalog.length).toBeGreaterThan(0);
+    for (const language of ['en', 'fr']) {
+      const labels = JSON.parse(fs.readFileSync(path.join(ROOT, 'lang', `${language}.json`), 'utf8'));
+      const missing = catalog.filter((permission) => declared.has(permission.permission_key)).flatMap((permission) => [
+        `role_permission_${permission.permission_key.replaceAll('.', '_')}`,
+        `role_category_${permission.category}`,
+      ]).filter((key) => !labels[key]?.trim());
+      expect([...new Set(missing)]).toEqual([]);
+    }
+  });
+
+  test('a newly inserted permission is immediately granted to district', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const permission = (await client.query(`INSERT INTO permissions (permission_key, permission_name, category)
+        VALUES ('catalog_probe.view', 'Catalog regression probe', 'roles') RETURNING id`)).rows[0];
+      const grants = (await client.query(`SELECT rp.permission_id FROM role_permissions rp
+        JOIN roles r ON r.id=rp.role_id WHERE r.role_name='district' AND r.organization_id IS NULL
+        AND rp.permission_id=$1`, [permission.id])).rows;
+      expect(grants).toEqual([{ permission_id: permission.id }]);
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
+  });
+
 });
