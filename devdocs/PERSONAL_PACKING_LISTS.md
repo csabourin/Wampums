@@ -1,63 +1,70 @@
-# Personal camp packing lists (#1249)
+# Personal packing lists: staff draft, review and publish
 
-From a camp schedule choose **Prepare the personal packing list**. Management requires
-`personal_equipment.manage` with organization scope. The list starts with editable seasonal
-suggestions (summer, winter, spring/autumn), adjusted for day/indoor/tent stays and nights.
-The team reviews the list before publishing; suggestions are not an approval for specific conditions.
-An optional article reference reuses the unit's existing material catalogue.
+Open the editor from the activity form's **Save and prepare the packing list**
+action, or from an activity card. Single-day activities need no planner camp.
+An activity already linked to a camp uses that camp's list and packing keys.
 
-The multiline field adds one editable item per nonblank line. Pasted list bullets are removed;
-quantities written in the text remain there. A separate quantity control is available per row.
-At least one of the French or English labels is needed; writing both is optional. Bulk additions
-are checked against the same item/label limits before replacing the editor. Saving requires a
-connection and never enters an offline outbox. Concurrent editors use expected versions.
+## Staff workflow
 
-Parents find published lists under **To do for your family**. The read endpoint returns only
-currently linked, enrolled and eligible children for that camp and scout year. A cancelled,
-unpublished or unrelated camp is unavailable. A staff account's parent view is also restricted
-to its own children; the management view edits only common content.
+Management requires `personal_equipment.manage` and organization scope. The editor
+shows one writing language, compact quantity/item rows, optional catalogue links,
+family instructions, a bulk-entry area and a translation panel. Desktop uses a
+table and sidebar; phones stack the rows and panels. Actions remain in a fixed
+bar, with bottom space and scroll margins protecting content and keyboard focus.
 
-## Checkmarks are local
+Bulk entry previews its line count, adds editable items, recognises leading whole
+quantities, preserves stable keys and focuses the first addition. Saving or
+changing the editor cannot silently discard text waiting in the bulk area.
+Adding seasonal suggestions retains customized items and only adds missing keys;
+replacing the entire list is a separate confirmed action. Invalid rows are named
+and focused. Navigation and tab/window closure protect unsaved content.
 
-There is no database table or API for packing progress. `packingStorage.js` stores stable item
-keys in localStorage, scoped by account, unit, selected year, camp and child. Checking an item
-makes no API request and works offline after the common list has been opened on the device.
-Another device or browser has its own checkmarks. Clearing browser storage removes them.
-A blocked/quota-exceeded write restores the previous visible state and explains the failure.
-Changing labels, adding items or translating preserves keys already checked.
+**Save draft**, **Preview list** and **Publish to families** are distinct actions.
+Publishing requires an explicit review confirmation. `packing_list_publications`
+stores the last common content and translations explicitly published; it contains
+no child identity or packing progress. Saving a new draft leaves that publication
+unchanged. Cancellation/eligibility checks still apply before any family read.
+Migration 065 backfills publications for existing published camp/activity lists.
 
-## Translation
+## AI is staff-only throughout the application
 
-The reader chooses the content language and presses **Translate my list**. The dedicated endpoint
-accepts only a language code, loads the authorized published common list and sends only its item
-keys/labels and instructions to the existing AI service. It sends no child identity or checkmarks.
-A complete authored French/English version needs no AI call. Other translations share the existing
-monthly AI budget and are cached by unit, camp, list version and language. A transaction lock
-collapses concurrent same-language requests. Every returned item key must match exactly; missing,
-extra or duplicate keys reject the whole answer. Provider errors leave the original text and checks.
-The list remains printable in the displayed language with local checkmarks.
+Every provider endpoint requires `ai.use`, organization scope and the feature's
+own rights. Linked-family roles cannot be granted AI use through role management.
+District automatically receives the new permission and the roles matrix shows its
+bilingual name and why family roles cannot use it. Migration 065 also grants
+packing-list preparation rights to organization-scoped roles managing meetings or
+editing activities. No checks depend on a user's role name.
 
-Migration `062_personal_camp_equipment.sql` is re-runnable and creates only common lists, their
-items and shared translations. Default parent/demo-parent roles and their custom linked-scope replacements receive read access; a unit grants
-the management permission explicitly. Read access is self-scoped in a linked role. Demo accounts
-may read and use local checks, but cannot publish or spend the shared AI budget.
+All AI controls use `AIUtils.aiActionLabel`: a visible IA/AI badge and the full
+technology name in the native accessible button label. This applies to activity
+and meeting generation, message rewriting/translation, receipt reading, equipment
+suggestions and packing translation. Loading/restoring a button retains that
+markup. Parent screens never show an AI action.
 
-Tests use fictional families and mocked AI. The browser suite checks both family/editor layouts,
-multiline entry, accessibility, persistence on reload and absence of packing-state requests.
+Staff select languages and press one explicit AI-labelled action. Only common
+item keys, labels and instructions reach the provider. Calls reuse existing budget
+limits and versioned translation caches. Progress names the language; individual
+failures remain visible and can be retried without regenerating completed versions.
+Prepared versions can be reviewed and corrected manually with a version-checked
+PUT requiring management rights (no AI permission or provider call needed).
+Generating or correcting a translation marks the source list as a draft. Families
+do not see these changes until staff explicitly publish again.
 
-## Activity entry point
+Text changes invalidate prepared translations; unchanged text can retain them
+across quantity and publication changes. Stable keys and local checks survive
+translation, publication and ordinary edits. Families choose only authored or
+prepared languages included in their publication. No generation request and no
+old device-side translation cache can provide unpublished text.
 
-The create/edit activity form offers **Save and prepare the packing list** with
-`personal_equipment.manage` and organization scope. It saves the activity first
-and opens its editor; it does not send authorizations or publish the list.
-The activity card offers the same editor. No annual-plan camp is required.
-The route is `/personal-equipment/activity-<id>/manage`; the family route omits
-`/manage`. These reuse the existing editor, bulk entry, review/publication and
-text-only translation rules. All API writes remain online-only.
+## Device-only packing progress
 
-An activity linked to a planner camp uses that camp's existing common list and
-local packing keys. Standalone activities store only whitelisted common content
-and shared versioned translations (migration 064). Local keys use an `activity-`
-prefix so numeric activity and camp ids cannot collide. If a standalone activity
-already has a list when later linked to a camp, that original list remains available
-through the activity entry point.
+`packingStorage.js` stores item keys in localStorage, scoped by account, unit,
+selected year, camp/activity and child. Standalone activity ids use an `activity-`
+prefix. A checkbox makes no server request and works offline after opening the
+published list on that device. Another device has separate checks. Blocked or
+full storage restores the previous visible state and explains the failure.
+
+Writes and AI calls are online-only and never enter an offline outbox. Tests use
+fictional families and mocked providers. Integration tests cover publication
+isolation, stale versions, family denial and human corrections without AI calls.
+Browser tests cover both layouts, bulk entry, local progress and AI identification.

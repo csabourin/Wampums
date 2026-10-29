@@ -1,9 +1,10 @@
 /** @jest-environment jsdom */
 import axe from 'axe-core';
 jest.mock('../../spa/config.js', () => ({ CONFIG: { TIME_FORMAT: { DEFAULT: '24h' } }, getStorageKey: (key) => key }));
+jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirm: jest.fn(() => Promise.resolve(true)) }));
 jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
-jest.mock('../../spa/utils/PermissionUtils.js', () => ({ isDemoUser: () => false }));
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({ isDemoUser: () => false, hasPermission: () => true, hasOrganizationScope: () => true }));
 let mockScope = 'account-a';
 jest.mock('../../spa/utils/OfflineCacheKeys.js', () => ({ buildScopedCacheKey: (key) => `${mockScope}:${key}` }));
 jest.mock('../../spa/api/api-personal-equipment.js', () => ({ getPersonalEquipment: jest.fn(), getPersonalEquipmentTasks: jest.fn(), savePersonalEquipment: jest.fn(), translatePersonalEquipment: jest.fn() }));
@@ -42,16 +43,16 @@ test('family checklists escape item text and meet WCAG A and AA', async () => {
   expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
 });
 
-test('changing language and translating retains checked keys and child identity stays out of the translation request', async () => {
-  api.translatePersonalEquipment.mockResolvedValue({ data: { notes: '', items: [{ key: 'bag', label: 'Mochila' }, { key: 'socks', label: 'Calcetines' }] } });
+test('a parent selects a published translation without any AI call and retains local checkmarks', async () => {
+  const data = fixture(); data.translations = { es: { notes: '', items: [{ key: 'bag', label: 'Mochila' }, { key: 'socks', label: 'Calcetines' }] } };
+  api.getPersonalEquipment.mockResolvedValue({ data });
   await new PersonalEquipment(app, { meetingId: 7 }).init();
-  const checkbox = document.querySelector('[data-child="2"][data-key="bag"]');
-  checkbox.checked = true; checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+  const checkbox = document.querySelector('[data-child="2"][data-key="bag"]'); checkbox.checked = true; checkbox.dispatchEvent(new Event('change', { bubbles: true }));
   const language = document.getElementById('personal-language'); language.value = 'es'; language.dispatchEvent(new Event('change', { bubbles: true }));
-  document.getElementById('personal-translate').click(); await settle();
-  expect(api.translatePersonalEquipment).toHaveBeenCalledWith(7, 'es');
+  expect(document.getElementById('personal-translate')).toBeNull();
   expect(document.body.textContent).toContain('Mochila');
   expect(document.querySelector('[data-child="2"][data-key="bag"]').checked).toBe(true);
+  expect(api.translatePersonalEquipment).not.toHaveBeenCalled();
 });
 
 test('new items and changes to labels preserve the keys already checked locally', async () => {
@@ -70,7 +71,6 @@ test('a multiline addition creates editable rows and allows one authored languag
   expect(document.querySelectorAll('[data-item-key]')).toHaveLength(4);
   expect(document.querySelectorAll('[data-field="label_fr"]')[2].value).toBe('Sac étanche');
   const form = document.getElementById('personal-equipment-form');
-  form.elements.personal_reviewed.checked = true;
   form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle();
   expect(api.savePersonalEquipment).toHaveBeenCalledWith(7, expect.objectContaining({ items: expect.arrayContaining([expect.objectContaining({ label_fr: 'Tuque', label_en: '' })]) }));
 });
@@ -89,12 +89,12 @@ test('a storage failure restores the visible checkbox and reports that it was no
   expect(document.body.textContent).toContain('personal_equipment_local_failed'); spy.mockRestore();
 });
 
-test('a failed translation retains the original list and saved local checks', async () => {
-  api.translatePersonalEquipment.mockRejectedValueOnce(new Error('unavailable'));
+test('parent views never offer unprepared languages or an AI action', async () => {
   await new PersonalEquipment(app, { meetingId: 7 }).init();
-  document.getElementById('personal-translate').click(); await settle();
-  expect(document.body.textContent).toContain('Bas');
-  expect(app.showMessage).toHaveBeenCalledWith('personal_equipment_translation_failed', 'error');
+  expect([...document.querySelectorAll('#personal-language option')].map((option) => option.value)).toEqual(['fr', 'en']);
+  expect(document.getElementById('personal-translate')).toBeNull();
+  expect(document.getElementById('packing-translate-all')).toBeNull();
+  expect(api.translatePersonalEquipment).not.toHaveBeenCalled();
 });
 
 test('a late list cannot redraw another account or the next screen', async () => {
@@ -119,4 +119,71 @@ test('opening a camp from its activity retains the camp checkmarks', async () =>
   api.getPersonalEquipment.mockResolvedValue({ data: { ...fixture(), packing_id: 7 } });
   await new PersonalEquipment(app, { meetingId: 'activity-44' }).init();
   expect(document.querySelector('[data-child="2"][data-key="bag"]').checked).toBe(true);
+});
+
+
+test('saving does not silently discard bulk text awaiting addition', async () => {
+  const screen = new PersonalEquipment(app, { meetingId: 7, manage: true }); await screen.init();
+  document.getElementById('personal-bulk').value = 'Tuque';
+  await screen.save(false);
+  expect(api.savePersonalEquipment).not.toHaveBeenCalled();
+  expect(document.activeElement.id).toBe('personal-bulk');
+  expect(document.body.textContent).toContain('packing_bulk_pending');
+  screen.destroy();
+});
+test('adding suggestions retains personalized items and their stable keys', async () => {
+  const screen = new PersonalEquipment(app, { meetingId: 7, manage: true }); await screen.init();
+  document.querySelector('[data-field="label_fr"]').value = 'Mon sac personnalisé';
+  document.getElementById('personal-apply-template').click(); await settle();
+  expect(document.querySelector('[data-item-key="bag"] textarea').value).toBe('Mon sac personnalisé');
+  screen.destroy();
+});
+test('invalid items are identified and focused instead of silently failing to save', async () => {
+  const screen = new PersonalEquipment(app, { meetingId: 7, manage: true }); await screen.init();
+  const field = document.querySelector('[data-field="quantity"]'); field.value = '0';
+  await screen.save(false);
+  expect(api.savePersonalEquipment).not.toHaveBeenCalled(); expect(document.activeElement).toBe(field);
+  expect(field.getAttribute('aria-invalid')).toBe('true'); screen.destroy();
+});
+test('an editor with unsaved changes protects navigation and prepares translations in one action', async () => {
+  const screen = new PersonalEquipment(app, { meetingId: 7, manage: true }); await screen.init();
+  const field = document.querySelector('[data-field="label_fr"]'); field.value = 'Sac'; field.dispatchEvent(new Event('input', { bubbles: true }));
+  expect(screen.dirty).toBe(true); expect(screen.beforeLeave({ refresh: true })).toBe(false);
+  screen.dirty = false;
+  api.translatePersonalEquipment.mockResolvedValue({ data: { notes: '', items } });
+  await screen.translateAll();
+  expect(api.translatePersonalEquipment.mock.calls.map((args) => args[1])).toEqual(['fr','en']);
+  expect(document.getElementById('packing-translate-all').textContent).toContain('ai_label');
+  screen.destroy();
+});
+
+
+test('the bulk preview shows parsed quantities before any rows are added', async () => {
+  const screen = new PersonalEquipment(app, { meetingId: 7, manage: true }); await screen.init();
+  const bulk = document.getElementById('personal-bulk'); bulk.value = '2 paires de bas\nTuque';
+  bulk.dispatchEvent(new Event('input', { bubbles: true }));
+  expect(document.getElementById('packing-bulk-preview').textContent).toContain('2 × paires de bas');
+  expect(document.querySelectorAll('[data-item-key]')).toHaveLength(2);
+  document.getElementById('personal-add-bulk').click();
+  expect(document.querySelectorAll('[data-item-key]')).toHaveLength(4);
+  const row = document.querySelectorAll('[data-item-key]')[2];
+  expect(row.querySelector('[data-field="quantity"]').value).toBe('2');
+  expect(row.querySelector('[data-field="label_fr"]').value).toBe('paires de bas');
+  screen.destroy();
+});
+
+
+test('declining the discard prompt keeps unsaved translation corrections open', async () => {
+  const { confirm } = require('../../spa/utils/DialogUtils.js');
+  const screen = new PersonalEquipment(app, { meetingId: 7, manage: true }); await screen.init();
+  screen.translations.set('es', { notes: 'Original', items: [{ key: 'bag', label: 'Saco' }, { key: 'socks', label: 'Calcetines' }] });
+  await screen.editTranslation('es');
+  const overlay = screen.modal.overlay;
+  const notes = overlay.querySelector('textarea'); notes.value = 'Correction à conserver'; notes.dispatchEvent(new Event('input', { bubbles: true }));
+  confirm.mockResolvedValueOnce(false);
+  overlay.querySelector('[data-modal-close]').click(); await settle();
+  expect(overlay.isConnected).toBe(true); expect(notes.value).toBe('Correction à conserver');
+  confirm.mockResolvedValueOnce(true);
+  overlay.querySelector('[data-modal-close]').click(); await settle();
+  expect(overlay.isConnected).toBe(false); screen.destroy();
 });

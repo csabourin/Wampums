@@ -1,6 +1,8 @@
 /**
  * @jest-environment jsdom
  */
+jest.mock('../../spa/utils/AIUtils.js', () => ({ canUseAI: () => true, aiActionLabel: (key) => `${key} IA` }));
+
 
 /**
  * Picking equipment to reserve: a long list a leader can search, filter by

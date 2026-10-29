@@ -1,3 +1,4 @@
+import { canUseAI, aiActionLabel } from '../../utils/AIUtils.js';
 // MeetingPrep.js
 // Meeting preparation module. Works on the unified meeting calendar shared
 // with the yearly planner: dates, themes, cancellations and the activity
@@ -514,7 +515,7 @@ export class MeetingPrep extends BaseModule {
           <div class="meeting-actions">
             ${this.canManage ? `
               <button id="new-meeting" class="button button--secondary" title="${translate('new_meeting')}">${translate('new_meeting')}</button>
-              <button id="magic-generate-btn" class="button button--secondary" title="${translate('magic_generate_plan')}">✨ ${translate('magic_generate_plan')}</button>
+              ${canUseAI() ? `<button id="magic-generate-btn" class="button button--secondary">${aiActionLabel('magic_generate_plan')}</button>` : ''}
             ` : ''}
           </div>
         </div>
@@ -1082,7 +1083,7 @@ export class MeetingPrep extends BaseModule {
           </div>
           <div class="modal-actions">
             <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
-            <button type="submit" class="button button--primary">${translate('generate')}</button>
+            <button type="submit" class="button button--primary">${aiActionLabel('generate')}</button>
           </div>
         </form>
       `

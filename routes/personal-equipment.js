@@ -38,16 +38,22 @@ module.exports = (pool) => {
   router.put('/activities/:id', requirePermission({ permissions: ['personal_equipment.manage'], organizationScope: true }), blockDemoRoles,
     validateIdParam('id'), body().custom((value) => Boolean(equipment.readList(value))), checkValidation, handle(async (req, res) =>
       success(res, await activityEquipment.save(pool, await contextFor(req, pool, true), Number(req.params.id), req.body))));
-  router.post('/activities/:id/translations', requirePermission('personal_equipment.view'), blockDemoRoles,
+  router.post('/activities/:id/translations', requirePermission({ permissions: ['personal_equipment.manage', 'ai.use'], organizationScope: true }), blockDemoRoles,
     validateIdParam('id'), body('language').isString().bail().isIn(RULES.TRANSLATION_LANGUAGES), checkValidation, handle(async (req, res) =>
-      success(res, await activityEquipment.translate(pool, await contextFor(req, pool), Number(req.params.id), req.body.language))));
+      success(res, await activityEquipment.translate(pool, await contextFor(req, pool, true), Number(req.params.id), req.body.language))));
+  router.put('/activities/:id/translations/:language', requirePermission({ permissions: ['personal_equipment.manage'], organizationScope: true }), blockDemoRoles,
+    validateIdParam('id'), body('expected_version').isInt({ min: 1 }), body('content').isObject(), body('expected_content').isObject(), checkValidation, handle(async (req, res) =>
+      success(res, await activityEquipment.editTranslation(pool, await contextFor(req, pool, true), Number(req.params.id), req.params.language, req.body))));
+  router.put('/:id/translations/:language', requirePermission({ permissions: ['personal_equipment.manage'], organizationScope: true }), blockDemoRoles,
+    validateIdParam('id'), body('expected_version').isInt({ min: 1 }), body('content').isObject(), body('expected_content').isObject(), checkValidation, handle(async (req, res) =>
+      success(res, await equipment.editTranslation(pool, await contextFor(req, pool, true), Number(req.params.id), req.params.language, req.body))));
   router.get('/:id/manage', requirePermission({ permissions: ['personal_equipment.manage'], organizationScope: true }), validateIdParam('id'), checkValidation,
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const camp = await equipment.campFor(pool, organizationId, Number(req.params.id));
       const list = await equipment.listFor(pool, organizationId, camp.id);
       const catalog = (await pool.query('SELECT id,name FROM equipment_catalog_items WHERE organization_id=$1 AND archived_at IS NULL ORDER BY name,id', [organizationId])).rows;
-      return success(res, { camp, list, catalog });
+      return success(res, { camp, list, catalog, translations: await equipment.translationsFor(pool, organizationId, camp.id, list?.version || 0) });
     }));
   router.get('/:id', requirePermission('personal_equipment.view'), validateIdParam('id'), checkValidation, handle(async (req, res) =>
     success(res, await equipment.readFamilyList(pool, await contextFor(req, pool), Number(req.params.id)))));
@@ -56,9 +62,9 @@ module.exports = (pool) => {
       const context = await contextFor(req, pool, true);
       return success(res, await equipment.saveList(pool, context.organizationId, req.user.id, Number(req.params.id), req.body));
     }));
-  router.post('/:id/translations', requirePermission('personal_equipment.view'), blockDemoRoles,
+  router.post('/:id/translations', requirePermission({ permissions: ['personal_equipment.manage', 'ai.use'], organizationScope: true }), blockDemoRoles,
     validateIdParam('id'), body('language').isString().bail().isIn(RULES.TRANSLATION_LANGUAGES), checkValidation,
-    handle(async (req, res) => success(res, await equipment.translateList(pool, await contextFor(req, pool),
+    handle(async (req, res) => success(res, await equipment.translateList(pool, await contextFor(req, pool, true),
       Number(req.params.id), req.body.language))));
   return router;
 };

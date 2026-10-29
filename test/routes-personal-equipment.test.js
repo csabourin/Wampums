@@ -19,7 +19,7 @@ app.use('/api/v1/personal-equipment', require('../routes/personal-equipment')(po
 const auth = () => ({ Authorization: `Bearer ${jwt.sign({ user_id: USER, organizationId: 7 }, process.env.JWT_SECRET_KEY)}` });
 const input = { season: 'winter', stay_type: 'cabin', nights: 2, expected_version: 0, notes_fr: '', notes_en: '', published: true, reviewed: true, items: [{ key: 'bag', label_fr: 'Sac', label_en: '', quantity: 1 }] };
 beforeEach(() => {
-  jest.clearAllMocks(); permissions = ['personal_equipment.view', 'personal_equipment.manage']; demo = false; scope = 'organization';
+  jest.clearAllMocks(); permissions = ['personal_equipment.view', 'personal_equipment.manage', 'ai.use']; demo = false; scope = 'organization';
   getScoutYear.mockResolvedValue({ id: 1, status: 'active' });
 });
 test.each([['get','/mine'], ['get','/4'], ['get','/4/manage'], ['put','/4'], ['post','/4/translations'], ['get','/activities/4'], ['get','/activities/4/manage'], ['put','/activities/4'], ['post','/activities/4/translations']])('packing lists require authentication for %s %s', async (method, path) => {
@@ -47,9 +47,22 @@ test('a selected archived year refuses publishing', async () => {
   expect((await request(app).put('/api/v1/personal-equipment/4').set(auth()).send(input)).status).toBe(409);
   expect(equipment.saveList).not.toHaveBeenCalled();
 });
-test('translation receives only the selected language and trusted family context', async () => {
+test('translation receives only the selected language and trusted staff context', async () => {
   equipment.translateList.mockResolvedValue({ items: [], notes: '' });
   const res = await request(app).post('/api/v1/personal-equipment/4/translations').set(auth()).send({ language: 'es', child: 'ignored', text: 'ignored' });
   expect(res.status).toBe(200);
   expect(equipment.translateList).toHaveBeenCalledWith(pool, { organizationId: 7, yearId: 1, userId: USER }, 4, 'es');
+});
+
+
+test.each(['/4/translations','/activities/4/translations'])('families cannot trigger AI through %s even with a mistaken grant', async (url) => {
+  scope = 'linked'; permissions = ['personal_equipment.view', 'personal_equipment.manage', 'ai.use'];
+  const res = await request(app).post(`/api/v1/personal-equipment${url}`).set(auth()).send({ language: 'es' });
+  expect(res.status).toBe(403); expect(equipment.translateList).not.toHaveBeenCalled();
+});
+
+
+test.each(['/4/translations/es','/activities/4/translations/es'])('parents cannot edit shared translations at %s', async (url) => {
+  scope = 'linked'; permissions = ['personal_equipment.view'];
+  expect((await request(app).put(`/api/v1/personal-equipment${url}`).set(auth()).send({ expected_version: 1, content: {} })).status).toBe(403);
 });

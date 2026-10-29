@@ -232,7 +232,7 @@ test('the role matrix has translated names for the permission catalog and all lo
   const keys = new Set(files.flatMap((file) => [...fs.readFileSync(file, 'utf8').matchAll(/'([a-z_]+\.[a-z_]+)'/g)]
     .map((match) => match[1]).filter((key) => !key.startsWith('public.'))));
   const uses = [...keys].map((key) => [`role_permission_${key.replaceAll('.', '_')}`, 'role matrix catalog']);
-  for (const reason of ['system_role', 'district_only', 'linked_finance', 'not_held', 'view_required', 'demo']) {
+  for (const reason of ['system_role', 'district_only', 'linked_finance', 'linked_ai', 'not_held', 'view_required', 'demo']) {
     uses.push([`role_matrix_lock_${reason}`, 'role matrix locks']);
   }
   expect(missing(uses)).toEqual([]);

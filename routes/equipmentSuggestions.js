@@ -31,7 +31,7 @@ const CONTROL_CHARACTERS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/u;
 const ISO_DATE_LENGTH = 10;
 
 /** Asking takes the right to reserve; it spends the shared AI budget. */
-const SUGGEST_POLICY = { permissions: ['inventory.reserve'], organizationScope: true };
+const SUGGEST_POLICY = { permissions: ['inventory.reserve', 'ai.use'], organizationScope: true };
 
 module.exports = (pool) => {
   const router = express.Router();

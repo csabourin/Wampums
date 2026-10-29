@@ -6,3 +6,7 @@ export const getPersonalEquipment = (meetingId, manage = false) => API.get(`v1/p
 export const savePersonalEquipment = (meetingId, data) => API.put(`v1/personal-equipment/${equipmentPath(meetingId)}`, data, {}, { queueOffline: false });
 export const translatePersonalEquipment = (meetingId, language) => API.post(
   `v1/personal-equipment/${equipmentPath(meetingId)}/translations`, { language }, {}, { queueOffline: false });
+
+/** Staff correction of common text; no AI call and no offline replay. */
+export const editPersonalEquipmentTranslation = (id, language, value) => API.put(
+  `v1/personal-equipment/${equipmentPath(id)}/translations/${encodeURIComponent(language)}`, value, {}, { queueOffline: false });

@@ -182,12 +182,15 @@ export function skeletonTable(rows = 5, cols = 4) {
  * @param {HTMLButtonElement} button - Button element to set loading state
  * @param {boolean} isLoading - Whether button should be in loading state
  */
+const originalButtonChildren = new WeakMap();
+
 export function setButtonLoading(button, isLoading) {
   if (!button) {return;}
 
   if (isLoading) {
     button.classList.add('button--loading');
     button.disabled = true;
+    if (!originalButtonChildren.has(button)) { originalButtonChildren.set(button, [...button.childNodes].map((node) => node.cloneNode(true))); }
     // Store original text
     if (!button.dataset.originalText) {
       button.dataset.originalText = button.textContent;
@@ -197,7 +200,8 @@ export function setButtonLoading(button, isLoading) {
     button.disabled = false;
     // Restore original text if it was stored
     if (button.dataset.originalText) {
-      button.textContent = button.dataset.originalText;
+      button.replaceChildren(...(originalButtonChildren.get(button) || [document.createTextNode(button.dataset.originalText)]));
+      originalButtonChildren.delete(button);
       delete button.dataset.originalText;
     }
   }

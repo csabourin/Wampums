@@ -56,7 +56,7 @@ const valid = { description: 'Camp d\'hiver, deux nuits, repas sur réchaud', da
 const ask = (body = valid) => request(app).post('/api/v1/equipment-suggestions').set('Authorization', bearer()).send(body);
 
 beforeEach(() => {
-  scenario = { permissions: ['inventory.reserve'], demo: false, activityInUnit: true };
+  scenario = { permissions: ['inventory.reserve', 'ai.use'], demo: false, activityInUnit: true };
   suggestEquipment.mockReset();
   suggestEquipment.mockResolvedValue({ items: [{ equipment_id: 3, quantity: 2, reason: 'Pour dormir' }], usage: null });
   isAIConfigured.mockReturnValue(true);
@@ -76,7 +76,7 @@ test('a demo account cannot spend the AI budget', async () => {
 });
 
 test('someone who may not reserve is refused, saying what is missing', async () => {
-  scenario.permissions = ['inventory.view'];
+  scenario.permissions = ['ai.use', 'inventory.view'];
   const response = await ask();
   expect(response.status).toBe(403);
   expect(response.body.missing).toEqual(['inventory.reserve']);

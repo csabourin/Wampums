@@ -1,6 +1,8 @@
 /**
  * @jest-environment jsdom
  */
+jest.mock('../../spa/utils/AIUtils.js', () => ({ canUseAI: () => true, aiActionLabel: (key) => `${key} IA` }));
+
 
 /**
  * "Write to families": the message is written in the basic rich-text editor,

@@ -507,6 +507,8 @@ test.describe('personal packing lists', () => {
       if (request.url().includes('/personal-equipment/') && !['GET', 'HEAD'].includes(request.method())) { writes.push(request.url()); }
     });
     await openScreen(page, `/personal-equipment/${seededRecord('campMeetingId')}`);
+    await expect(page.locator('#personal-translate')).toHaveCount(0);
+    await expect(page.locator('#packing-translate-all')).toHaveCount(0);
     const checkbox = page.locator('input[data-child]').first();
     await checkbox.check();
     await page.reload(); await settleScreen(page);
@@ -515,16 +517,29 @@ test.describe('personal packing lists', () => {
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath('material-personal-family.png'), fullPage: true });
   });
+  test('parents cannot spend AI through either the packing or general endpoint', async ({ page }) => {
+    await openScreen(page, `/personal-equipment/${seededRecord('campMeetingId')}`);
+    const statuses = await page.evaluate(async (meetingId) => {
+      const packing = await import('/spa/api/api-personal-equipment.js');
+      const ai = await import('/spa/api/api-ai.js');
+      const status = async (call) => { try { await call(); return 200; } catch (error) { return error.status; } };
+      return [await status(() => packing.translatePersonalEquipment(meetingId, 'es')),
+        await status(() => ai.aiGenerateText('translate', { text: 'Fictional common instructions', targetLocale: 'es' }))];
+    }, seededRecord('campMeetingId'));
+    expect(statuses).toEqual([403, 403]);
+  });
+
 });
 
 test.describe('preparing personal packing lists', () => {
   signedInAs('admin');
   test('multiline additions become editable effects before publication', async ({ page }, testInfo) => {
     await openScreen(page, `/personal-equipment/${seededRecord('campMeetingId')}/manage`);
+    await page.locator('.packing-bulk > summary').click();
     await page.locator('#personal-bulk').fill('Sac étanche\nTuque de rechange');
     await page.locator('#personal-add-bulk').click();
     await expect(page.locator('[data-item-key]')).toHaveCount(4);
-    await page.locator('#personal-item-editor > summary').click();
+    await expect(page.locator('.packing-items-table')).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
     await page.screenshot({ path: testInfo.outputPath('material-personal-editor.png'), fullPage: true });

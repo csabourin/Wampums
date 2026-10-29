@@ -1,4 +1,5 @@
 /** @jest-environment jsdom */
+jest.mock('../../spa/utils/AIUtils.js', () => ({ canUseAI: () => true, aiActionLabel: (key) => `${key} IA` }));
 import axe from 'axe-core';
 jest.mock('../../spa/config.js', () => ({ CONFIG: { AUTHORIZATION_FLOW: { PREVIEW_DELAY_MS: 1 } }, getStorageKey: (key) => key }));
 jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));

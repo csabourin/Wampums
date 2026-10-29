@@ -1,3 +1,4 @@
+import { canUseAI, aiActionLabel } from '../../utils/AIUtils.js';
 import { getMailingList, getAnnouncements, createAnnouncement, getGroups } from '../../ajax-functions.js';
 import { sendAnnouncementTest } from '../../api/api-endpoints.js';
 import { aiGenerateText } from '../../api/api-ai.js';
@@ -147,10 +148,10 @@ export class MailingList {
                                         <span id="announcement-message-label">${translate('announcement_message')}</span>
                                         ${messageEditor}
                                         <p id="announcement-message-error" class="field-error" hidden></p>
-                                        <div class="ai-toolbar" style="margin-top: 5px; display: flex; gap: 10px;">
-                                                <button type="button" class="button button--small button--secondary" id="ai-rewrite-btn">✨ ${translate('rewrite_professional')}</button>
-                                                <button type="button" class="button button--small button--secondary" id="ai-translate-btn">🌐 ${translate('translate_en_fr')}</button>
-                                        </div>
+                                        ${canUseAI() ? `<div class="ai-toolbar" style="margin-top: 5px; display: flex; gap: 10px;">
+                                                <button type="button" class="button button--small button--secondary" id="ai-rewrite-btn">${aiActionLabel('rewrite_professional')}</button>
+                                                <button type="button" class="button button--small button--secondary" id="ai-translate-btn">${aiActionLabel('translate_en_fr')}</button>
+                                        </div>` : ''}
                                 </div>
                                 <div class="input-group">
                                         <span>${translate('alumni_audience')}</span>

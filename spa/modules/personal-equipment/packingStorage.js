@@ -33,3 +33,11 @@ export function hasUnpackedItems(row) {
   const checked = readPacking(packingKey(row.meeting_id, row.participant_id));
   return (row.item_keys || []).some((key) => !checked.has(key));
 }
+
+/** Preview and addition share the same deterministic quantity parsing; no AI is involved. */
+export function bulkPackingItems(text, maxQuantity) {
+  return bulkPackingLines(text).map((line) => {
+    const match = line.match(/^([1-9]\d*)\s*(?:[x×]\s*|\s+)(.+)$/);
+    return match && Number(match[1]) <= maxQuantity ? { quantity: Number(match[1]), label: match[2] } : { quantity: 1, label: line };
+  });
+}

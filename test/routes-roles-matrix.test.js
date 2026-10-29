@@ -56,3 +56,11 @@ describe('role definition endpoints require authentication', () => {
     expect((await request(app)[method](url).send({})).status).toBe(401);
   });
 });
+
+
+test('family-scoped roles cannot receive AI access even from a grantor who holds it', () => {
+  const permission = { id: 10, permission_key: 'ai.use' };
+  const family = { ...role, data_scope: 'linked' };
+  expect(check({ role: family, catalog: [permission], requestedKeys: ['ai.use'], heldPermissions: ['ai.use'] })).toMatchObject({ status: 409 });
+  expect(permissionLockReason(family, permission, ['ai.use'], [permission])).toBe('linked_ai');
+});

@@ -4,6 +4,7 @@ const { generateText } = require('./aiText');
 const { listChildrenInYear } = require('./participantAccess');
 const { getActivityParticipation } = require('./activityInvitations');
 const transaction = require('../utils/transaction');
+const { readPublication, publish, sameText } = require('./packingPublications');
 const POSTGRES_INTEGER_MAX = 2147483647;
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
@@ -34,7 +35,7 @@ function readList(value) {
 }
 /** Lock the camp before its list, consistently for edits and family checks. */
 async function campFor(db, organizationId, meetingId, lock = '') {
-  const camp = (await db.query(`SELECT m.id, m.theme, m.activity_id, m.meeting_date::text, m.is_cancelled
+  const camp = (await db.query(`SELECT m.id, m.theme, m.activity_id, m.meeting_date::text, (SELECT GREATEST(COALESCE(a.activity_end_date,a.activity_start_date,a.activity_date)-COALESCE(a.activity_start_date,a.activity_date),0) FROM activities a WHERE a.organization_id=m.organization_id AND a.id=m.activity_id) AS nights, m.is_cancelled
     FROM year_plan_meetings m WHERE m.organization_id=$1 AND m.id=$2 AND m.meeting_kind='camp'${lock}`,
   [organizationId, meetingId])).rows[0];
   if (!camp) { refuse('personal_equipment_not_found', HTTP_NOT_FOUND); }
@@ -72,7 +73,14 @@ function saveList(pool, organizationId, actorId, meetingId, value, transactionDb
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (organization_id,meeting_id,item_key) DO UPDATE SET
       label_fr=$4,label_en=$5,quantity=$6,catalog_item_id=$7,position=$8,active=TRUE`,
     [organizationId, meetingId, item.key, item.label_fr.trim(), item.label_en.trim(), item.quantity, item.catalog_item_id || null, position])));
-    return listFor(db, organizationId, meetingId);
+    const saved = await listFor(db, organizationId, meetingId);
+    if (sameText(previous, saved)) {
+      await db.query(`INSERT INTO personal_equipment_translations (organization_id,meeting_id,version,language,content)
+        SELECT organization_id,meeting_id,$3,language,content FROM personal_equipment_translations
+        WHERE organization_id=$1 AND meeting_id=$2 AND version=$4 ON CONFLICT DO NOTHING`, [organizationId, meetingId, saved.version, previous.version]);
+    }
+    if (saved.published) { await publish(db, organizationId, meetingId, saved, await translationsFor(db, organizationId, meetingId, saved.version)); }
+    return saved;
   };
   return transactionDb ? work(transactionDb) : transaction(pool, work);
 }
@@ -89,24 +97,25 @@ async function childrenFor(db, context, camp) {
 /** Only the signed-in family's eligible children are ever returned to a parent. */
 async function readFamilyList(db, context, meetingId) {
   const camp = await campFor(db, context.organizationId, meetingId);
-  const list = await listFor(db, context.organizationId, meetingId);
-  if (!list?.published || camp.is_cancelled) { refuse('personal_equipment_not_found', HTTP_NOT_FOUND); }
+  const publication = await readPublication(db, context.organizationId, meetingId);
+  const list = publication?.list;
+  if (!list || camp.is_cancelled) { refuse('personal_equipment_not_found', HTTP_NOT_FOUND); }
   const year = (await db.query('SELECT id FROM scout_years WHERE organization_id=$1 AND id=$2 AND $3::date BETWEEN start_date AND end_date',
     [context.organizationId, context.yearId, camp.meeting_date])).rows[0];
   const children = year ? await childrenFor(db, context, camp) : [];
   if (!children.length) { refuse('personal_equipment_not_found', HTTP_NOT_FOUND); }
-  return { camp, list, children };
+  return { camp, list, children, translations: publication.translations };
 }
 /** Only the signed-in family's published lists in the selected roster year; no packing progress is queried. */
 async function familyTasks(db, context) {
   const camps = (await db.query(`SELECT m.id,m.theme,m.meeting_date::text,m.activity_id FROM personal_equipment_lists l
     JOIN year_plan_meetings m ON m.id=l.meeting_id AND m.organization_id=l.organization_id
     JOIN scout_years sy ON sy.id=$2 AND sy.organization_id=l.organization_id
-    WHERE l.organization_id=$1 AND l.published AND NOT m.is_cancelled AND m.meeting_date BETWEEN sy.start_date AND sy.end_date
+    WHERE l.organization_id=$1 AND EXISTS (SELECT 1 FROM packing_list_publications pub WHERE pub.organization_id=l.organization_id AND pub.resource_key=m.id::text) AND NOT m.is_cancelled AND m.meeting_date BETWEEN sy.start_date AND sy.end_date
     ORDER BY m.meeting_date,m.id`, [context.organizationId, context.yearId])).rows;
   const lists = await Promise.all(camps.map(async (camp) => {
     const children = await childrenFor(db, context, camp);
-    const list = await listFor(db, context.organizationId, camp.id);
+    const list = (await readPublication(db, context.organizationId, camp.id)).list;
     const data = { children, list };
     return data.children.map((child) => ({ meeting_id: camp.id, participant_id: child.id, title: camp.theme, date: camp.meeting_date,
       item_keys: data.list.items.map((item) => item.key) }));
@@ -115,15 +124,15 @@ async function familyTasks(db, context) {
 }
 /** Strictly accept exactly one translated label for each stable item key. */
 function readTranslation(value, items) {
-  if (!value || typeof value.notes !== 'string' || value.notes.length > RULES.NOTES_MAX
+  if (!value || typeof value.notes !== 'string' || value.notes.includes('\0') || value.notes.length > RULES.NOTES_MAX
     || !Array.isArray(value.items) || value.items.length !== items.length) { return null; }
   const keys = new Set(items.map((item) => item.key)); const seen = new Set();
   for (const item of value.items) {
-    if (!item || !keys.has(item.key) || seen.has(item.key) || typeof item.label !== 'string'
+    if (!item || !keys.has(item.key) || seen.has(item.key) || typeof item.label !== 'string' || item.label.includes('\0')
       || !item.label.trim() || item.label.length > RULES.LABEL_MAX) { return null; }
     seen.add(item.key);
   }
-  return { notes: value.notes, items: value.items.map((item) => ({ key: item.key, label: item.label.trim() })) };
+  return { notes: value.notes.trim(), items: value.items.map((item) => ({ key: item.key, label: item.label.trim() })) };
 }
 
 /** Shared text-only translation for camps and standalone activities. */
@@ -139,12 +148,40 @@ async function translateContent(list, language, context) {
   return translated;
 }
 
+/** Staff see prepared versions; families receive only the last publication snapshot. */
+async function translationsFor(db, organizationId, meetingId, version) {
+  const rows = (await db.query('SELECT language,content FROM personal_equipment_translations WHERE organization_id=$1 AND meeting_id=$2 AND version=$3', [organizationId, meetingId, version])).rows;
+  return Object.fromEntries(rows.map((row) => [row.language, row.content]));
+}
+
+/** A human correction is version-checked and never invokes an AI provider. */
+function editTranslation(pool, context, meetingId, language, value, transactionDb = null) {
+  const work = async (db) => {
+    if (!RULES.TRANSLATION_LANGUAGES.includes(language)) { refuse('personal_equipment_invalid'); }
+    const camp = await campFor(db, context.organizationId, meetingId, ' FOR UPDATE');
+    const list = await listFor(db, context.organizationId, meetingId);
+    if (!list || camp.is_cancelled) { refuse('personal_equipment_not_found', HTTP_NOT_FOUND); }
+    if (value.expected_version !== list.version) { refuse('personal_equipment_conflict', HTTP_CONFLICT); }
+    const existing = (await db.query('SELECT content FROM personal_equipment_translations WHERE organization_id=$1 AND meeting_id=$2 AND version=$3 AND language=$4', [context.organizationId, meetingId, list.version, language])).rows[0];
+    if (!existing || JSON.stringify(readTranslation(existing.content, list.items)) !== JSON.stringify(readTranslation(value.expected_content, list.items))) { refuse('personal_equipment_conflict', HTTP_CONFLICT); }
+    const content = readTranslation(value.content, list.items);
+    if (!content) { refuse('personal_equipment_invalid'); }
+    await db.query(`INSERT INTO personal_equipment_translations (organization_id,meeting_id,version,language,content) VALUES ($1,$2,$3,$4,$5)
+      ON CONFLICT (organization_id,meeting_id,version,language) DO UPDATE SET content=$5`, [context.organizationId, meetingId, list.version, language, JSON.stringify(content)]);
+    await db.query('UPDATE personal_equipment_lists SET published=FALSE WHERE organization_id=$1 AND meeting_id=$2', [context.organizationId, meetingId]);
+    return content;
+  };
+  return transactionDb ? work(transactionDb) : transaction(pool, work);
+}
+
 /** Translate only common list text, never a child's identity or packing state. */
 function translateList(pool, context, meetingId, language) {
   if (!RULES.TRANSLATION_LANGUAGES.includes(language)) { refuse('personal_equipment_invalid'); }
   return transaction(pool, async (db) => {
     await campFor(db, context.organizationId, meetingId, ' FOR SHARE');
-    const { list } = await readFamilyList(db, context, meetingId);
+    const camp = await campFor(db, context.organizationId, meetingId);
+    const list = await listFor(db, context.organizationId, meetingId);
+    if (!list || camp.is_cancelled) { refuse('personal_equipment_not_found', HTTP_NOT_FOUND); }
     await db.query("SELECT pg_advisory_xact_lock(hashtext('personal-equipment'), hashtext($1))", [`${context.organizationId}:${meetingId}:${language}`]);
     const cached = (await db.query('SELECT content FROM personal_equipment_translations WHERE organization_id=$1 AND meeting_id=$2 AND version=$3 AND language=$4',
       [context.organizationId, meetingId, list.version, language])).rows[0];
@@ -152,7 +189,8 @@ function translateList(pool, context, meetingId, language) {
     const translated = await translateContent(list, language, context);
     await db.query('INSERT INTO personal_equipment_translations (organization_id,meeting_id,version,language,content) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
       [context.organizationId, meetingId, list.version, language, JSON.stringify(translated)]);
+    await db.query('UPDATE personal_equipment_lists SET published=FALSE WHERE organization_id=$1 AND meeting_id=$2', [context.organizationId, meetingId]);
     return translated;
   });
 }
-module.exports = { childrenFor, translateContent, PersonalEquipmentError, readList, campFor, listFor, saveList, readFamilyList, familyTasks, translateList, readTranslation };
+module.exports = { editTranslation, translationsFor, childrenFor, translateContent, PersonalEquipmentError, readList, campFor, listFor, saveList, readFamilyList, familyTasks, translateList, readTranslation };
