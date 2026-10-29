@@ -1,3 +1,4 @@
+import { getPersonalEquipmentTasks } from '../../api/api-personal-equipment.js';
 import familyTasksStylesheetUrl from '../../../css/family-tasks.css?url';
 import {
   getCurrentOrganizationId,
@@ -72,6 +73,7 @@ export class ParentDashboard {
     this.taskSourcesFailed = false;
     this.childFilter = ALL_CHILDREN;
     this.familyTasks = [];
+    this.packingLists = [];
     // Delegated listeners on #app, which outlives this screen: released in destroy().
     this.listeners = new AbortController();
     this.destroyed = false;
@@ -115,6 +117,9 @@ export class ParentDashboard {
         debugError('Error fetching participants:', error);
         this.participantsFailed = true;
       });
+    const packingReady = hasPermission('personal_equipment.view')
+      ? Promise.resolve().then(async () => { this.packingLists = (await getPersonalEquipmentTasks()).data || []; }).catch((err) => { debugError('Personal equipment tasks failed', err); this.packingLists = []; this.taskSourcesFailed = true; })
+      : Promise.resolve();
     const formFormatsReady = attempt(() => this.fetchFormFormats(), 'Error fetching form formats:');
     const hiddenButtonsReady = loadHiddenParentDashboardButtons(this.app?.organizationSettings, getPublicOrganizationSettings);
 
@@ -130,6 +135,7 @@ export class ParentDashboard {
       formFormatsReady,
       hiddenButtonsReady,
       remindersReady,
+      packingReady,
     ]);
     this.hiddenButtons = hiddenButtons;
 
@@ -592,6 +598,7 @@ export class ParentDashboard {
     return {
       participants: this.participantsFailed ? [] : this.participants,
       permissionSlips: this.permissionSlips,
+      packingLists: this.packingLists,
       formFormats: this.formFormats,
       formMeta: this.formMeta,
       formsToReview: this.formsToReview,
@@ -621,6 +628,7 @@ export class ParentDashboard {
       return `<p class="family-tasks__empty">${translate('family_tasks_children_failed')}</p>`;
     }
     return `
+      ${hasPermission('personal_equipment.view') ? `<a class="button button--secondary" href="/personal-equipment">${translate('personal_equipment_title')}</a>` : ''}
       ${renderFamilyFilter(data.participants, this.childFilter, counts)}
       ${renderFamilyTaskList(this.familyTasks, {
     lang: this.app?.language || CONFIG.DEFAULT_LANG || 'en',

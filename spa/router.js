@@ -152,6 +152,7 @@ const lazyModules = {
   FamilyAccess: () => import('./modules/family-access/FamilyAccess.js').then(m => m.FamilyAccess),
   WalkInChildren: () => import('./modules/walk-in/WalkInChildren.js').then(m => m.WalkInChildren),
   DisplaySettings: () => import('./modules/display-settings/DisplaySettings.js').then(m => m.DisplaySettings),
+  PersonalEquipment: () => import('./modules/personal-equipment/PersonalEquipment.js').then(m => m.PersonalEquipment),
   Tasks: () => import('./modules/tasks/Tasks.js').then(m => m.Tasks),
   EquipmentCatalog: () => import('./modules/equipment-catalog/EquipmentCatalog.js').then(m => m.EquipmentCatalog),
   Messages: () => import('./modules/messages/Messages.js').then(m => m.Messages)
@@ -211,6 +212,9 @@ const routes = {
   '/parent-onboarding': 'parentOnboarding',
   '/family-access': 'familyAccess',
   '/walk-in-children': 'walkInChildren',
+  '/personal-equipment': 'personalEquipmentIndex',
+  '/personal-equipment/:id/manage': 'personalEquipmentManage',
+  '/personal-equipment/:id': 'personalEquipment',
   '/tasks': 'tasks',
   '/material': 'material',
   '/messages': 'messages',
@@ -1070,6 +1074,16 @@ export class Router {
           this.currentModuleInstance = carpoolLanding;
           await carpoolLanding.init();
           break;
+        case 'personalEquipmentIndex':
+        case 'personalEquipmentManage':
+        case 'personalEquipment': {
+          const manage = routeName === 'personalEquipmentManage';
+          if (!guard(hasPermission(manage ? 'personal_equipment.manage' : 'personal_equipment.view') && (!manage || hasOrganizationScope()))) { break; }
+          const PersonalEquipment = await this.loadModule('PersonalEquipment');
+          this.currentModuleInstance = new PersonalEquipment(this.app, { meetingId: routeName === 'personalEquipmentIndex' ? null : Number(param), manage });
+          await this.currentModuleInstance.init();
+          break;
+        }
         case 'tasks': {
           if (!guard(hasPermission('tasks.view'))) {break;}
           const Tasks = await this.loadModule('Tasks');

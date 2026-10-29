@@ -20,6 +20,7 @@ const SCREENS = {
     `/permission-slip/${seededRecord('slipToken')}`,
   ],
   parent: [
+    '/personal-equipment', `/personal-equipment/${seededRecord('campMeetingId')}`,
     '/parent-dashboard', '/parent-finance', '/parent-fundraisers', '/family-access',
     '/messages', '/account-info', '/parent-program-progress', '/activities',
     '/parent-onboarding', `/messages/${seededRecord('messageId')}`,
@@ -33,6 +34,7 @@ const SCREENS = {
   admin: [
     '/dashboard', '/manage-participants', '/invitations',
     '/unit-settings', '/roles', '/finance', '/budgets', '/expenses', '/reports',
+    `/personal-equipment/${seededRecord('campMeetingId')}/manage`,
     '/tasks', '/messages', '/yearly-planner', '/medication-management', '/material', '/material?tab=articles', '/permission-slips',
     `/permission-slips/${seededActivityId()}`,
     '/carpool', '/form-builder', '/manage-groups', '/mailing-list', '/communication-history',
@@ -479,5 +481,38 @@ test.describe('task assignment', () => {
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
     await expect(opener).toBeFocused();
+  });
+});
+
+
+test.describe('personal packing lists', () => {
+  signedInAs('parent');
+  test('a parent keeps checkmarks on reload without sending them to the server', async ({ page }, testInfo) => {
+    const writes = [];
+    page.on('request', (request) => {
+      if (request.url().includes('/personal-equipment/') && !['GET', 'HEAD'].includes(request.method())) { writes.push(request.url()); }
+    });
+    await openScreen(page, `/personal-equipment/${seededRecord('campMeetingId')}`);
+    const checkbox = page.locator('input[data-child]').first();
+    await checkbox.check();
+    await page.reload(); await settleScreen(page);
+    await expect(page.locator('input[data-child]').first()).toBeChecked();
+    expect(writes).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath('material-personal-family.png'), fullPage: true });
+  });
+});
+
+test.describe('preparing personal packing lists', () => {
+  signedInAs('admin');
+  test('multiline additions become editable effects before publication', async ({ page }, testInfo) => {
+    await openScreen(page, `/personal-equipment/${seededRecord('campMeetingId')}/manage`);
+    await page.locator('#personal-bulk').fill('Sac étanche\nTuque de rechange');
+    await page.locator('#personal-add-bulk').click();
+    await expect(page.locator('[data-item-key]')).toHaveCount(4);
+    await page.locator('#personal-item-editor > summary').click();
+    expect(await axeViolations(page)).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+    await page.screenshot({ path: testInfo.outputPath('material-personal-editor.png'), fullPage: true });
   });
 });

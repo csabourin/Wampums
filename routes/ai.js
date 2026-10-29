@@ -13,7 +13,9 @@ const {
   listMaterialOptions, planMaterialChoices, readPlanMaterial, PLAN_ITEMS_PER_OUTING_MAX,
 } = require('../services/equipmentCatalog');
 
-// Every AI call spends the shared, paid budget, so it is limited to the staff
+// This general-purpose endpoint spends the shared budget and is limited to staff.
+// Family packing-list translations use their dedicated, list-scoped endpoint.
+// The staff
 // features that offer it: message rewriting and translation (communications),
 // meeting plans (meetings and activities) and receipt reading (finance).
 const AI_TEXT_PERMISSIONS = ['communications.send', 'meetings.manage', 'activities.create', 'activities.edit'];

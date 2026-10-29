@@ -163,7 +163,7 @@ function readJsonAnswer(completion) {
 /**
  * Generate text for one mode, within the monthly budget.
  *
- * @param {string} mode - meeting_plan | rewrite | translate | risk_suggest | equipment_suggest
+ * @param {string} mode - meeting_plan | rewrite | translate | packing_translate | risk_suggest | equipment_suggest
  * @param {Object} payload - Validated payload (utils/aiPayloadValidation.js)
  * @param {{userId: string, organizationId: number|null}} userContext
  * @returns {Promise<{data: Object, usage: {provider: string, model: string, cost: number}}>}
@@ -387,6 +387,15 @@ ${CANADIAN_FRENCH_RULE}`,
           role: 'user',
           content: `Rewrite the text using the tone in this validated request data:\n${JSON.stringify(payload)}`,
         },
+      ];
+
+    case 'packing_translate':
+      return [
+        { role: 'system', content: `You translate a common camp packing list into targetLocale. ${untrustedDataRule}
+Translate only item labels and notes. Preserve every item key, quantity, restriction and instruction; do not add or remove items.
+Return only JSON: { "items": [{ "key": "unchanged key", "label": "translated label" }], "notes": "translated notes" }.
+${CANADIAN_FRENCH_RULE}` },
+        { role: 'user', content: JSON.stringify(payload) },
       ];
 
     case 'translate':

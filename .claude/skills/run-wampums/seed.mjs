@@ -347,6 +347,14 @@ try {
     activity_id: activityId, meeting_id: null,
   });
 
+  const { saveList } = require(path.join(ROOT, 'services/personalEquipment.js'));
+  await saveList(pool, organizationId, adminId, campMeetingId, {
+    expected_version: 0, season: 'shoulder', stay_type: 'tent', nights: 2,
+    notes_fr: 'Identifier les effets personnels.', notes_en: 'Label personal items.', reviewed: true, published: true,
+    items: [{ key: 'sleeping_bag', label_fr: 'Sac de couchage', label_en: 'Sleeping bag', quantity: 1 },
+      { key: 'socks', label_fr: 'Paires de bas', label_en: 'Pairs of socks', quantity: 3 }],
+  });
+
   const seed = {
     organizationId,
     database: `postgresql:///${DB}?host=/var/run/postgresql`,

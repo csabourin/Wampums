@@ -16,6 +16,7 @@
 import { translate } from '../../app.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { formTypeLabel } from '../../utils/FormLabelUtils.js';
+import { hasUnpackedItems } from '../personal-equipment/packingStorage.js';
 import { isoToDateString } from '../../utils/DateUtils.js';
 
 /** The filter value showing every child. */
@@ -28,6 +29,7 @@ export const FAMILY_TASK_KIND = Object.freeze({
   REVIEW: 'review',
   AUTHORIZATION: 'authorization',
   PAYMENT: 'payment',
+  EQUIPMENT: 'equipment',
 });
 
 const UNDATED_KIND_ORDER = [
@@ -187,6 +189,9 @@ export function buildFamilyTasks(data, filter = ALL_CHILDREN) {
     }
   });
 
+  (data.packingLists || []).filter((row) => included.has(Number(row.participant_id)) && row.date >= data.today && hasUnpackedItems(row))
+    .forEach((row) => addRow(tasks, `equipment:${row.meeting_id}`, () => ({ kind: FAMILY_TASK_KIND.EQUIPMENT, title: row.title, date: row.date, meetingId: Number(row.meeting_id) }), childRow(Number(row.participant_id))));
+
   // An event's deadline is the earliest any of its slips asks for.
   const list = [...tasks.values()].map((task) => {
     const deadlines = task.rows.map((row) => row.deadline).filter(Boolean).sort();
@@ -194,10 +199,10 @@ export function buildFamilyTasks(data, filter = ALL_CHILDREN) {
   });
 
   const events = list
-    .filter((task) => task.kind === FAMILY_TASK_KIND.PERMISSION)
+    .filter((task) => [FAMILY_TASK_KIND.PERMISSION, FAMILY_TASK_KIND.EQUIPMENT].includes(task.kind))
     .sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title));
   const others = list
-    .filter((task) => task.kind !== FAMILY_TASK_KIND.PERMISSION)
+    .filter((task) => ![FAMILY_TASK_KIND.PERMISSION, FAMILY_TASK_KIND.EQUIPMENT].includes(task.kind))
     .sort((a, b) => UNDATED_KIND_ORDER.indexOf(a.kind) - UNDATED_KIND_ORDER.indexOf(b.kind)
       || a.title.localeCompare(b.title));
   return [...events, ...others];
@@ -240,6 +245,8 @@ function renderTaskActions(task, context, titleId) {
             ${translate('permission_slip_decline')}
           </button>
         </div>`;
+    case FAMILY_TASK_KIND.EQUIPMENT:
+      return `<a href="/personal-equipment/${task.meetingId}" class="button button--primary">${translate('personal_equipment_open')}</a>`;
     case FAMILY_TASK_KIND.PAYMENT: {
       const rows = task.rows.map((row) => `
         <li class="family-task__row">

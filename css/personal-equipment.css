@@ -1,0 +1,11 @@
+.personal-equipment { max-width: 55rem; margin-inline: auto; overflow-wrap: anywhere; }
+.personal-equipment form > fieldset { display: grid; gap: .6rem; min-width: 0; }
+.personal-equipment__item { display: grid; gap: .5rem; margin-block: 1rem; min-width: 0; }
+.personal-equipment input:not([type="checkbox"]), .personal-equipment textarea, .personal-equipment select { width: 100%; min-width: 0; box-sizing: border-box; }
+.personal-equipment__check { display: flex; align-items: center; gap: .75rem; min-height: 44px; padding-block: .4rem; }
+.personal-equipment__check input[type="checkbox"] { flex: 0 0 auto; width: 24px; height: 24px; }
+.personal-equipment__list { list-style: none; padding: 0; }
+.personal-equipment__list li { padding-block: .5rem; border-block-end: 1px solid var(--color-border); }
+.personal-equipment__notes { white-space: pre-wrap; }
+.personal-equipment__feedback { display: block; }
+.personal-equipment summary { min-height: 44px; padding: .6rem .5rem; cursor: pointer; }

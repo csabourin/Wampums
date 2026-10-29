@@ -284,7 +284,20 @@ async function isAssociationInUnit(client, { organizationId, participantId, user
   return scope.rows[0].participant_in_org && scope.rows[0].user_in_org;
 }
 
+/**
+ * Minimal names on one unit's active roster for a selected year. A family read
+ * supplies userId; null is reserved for a route that already authorized unit scope.
+ */
+async function listChildrenInYear(db, organizationId, yearId, userId) {
+  return (await db.query(`SELECT p.id,p.first_name,p.last_name FROM participants p
+    JOIN participant_enrollments pe ON pe.participant_id=p.id
+    WHERE pe.organization_id=$1 AND pe.scout_year_id=$2 AND pe.status='active'
+      AND ($3::uuid IS NULL OR EXISTS (SELECT 1 FROM user_participants up WHERE up.participant_id=p.id AND up.user_id=$3))
+    ORDER BY p.first_name,p.last_name,p.id`, [organizationId, yearId, userId])).rows;
+}
+
 module.exports = {
+  listChildrenInYear,
   ACCESS_SOURCE,
   grantParticipantAccess,
   revokeGrantsFromSource,
