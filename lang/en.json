@@ -1,4 +1,9 @@
 {
+  "packing_editor_title": "Personal packing list",
+  "packing_list_items": "Items to pack",
+  "packing_context": "Settings · {season} · {nights} {unit}",
+  "packing_night": "night",
+  "packing_nights": "nights",
   "role_matrix_lock_linked_ai": "Reserved for staff roles; unavailable to a role limited to its own children.",
   "packing_edit_translation": "Edit this translation",
   "packing_translation_failures": "Translations not prepared: {languages}. You can try again.",

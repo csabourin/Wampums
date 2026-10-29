@@ -69,3 +69,16 @@
 @media (max-width: 40rem) {
  .packing-actions .button { flex: 1 1 0; min-width: 0; padding: .6rem .4rem; font-size: .875rem; line-height: 1.2; }
 }
+
+/* Keep the list visible before the first scroll, including on a phone. */
+.personal-equipment--editor > p { margin-block: .4rem; }
+.packing-activity-meta { display: flex; flex-wrap: wrap; gap: .2rem 1rem; }
+.packing-activity-meta strong { color: var(--color-primary); }
+.packing-context > summary { box-sizing: border-box; padding: .35rem; font-size: 1rem; }
+.packing-bulk { padding: .25rem .5rem; margin-block: .5rem; }
+.packing-bulk > summary { box-sizing: border-box; padding: .35rem; font-size: 1rem; }
+.packing-items-table th:last-child { width: 14rem; }
+@media (max-width: 40rem) {
+ .personal-equipment--editor > form { padding: .75rem; }
+ .packing-activity-meta { display: grid; gap: .2rem; }
+}

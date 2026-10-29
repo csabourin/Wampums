@@ -142,6 +142,7 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
   test('a standalone activity publishes a family list without creating a planner camp or storing packing state', async () => {
     const id = await standaloneActivity();
     const activityEquipment = require('../services/activityPersonalEquipment');
+    expect((await activityEquipment.read(pool, context(manager), id, true)).camp.nights).toBe(0);
     const content = input({ child: 'ignored', checked_keys: ['bag'] });
     content.items[0].label_en = '   ';
     await activityEquipment.save(pool, context(manager), id, content);

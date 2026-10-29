@@ -1,4 +1,9 @@
 {
+  "packing_editor_title": "Effets personnels",
+  "packing_list_items": "Effets à préparer",
+  "packing_context": "Paramètres · {season} · {nights} {unit}",
+  "packing_night": "nuitée",
+  "packing_nights": "nuitées",
   "role_matrix_lock_linked_ai": "Réservé aux rôles de l’équipe; indisponible pour un rôle limité à ses propres enfants.",
   "packing_edit_translation": "Modifier cette traduction",
   "packing_translation_failures": "Traductions non préparées : {languages}. Vous pouvez réessayer.",

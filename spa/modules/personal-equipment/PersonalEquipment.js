@@ -44,7 +44,7 @@ export class PersonalEquipment {
     return confirm({ title: this.title(), message: translate('packing_unsaved') });
   }
   active(request = this.request) { return !this.destroyed && request === this.request && this.scope === buildScopedCacheKey(''); }
-  title() { return translate(this.manage ? 'personal_equipment_manage' : 'personal_equipment_title'); }
+  title() { return translate(this.manage ? 'packing_editor_title' : 'personal_equipment_title'); }
   text(item, field = 'label') {
     const translated = this.translations.get(this.targetLanguage);
     if (field === 'notes' && translated) { return translated.notes; }
@@ -93,8 +93,7 @@ export class PersonalEquipment {
   }
   header() {
     return `${renderBackLink(this.manage ? '/activities' : '/parent-dashboard')}<h1>${escapeHTML(this.title())}</h1>
-      <h2>${escapeHTML(this.data.camp.theme || translate('personal_equipment_camp'))}</h2>
-      <p>${escapeHTML(formatDate(this.data.camp.meeting_date, this.app.lang))}</p>
+      <p class="packing-activity-meta"><strong>${escapeHTML(this.data.camp.theme || translate('personal_equipment_camp'))}</strong><span>${escapeHTML(formatDate(this.data.camp.meeting_date, this.app.lang))}</span></p>
       ${this.data.camp.is_cancelled ? `<p role="status">${escapeHTML(translate('personal_equipment_cancelled'))}</p>` : ''}`;
   }
   availableLanguages() {
@@ -146,18 +145,19 @@ export class PersonalEquipment {
   }
   renderEditor() {
     const list = this.draft; const lang = this.sourceLocale; const other = lang === 'fr' ? 'en' : 'fr';
+    const context = translate('packing_context').replace('{season}', translate(PERSONAL_LABELS[list.season])).replace('{nights}', String(list.nights)).replace('{unit}', translate(list.nights === 1 ? 'packing_night' : 'packing_nights'));
     const options = (values, current) => values.map((value) => `<option value="${value}" ${value === current ? 'selected' : ''}>${escapeHTML(translate(PERSONAL_LABELS[value]))}</option>`).join('');
     setContent(this.root(), `<section class="page personal-equipment personal-equipment--editor">${this.header()}
       <p role="status">${escapeHTML(translate(list.published ? 'packing_published_status' : 'packing_draft_status'))}</p>
       <form id="personal-equipment-form" novalidate><fieldset ${this.readOnly || this.data.camp.is_cancelled ? 'disabled' : ''}><legend class="sr-only">${escapeHTML(this.title())}</legend>
-      <details class="packing-context"><summary>${escapeHTML(translate('personal_equipment_settings'))} · ${escapeHTML(translate(PERSONAL_LABELS[list.season]))} · ${Number(list.nights)} ${escapeHTML(translate('personal_equipment_nights'))}</summary><div class="packing-settings">
+      <details class="packing-context"><summary>${escapeHTML(context)}</summary><div class="packing-settings">
         <label>${escapeHTML(translate('personal_equipment_season'))}<select name="personal_season">${options(PERSONAL_EQUIPMENT.SEASONS, list.season)}</select></label>
         <label>${escapeHTML(translate('personal_equipment_stay'))}<select name="personal_stay">${options(PERSONAL_EQUIPMENT.STAY_TYPES, list.stay_type)}</select></label>
         <label>${escapeHTML(translate('personal_equipment_nights'))}<input name="personal_nights" type="number" value="${list.nights}" min="0" max="${PERSONAL_EQUIPMENT.MAX_NIGHTS}" step="1" required></label>
       </div>
       <div class="packing-suggestions"><button type="button" class="button button--secondary" id="personal-apply-template">${escapeHTML(translate('packing_add_suggestions'))}</button>
         <button type="button" class="button button--ghost" id="packing-replace-template">${escapeHTML(translate('packing_replace_suggestions'))}</button></div></details>
-      <div class="packing-layout"><section class="packing-content" aria-labelledby="packing-items-heading"><h2 id="packing-items-heading">${escapeHTML(translate('personal_equipment_title'))} (<span id="packing-count">${list.items.length}</span>)</h2>
+      <div class="packing-layout"><section class="packing-content" aria-labelledby="packing-items-heading"><h2 id="packing-items-heading">${escapeHTML(translate('packing_list_items'))} (<span id="packing-count">${list.items.length}</span>)</h2>
         <label for="packing-source">${escapeHTML(translate('packing_source_language'))}</label><select id="packing-source">${['fr','en'].map((code) => `<option value="${code}" ${lang === code ? 'selected' : ''}>${escapeHTML(this.languageName(code))}</option>`).join('')}</select>
         <details class="packing-bulk"><summary>${escapeHTML(translate('personal_equipment_bulk'))}</summary><label class="sr-only" for="personal-bulk">${escapeHTML(translate('personal_equipment_bulk'))}</label>
         <textarea id="personal-bulk" rows="4" maxlength="${PERSONAL_EQUIPMENT.BULK_MAX_LENGTH}" aria-describedby="personal-bulk-help"></textarea><p id="personal-bulk-help">${escapeHTML(translate('personal_equipment_bulk_help'))}</p>
@@ -172,7 +172,7 @@ export class PersonalEquipment {
         <p id="packing-translation-status" role="status">${escapeHTML(this.translations.size ? translate('packing_translations_ready').replace('{count}', String(this.translations.size)) : translate('packing_no_translations'))}</p>
         <div id="packing-translation-preview">${[...this.translations].map(([code, content]) => `<details><summary>${escapeHTML(this.languageName(code))}</summary><p dir="auto">${escapeHTML(content.notes)}</p><ul>${content.items.map((item) => `<li dir="auto">${escapeHTML(item.label)}</li>`).join('')}</ul><button type="button" class="button button--secondary" data-edit-translation="${code}">${escapeHTML(translate('packing_edit_translation'))}</button></details>`).join('')}</div>
       </aside></div>
-      <div class="packing-actions"><span id="packing-save-status" role="status">${escapeHTML(translate(this.dirty ? 'packing_unsaved_status' : 'packing_saved_status'))}</span><p id="personal-equipment-validation" role="alert"></p>
+      <div class="packing-actions"><span id="packing-save-status" role="status">${escapeHTML(translate(this.dirty || !list.version ? 'packing_unsaved_status' : 'packing_saved_status'))}</span><p id="personal-equipment-validation" role="alert"></p>
         <button type="submit" class="button button--secondary" value="draft">${escapeHTML(translate('packing_save_draft'))}</button>
         <button type="button" class="button button--secondary" id="packing-preview">${escapeHTML(translate('packing_preview'))}</button>
         <button type="submit" class="button button--primary" value="publish">${escapeHTML(translate('packing_publish'))}</button>

@@ -10,7 +10,8 @@ const fail = (key, status = HTTP_NOT_FOUND) => { throw new legacy.PersonalEquipm
 /** Lock the activity first, then use its planner camp when one exists. */
 async function activityFor(db, context, id, lock = '') {
   const activity = (await db.query(`SELECT id, name AS theme, id AS activity_id,
-    COALESCE(activity_start_date,activity_date)::text AS meeting_date, NOT is_active AS is_cancelled
+    COALESCE(activity_start_date,activity_date)::text AS meeting_date,
+    (COALESCE(activity_end_date,activity_start_date,activity_date)-COALESCE(activity_start_date,activity_date))::int AS nights, NOT is_active AS is_cancelled
     FROM activities WHERE organization_id=$1 AND id=$2${lock}`, [context.organizationId, id])).rows[0];
   if (!activity) { fail('personal_equipment_not_found'); }
   const direct = (await db.query('SELECT activity_id FROM activity_personal_equipment_lists WHERE organization_id=$1 AND activity_id=$2', [context.organizationId, id])).rows[0];
