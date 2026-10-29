@@ -312,10 +312,18 @@ export class PersonalEquipment {
     const content = this.translations.get(language);
     if (!content || this.busy || this.dirty) { return; }
     const expectedVersion = this.draft.version;
-    let saving = false; let changed = false;
+    let saving = false; let changed = false; let confirming = false;
     const modal = openModal({ title: `${translate('packing_edit_translation')} — ${this.languageName(language)}`,
       onClose: () => { this.translationDirty = false; },
-      canClose: () => saving ? false : !changed || confirm({ title: this.title(), message: translate('packing_unsaved') }),
+      canClose: () => {
+        if (saving || confirming) { return false; }
+        if (!changed) { return true; }
+        confirming = true;
+        confirm({ title: this.title(), message: translate('packing_unsaved') }).then((approved) => {
+          if (approved && this.active()) { changed = false; modal.close(true); }
+        }).finally(() => { confirming = false; });
+        return false;
+      },
       body: `<form id="packing-translation-edit"><label for="packing-translation-notes">${escapeHTML(translate('packing_instructions'))}</label><textarea id="packing-translation-notes" maxlength="${PERSONAL_EQUIPMENT.NOTES_MAX}">${escapeHTML(content.notes)}</textarea>${content.items.map((item, index) => `<label for="packing-translated-${index}">${escapeHTML(this.draft.items.find((source) => source.key === item.key)?.[`label_${this.sourceLocale}`] || item.key)}</label><input id="packing-translated-${index}" data-translated-key="${escapeAttribute(item.key)}" value="${escapeAttribute(item.label)}" maxlength="${PERSONAL_EQUIPMENT.LABEL_MAX}" required>`).join('')}</form>`,
       footer: `<button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button><button type="submit" class="button button--primary" form="packing-translation-edit">${escapeHTML(translate('save'))}</button>` });
     this.modal = modal;

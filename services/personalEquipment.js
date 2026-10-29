@@ -35,7 +35,7 @@ function readList(value) {
 }
 /** Lock the camp before its list, consistently for edits and family checks. */
 async function campFor(db, organizationId, meetingId, lock = '') {
-  const camp = (await db.query(`SELECT m.id, m.theme, m.activity_id, m.meeting_date::text, GREATEST(m.span_days-1,0) AS nights, m.is_cancelled
+  const camp = (await db.query(`SELECT m.id, m.theme, m.activity_id, m.meeting_date::text, (SELECT GREATEST(COALESCE(a.activity_end_date,a.activity_start_date,a.activity_date)-COALESCE(a.activity_start_date,a.activity_date),0) FROM activities a WHERE a.organization_id=m.organization_id AND a.id=m.activity_id) AS nights, m.is_cancelled
     FROM year_plan_meetings m WHERE m.organization_id=$1 AND m.id=$2 AND m.meeting_kind='camp'${lock}`,
   [organizationId, meetingId])).rows[0];
   if (!camp) { refuse('personal_equipment_not_found', HTTP_NOT_FOUND); }

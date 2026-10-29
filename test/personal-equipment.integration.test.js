@@ -172,7 +172,7 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
     await pool.query('UPDATE year_plan_meetings SET activity_id=$1 WHERE id=$2', [id, meetingId]);
     const activityEquipment = require('../services/activityPersonalEquipment');
     const data = await activityEquipment.read(pool, context(), id);
-    expect(data.packing_id).toBe(meetingId);
+    expect(data.packing_id).toBe(meetingId); expect(data.camp.nights).toBe(0);
     await activityEquipment.save(pool, context(manager), id, input({ expected_version: 1, notes_fr: 'Updated from activity' }));
     expect((await readFamilyList(pool, context(), meetingId)).list.notes_fr).toBe('Updated from activity');
     expect(await one('SELECT count(*) FROM activity_personal_equipment_lists WHERE activity_id=$1', [id])).toBe('0');

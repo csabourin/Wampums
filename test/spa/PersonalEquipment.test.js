@@ -171,3 +171,19 @@ test('the bulk preview shows parsed quantities before any rows are added', async
   expect(row.querySelector('[data-field="label_fr"]').value).toBe('paires de bas');
   screen.destroy();
 });
+
+
+test('declining the discard prompt keeps unsaved translation corrections open', async () => {
+  const { confirm } = require('../../spa/utils/DialogUtils.js');
+  const screen = new PersonalEquipment(app, { meetingId: 7, manage: true }); await screen.init();
+  screen.translations.set('es', { notes: 'Original', items: [{ key: 'bag', label: 'Saco' }, { key: 'socks', label: 'Calcetines' }] });
+  await screen.editTranslation('es');
+  const overlay = screen.modal.overlay;
+  const notes = overlay.querySelector('textarea'); notes.value = 'Correction à conserver'; notes.dispatchEvent(new Event('input', { bubbles: true }));
+  confirm.mockResolvedValueOnce(false);
+  overlay.querySelector('[data-modal-close]').click(); await settle();
+  expect(overlay.isConnected).toBe(true); expect(notes.value).toBe('Correction à conserver');
+  confirm.mockResolvedValueOnce(true);
+  overlay.querySelector('[data-modal-close]').click(); await settle();
+  expect(overlay.isConnected).toBe(false); screen.destroy();
+});
