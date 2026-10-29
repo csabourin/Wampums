@@ -24,6 +24,9 @@ test wins and the document gets fixed.
   `success` / `error` / `paginated` / `forbidden` from `middleware/response.js`.
 - `authenticate` + `requirePermission('x.y')` (+ `blockDemoRoles` on writes) from `middleware/auth.js`.
   Never decide access by a role's name. `authorize()`, `hasAnyRole()` and route-local JWT checks are gone.
+- Every new permission must reach the district role through the automatic grant trigger and appear
+  with French/English permission and category labels in `/roles`. Run the full catalog audit
+  (`test/permission-catalog.integration.test.js`) and matrix integration suite after adding permissions.
 - Tenant isolation: `getOrganizationId(req, pool)` and `organization_id` in every query.
 - Access to children goes through `services/participantAccess.js`; roles through
   `services/roleAssignment.js`. Schema changes are re-runnable files in `migrations/`.

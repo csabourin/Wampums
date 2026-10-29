@@ -51,6 +51,8 @@
   "personal_equipment_translation_hint": "Le texte de l’équipe est affiché jusqu’à ce que vous demandiez une traduction dans la langue choisie.",
   "personal_equipment_translation_failed": "La liste n’a pas pu être traduite. Le texte original et vos coches sont conservés.",
   "family_tasks_kind_equipment": "Bagages à préparer",
+  "role_category_personal_equipment": "Effets personnels",
+  "role_category_communication": "Communication",
   "role_permission_personal_equipment_view": "Consulter les listes d’effets de la famille",
   "role_permission_personal_equipment_manage": "Préparer et publier les listes d’effets du camp",
   "Add": "Ajouter",

@@ -96,6 +96,16 @@ describe.skipIf(!DATABASE_URL)('Unit and district permission matrices', () => {
     const res = await request(app).get('/api/v1/roles/matrix');
     expect(res.status).toBe(403); expect(res.body.required).toContain('roles.manage'); expect(res.body.missing).toContain('roles.manage');
   });
+  test('the roles matrix exposes every catalog permission and a cell for every role', async () => {
+    const res = await request(app).get('/api/v1/roles/matrix');
+    expect(res.status).toBe(200);
+    const catalog = (await pool.query('SELECT id FROM permissions ORDER BY id')).rows.map((p) => p.id);
+    expect(res.body.data.permissions.map((p) => p.id).sort((a, b) => a - b)).toEqual(catalog);
+    expect(res.body.data.roles.length).toBeGreaterThan(0);
+    for (const role of res.body.data.roles) {
+      expect(role.cells.map((cell) => cell.permission_id).sort((a, b) => a - b)).toEqual(catalog);
+    }
+  });
   test('bulk replacement is atomic and records the before and after permission keys', async () => {
     const id = await role('replace', 'organization', ['carpools.view']);
     expect((await put(id, ['points.manage', 'points.view'])).status).toBe(200);
