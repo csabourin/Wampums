@@ -162,6 +162,8 @@ function editTranslation(pool, context, meetingId, language, value, transactionD
     const list = await listFor(db, context.organizationId, meetingId);
     if (!list || camp.is_cancelled) { refuse('personal_equipment_not_found', HTTP_NOT_FOUND); }
     if (value.expected_version !== list.version) { refuse('personal_equipment_conflict', HTTP_CONFLICT); }
+    const existing = (await db.query('SELECT content FROM personal_equipment_translations WHERE organization_id=$1 AND meeting_id=$2 AND version=$3 AND language=$4', [context.organizationId, meetingId, list.version, language])).rows[0];
+    if (!existing || JSON.stringify(readTranslation(existing.content, list.items)) !== JSON.stringify(readTranslation(value.expected_content, list.items))) { refuse('personal_equipment_conflict', HTTP_CONFLICT); }
     const content = readTranslation(value.content, list.items);
     if (!content) { refuse('personal_equipment_invalid'); }
     await db.query(`INSERT INTO personal_equipment_translations (organization_id,meeting_id,version,language,content) VALUES ($1,$2,$3,$4,$5)

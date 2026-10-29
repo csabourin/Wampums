@@ -156,3 +156,18 @@ test('an editor with unsaved changes protects navigation and prepares translatio
   expect(document.getElementById('packing-translate-all').textContent).toContain('ai_label');
   screen.destroy();
 });
+
+
+test('the bulk preview shows parsed quantities before any rows are added', async () => {
+  const screen = new PersonalEquipment(app, { meetingId: 7, manage: true }); await screen.init();
+  const bulk = document.getElementById('personal-bulk'); bulk.value = '2 paires de bas\nTuque';
+  bulk.dispatchEvent(new Event('input', { bubbles: true }));
+  expect(document.getElementById('packing-bulk-preview').textContent).toContain('2 × paires de bas');
+  expect(document.querySelectorAll('[data-item-key]')).toHaveLength(2);
+  document.getElementById('personal-add-bulk').click();
+  expect(document.querySelectorAll('[data-item-key]')).toHaveLength(4);
+  const row = document.querySelectorAll('[data-item-key]')[2];
+  expect(row.querySelector('[data-field="quantity"]').value).toBe('2');
+  expect(row.querySelector('[data-field="label_fr"]').value).toBe('paires de bas');
+  screen.destroy();
+});

@@ -97,6 +97,8 @@ function editTranslation(pool, context, id, language, value) {
     const list = await listFor(db, context, id);
     if (!list || activity.is_cancelled) { fail('personal_equipment_not_found'); }
     if (value.expected_version !== list.version) { fail('personal_equipment_conflict', HTTP_CONFLICT); }
+    const existing = (await db.query('SELECT content FROM activity_personal_equipment_translations WHERE organization_id=$1 AND activity_id=$2 AND version=$3 AND language=$4', [context.organizationId, id, list.version, language])).rows[0];
+    if (!existing || JSON.stringify(legacy.readTranslation(existing.content, list.items)) !== JSON.stringify(legacy.readTranslation(value.expected_content, list.items))) { fail('personal_equipment_conflict', HTTP_CONFLICT); }
     const content = legacy.readTranslation(value.content, list.items);
     if (!content) { fail('personal_equipment_invalid', HTTP_BAD_REQUEST); }
     await db.query(`INSERT INTO activity_personal_equipment_translations (organization_id,activity_id,version,language,content) VALUES ($1,$2,$3,$4,$5)

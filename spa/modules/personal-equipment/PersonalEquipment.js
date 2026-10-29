@@ -15,7 +15,7 @@ import { openPrintWindow, setPrintContent, REPORT_PRINT_STYLES } from '../../uti
 import { formatDate } from '../../utils/DateUtils.js';
 import { getPersonalEquipmentTasks, getPersonalEquipment, savePersonalEquipment, translatePersonalEquipment, editPersonalEquipmentTranslation } from '../../api/api-personal-equipment.js';
 import { personalEquipmentTemplate, PERSONAL_EQUIPMENT } from './templates.js';
-import { packingKey, readPacking, writePacking, bulkPackingLines } from './packingStorage.js';
+import { packingKey, readPacking, writePacking, bulkPackingLines, bulkPackingItems } from './packingStorage.js';
 import styles from '../../../css/personal-equipment.css?url';
 export const PERSONAL_LABELS = {
   summer: 'personal_equipment_summer', winter: 'personal_equipment_winter', shoulder: 'personal_equipment_shoulder',
@@ -161,7 +161,7 @@ export class PersonalEquipment {
         <label for="packing-source">${escapeHTML(translate('packing_source_language'))}</label><select id="packing-source">${['fr','en'].map((code) => `<option value="${code}" ${lang === code ? 'selected' : ''}>${escapeHTML(this.languageName(code))}</option>`).join('')}</select>
         <details class="packing-bulk"><summary>${escapeHTML(translate('personal_equipment_bulk'))}</summary><label class="sr-only" for="personal-bulk">${escapeHTML(translate('personal_equipment_bulk'))}</label>
         <textarea id="personal-bulk" rows="4" maxlength="${PERSONAL_EQUIPMENT.BULK_MAX_LENGTH}" aria-describedby="personal-bulk-help"></textarea><p id="personal-bulk-help">${escapeHTML(translate('personal_equipment_bulk_help'))}</p>
-        <p id="packing-bulk-preview" role="status"></p><button type="button" class="button button--secondary" id="personal-add-bulk">${escapeHTML(translate('personal_equipment_bulk_add'))}</button></details>
+        <p id="packing-bulk-count" role="status"></p><div id="packing-bulk-preview"></div><button type="button" class="button button--secondary" id="personal-add-bulk">${escapeHTML(translate('personal_equipment_bulk_add'))}</button></details>
         <div id="personal-item-editor"><table class="packing-items-table"><caption class="sr-only">${escapeHTML(translate('personal_equipment_title'))}</caption><thead><tr><th scope="col">${escapeHTML(translate('quantity'))}</th><th scope="col">${escapeHTML(translate('personal_equipment_item'))}</th><th scope="col">${escapeHTML(translate('packing_options'))}</th></tr></thead><tbody id="personal-equipment-items">${list.items.map((item, index) => this.itemEditor(item, index)).join('')}</tbody></table></div>
         <button type="button" class="button button--secondary" id="personal-add-item">${escapeHTML(translate('personal_equipment_add'))}</button>
       </section><aside class="packing-sidebar" aria-label="${escapeHTML(translate('packing_instructions_translations'))}">
@@ -180,7 +180,10 @@ export class PersonalEquipment {
     const form = this.root().querySelector('form');
     form.addEventListener('input', (event) => {
       if (event.target.id === 'personal-bulk') {
-        this.markDirty(); this.root().querySelector('#packing-bulk-preview').textContent = translate('packing_bulk_count').replace('{count}', String(bulkPackingLines(event.target.value).length)); return;
+        this.markDirty();
+        const items = bulkPackingItems(event.target.value, PERSONAL_EQUIPMENT.MAX_QUANTITY);
+        this.root().querySelector('#packing-bulk-count').textContent = translate('packing_bulk_count').replace('{count}', String(items.length));
+        setContent(this.root().querySelector('#packing-bulk-preview'), `<ul>${items.slice(0, PERSONAL_EQUIPMENT.BULK_PREVIEW_ITEMS).map((item) => `<li>${item.quantity} × ${escapeHTML(item.label)}</li>`).join('')}</ul>`); return;
       }
       if (event.target.matches('[data-language], #packing-source')) { return; }
       const textChanged = event.target.matches('[data-field^="label_"], #personal-notes');
@@ -210,10 +213,10 @@ export class PersonalEquipment {
         this.root().querySelector('#personal-equipment-validation').textContent = translate('personal_equipment_bulk_invalid'); return;
       }
       if (!labels.length) { return; }
-      this.draft = { ...this.draft, ...input, items: [...input.items, ...labels.map((label) => {
-        const match = label.match(/^([1-9]\d?)\s+(?:[x×]\s+)?(.+)$/);
-        return { key: `custom_${crypto.randomUUID()}`, label_fr: lang === 'fr' ? (match?.[2] || label) : '', label_en: lang === 'en' ? (match?.[2] || label) : '', quantity: match ? Number(match[1]) : 1, catalog_item_id: null };
-      })] };
+      const additions = bulkPackingItems(this.root().querySelector('#personal-bulk').value, PERSONAL_EQUIPMENT.MAX_QUANTITY);
+      this.draft = { ...this.draft, ...input, items: [...input.items, ...additions.map(({ label, quantity }) => ({
+        key: `custom_${crypto.randomUUID()}`, label_fr: lang === 'fr' ? label : '', label_en: lang === 'en' ? label : '', quantity, catalog_item_id: null,
+      }))] };
       this.markDirty(true); this.renderEditor();
       this.root().querySelectorAll('[data-item-key]')[input.items.length].querySelector('textarea').focus();
     });
@@ -322,7 +325,7 @@ export class PersonalEquipment {
       const translated = { notes: form.querySelector('textarea').value, items: [...form.querySelectorAll('[data-translated-key]')].map((input) => ({ key: input.dataset.translatedKey, label: input.value.trim() })) };
       const controls = [...form.elements]; controls.forEach((control) => { control.disabled = true; }); this.busy = true;
       try {
-        const result = await withFormBusy(form, () => editPersonalEquipmentTranslation(this.meetingId, language, { expected_version: expectedVersion, content: translated }));
+        const result = await withFormBusy(form, () => editPersonalEquipmentTranslation(this.meetingId, language, { expected_version: expectedVersion, expected_content: content, content: translated }));
         if (this.active()) { this.translations.set(language, result.data || translated); this.draft.published = false; this.renderEditor(); }
         changed = false; modal.close(true);
       } catch (err) { this.app.showMessage(apiErrorMessage(err, 'personal_equipment_save_failed'), 'error'); }

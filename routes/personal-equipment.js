@@ -42,10 +42,10 @@ module.exports = (pool) => {
     validateIdParam('id'), body('language').isString().bail().isIn(RULES.TRANSLATION_LANGUAGES), checkValidation, handle(async (req, res) =>
       success(res, await activityEquipment.translate(pool, await contextFor(req, pool, true), Number(req.params.id), req.body.language))));
   router.put('/activities/:id/translations/:language', requirePermission({ permissions: ['personal_equipment.manage'], organizationScope: true }), blockDemoRoles,
-    validateIdParam('id'), body('expected_version').isInt({ min: 1 }), body('content').isObject(), checkValidation, handle(async (req, res) =>
+    validateIdParam('id'), body('expected_version').isInt({ min: 1 }), body('content').isObject(), body('expected_content').isObject(), checkValidation, handle(async (req, res) =>
       success(res, await activityEquipment.editTranslation(pool, await contextFor(req, pool, true), Number(req.params.id), req.params.language, req.body))));
   router.put('/:id/translations/:language', requirePermission({ permissions: ['personal_equipment.manage'], organizationScope: true }), blockDemoRoles,
-    validateIdParam('id'), body('expected_version').isInt({ min: 1 }), body('content').isObject(), checkValidation, handle(async (req, res) =>
+    validateIdParam('id'), body('expected_version').isInt({ min: 1 }), body('content').isObject(), body('expected_content').isObject(), checkValidation, handle(async (req, res) =>
       success(res, await equipment.editTranslation(pool, await contextFor(req, pool, true), Number(req.params.id), req.params.language, req.body))));
   router.get('/:id/manage', requirePermission({ permissions: ['personal_equipment.manage'], organizationScope: true }), validateIdParam('id'), checkValidation,
     handle(async (req, res) => {

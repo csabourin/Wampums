@@ -181,6 +181,7 @@ router.post(
 router.get(
   '/budget',
   authenticate,
+  requirePermission({ permissions: ['ai.use'], organizationScope: true }),
   requireAnyPermission(...AI_TEXT_PERMISSIONS, ...AI_RECEIPT_PERMISSIONS),
   asyncHandler(async (req, res) => {
     const status = await getBudgetStatus();

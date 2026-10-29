@@ -97,7 +97,7 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
   test('a new version cannot reuse a stale common translation', async () => {
     generateText.mockResolvedValue({ data: { notes: '', items: [{ key: 'bag', label: 'Saco' }, { key: 'socks', label: 'Calcetines' }] } });
     await translateList(pool, context(manager), meetingId, 'es');
-    await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1 }));
+    await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1, notes_fr: 'Consigne modifiée.' }));
     await translateList(pool, context(manager), meetingId, 'es'); expect(generateText).toHaveBeenCalledTimes(2);
   });
   test.each(['fr', 'en'])('missing %s instructions are translated even when every item already has that label', async (language) => {
@@ -187,9 +187,10 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
     expect((await readFamilyList(pool, context(), meetingId)).translations.es).toBeUndefined();
     await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1 }));
     expect((await readFamilyList(pool, context(), meetingId)).translations.es.items[0].label).toBe('Saco');
-    const correction = { expected_version: 2, content: { notes: 'Revisado', items: [{ key: 'bag', label: 'Bolsa' }, { key: 'socks', label: 'Calcetines' }] } };
+    const correction = { expected_version: 2, expected_content: { notes: 'Instrucciones', items: [{ key: 'bag', label: 'Saco' }, { key: 'socks', label: 'Calcetines' }] }, content: { notes: 'Revisado', items: [{ key: 'bag', label: 'Bolsa' }, { key: 'socks', label: 'Calcetines' }] } };
     expect((await request(app).put(`${endpoint}/es`).set(auth()).send(correction)).status).toBe(403);
     expect((await request(app).put(`${endpoint}/es`).set(auth(manager)).send(correction)).status).toBe(200);
+    expect((await request(app).put(`${endpoint}/es`).set(auth(manager)).send(correction)).status).toBe(409);
     expect(generateText).toHaveBeenCalledTimes(1);
     expect((await readFamilyList(pool, context(), meetingId)).translations.es.items[0].label).toBe('Saco');
     await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 2 }));
