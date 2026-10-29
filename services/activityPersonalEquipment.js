@@ -50,7 +50,8 @@ function save(pool, context, id, value) {
     const valid = ids.length ? (await db.query('SELECT id FROM equipment_catalog_items WHERE organization_id=$1 AND id=ANY($2::int[]) AND archived_at IS NULL', [context.organizationId, ids])).rows : [];
     if (ids.some((key) => !valid.some((item) => item.id === key))) { fail('personal_equipment_invalid', HTTP_BAD_REQUEST); }
     const content = Object.fromEntries(['season','nights','stay_type','notes_fr','notes_en','published','reviewed'].map((key) => [key, value[key]]));
-    content.items = value.items.map((item) => Object.fromEntries(['key','label_fr','label_en','quantity','catalog_item_id'].map((key) => [key, item[key]])));
+    content.notes_fr = content.notes_fr.trim(); content.notes_en = content.notes_en.trim();
+    content.items = value.items.map((item) => ({ key: item.key, label_fr: item.label_fr.trim(), label_en: item.label_en.trim(), quantity: item.quantity, catalog_item_id: item.catalog_item_id || null }));
     await db.query(`INSERT INTO activity_personal_equipment_lists (organization_id,activity_id,content) VALUES ($1,$2,$3)
       ON CONFLICT (organization_id,activity_id) DO UPDATE SET content=$3,version=activity_personal_equipment_lists.version+1`, [context.organizationId, id, JSON.stringify(content)]);
     return listFor(db, context, id);
@@ -58,7 +59,10 @@ function save(pool, context, id, value) {
 }
 async function tasks(db, context) {
   const activities = (await db.query(`SELECT l.activity_id FROM activity_personal_equipment_lists l
-    WHERE l.organization_id=$1 AND l.content->>'published'='true'`, [context.organizationId])).rows;
+    JOIN activities a ON a.id=l.activity_id AND a.organization_id=l.organization_id
+    JOIN scout_years sy ON sy.id=$2 AND sy.organization_id=l.organization_id
+    WHERE l.organization_id=$1 AND l.content->>'published'='true' AND a.is_active=TRUE
+    AND COALESCE(a.activity_start_date,a.activity_date) BETWEEN sy.start_date AND sy.end_date`, [context.organizationId, context.yearId])).rows;
   const results = await Promise.all(activities.map(async ({ activity_id: id }) => {
     const rows = [];
     try {

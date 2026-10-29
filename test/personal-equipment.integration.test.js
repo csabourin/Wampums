@@ -142,13 +142,16 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
   test('a standalone activity publishes a family list without creating a planner camp or storing packing state', async () => {
     const id = await standaloneActivity();
     const activityEquipment = require('../services/activityPersonalEquipment');
-    await activityEquipment.save(pool, context(manager), id, input({ child: 'ignored', checked_keys: ['bag'] }));
+    const content = input({ child: 'ignored', checked_keys: ['bag'] });
+    content.items[0].label_en = '   ';
+    await activityEquipment.save(pool, context(manager), id, content);
     const res = await request(app).get(`/api/v1/personal-equipment/activities/${id}`).set(auth());
     expect(res.status).toBe(200); expect(res.body.data.packing_id).toBe(`activity-${id}`);
     expect(res.body.data.children.map((entry) => entry.id)).toEqual([child]);
     expect((await activityEquipment.tasks(pool, context())).map((row) => row.meeting_id)).toContain(`activity-${id}`);
     const stored = await one('SELECT content FROM activity_personal_equipment_lists WHERE organization_id=$1 AND activity_id=$2', [organizationId, id]);
     expect(stored.child).toBeUndefined(); expect(stored.checked_keys).toBeUndefined();
+    expect(stored.items[0].label_en).toBe('');
     expect(await one('SELECT count(*) FROM year_plan_meetings WHERE organization_id=$1 AND activity_id=$2', [organizationId, id])).toBe('0');
     expect((await request(app).get(`/api/v1/personal-equipment/activities/${id}`).set(auth(otherParent))).status).toBe(404);
     const translated = await activityEquipment.translate(pool, context(), id, 'fr');
