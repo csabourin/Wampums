@@ -191,6 +191,7 @@ module.exports = (app, pool) => {
 
   app.use('/api/v1/resources', resourcesRoutes);
   app.use('/api/v1/equipment-loans', equipmentLoansRoutes);
+  app.use('/api/v1/personal-equipment', require('./personal-equipment')(pool));
   app.use('/api/v1/equipment-catalog', equipmentCatalogRoutes);
   app.use('/api/v1/equipment-suggestions', equipmentSuggestionsRoutes);
 

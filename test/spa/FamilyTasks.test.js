@@ -126,6 +126,15 @@ beforeEach(() => {
 });
 
 describe('grouping the family\'s tasks', () => {
+  test.each([null, '', '   '])('an untitled packing list can sort beside a permission slip on the same date: %p', (title) => {
+    const tasks = buildFamilyTasks(familyData({
+      permissionSlips: new Map([[4, [slip(91, 4)]]]),
+      packingLists: [{ meeting_id: 80, participant_id: 4, date: '2026-11-14', title, item_keys: ['untitled-bag'] }],
+    }));
+    expect(tasks).toHaveLength(2);
+    expect(tasks.find((task) => task.kind === 'equipment').title).toBe('personal_equipment_camp');
+  });
+
   test('a permission both children need appears once, naming both', () => {
     const tasks = buildFamilyTasks(familyData({
       permissionSlips: new Map([[4, [slip(91, 4)]], [5, [slip(92, 5)]]]),

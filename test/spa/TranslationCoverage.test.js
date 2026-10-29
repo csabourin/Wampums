@@ -198,7 +198,7 @@ test('every key built from a state exists for each state the server returns', ()
   expect(programProgressStatuses().length).toBeGreaterThan(10);
   expect(offlineMutationKinds()).toEqual(expect.arrayContaining(['attendance', 'medication', 'badges']));
   expect(loginList('DEMO_VIEWS')).toEqual(['parent', 'leader']);
-  expect(familyTaskKinds()).toEqual(['permission', 'form', 'review', 'authorization', 'payment']);
+  expect(familyTaskKinds()).toEqual(['permission', 'form', 'review', 'authorization', 'payment', 'equipment']);
   expect(equipmentCategories()).toContain('other');
   expect(equipmentUnits()).toContain('each');
   expect(materialSorts()).toEqual(['category', 'name', 'available']);
