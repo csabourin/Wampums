@@ -326,6 +326,7 @@ module.exports = {
   getPlatformSenderEmail,
   getUnitSenderDomains,
   isAuthenticatedSenderAddress,
+  isValidAddress,
   resolveOrganizationEmailSender,
   validateEmailSenderSettings,
 };

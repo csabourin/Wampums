@@ -134,3 +134,34 @@ test.each([{ status: ['done'], expected_status: 'todo' }, { status: 'done', expe
   expect(res.status).toBe(400);
   expect(pool.connect).not.toHaveBeenCalled();
 });
+
+
+test.each([
+  { enabled: true, expected_revision: 0, materials: '', lead_days: 2, repeat_hours: 24 },
+  { enabled: true, expected_revision: 0, materials: ['Tents'], lead_days: 2, repeat_hours: 24 },
+  { enabled: true, expected_revision: 0, materials: 'Tents', lead_days: 31, repeat_hours: 24 },
+  { enabled: true, expected_revision: 0, materials: 'Tents', lead_days: 2, repeat_hours: 1 },
+  { enabled: true, expected_revision: '0', materials: 'Tents', lead_days: 2, repeat_hours: 24 },
+])('invalid reminder settings never reach a transaction', async (settings) => {
+  const res = await request(app).put('/api/v1/tasks/3/equipment-reminder').set('Authorization', `Bearer ${token()}`).send(settings);
+  expect(res.status).toBe(400);
+  expect(pool.connect).not.toHaveBeenCalled();
+});
+
+test.each([['put', '/3/equipment-reminder'], ['post', '/mine/3/equipment-confirmation']])('equipment reminders require authentication for %s %s', async (method, path) => {
+  expect((await request(app)[method](`/api/v1/tasks${path}`).send({})).status).toBe(401);
+});
+
+test('personal task rights do not allow scheduling someone else’s reminder', async () => {
+  permissions = ['tasks.view'];
+  const res = await request(app).put('/api/v1/tasks/3/equipment-reminder').set('Authorization', `Bearer ${token()}`).send({ enabled: false, expected_revision: 0 });
+  expect(res.status).toBe(403);
+  expect(res.body.required).toEqual(['tasks.manage']);
+});
+
+test('demo assignees cannot confirm a reminder', async () => {
+  demo = true;
+  const res = await request(app).post('/api/v1/tasks/mine/3/equipment-confirmation').set('Authorization', `Bearer ${token()}`).send({ revision: 1 });
+  expect(res.status).toBe(403);
+  expect(res.body.isDemo).toBe(true);
+});

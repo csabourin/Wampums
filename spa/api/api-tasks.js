@@ -9,3 +9,6 @@ export const saveTask = (task, id = null) => id
   : API.post('v1/tasks', task);
 export const changeTaskStatus = (id, status, expectedStatus, ownOnly = true) =>
   API.patch(`v1/tasks/${ownOnly ? 'mine/' : ''}${encodeURIComponent(id)}/status`, { status, expected_status: expectedStatus });
+
+export const configureEquipmentReminder = (id, value) => API.put(`v1/tasks/${encodeURIComponent(id)}/equipment-reminder`, value);
+export const confirmEquipmentReminder = (id, revision) => API.post(`v1/tasks/mine/${encodeURIComponent(id)}/equipment-confirmation`, { revision });

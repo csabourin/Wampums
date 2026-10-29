@@ -464,6 +464,20 @@ test.describe('the leaders\' programme bar', () => {
 test.describe('task assignment', () => {
   signedInAs('admin');
 
+  test('material reminder settings are accessible and keep keyboard focus', async ({ page }, testInfo) => {
+    await openScreen(page, '/tasks');
+    const opener = page.locator('[data-equipment-reminder]').first();
+    await opener.click();
+    await expect(page.locator('#equipment-reminder-materials')).toBeVisible();
+    await waitForAnimations(page);
+    expect(await axeViolations(page)).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+    await page.screenshot({ path: testInfo.outputPath('material-reminder.png'), fullPage: true });
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(opener).toBeFocused();
+  });
+
   test('the task form is accessible on phones and returns focus after Escape', async ({ page }) => {
     await openScreen(page, '/tasks');
     await expect(page.getByRole('heading', { name: 'Vérifier les pagaies' })).toBeVisible();

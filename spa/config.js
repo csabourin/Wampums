@@ -48,6 +48,10 @@ export const CONFIG = {
 
   /** Shared task form and status labels. */
   AUTHORIZATION_FLOW: { PREVIEW_DELAY_MS: 250 },
+  EQUIPMENT_REMINDERS: {
+    MATERIALS_MAX_LENGTH: 5000, MAX_LEAD_DAYS: 30, MIN_REPEAT_HOURS: 24, MAX_REPEAT_HOURS: 168,
+    DEFAULT_LEAD_DAYS: 2, DEFAULT_REPEAT_HOURS: 24,
+  },
   TASKS: {
     TITLE_MAX_LENGTH: 255,
     STATUS_KEYS: { todo: 'tasks_status_todo', in_progress: 'tasks_status_in_progress', done: 'tasks_status_done' },
