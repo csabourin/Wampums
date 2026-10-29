@@ -48,10 +48,10 @@ async function listFor(db, organizationId, meetingId) {
   return { ...list, items };
 }
 /** Replacing text or quantities preserves item keys and every child's saved check. */
-function saveList(pool, organizationId, actorId, meetingId, value) {
+function saveList(pool, organizationId, actorId, meetingId, value, transactionDb = null) {
   const input = readList(value);
   if (!input) { refuse('personal_equipment_invalid'); }
-  return transaction(pool, async (db) => {
+  const work = async (db) => {
     const camp = await campFor(db, organizationId, meetingId, ' FOR UPDATE');
     if (camp.is_cancelled) { refuse('personal_equipment_cancelled', HTTP_CONFLICT); }
     const previous = await listFor(db, organizationId, meetingId);
@@ -73,7 +73,8 @@ function saveList(pool, organizationId, actorId, meetingId, value) {
       label_fr=$4,label_en=$5,quantity=$6,catalog_item_id=$7,position=$8,active=TRUE`,
     [organizationId, meetingId, item.key, item.label_fr.trim(), item.label_en.trim(), item.quantity, item.catalog_item_id || null, position])));
     return listFor(db, organizationId, meetingId);
-  });
+  };
+  return transactionDb ? work(transactionDb) : transaction(pool, work);
 }
 /** The same invitation/decline rules used by activity rosters apply to personal lists. */
 async function childrenFor(db, context, camp) {
@@ -125,6 +126,19 @@ function readTranslation(value, items) {
   return { notes: value.notes, items: value.items.map((item) => ({ key: item.key, label: item.label.trim() })) };
 }
 
+/** Shared text-only translation for camps and standalone activities. */
+async function translateContent(list, language, context) {
+  const completeNotes = Boolean(list[`notes_${language}`]?.trim()) || ![list.notes_fr, list.notes_en].some((notes) => notes?.trim());
+  const direct = ['fr', 'en'].includes(language) && completeNotes && list.items.every((item) => item[`label_${language}`]);
+  if (direct) { return { notes: list[`notes_${language}`], items: list.items.map((item) => ({ key: item.key, label: item[`label_${language}`] })) }; }
+  const input = { targetLocale: language, notes: list.notes_fr || list.notes_en,
+    items: list.items.map((item) => ({ key: item.key, label: item.label_fr || item.label_en })) };
+  const generated = await generateText('packing_translate', input, { organizationId: context.organizationId, userId: context.userId });
+  const translated = readTranslation(generated.data, list.items);
+  if (!translated) { const err = new Error('Invalid list translation'); err.code = 'AI_INVALID_RESPONSE'; throw err; }
+  return translated;
+}
+
 /** Translate only common list text, never a child's identity or packing state. */
 function translateList(pool, context, meetingId, language) {
   if (!RULES.TRANSLATION_LANGUAGES.includes(language)) { refuse('personal_equipment_invalid'); }
@@ -135,17 +149,10 @@ function translateList(pool, context, meetingId, language) {
     const cached = (await db.query('SELECT content FROM personal_equipment_translations WHERE organization_id=$1 AND meeting_id=$2 AND version=$3 AND language=$4',
       [context.organizationId, meetingId, list.version, language])).rows[0];
     if (cached) { return cached.content; }
-    const completeNotes = Boolean(list[`notes_${language}`]?.trim()) || ![list.notes_fr, list.notes_en].some((notes) => notes?.trim());
-    const direct = ['fr', 'en'].includes(language) && completeNotes && list.items.every((item) => item[`label_${language}`]);
-    if (direct) { return { notes: list[`notes_${language}`], items: list.items.map((item) => ({ key: item.key, label: item[`label_${language}`] })) }; }
-    const input = { targetLocale: language, notes: list.notes_fr || list.notes_en,
-      items: list.items.map((item) => ({ key: item.key, label: item.label_fr || item.label_en })) };
-    const generated = await generateText('packing_translate', input, { organizationId: context.organizationId, userId: context.userId });
-    const translated = readTranslation(generated.data, list.items);
-    if (!translated) { const err = new Error('Invalid list translation'); err.code = 'AI_INVALID_RESPONSE'; throw err; }
+    const translated = await translateContent(list, language, context);
     await db.query('INSERT INTO personal_equipment_translations (organization_id,meeting_id,version,language,content) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
       [context.organizationId, meetingId, list.version, language, JSON.stringify(translated)]);
     return translated;
   });
 }
-module.exports = { PersonalEquipmentError, readList, campFor, listFor, saveList, readFamilyList, familyTasks, translateList, readTranslation };
+module.exports = { childrenFor, translateContent, PersonalEquipmentError, readList, campFor, listFor, saveList, readFamilyList, familyTasks, translateList, readTranslation };

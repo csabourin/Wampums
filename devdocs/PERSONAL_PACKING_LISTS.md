@@ -44,3 +44,20 @@ may read and use local checks, but cannot publish or spend the shared AI budget.
 
 Tests use fictional families and mocked AI. The browser suite checks both family/editor layouts,
 multiline entry, accessibility, persistence on reload and absence of packing-state requests.
+
+## Activity entry point
+
+The create/edit activity form offers **Save and prepare the packing list** with
+`personal_equipment.manage` and organization scope. It saves the activity first
+and opens its editor; it does not send authorizations or publish the list.
+The activity card offers the same editor. No annual-plan camp is required.
+The route is `/personal-equipment/activity-<id>/manage`; the family route omits
+`/manage`. These reuse the existing editor, bulk entry, review/publication and
+text-only translation rules. All API writes remain online-only.
+
+An activity linked to a planner camp uses that camp's existing common list and
+local packing keys. Standalone activities store only whitelisted common content
+and shared versioned translations (migration 064). Local keys use an `activity-`
+prefix so numeric activity and camp ids cannot collide. If a standalone activity
+already has a list when later linked to a camp, that original list remains available
+through the activity entry point.

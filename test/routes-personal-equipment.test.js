@@ -22,7 +22,7 @@ beforeEach(() => {
   jest.clearAllMocks(); permissions = ['personal_equipment.view', 'personal_equipment.manage']; demo = false; scope = 'organization';
   getScoutYear.mockResolvedValue({ id: 1, status: 'active' });
 });
-test.each([['get','/mine'], ['get','/4'], ['get','/4/manage'], ['put','/4'], ['post','/4/translations']])('packing lists require authentication for %s %s', async (method, path) => {
+test.each([['get','/mine'], ['get','/4'], ['get','/4/manage'], ['put','/4'], ['post','/4/translations'], ['get','/activities/4'], ['get','/activities/4/manage'], ['put','/activities/4'], ['post','/activities/4/translations']])('packing lists require authentication for %s %s', async (method, path) => {
   expect((await request(app)[method](`/api/v1/personal-equipment${path}`).send(input)).status).toBe(401);
 });
 test('a family with read access cannot publish or inspect the management view', async () => {
@@ -30,8 +30,10 @@ test('a family with read access cannot publish or inspect the management view', 
   const res = await request(app).put('/api/v1/personal-equipment/4').set(auth()).send(input);
   expect(res.status).toBe(403); expect(res.body.required).toEqual(['personal_equipment.manage']);
   expect((await request(app).get('/api/v1/personal-equipment/4/manage').set(auth())).status).toBe(403);
+  expect((await request(app).put('/api/v1/personal-equipment/activities/4').set(auth()).send(input)).status).toBe(403);
+  expect((await request(app).get('/api/v1/personal-equipment/activities/4/manage').set(auth())).status).toBe(403);
 });
-test.each([['put','/4',input], ['post','/4/translations',{language:'es'}]])('demo accounts cannot %s %s', async (method, path, payload) => {
+test.each([['put','/4',input], ['post','/4/translations',{language:'es'}], ['put','/activities/4',input], ['post','/activities/4/translations',{language:'es'}]])('demo accounts cannot %s %s', async (method, path, payload) => {
   demo = true;
   const res = await request(app)[method](`/api/v1/personal-equipment${path}`).set(auth()).send(payload);
   expect(res.status).toBe(403); expect(res.body.isDemo).toBe(true);

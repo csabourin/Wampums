@@ -7,7 +7,7 @@ import { authorizationFieldsHTML, attachAuthorizationComposer } from './Activity
 import { sendActivityAuthorizations, getActivityAuthorizations } from '../../api/api-activity-authorizations.js';
 import { authorizationResultHTML } from './AuthorizationResult.js';
 import { setContent } from '../../utils/DOMUtils.js';
-import { canFollowPermissionSlips, hasPermission } from '../../utils/PermissionUtils.js';
+import { canFollowPermissionSlips, hasPermission, hasOrganizationScope } from '../../utils/PermissionUtils.js';
 import { translate } from '../../app.js';
 import { createActivity, getActivity, updateActivity } from '../../api/api-activities.js';
 import { clearActivityPermissionSlipCaches, clearActivityRelatedCaches } from '../../indexedDB.js';
@@ -179,6 +179,10 @@ function buildFormHTML(activity, defaultAuthorization) {
 
       </details></div>
       ${authorizationFieldsHTML(activity, defaultAuthorization)}
+      ${hasOrganizationScope() && hasPermission('personal_equipment.manage') ? `
+        <fieldset class="form-fieldset"><legend>${escapeHTML(translate('personal_equipment_title'))}</legend>
+          <p>${escapeHTML(translate('activity_personal_equipment_help'))}</p>
+        </fieldset>` : ''}
 
       ${isEdit ? `
         <div class="form-group" data-activity-notify>
@@ -200,6 +204,7 @@ function buildFormHTML(activity, defaultAuthorization) {
         <button type="submit" name="intent" value="send" class="button button--primary" data-activity-send hidden>
           ${translate(isEdit ? 'authorization_save_send' : 'authorization_create_activity_send')}
         </button>
+        ${hasOrganizationScope() && hasPermission('personal_equipment.manage') ? `<button type="submit" name="intent" value="packing" class="button button--secondary">${escapeHTML(translate('activity_save_prepare_packing'))}</button>` : ''}
       </div>
     </form>
   `;
@@ -477,6 +482,13 @@ export function openActivityFormModal(app, { activity = null, onSaved = null, de
       overlay.querySelector('#activity-form [data-modal-close]').textContent = translate('close');
       overlay.querySelector('[data-activity-send]').textContent = translate('authorization_save_send');
       if (!overlay.isConnected) {return;}
+      if (intent === 'packing') {
+        await clearActivityRelatedCaches();
+        saving = false; close(true);
+        if (typeof onSaved === 'function') { await onSaved(saved); }
+        app.router?.navigate(`/personal-equipment/activity-${Number(saved.id)}/manage`);
+        return;
+      }
       let result = null;
       if (composer.enabled() && intent === 'send') {
         setContent(overlay.querySelector('#activity-save-result'), escapeHTML(translate('authorization_sending')));
