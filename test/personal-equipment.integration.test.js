@@ -106,7 +106,7 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
   });
   test('custom family roles replacing the built-in parent receive read access during the upgrade', async () => {
     const parentRole = await one("SELECT id FROM roles WHERE organization_id IS NULL AND role_name='parent'");
-    const replacement = await one("INSERT INTO roles (role_name,display_name,data_scope,organization_id,customized_from_role_id) VALUES ('packing_parent_' || gen_random_uuid(),'Family role','linked',$1,$2) RETURNING id", [organizationId, parentRole]);
+    const replacement = await one("INSERT INTO roles (role_name,display_name,data_scope,organization_id,customized_from_role_id) VALUES ('pack_parent_' || gen_random_uuid(),'Family role','linked',$1,$2) RETURNING id", [organizationId, parentRole]);
     const migration = require('node:fs').readFileSync(require('node:path').join(__dirname, '../migrations/062_personal_camp_equipment.sql'), 'utf8');
     await pool.query(migration);
     expect(await one("SELECT COUNT(*)::int FROM role_permissions rp JOIN permissions p ON p.id=rp.permission_id WHERE rp.role_id=$1 AND p.permission_key='personal_equipment.view'", [replacement])).toBe(1);
