@@ -38,7 +38,7 @@ extra or duplicate keys reject the whole answer. Provider errors leave the origi
 The list remains printable in the displayed language with local checkmarks.
 
 Migration `062_personal_camp_equipment.sql` is re-runnable and creates only common lists, their
-items and shared translations. Default parent/demo-parent roles receive read access; a unit grants
+items and shared translations. Default parent/demo-parent roles and their custom linked-scope replacements receive read access; a unit grants
 the management permission explicitly. Read access is self-scoped in a linked role. Demo accounts
 may read and use local checks, but cannot publish or spend the shared AI budget.
 

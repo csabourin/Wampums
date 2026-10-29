@@ -6,7 +6,12 @@ INSERT INTO public.permissions (permission_key,permission_name,category,descript
 ON CONFLICT (permission_key) DO NOTHING;
 INSERT INTO public.role_permissions (role_id,permission_id)
 SELECT r.id,p.id FROM public.roles r CROSS JOIN public.permissions p
-WHERE r.organization_id IS NULL AND r.role_name IN ('parent','demoparent') AND p.permission_key='personal_equipment.view'
+LEFT JOIN public.roles original ON original.id=r.customized_from_role_id
+WHERE p.permission_key='personal_equipment.view' AND (
+ (r.organization_id IS NULL AND r.role_name IN ('parent','demoparent'))
+ OR (r.organization_id IS NOT NULL AND r.data_scope='linked' AND original.is_system_role
+     AND original.role_name IN ('parent','demoparent'))
+)
 ON CONFLICT DO NOTHING;
 UPDATE public.permissions SET self_scoped = TRUE WHERE permission_key = 'personal_equipment.view';
 CREATE TABLE IF NOT EXISTS public.personal_equipment_lists (
