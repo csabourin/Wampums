@@ -27,3 +27,10 @@ Regression checks:
 
 The database checks require a disposable database with all migrations applied,
 using `TEST_DATABASE_URL`. CI's database-integration job provides it.
+
+CI exposed a fresh-install gap: when no district role exists while migration 016
+runs, its UPDATE cannot mark that role. A role later inserted by setup has no
+automatic-all flag. Migration 063 now creates the built-in district role if absent,
+repairs its flags, and backfills all grants. This does not change custom roles.
+The bilingual database audit considers shipped declarations, since other integration
+suites intentionally insert temporary synthetic permissions into the shared database.

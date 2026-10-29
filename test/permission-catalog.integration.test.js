@@ -90,12 +90,19 @@ describe.skipIf(!DATABASE_URL)('The permission catalog', () => {
     expect(missing).toEqual([]);
   });
 
-  test('every catalog permission and category has a distinct bilingual matrix label', async () => {
+  test('every declared catalog permission and category has a bilingual matrix label', async () => {
     const catalog = (await pool.query('SELECT permission_key, category FROM permissions ORDER BY permission_key')).rows;
+    // Other integration suites insert intentionally synthetic permissions into
+    // the shared database. Audit shipped declarations, not their test fixtures.
+    const sqlFiles = fs.readdirSync(path.join(ROOT, 'migrations')).filter((file) => file.endsWith('.sql'))
+      .map((file) => path.join(ROOT, 'migrations', file));
+    sqlFiles.push(path.join(ROOT, 'attached_assets/permissions_list.sql'));
+    const declared = new Set(sqlFiles.flatMap((file) => [...fs.readFileSync(file, 'utf8')
+      .matchAll(/'([a-z_]+\.[a-z_]+)'\s*,\s*'[^']*'\s*,\s*'([a-z_]+)'/g)].map((match) => match[1])));
     expect(catalog.length).toBeGreaterThan(0);
     for (const language of ['en', 'fr']) {
       const labels = JSON.parse(fs.readFileSync(path.join(ROOT, 'lang', `${language}.json`), 'utf8'));
-      const missing = catalog.flatMap((permission) => [
+      const missing = catalog.filter((permission) => declared.has(permission.permission_key)).flatMap((permission) => [
         `role_permission_${permission.permission_key.replaceAll('.', '_')}`,
         `role_category_${permission.category}`,
       ]).filter((key) => !labels[key]?.trim());
