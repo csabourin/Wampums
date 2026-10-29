@@ -145,7 +145,16 @@ function changeTaskStatus(pool, { organizationId, actorId, ownOnly }, taskId, st
  */
 async function listTasks(db, organizationId, assigneeId) {
   const result = await db.query(
-    `SELECT t.*, lr.lot_id AS equipment_lot_id, lr.role AS equipment_lot_role, u.full_name AS assignee_name, a.name AS activity_name,
+    `SELECT t.*, CASE WHEN er.task_id IS NULL THEN NULL ELSE
+            jsonb_build_object('materials', er.materials, 'lead_days', er.lead_days, 'repeat_hours', er.repeat_hours,
+              'revision', er.revision, 'confirmed_at', er.confirmed_at, 'last_attempt_at', er.last_attempt_at,
+              'delivery_status', er.delivery_status) END AS equipment_reminder,
+            COALESCE(uo.status = 'active', FALSE) AS assignee_active,
+            (u.email IS NOT NULL AND BTRIM(u.email) <> '') AS assignee_has_email,
+            EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) rid
+              JOIN role_permissions rp ON rp.role_id = rid::int JOIN permissions p ON p.id = rp.permission_id
+              WHERE p.permission_key = 'tasks.view') AS assignee_can_confirm,
+            lr.lot_id AS equipment_lot_id, lr.role AS equipment_lot_role, u.full_name AS assignee_name, a.name AS activity_name,
             m.theme AS meeting_name, m.meeting_date::text,
             t.due_date::text,
             COALESCE((SELECT jsonb_agg(jsonb_build_object('status', h.status,
@@ -156,6 +165,8 @@ async function listTasks(db, organizationId, assigneeId) {
        FROM activity_tasks t
        LEFT JOIN camp_equipment_lot_roles lr ON lr.task_id = t.id AND lr.organization_id = t.organization_id
        JOIN users u ON u.id = t.assignee_id
+       LEFT JOIN user_organizations uo ON uo.user_id = t.assignee_id AND uo.organization_id = t.organization_id
+       LEFT JOIN task_equipment_reminders er ON er.task_id = t.id AND er.organization_id = t.organization_id
        LEFT JOIN activities a ON a.id = t.activity_id AND a.organization_id = t.organization_id
        LEFT JOIN year_plan_meetings m ON m.id = t.meeting_id AND m.organization_id = t.organization_id
       WHERE t.organization_id = $1 AND ($2::uuid IS NULL OR t.assignee_id = $2)
@@ -165,4 +176,4 @@ async function listTasks(db, organizationId, assigneeId) {
   return result.rows;
 }
 
-module.exports = { TaskError, saveTask, saveTaskInTransaction, recordStatus, changeTaskStatus, listTasks };
+module.exports = { transaction, TaskError, saveTask, saveTaskInTransaction, recordStatus, changeTaskStatus, listTasks };

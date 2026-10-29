@@ -13134,3 +13134,5 @@ body:has(> .settings-icon) .demo-banner__inner {
 
 .material-stock-toggle { display: flex; align-items: center; gap: var(--space-sm); min-height: var(--touch-target-min); }
 .equipment-catalog__form .material-stock-toggle input { width: var(--touch-target-min); flex-shrink: 0; }
+
+.equipment-reminder-materials { white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -1,10 +1,11 @@
 /** @jest-environment jsdom */
 import axe from 'axe-core';
-jest.mock('../../spa/config.js', () => ({ CONFIG: { TASKS: { TITLE_MAX_LENGTH: 255, STATUS_KEYS: { todo: 'tasks_status_todo', in_progress: 'tasks_status_in_progress', done: 'tasks_status_done' } } }, getStorageKey: (key) => key }));
+jest.mock('../../spa/config.js', () => ({ CONFIG: { EQUIPMENT_REMINDERS: { MATERIALS_MAX_LENGTH: 5000, MAX_LEAD_DAYS: 30, MIN_REPEAT_HOURS: 24, MAX_REPEAT_HOURS: 168, DEFAULT_LEAD_DAYS: 2, DEFAULT_REPEAT_HOURS: 24 }, TASKS: { TITLE_MAX_LENGTH: 255, STATUS_KEYS: { todo: 'tasks_status_todo', in_progress: 'tasks_status_in_progress', done: 'tasks_status_done' } } }, getStorageKey: (key) => key }));
 jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(), isDemoUser: jest.fn(() => false) }));
-jest.mock('../../spa/api/api-tasks.js', () => ({ getMyTasks: jest.fn(), getUnitTasks: jest.fn(), getTaskOptions: jest.fn(), saveTask: jest.fn(), changeTaskStatus: jest.fn() }));
+jest.mock('../../spa/api/api-tasks.js', () => ({ getMyTasks: jest.fn(), getUnitTasks: jest.fn(), getTaskOptions: jest.fn(), saveTask: jest.fn(), changeTaskStatus: jest.fn(), configureEquipmentReminder: jest.fn(), confirmEquipmentReminder: jest.fn() }));
+jest.mock('../../spa/api/api-helpers.js', () => ({ getCurrentUserId: () => '00000000-0000-4000-8000-000000000001' }));
 const { Tasks } = require('../../spa/modules/tasks/Tasks.js');
 const api = require('../../spa/api/api-tasks.js');
 const { hasPermission } = require('../../spa/utils/PermissionUtils.js');
@@ -180,4 +181,47 @@ test('a camp link opens unit assignments for that camp and its linked outing onl
   expect(api.getUnitTasks).toHaveBeenCalledTimes(1);
   expect(document.body.textContent).toContain('Pack cooking pot');
   expect(document.body.textContent).not.toContain('Other camp');
+});
+
+
+test('a manager schedules material reminders with a configurable lead and repeat delay', async () => {
+  hasPermission.mockReturnValue(true);
+  await new Tasks(app).init();
+  document.querySelector('[data-equipment-reminder]').click();
+  const form = document.getElementById('equipment-reminder-form');
+  form.elements.reminder_materials.value = '2 tentes\n1 trousse';
+  form.elements.reminder_lead.value = '3';
+  form.elements.reminder_repeat.value = '48';
+  expect((await axe.run(document.querySelector('[role="dialog"]'), AXE_OPTIONS)).violations).toEqual([]);
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  expect(api.configureEquipmentReminder).toHaveBeenCalledWith(3, {
+    enabled: true, expected_revision: 0, materials: '2 tentes\n1 trousse', lead_days: 3, repeat_hours: 48,
+  });
+});
+
+test('the assignee confirms material independently of task progress and an inactive assignment is visible', async () => {
+  api.getMyTasks.mockResolvedValue({ data: [{ ...task, assignee_active: false,
+    equipment_reminder: { revision: 7, materials: '<img src=x>', delivery_status: 'sent' } }] });
+  await new Tasks(app).init();
+  expect(document.body.textContent).toContain('equipment_reminder_unavailable');
+  expect(document.querySelector('.equipment-task-reminder img')).toBeNull();
+  document.querySelector('[data-equipment-confirm]').click();
+  await settle();
+  expect(api.confirmEquipmentReminder).toHaveBeenCalledWith(3, 7);
+  expect(api.changeTaskStatus).not.toHaveBeenCalled();
+});
+
+test('an uncertain send stays visible and configuring a stale reminder preserves the form', async () => {
+  hasPermission.mockReturnValue(true);
+  api.getMyTasks.mockResolvedValue({ data: [{ ...task, equipment_reminder: { revision: 2, materials: 'Tents', delivery_status: 'uncertain', lead_days: 2, repeat_hours: 24 } }] });
+  api.configureEquipmentReminder.mockRejectedValueOnce({ status: 409, message: 'equipment_reminder_stale' });
+  await new Tasks(app).init();
+  expect(document.body.textContent).toContain('equipment_reminder_uncertain');
+  document.querySelector('[data-equipment-reminder]').click();
+  const form = document.getElementById('equipment-reminder-form');
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  expect(form.isConnected).toBe(true);
+  expect(form.elements.reminder_materials.value).toBe('Tents');
 });

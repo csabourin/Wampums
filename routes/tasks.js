@@ -5,7 +5,8 @@ const { body } = require('express-validator');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateIdParam, checkValidation } = require('../middleware/validation');
-const { TASK_STATUSES, TASK_TITLE_MAX_LENGTH } = require('../config/tasks');
+const { TASK_STATUSES, TASK_TITLE_MAX_LENGTH, EQUIPMENT_REMINDERS: LIMITS } = require('../config/tasks');
+const reminders = require('../services/taskEquipmentReminders');
 const { TaskError, saveTask, changeTaskStatus, listTasks } = require('../services/activityTasks');
 
 /** Return known task refusals, forwarding internal failures to the global handler. */
@@ -81,5 +82,18 @@ module.exports = (pool) => {
   });
   router.patch('/mine/:id/status', requirePermission('tasks.view'), blockDemoRoles, statusFields(), updateStatus(true));
   router.patch('/:id/status', requirePermission('tasks.manage'), blockDemoRoles, statusFields(), updateStatus(false));
+  router.put('/:id/equipment-reminder', requirePermission('tasks.manage'), blockDemoRoles,
+    validateIdParam('id'),
+    body('enabled').isBoolean({ strict: true }),
+    body('expected_revision').isInt({ min: 0 }).custom((value) => Number.isInteger(value)),
+    body('materials').if(body('enabled').equals('true')).isString().bail().trim().isLength({ min: 1, max: LIMITS.MATERIALS_MAX_LENGTH }),
+    body('lead_days').if(body('enabled').equals('true')).isInt({ min: 0, max: LIMITS.MAX_LEAD_DAYS }).custom((value) => Number.isInteger(value)),
+    body('repeat_hours').if(body('enabled').equals('true')).isInt({ min: LIMITS.MIN_REPEAT_HOURS, max: LIMITS.MAX_REPEAT_HOURS }).custom((value) => Number.isInteger(value)),
+    checkValidation, taskHandler(async (req, res) => success(res, await reminders.configure(pool,
+      await getOrganizationId(req, pool), Number(req.params.id), req.body))));
+  router.post('/mine/:id/equipment-confirmation', requirePermission('tasks.view'), blockDemoRoles,
+    validateIdParam('id'), body('revision').isInt({ min: 1 }).custom((value) => Number.isInteger(value)), checkValidation,
+    taskHandler(async (req, res) => success(res, await reminders.confirm(pool,
+      await getOrganizationId(req, pool), Number(req.params.id), req.user.id, req.body.revision))));
   return router;
 };

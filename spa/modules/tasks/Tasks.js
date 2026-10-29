@@ -8,7 +8,7 @@ import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { formatDate, formatTimestamp } from '../../utils/DateUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
-import { getMyTasks, getUnitTasks, getTaskOptions, saveTask, changeTaskStatus } from '../../api/api-tasks.js';
+import { getMyTasks, getUnitTasks, getTaskOptions, saveTask, changeTaskStatus, configureEquipmentReminder, confirmEquipmentReminder } from '../../api/api-tasks.js';
 import { CAMP_LOTS } from '../../config/camp-lots.js';
 import { getCurrentUserId } from '../../api/api-helpers.js';
 import { openModal } from '../../utils/ModalUtils.js';
@@ -20,6 +20,7 @@ export class Tasks {
     this.readOnly = isDemoUser();
     const query = new URLSearchParams(window.location.search);
     const id = (key) => /^[1-9]\d*$/.test(query.get(key) || '') ? Number(query.get(key)) : null;
+    this.focusTaskId = id('task_id');
     this.campMeetingId = id('meeting_id');
     this.campActivityId = id('activity_id');
     this.unitView = this.canManage && Boolean(this.campMeetingId || this.campActivityId);
@@ -35,9 +36,9 @@ export class Tasks {
     try {
       const response = await (this.unitView ? getUnitTasks : getMyTasks)({ forceRefresh: true });
       if (this.destroyed) {return;}
-      this.tasks = response.data.filter((task) => (!this.campMeetingId && !this.campActivityId)
+      this.tasks = response.data.filter((task) => (!this.focusTaskId || task.id === this.focusTaskId) && ((!this.campMeetingId && !this.campActivityId)
         || (this.campMeetingId && Number(task.meeting_id) === this.campMeetingId)
-        || (this.campActivityId && Number(task.activity_id) === this.campActivityId));
+        || (this.campActivityId && Number(task.activity_id) === this.campActivityId)));
       this.render();
     } catch (err) {
       debugError('Failed to load tasks', err);
@@ -81,6 +82,7 @@ export class Tasks {
         <button type="submit" class="button button--secondary" ${this.readOnly ? 'disabled' : ''}>${translate('save')}</button>
       </form>`}
       ${!task.equipment_lot_id && this.unitView && !this.readOnly ? `<button type="button" class="button button--ghost" data-task-edit="${Number(task.id)}">${translate('edit')}</button>` : ''}
+      ${this.renderReminder(task)}
       <details><summary>${translate('tasks_history')}</summary><ul>${(task.history || []).map((entry) => `<li>
         ${escapeHTML(translate(CONFIG.TASKS.STATUS_KEYS[entry.status]))} · ${escapeHTML(entry.changed_by_name || translate('tasks_member'))} ·
         ${escapeHTML(formatTimestamp(entry.changed_at, this.app.lang))}</li>`).join('')}</ul></details>
@@ -95,6 +97,13 @@ export class Tasks {
       </div>` : ''}
       ${cards ? `<ul class="task-list">${cards}</ul>` : `<p class="empty-state">${translate('tasks_empty')}</p>`}
     </section>`);
+    root.querySelectorAll('[data-equipment-reminder]').forEach((button) => button.addEventListener('click', () =>
+      this.editReminder(this.tasks.find((task) => task.id === Number(button.dataset.equipmentReminder)))));
+    root.querySelectorAll('[data-equipment-confirm]').forEach((button) => button.addEventListener('click', () => {
+      button.disabled = true;
+      const task = this.tasks.find((item) => item.id === Number(button.dataset.equipmentConfirm));
+      this.confirmReminder(task).finally(() => {button.disabled = false;});
+    }));
     document.getElementById('tasks-view')?.addEventListener('click', () => {
       this.unitView = !this.unitView;
       this.init();
@@ -120,6 +129,84 @@ export class Tasks {
         }
       });
     }));
+  }
+
+  /** Configuration and honest delivery feedback stay next to the assignment. */
+  renderReminder(task) {
+    const reminder = task.equipment_reminder;
+    const blocked = task.assignee_active === false || task.assignee_has_email === false || task.assignee_can_confirm === false;
+    const statusKeys = { pending: 'equipment_reminder_pending', sending: 'equipment_reminder_uncertain', uncertain: 'equipment_reminder_uncertain', sent: 'equipment_reminder_sent', failed: 'equipment_reminder_failed' };
+    return `<section class="equipment-task-reminder" aria-label="${translate('equipment_reminder_title')}">
+      ${reminder ? `<p class="equipment-reminder-materials">${escapeHTML(reminder.materials)}</p>
+        <p>${translate(reminder.confirmed_at ? 'equipment_reminder_confirmed' : (statusKeys[reminder.delivery_status] || 'equipment_reminder_pending'))}</p>
+        ${blocked ? `<p>${translate('equipment_reminder_unavailable')}</p>` : ''}
+        ${!reminder.confirmed_at && task.assignee_id === getCurrentUserId() && !this.readOnly
+    ? `<button type="button" class="button button--primary" data-equipment-confirm="${Number(task.id)}">${translate('equipment_reminder_confirm')}</button>` : ''}` : ''}
+      ${this.canManage && !this.readOnly ? `<button type="button" class="button button--secondary" data-equipment-reminder="${Number(task.id)}">${translate(reminder ? 'equipment_reminder_edit' : 'equipment_reminder_enable')}</button>` : ''}
+    </section>`;
+  }
+
+  /** Confirmation changes only this reminder revision, never the task's progress. */
+  async confirmReminder(task) {
+    try {await confirmEquipmentReminder(task.id, task.equipment_reminder.revision);}
+    catch (err) {
+      if (!this.destroyed) {this.app.showMessage(apiErrorMessage(err, 'equipment_reminder_save_failed'), 'error');}
+      return;
+    }
+    if (this.destroyed) {return;}
+    this.app.showMessage(translate('equipment_reminder_confirmed'), 'success');
+    await this.init();
+    document.querySelector(`[data-equipment-reminder="${task.id}"]`)?.focus();
+  }
+
+  /** One labelled form configures material, advance notice and minimum repeat delay. */
+  editReminder(task) {
+    const limits = CONFIG.EQUIPMENT_REMINDERS;
+    const value = task.equipment_reminder;
+    const modal = openModal({
+      id: 'equipment-reminder-editor', title: translate('equipment_reminder_title'), closeOnBackdrop: false,
+      canClose: () => document.getElementById('equipment-reminder-form')?.getAttribute('aria-busy') !== 'true',
+      body: `<form id="equipment-reminder-form" class="task-editor">
+        <p>${escapeHTML(task.title)}</p><p>${translate('equipment_reminder_intro')}</p>
+        <label for="equipment-reminder-enabled"><input id="equipment-reminder-enabled" type="checkbox" name="reminder_enabled" checked>${translate('equipment_reminder_enable')}</label>
+        <label for="equipment-reminder-materials">${translate('equipment_reminder_materials')}</label>
+        <textarea id="equipment-reminder-materials" name="reminder_materials" required maxlength="${limits.MATERIALS_MAX_LENGTH}" rows="6">${escapeHTML(value?.materials || task.title)}</textarea>
+        <label for="equipment-reminder-lead">${translate('equipment_reminder_lead')}</label>
+        <input id="equipment-reminder-lead" name="reminder_lead" type="number" required min="0" max="${limits.MAX_LEAD_DAYS}" step="1" value="${value?.lead_days ?? limits.DEFAULT_LEAD_DAYS}">
+        <label for="equipment-reminder-repeat">${translate('equipment_reminder_repeat')}</label>
+        <input id="equipment-reminder-repeat" name="reminder_repeat" type="number" required min="${limits.MIN_REPEAT_HOURS}" max="${limits.MAX_REPEAT_HOURS}" step="1" value="${value?.repeat_hours ?? limits.DEFAULT_REPEAT_HOURS}">
+        <p id="equipment-reminder-error" role="alert" tabindex="-1" hidden></p>
+      </form>`,
+      footer: `<button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
+        <button type="submit" form="equipment-reminder-form" class="button button--primary">${translate('save')}</button>`,
+    });
+    const form = document.getElementById('equipment-reminder-form');
+    form.elements.reminder_enabled.addEventListener('change', () => {
+      ['reminder_materials', 'reminder_lead', 'reminder_repeat'].forEach((name) => {
+        form.elements[name].disabled = !form.elements.reminder_enabled.checked;
+      });
+    });
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      withFormBusy(form, async () => {
+        try {
+          await configureEquipmentReminder(task.id, {
+            enabled: form.elements.reminder_enabled.checked, expected_revision: value?.revision || 0,
+            materials: form.elements.reminder_materials.value.trim(), lead_days: Number(form.elements.reminder_lead.value),
+            repeat_hours: Number(form.elements.reminder_repeat.value),
+          });
+        } catch (err) {
+          if (this.destroyed) {return;}
+          const problem = document.getElementById('equipment-reminder-error');
+          problem.textContent = apiErrorMessage(err, 'equipment_reminder_save_failed'); problem.hidden = false; problem.focus();
+          return;
+        }
+        form.removeAttribute('aria-busy'); modal.close();
+        if (this.destroyed) {return;}
+        this.app.showMessage(translate('equipment_reminder_saved'), 'success'); await this.init();
+        document.querySelector(`[data-equipment-reminder="${task.id}"]`)?.focus();
+      });
+    });
   }
 
   /**
