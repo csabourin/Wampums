@@ -1,3 +1,4 @@
+import { canUseAI, aiActionLabel } from '../../utils/AIUtils.js';
 // ActivityFormModal.js
 // The one form for creating and editing an activity (outing, weekend, camp).
 // Every screen that creates or edits an activity opens this modal, so the
@@ -196,7 +197,7 @@ function buildFormHTML(activity, defaultAuthorization) {
 
       <div id="activity-save-result" role="status" tabindex="-1"></div>
       <div class="modal-actions">
-        <button type="button" class="button button--secondary" id="magic-generate-btn">✨ ${translate('magic_generate')}</button>
+        ${canUseAI() ? `<button type="button" class="button button--secondary" id="magic-generate-btn">${aiActionLabel('magic_generate')}</button>` : ''}
         <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
         <button type="submit" name="intent" value="save" class="button button--secondary" data-activity-save>
           ${isEdit ? translate('save_changes') : translate('authorization_save_without_sending')}
@@ -300,7 +301,7 @@ function showMagicGenerateModal(app, formOverlay) {
       </div>
       <div class="modal-actions">
         <button type="button" class="button button--secondary" data-modal-close>${translate('cancel')}</button>
-        <button type="submit" class="button button--primary">✨ ${translate('generate')}</button>
+        <button type="submit" class="button button--primary">${aiActionLabel('generate')}</button>
       </div>
     </form>
   `;

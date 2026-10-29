@@ -6,12 +6,14 @@ import { pageLoadingMarkup, pageErrorMarkup } from '../../utils/PageStateUtils.j
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
+import { canUseAI, aiActionLabel } from '../../utils/AIUtils.js';
 import { isDemoUser } from '../../utils/PermissionUtils.js';
 import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { confirm } from '../../utils/DialogUtils.js';
+import { openModal } from '../../utils/ModalUtils.js';
 import { openPrintWindow, setPrintContent, REPORT_PRINT_STYLES } from '../../utils/PrintUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
-import { getPersonalEquipmentTasks, getPersonalEquipment, savePersonalEquipment, translatePersonalEquipment } from '../../api/api-personal-equipment.js';
+import { getPersonalEquipmentTasks, getPersonalEquipment, savePersonalEquipment, translatePersonalEquipment, editPersonalEquipmentTranslation } from '../../api/api-personal-equipment.js';
 import { personalEquipmentTemplate, PERSONAL_EQUIPMENT } from './templates.js';
 import { packingKey, readPacking, writePacking, bulkPackingLines } from './packingStorage.js';
 import styles from '../../../css/personal-equipment.css?url';
@@ -23,7 +25,9 @@ export class PersonalEquipment {
   constructor(app, { meetingId, manage = false }) {
     this.app = app; this.meetingId = meetingId; this.manage = manage; this.destroyed = false; this.request = 0;
     this.translations = new Map(); this.targetLanguage = app.lang || 'fr'; this.translationBusy = false;
-    this.scope = buildScopedCacheKey('');
+    this.scope = buildScopedCacheKey(''); this.dirty = false; this.sourceLocale = null;
+    this.unloadHandler = (event) => { if (this.dirty || this.translationDirty) { event.preventDefault(); event.returnValue = ''; } };
+    window.addEventListener('beforeunload', this.unloadHandler);
     this.languageKey = buildScopedCacheKey('personal-equipment-language');
     try {
       const preferred = localStorage.getItem(this.languageKey);
@@ -32,7 +36,13 @@ export class PersonalEquipment {
     this.readOnly = isDemoUser(); this.busy = false;
   }
   root() { return document.getElementById('app'); }
-  destroy() { this.destroyed = true; this.request += 1; }
+  destroy() { this.destroyed = true; this.request += 1; window.removeEventListener('beforeunload', this.unloadHandler); this.modal?.close(true); }
+  beforeLeave({ refresh = false } = {}) {
+    if (this.busy) { return false; }
+    if (!this.dirty && !this.translationDirty) { return true; }
+    if (refresh) { return false; }
+    return confirm({ title: this.title(), message: translate('packing_unsaved') });
+  }
   active(request = this.request) { return !this.destroyed && request === this.request && this.scope === buildScopedCacheKey(''); }
   title() { return translate(this.manage ? 'personal_equipment_manage' : 'personal_equipment_title'); }
   text(item, field = 'label') {
@@ -54,22 +64,17 @@ export class PersonalEquipment {
       }
       this.data = (await getPersonalEquipment(this.meetingId, this.manage)).data;
       if (!this.active(request)) { return; }
-      if (this.data.list?.version !== this.loadedVersion) { this.translations.clear(); }
+      this.translations = new Map(Object.entries(this.data.translations || {}));
       this.loadedVersion = this.data.list?.version;
-      if (!this.manage && this.data.list) {
-        try {
-          const cached = JSON.parse(localStorage.getItem(this.translationKey(this.targetLanguage)) || 'null');
-          const keys = new Set(this.data.list.items.map((item) => item.key));
-          if (cached && typeof cached.notes === 'string' && Array.isArray(cached.items)
-            && cached.items.length === keys.size && new Set(cached.items.map((item) => item.key)).size === keys.size
-            && cached.items.every((item) => keys.has(item.key) && typeof item.label === 'string')) {
-            this.translations.set(this.targetLanguage, cached);
-          }
-        } catch { /* Missing or damaged cached text falls back to the team’s original. */ }
-      }
       if (!this.active(request)) { return; }
-      this.draft = this.data.list || { season: 'shoulder', nights: PERSONAL_EQUIPMENT.DEFAULT_NIGHTS, stay_type: 'tent', notes_fr: '', notes_en: '', published: false,
-        version: 0, items: personalEquipmentTemplate('shoulder', PERSONAL_EQUIPMENT.DEFAULT_NIGHTS, 'tent') };
+      const nights = Math.max(0, Math.min(PERSONAL_EQUIPMENT.MAX_NIGHTS, this.data.camp.nights ?? PERSONAL_EQUIPMENT.DEFAULT_NIGHTS));
+      const stay = nights === 0 ? 'day' : 'tent';
+      this.draft = this.data.list || { season: 'shoulder', nights, stay_type: stay, notes_fr: '', notes_en: '', published: false,
+        version: 0, items: personalEquipmentTemplate('shoulder', nights, stay) };
+      this.sourceLocale ||= this.draft.items.some((item) => item.label_fr.trim()) ? 'fr' : 'en';
+      this.dirty = false;
+      if (!this.availableLanguages().includes(this.targetLanguage)) { this.targetLanguage = this.availableLanguages()[0] || this.sourceLocale; }
+
       if (!this.manage) {
         this.data.children.forEach((child) => { child.checked_keys = [...readPacking(packingKey(this.data?.packing_id || this.meetingId, child.id))]; });
       }
@@ -92,118 +97,236 @@ export class PersonalEquipment {
       <p>${escapeHTML(formatDate(this.data.camp.meeting_date, this.app.lang))}</p>
       ${this.data.camp.is_cancelled ? `<p role="status">${escapeHTML(translate('personal_equipment_cancelled'))}</p>` : ''}`;
   }
-  /** Keep the collapsed editor count in step with individual row changes. */
-  updateItemCount() {
-    const summary = this.root().querySelector('#personal-item-editor > summary');
-    summary.textContent = translate('personal_equipment_review_items').replace('{count}', String(this.root().querySelectorAll('[data-item-key]').length));
+  availableLanguages() {
+    const list = this.manage ? this.draft : this.data?.list;
+    const authored = ['fr', 'en'].filter((lang) => list?.items?.every((item) => item[`label_${lang}`]?.trim())
+      && (list[`notes_${lang}`]?.trim() || ![list.notes_fr, list.notes_en].some((value) => value?.trim())));
+    return [...new Set([...(authored.length ? authored : [this.sourceLocale || 'fr']), ...this.translations.keys()])];
   }
-  /** A pasted quantity stays readable without a redundant leading “1 ×”. */
   quantityText(item) { return Number(item.quantity) > 1 ? `${new Intl.NumberFormat(this.targetLanguage).format(Number(item.quantity))} × ` : ''; }
+  languageName(code) {
+    try { return new Intl.DisplayNames([this.app.lang || 'fr'], { type: 'language' }).of(code); } catch { return code; }
+  }
   itemEditor(item, index) {
     const prefix = `personal-item-${index}`;
-    return `<fieldset class="personal-equipment__item" data-item-key="${escapeAttribute(item.key)}"><legend>${escapeHTML(translate('personal_equipment_item'))}</legend>
-      <label for="${prefix}-fr">${escapeHTML(translate('personal_equipment_label_fr'))}</label><input id="${prefix}-fr" data-field="label_fr" value="${escapeAttribute(item.label_fr)}" maxlength="${PERSONAL_EQUIPMENT.LABEL_MAX}">
-      <label for="${prefix}-en">${escapeHTML(translate('personal_equipment_label_en'))}</label><input id="${prefix}-en" data-field="label_en" value="${escapeAttribute(item.label_en)}" maxlength="${PERSONAL_EQUIPMENT.LABEL_MAX}">
-      <label for="${prefix}-quantity">${escapeHTML(translate('quantity'))}</label><input id="${prefix}-quantity" type="number" data-field="quantity" value="${Number(item.quantity)}" min="1" max="${PERSONAL_EQUIPMENT.MAX_QUANTITY}" step="1" required>
-      <label for="${prefix}-catalog">${escapeHTML(translate('personal_equipment_catalog'))}</label><select id="${prefix}-catalog" data-field="catalog_item_id"><option value="">${escapeHTML(translate('personal_equipment_custom'))}</option>
-        ${(this.data.catalog || []).map((entry) => `<option value="${Number(entry.id)}" ${entry.id === item.catalog_item_id ? 'selected' : ''}>${escapeHTML(entry.name)}</option>`).join('')}</select>
-      <button type="button" class="button button--secondary" data-remove-item>${escapeHTML(translate('remove'))}<span class="sr-only"> ${escapeHTML(this.text(item))}</span></button></fieldset>`;
+    const lang = this.sourceLocale; const other = lang === 'fr' ? 'en' : 'fr';
+    return `<tr class="personal-equipment__item" data-item-key="${escapeAttribute(item.key)}">
+      <td><label class="sr-only" for="${prefix}-quantity">${escapeHTML(translate('quantity'))}</label><input id="${prefix}-quantity" type="number" data-field="quantity" value="${Number(item.quantity)}" min="1" max="${PERSONAL_EQUIPMENT.MAX_QUANTITY}" step="1" required></td>
+      <td><label class="sr-only" for="${prefix}-label">${escapeHTML(translate('personal_equipment_item'))}</label><textarea rows="1" id="${prefix}-label" data-field="label_${lang}" maxlength="${PERSONAL_EQUIPMENT.LABEL_MAX}">${escapeHTML(item[`label_${lang}`])}</textarea>
+        <input type="hidden" data-field="label_${other}" value="${escapeAttribute(item[`label_${other}`])}"><p class="field-error" data-row-error role="alert" hidden></p></td>
+      <td class="packing-row-actions"><div class="packing-row-buttons"><details><summary>${escapeHTML(translate('packing_options'))}</summary>
+        <label for="${prefix}-catalog">${escapeHTML(translate('personal_equipment_catalog'))}</label><select id="${prefix}-catalog" data-field="catalog_item_id"><option value="">${escapeHTML(translate('personal_equipment_custom'))}</option>${(this.data.catalog || []).map((entry) => `<option value="${Number(entry.id)}" ${entry.id === item.catalog_item_id ? 'selected' : ''}>${escapeHTML(entry.name)}</option>`).join('')}</select>
+        </details><button type="button" class="button button--secondary" data-remove-item>${escapeHTML(translate('remove'))}<span class="sr-only"> ${escapeHTML(item[`label_${lang}`])}</span></button></div></td></tr>`;
   }
-  /** Extract stable keys from the rows, retaining checked progress when labels change. */
   readEditor() {
     const form = this.root().querySelector('#personal-equipment-form');
     const value = (name) => form.elements.namedItem(name).value;
     return { season: value('personal_season'), stay_type: value('personal_stay'), nights: Number(value('personal_nights')),
-      notes_fr: value('personal_notes_fr'), notes_en: value('personal_notes_en'), published: form.elements.namedItem('personal_published').checked,
-      reviewed: form.elements.namedItem('personal_reviewed').checked, expected_version: this.draft.version,
+      notes_fr: value('personal_notes_fr'), notes_en: value('personal_notes_en'), published: false, reviewed: false, expected_version: this.draft.version,
       items: [...form.querySelectorAll('[data-item-key]')].map((row) => {
         const field = (key) => row.querySelector(`[data-field="${key}"]`).value;
         return { key: row.dataset.itemKey, label_fr: field('label_fr'), label_en: field('label_en'), quantity: Number(field('quantity')),
           catalog_item_id: field('catalog_item_id') ? Number(field('catalog_item_id')) : null };
       }) };
   }
+  updateItemCount() {
+    this.root().querySelector('#packing-count').textContent = String(this.root().querySelectorAll('[data-item-key]').length);
+  }
+  markDirty(textChanged = false) {
+    this.dirty = true;
+    if (textChanged) { this.translations.clear(); setContent(this.root().querySelector('#packing-translation-preview'), ''); }
+    this.root().querySelector('#packing-save-status').textContent = translate('packing_unsaved_status');
+    if (textChanged) { this.root().querySelector('#packing-translation-status').textContent = translate('packing_translations_stale'); }
+  }
+  pendingBulk() {
+    const input = this.root().querySelector('#personal-bulk');
+    if (!input.value.trim()) { return false; }
+    this.root().querySelector('#personal-equipment-validation').textContent = translate('packing_bulk_pending');
+    input.closest('details').open = true; input.focus(); return true;
+  }
   renderEditor() {
-    const list = this.draft;
+    const list = this.draft; const lang = this.sourceLocale; const other = lang === 'fr' ? 'en' : 'fr';
     const options = (values, current) => values.map((value) => `<option value="${value}" ${value === current ? 'selected' : ''}>${escapeHTML(translate(PERSONAL_LABELS[value]))}</option>`).join('');
-    setContent(this.root(), `<section class="page personal-equipment">${this.header()}
-      <p>${escapeHTML(translate('personal_equipment_review_hint'))}</p>
-      <form id="personal-equipment-form"><fieldset ${this.readOnly || this.data.camp.is_cancelled ? 'disabled' : ''}>
-      <legend>${escapeHTML(translate('personal_equipment_settings'))}</legend>
-      <label for="personal-season">${escapeHTML(translate('personal_equipment_season'))}</label><select id="personal-season" name="personal_season">${options(PERSONAL_EQUIPMENT.SEASONS, list.season)}</select>
-      <label for="personal-stay">${escapeHTML(translate('personal_equipment_stay'))}</label><select id="personal-stay" name="personal_stay">${options(PERSONAL_EQUIPMENT.STAY_TYPES, list.stay_type)}</select>
-      <label for="personal-nights">${escapeHTML(translate('personal_equipment_nights'))}</label><input id="personal-nights" name="personal_nights" type="number" value="${list.nights}" min="0" max="${PERSONAL_EQUIPMENT.MAX_NIGHTS}" step="1" required>
-      <button type="button" class="button button--secondary" id="personal-apply-template">${escapeHTML(translate('personal_equipment_apply_template'))}</button>
-      <label for="personal-notes-fr">${escapeHTML(translate('personal_equipment_notes_fr'))}</label><textarea id="personal-notes-fr" name="personal_notes_fr" maxlength="${PERSONAL_EQUIPMENT.NOTES_MAX}">${escapeHTML(list.notes_fr)}</textarea>
-      <label for="personal-notes-en">${escapeHTML(translate('personal_equipment_notes_en'))}</label><textarea id="personal-notes-en" name="personal_notes_en" maxlength="${PERSONAL_EQUIPMENT.NOTES_MAX}">${escapeHTML(list.notes_en)}</textarea>
-      <label for="personal-bulk">${escapeHTML(translate('personal_equipment_bulk'))}</label>
-      <textarea id="personal-bulk" rows="6" maxlength="${PERSONAL_EQUIPMENT.BULK_MAX_LENGTH}" aria-describedby="personal-bulk-help"></textarea>
-      <p id="personal-bulk-help">${escapeHTML(translate('personal_equipment_bulk_help'))}</p>
-      <button type="button" class="button button--secondary" id="personal-add-bulk">${escapeHTML(translate('personal_equipment_bulk_add'))}</button>
-      <button type="button" class="button button--secondary" id="personal-add-item">${escapeHTML(translate('personal_equipment_add'))}</button>
-      <details id="personal-item-editor"><summary>${escapeHTML(translate('personal_equipment_review_items').replace('{count}', String(list.items.length)))}</summary>
-        <div id="personal-equipment-items">${list.items.map((item, index) => this.itemEditor(item, index)).join('')}</div>
-      </details>
-      <label class="personal-equipment__check"><input type="checkbox" name="personal_published" ${list.published ? 'checked' : ''}>${escapeHTML(translate('personal_equipment_published'))}</label>
-      <label class="personal-equipment__check"><input type="checkbox" name="personal_reviewed" ${list.reviewed ? 'checked' : ''}>${escapeHTML(translate('personal_equipment_reviewed'))}</label>
-      <p id="personal-equipment-validation" role="alert" hidden></p>
-      <button type="submit" class="button button--primary">${escapeHTML(translate('save'))}</button></fieldset></form></section>`);
+    setContent(this.root(), `<section class="page personal-equipment personal-equipment--editor">${this.header()}
+      <p role="status">${escapeHTML(translate(list.published ? 'packing_published_status' : 'packing_draft_status'))}</p>
+      <form id="personal-equipment-form" novalidate><fieldset ${this.readOnly || this.data.camp.is_cancelled ? 'disabled' : ''}><legend class="sr-only">${escapeHTML(this.title())}</legend>
+      <details class="packing-context"><summary>${escapeHTML(translate('personal_equipment_settings'))} · ${escapeHTML(translate(PERSONAL_LABELS[list.season]))} · ${Number(list.nights)} ${escapeHTML(translate('personal_equipment_nights'))}</summary><div class="packing-settings">
+        <label>${escapeHTML(translate('personal_equipment_season'))}<select name="personal_season">${options(PERSONAL_EQUIPMENT.SEASONS, list.season)}</select></label>
+        <label>${escapeHTML(translate('personal_equipment_stay'))}<select name="personal_stay">${options(PERSONAL_EQUIPMENT.STAY_TYPES, list.stay_type)}</select></label>
+        <label>${escapeHTML(translate('personal_equipment_nights'))}<input name="personal_nights" type="number" value="${list.nights}" min="0" max="${PERSONAL_EQUIPMENT.MAX_NIGHTS}" step="1" required></label>
+      </div>
+      <div class="packing-suggestions"><button type="button" class="button button--secondary" id="personal-apply-template">${escapeHTML(translate('packing_add_suggestions'))}</button>
+        <button type="button" class="button button--ghost" id="packing-replace-template">${escapeHTML(translate('packing_replace_suggestions'))}</button></div></details>
+      <div class="packing-layout"><section class="packing-content" aria-labelledby="packing-items-heading"><h2 id="packing-items-heading">${escapeHTML(translate('personal_equipment_title'))} (<span id="packing-count">${list.items.length}</span>)</h2>
+        <label for="packing-source">${escapeHTML(translate('packing_source_language'))}</label><select id="packing-source">${['fr','en'].map((code) => `<option value="${code}" ${lang === code ? 'selected' : ''}>${escapeHTML(this.languageName(code))}</option>`).join('')}</select>
+        <details class="packing-bulk"><summary>${escapeHTML(translate('personal_equipment_bulk'))}</summary><label class="sr-only" for="personal-bulk">${escapeHTML(translate('personal_equipment_bulk'))}</label>
+        <textarea id="personal-bulk" rows="4" maxlength="${PERSONAL_EQUIPMENT.BULK_MAX_LENGTH}" aria-describedby="personal-bulk-help"></textarea><p id="personal-bulk-help">${escapeHTML(translate('personal_equipment_bulk_help'))}</p>
+        <p id="packing-bulk-preview" role="status"></p><button type="button" class="button button--secondary" id="personal-add-bulk">${escapeHTML(translate('personal_equipment_bulk_add'))}</button></details>
+        <div id="personal-item-editor"><table class="packing-items-table"><caption class="sr-only">${escapeHTML(translate('personal_equipment_title'))}</caption><thead><tr><th scope="col">${escapeHTML(translate('quantity'))}</th><th scope="col">${escapeHTML(translate('personal_equipment_item'))}</th><th scope="col">${escapeHTML(translate('packing_options'))}</th></tr></thead><tbody id="personal-equipment-items">${list.items.map((item, index) => this.itemEditor(item, index)).join('')}</tbody></table></div>
+        <button type="button" class="button button--secondary" id="personal-add-item">${escapeHTML(translate('personal_equipment_add'))}</button>
+      </section><aside class="packing-sidebar" aria-label="${escapeHTML(translate('packing_instructions_translations'))}">
+        <h2>${escapeHTML(translate('packing_instructions'))}</h2><label class="sr-only" for="personal-notes">${escapeHTML(translate('packing_instructions'))}</label><textarea id="personal-notes" name="personal_notes_${lang}" maxlength="${PERSONAL_EQUIPMENT.NOTES_MAX}">${escapeHTML(list[`notes_${lang}`])}</textarea><input type="hidden" name="personal_notes_${other}" value="${escapeAttribute(list[`notes_${other}`])}">
+        <h2>${escapeHTML(translate('packing_translations'))}</h2><p>${escapeHTML(translate('packing_staff_translation_help'))}</p>
+        <fieldset class="packing-languages"><legend>${escapeHTML(translate('packing_languages_to_prepare'))}</legend>${PERSONAL_EQUIPMENT.TRANSLATION_LANGUAGES.map((code) => `<label><input type="checkbox" data-language="${code}" ${['fr','en'].includes(code) ? 'checked' : ''}> ${escapeHTML(this.languageName(code))}</label>`).join('')}</fieldset>
+        ${canUseAI() ? `<button type="button" id="packing-translate-all" class="button button--secondary">${aiActionLabel('packing_translate_all')}</button>` : ''}
+        <p id="packing-translation-status" role="status">${escapeHTML(this.translations.size ? translate('packing_translations_ready').replace('{count}', String(this.translations.size)) : translate('packing_no_translations'))}</p>
+        <div id="packing-translation-preview">${[...this.translations].map(([code, content]) => `<details><summary>${escapeHTML(this.languageName(code))}</summary><p dir="auto">${escapeHTML(content.notes)}</p><ul>${content.items.map((item) => `<li dir="auto">${escapeHTML(item.label)}</li>`).join('')}</ul><button type="button" class="button button--secondary" data-edit-translation="${code}">${escapeHTML(translate('packing_edit_translation'))}</button></details>`).join('')}</div>
+      </aside></div>
+      <div class="packing-actions"><span id="packing-save-status" role="status">${escapeHTML(translate(this.dirty ? 'packing_unsaved_status' : 'packing_saved_status'))}</span><p id="personal-equipment-validation" role="alert"></p>
+        <button type="submit" class="button button--secondary" value="draft">${escapeHTML(translate('packing_save_draft'))}</button>
+        <button type="button" class="button button--secondary" id="packing-preview">${escapeHTML(translate('packing_preview'))}</button>
+        <button type="submit" class="button button--primary" value="publish">${escapeHTML(translate('packing_publish'))}</button>
+      </div></fieldset></form></section>`);
     const form = this.root().querySelector('form');
+    form.addEventListener('input', (event) => {
+      if (event.target.id === 'personal-bulk') {
+        this.markDirty(); this.root().querySelector('#packing-bulk-preview').textContent = translate('packing_bulk_count').replace('{count}', String(bulkPackingLines(event.target.value).length)); return;
+      }
+      if (event.target.matches('[data-language], #packing-source')) { return; }
+      const textChanged = event.target.matches('[data-field^="label_"], #personal-notes');
+      if (event.target.matches('[data-field^="label_"]')) { event.target.closest('[data-item-key]').querySelector(`[data-field="label_${other}"]`).value = ''; }
+      if (event.target.id === 'personal-notes') { form.elements.namedItem(`personal_notes_${other}`).value = ''; }
+      this.markDirty(textChanged);
+    });
     form.addEventListener('change', (event) => {
-      if (!event.target.matches('[data-field="catalog_item_id"]') || !event.target.value) { return; }
-      const article = this.data.catalog.find((item) => item.id === Number(event.target.value));
-      if (article) { event.target.closest('[data-item-key]').querySelector(`[data-field="label_${this.app.lang === 'en' ? 'en' : 'fr'}"]`).value = article.name; }
+      if (event.target.matches('[data-field="catalog_item_id"]') && event.target.value) {
+        const article = this.data.catalog.find((item) => item.id === Number(event.target.value));
+        if (article) { const row = event.target.closest('[data-item-key]'); row.querySelector(`[data-field="label_${lang}"]`).value = article.name; row.querySelector(`[data-field="label_${other}"]`).value = ''; this.markDirty(true); }
+      }
     });
     form.addEventListener('click', (event) => {
-      if (event.target.closest('[data-remove-item]')) { event.target.closest('[data-item-key]').remove(); this.updateItemCount(); }
+      const translation = event.target.closest('[data-edit-translation]');
+      if (translation) { this.editTranslation(translation.dataset.editTranslation); return; }
+      const button = event.target.closest('[data-remove-item]');
+      if (button) { const row = button.closest('[data-item-key]'); const next = row.nextElementSibling || row.previousElementSibling; row.remove(); this.updateItemCount(); this.markDirty(true); (next?.querySelector('textarea') || this.root().querySelector('#personal-add-item')).focus(); }
+    });
+    this.root().querySelector('#packing-source').addEventListener('change', (event) => {
+      if (this.pendingBulk()) { event.target.value = this.sourceLocale; return; }
+      this.draft = { ...this.draft, ...this.readEditor() }; this.sourceLocale = event.target.value; this.renderEditor(); this.root().querySelector('#packing-source').focus();
     });
     this.root().querySelector('#personal-add-bulk').addEventListener('click', () => {
-      const input = this.readEditor(); const textarea = this.root().querySelector('#personal-bulk');
-      const labels = bulkPackingLines(textarea.value);
-      const problem = this.root().querySelector('#personal-equipment-validation');
+      const input = this.readEditor(); const labels = bulkPackingLines(this.root().querySelector('#personal-bulk').value);
       if (labels.some((label) => label.length > PERSONAL_EQUIPMENT.LABEL_MAX) || input.items.length + labels.length > PERSONAL_EQUIPMENT.MAX_ITEMS) {
-        problem.textContent = translate('personal_equipment_bulk_invalid'); problem.hidden = false; return;
+        this.root().querySelector('#personal-equipment-validation').textContent = translate('personal_equipment_bulk_invalid'); return;
       }
       if (!labels.length) { return; }
-      this.draft = { ...this.draft, ...input, reviewed: false, items: [...input.items, ...labels.map((label) => ({
-        key: `custom_${crypto.randomUUID()}`, label_fr: this.app.lang === 'en' ? '' : label,
-        label_en: this.app.lang === 'en' ? label : '', quantity: 1, catalog_item_id: null,
-      }))] };
-      this.renderEditor(); this.root().querySelector('#personal-bulk').focus();
+      this.draft = { ...this.draft, ...input, items: [...input.items, ...labels.map((label) => {
+        const match = label.match(/^([1-9]\d?)\s+(?:[x×]\s+)?(.+)$/);
+        return { key: `custom_${crypto.randomUUID()}`, label_fr: lang === 'fr' ? (match?.[2] || label) : '', label_en: lang === 'en' ? (match?.[2] || label) : '', quantity: match ? Number(match[1]) : 1, catalog_item_id: null };
+      })] };
+      this.markDirty(true); this.renderEditor();
+      this.root().querySelectorAll('[data-item-key]')[input.items.length].querySelector('textarea').focus();
     });
     this.root().querySelector('#personal-add-item').addEventListener('click', () => {
-      const container = this.root().querySelector('#personal-equipment-items');
-      if (container.children.length >= PERSONAL_EQUIPMENT.MAX_ITEMS) { return; }
-      const row = document.createElement('div');
-      setContent(row, this.itemEditor({ key: `custom_${crypto.randomUUID()}`, label_fr: '', label_en: '', quantity: 1 }, crypto.randomUUID()));
-      container.append(row.firstElementChild); this.updateItemCount(); this.root().querySelector('#personal-item-editor').open = true; container.lastElementChild.querySelector('input').focus();
+      if (this.pendingBulk()) { return; }
+      const input = this.readEditor();
+      if (input.items.length >= PERSONAL_EQUIPMENT.MAX_ITEMS) { return; }
+      this.draft = { ...this.draft, ...input, items: [...input.items, { key: `custom_${crypto.randomUUID()}`, label_fr: '', label_en: '', quantity: 1, catalog_item_id: null }] };
+      this.markDirty(true); this.renderEditor(); this.root().querySelector('#personal-equipment-items tr:last-child textarea').focus();
     });
-    this.root().querySelector('#personal-apply-template').addEventListener('click', async () => {
+    const apply = async (replace) => {
+      if (this.pendingBulk()) { return; }
       const input = this.readEditor();
       if (!Number.isInteger(input.nights) || input.nights < 0 || input.nights > PERSONAL_EQUIPMENT.MAX_NIGHTS) { return; }
-      const approved = await confirm({ title: this.title(), message: translate('personal_equipment_replace_confirm') });
-      if (!approved || !this.active()) { return; }
-      this.draft = { ...this.draft, ...input, reviewed: false, items: personalEquipmentTemplate(input.season, input.nights, input.stay_type) };
-      this.renderEditor(); this.root().querySelector('#personal-apply-template').focus();
+      if (replace && !await confirm({ title: this.title(), message: translate('personal_equipment_replace_confirm') })) { return; }
+      if (!this.active()) { return; }
+      const suggestions = personalEquipmentTemplate(input.season, input.nights, input.stay_type);
+      const keys = new Set(input.items.map((item) => item.key));
+      this.draft = { ...this.draft, ...input, items: replace ? suggestions : [...input.items, ...suggestions.filter((item) => !keys.has(item.key))] };
+      this.markDirty(true); this.renderEditor(); this.root().querySelector('#personal-apply-template').focus();
+    };
+    this.root().querySelector('#personal-apply-template').addEventListener('click', () => apply(false));
+    this.root().querySelector('#packing-replace-template').addEventListener('click', () => apply(true));
+    this.root().querySelector('#packing-preview').addEventListener('click', () => this.preview());
+    this.root().querySelector('#packing-translate-all')?.addEventListener('click', () => this.translateAll());
+    form.addEventListener('submit', (event) => { event.preventDefault(); this.save(event.submitter?.value === 'publish'); });
+  }
+  validateEditor(input) {
+    const form = this.root().querySelector('form'); let first = null;
+    form.querySelectorAll('[data-item-key]').forEach((row, index) => {
+      const item = input.items[index]; const invalid = !item[`label_${this.sourceLocale}`].trim();
+      const quantityInvalid = !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > PERSONAL_EQUIPMENT.MAX_QUANTITY;
+      const field = row.querySelector(invalid ? 'textarea' : '[data-field="quantity"]');
+      const message = row.querySelector('[data-row-error]'); message.hidden = !invalid && !quantityInvalid;
+      message.textContent = translate(invalid ? 'packing_label_required' : 'packing_quantity_invalid');
+      row.querySelectorAll('[aria-invalid]').forEach((element) => element.removeAttribute('aria-invalid'));
+      if (invalid || quantityInvalid) { field.setAttribute('aria-invalid', 'true'); first ||= field; }
     });
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
-      withFormBusy(form, async () => {
-        if (!this.active()) { return; }
-        const input = this.readEditor(); const error = this.root().querySelector('#personal-equipment-validation');
-        if (!input.items.length || input.items.some((item) => !item.label_fr.trim() && !item.label_en.trim()) || (input.published && !input.reviewed) || (input.stay_type === 'day' ? input.nights !== 0 : input.nights < 1)) {
-          error.textContent = translate('personal_equipment_invalid'); error.hidden = false; return;
-        }
-        try {
-          const result = await savePersonalEquipment(this.meetingId, input);
-          if (!this.active()) { return; }
-          if (result?.queued) { throw new Error('Unconfirmed checklist'); }
-        } catch (err) {
-          if (this.active()) { this.app.showMessage(apiErrorMessage(err, 'personal_equipment_save_failed'), 'error'); }
-          return;
-        }
-        this.app.showMessage(translate('personal_equipment_saved'), 'success');
-        await this.init();
-      });
+    if (first) { first.focus(); return false; }
+    if (!input.items.length || !Number.isInteger(input.nights) || input.nights < 0 || input.nights > PERSONAL_EQUIPMENT.MAX_NIGHTS || (input.stay_type === 'day' ? input.nights !== 0 : input.nights < 1)) {
+      this.root().querySelector('#personal-equipment-validation').textContent = translate('personal_equipment_invalid');
+      const nights = form.elements.namedItem('personal_nights'); nights.closest('details').open = true; nights.setAttribute('aria-invalid', 'true'); nights.focus(); return false;
+    }
+    return true;
+  }
+  async save(publish = false) {
+    if (!this.active() || this.busy || this.pendingBulk()) { return false; }
+    const input = this.readEditor(); if (!this.validateEditor(input)) { return false; }
+    if (publish && !await confirm({ title: translate('packing_publish'), message: translate('packing_publish_confirm') })) { return false; }
+    if (!this.active()) { return false; }
+    input.published = publish; input.reviewed = publish;
+    this.busy = true;
+    const fieldset = this.root().querySelector('form > fieldset'); fieldset.disabled = true;
+    try {
+      const result = await withFormBusy(this.root().querySelector('form'), () => savePersonalEquipment(this.meetingId, input));
+      if (!this.active()) { return false; }
+      if (result?.queued) { throw new Error('Unconfirmed checklist'); }
+      this.dirty = false; this.app.showMessage(translate(publish ? 'packing_published_status' : 'personal_equipment_saved'), 'success');
+      await this.init(); return !!this.root()?.querySelector('#personal-equipment-form');
+    } catch (err) { if (this.active()) { this.app.showMessage(apiErrorMessage(err, 'personal_equipment_save_failed'), 'error'); } return false; }
+    finally { this.busy = false; fieldset.disabled = false; }
+  }
+  preview() {
+    if (this.pendingBulk()) { return; }
+    const list = this.readEditor();
+    this.modal = openModal({ title: translate('packing_preview'), body: `<p class="personal-equipment__notes">${escapeHTML(list[`notes_${this.sourceLocale}`])}</p><ul>${list.items.map((item) => `<li>${Number(item.quantity)} × ${escapeHTML(item[`label_${this.sourceLocale}`])}</li>`).join('')}</ul>`, footer: `<button type="button" class="button" data-modal-close>${escapeHTML(translate('close'))}</button>` });
+  }
+  async translateAll() {
+    if (!canUseAI() || this.busy || this.pendingBulk()) { return; }
+    const languages = [...this.root().querySelectorAll('[data-language]:checked')].map((input) => input.dataset.language);
+    if (!languages.length) { this.root().querySelector('#packing-translation-status').textContent = translate('packing_choose_languages'); return; }
+    if (this.dirty || !this.draft.version) { if (!await this.save(false)) { return; } }
+    this.busy = true; this.translationFailures = [];
+    const form = this.root().querySelector('form');
+    form.querySelector('fieldset').disabled = true;
+    await withFormBusy(form, async () => {
+      await languages.reduce(async (previous, language) => {
+        await previous;
+        if (!this.active() || this.translations.has(language)) { return; }
+        this.root().querySelector('#packing-translation-status').textContent = translate('packing_translating_language').replace('{language}', this.languageName(language));
+        try { const result = await translatePersonalEquipment(this.meetingId, language); if (this.active()) { this.translations.set(language, result.data); } }
+        catch (err) { this.translationFailures.push(language); if (this.active()) { this.app.showMessage(apiErrorMessage(err, 'personal_equipment_translation_failed'), 'error'); } }
+      }, Promise.resolve());
+    });
+    this.draft.published = false;
+    this.busy = false; form.querySelector('fieldset').disabled = false;
+    if (this.active()) { this.renderEditor(); this.root().querySelector('#packing-translate-all')?.focus();
+      if (this.translationFailures.length) { this.root().querySelector('#packing-translation-status').textContent = translate('packing_translation_failures').replace('{languages}', this.translationFailures.map((code) => this.languageName(code)).join(', ')); }
+    }
+  }
+  async editTranslation(language) {
+    if (this.dirty && !await this.save(false)) { return; }
+    const content = this.translations.get(language);
+    if (!content || this.busy || this.dirty) { return; }
+    const expectedVersion = this.draft.version;
+    let saving = false; let changed = false;
+    const modal = openModal({ title: `${translate('packing_edit_translation')} — ${this.languageName(language)}`,
+      onClose: () => { this.translationDirty = false; },
+      canClose: () => saving ? false : !changed || confirm({ title: this.title(), message: translate('packing_unsaved') }),
+      body: `<form id="packing-translation-edit"><label for="packing-translation-notes">${escapeHTML(translate('packing_instructions'))}</label><textarea id="packing-translation-notes" maxlength="${PERSONAL_EQUIPMENT.NOTES_MAX}">${escapeHTML(content.notes)}</textarea>${content.items.map((item, index) => `<label for="packing-translated-${index}">${escapeHTML(this.draft.items.find((source) => source.key === item.key)?.[`label_${this.sourceLocale}`] || item.key)}</label><input id="packing-translated-${index}" data-translated-key="${escapeAttribute(item.key)}" value="${escapeAttribute(item.label)}" maxlength="${PERSONAL_EQUIPMENT.LABEL_MAX}" required>`).join('')}</form>`,
+      footer: `<button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button><button type="submit" class="button button--primary" form="packing-translation-edit">${escapeHTML(translate('save'))}</button>` });
+    this.modal = modal;
+    const form = modal.overlay.querySelector('form'); form.addEventListener('input', () => { changed = true; this.translationDirty = true; });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault(); if (saving) { return; } saving = true;
+      const translated = { notes: form.querySelector('textarea').value, items: [...form.querySelectorAll('[data-translated-key]')].map((input) => ({ key: input.dataset.translatedKey, label: input.value.trim() })) };
+      const controls = [...form.elements]; controls.forEach((control) => { control.disabled = true; }); this.busy = true;
+      try {
+        const result = await withFormBusy(form, () => editPersonalEquipmentTranslation(this.meetingId, language, { expected_version: expectedVersion, content: translated }));
+        if (this.active()) { this.translations.set(language, result.data || translated); this.draft.published = false; this.renderEditor(); }
+        changed = false; modal.close(true);
+      } catch (err) { this.app.showMessage(apiErrorMessage(err, 'personal_equipment_save_failed'), 'error'); }
+      finally { saving = false; this.busy = false; controls.forEach((control) => { control.disabled = false; }); }
     });
   }
   /** Render only locally saved checks; no child progress API exists. */
@@ -214,10 +337,9 @@ export class PersonalEquipment {
     try { languages = new Intl.DisplayNames([this.app.lang || 'fr'], { type: 'language' }); } catch { languages = null; }
     setContent(this.root(), `<section class="page personal-equipment">${this.header()}
       <label for="personal-language">${escapeHTML(translate('personal_equipment_language'))}</label>
-      <select id="personal-language" data-archive-safe>${PERSONAL_EQUIPMENT.TRANSLATION_LANGUAGES.map((code) => `<option value="${code}" ${code === this.targetLanguage ? 'selected' : ''}>${escapeHTML(languages?.of(code) || code)}</option>`).join('')}</select>
-      <button type="button" id="personal-translate" class="button button--secondary" ${this.translationBusy || this.readOnly ? 'disabled' : ''}>${escapeHTML(translate(this.translationBusy ? 'personal_equipment_translating' : 'personal_equipment_translate'))}</button>
+      <select id="personal-language" data-archive-safe>${this.availableLanguages().map((code) => `<option value="${code}" ${code === this.targetLanguage ? 'selected' : ''}>${escapeHTML(languages?.of(code) || code)}</option>`).join('')}</select>
       <p class="personal-equipment__notes" dir="auto">${escapeHTML(this.text(list, 'notes'))}</p>
-      <p id="personal-translation-status" role="status">${escapeHTML(translate(this.translations.has(this.targetLanguage) ? 'personal_equipment_translated' : 'personal_equipment_translation_hint'))}</p>
+      <p id="personal-translation-status" role="status">${escapeHTML(translate(this.translations.has(this.targetLanguage) ? 'personal_equipment_translated' : 'packing_parent_translation_hint'))}</p>
       <button type="button" id="personal-equipment-print" class="button button--secondary" data-archive-safe>${escapeHTML(translate('print'))}</button>
       <p>${escapeHTML(translate('personal_equipment_local_only'))}</p>
       ${children.length ? children.map((child) => `<section><h2>${escapeHTML(`${child.first_name} ${child.last_name}`)}</h2><ul class="personal-equipment__list">
@@ -244,31 +366,9 @@ export class PersonalEquipment {
       this.renderFamily();
       this.root().querySelector('#personal-language').focus();
     });
-    this.root().querySelector('#personal-translate').addEventListener('click', () => this.translateList());
     this.root().querySelector('#personal-equipment-print').addEventListener('click', () => this.print());
   }
 
-  /** Shared translated content is versioned; local checkmarks intentionally are not. */
-  translationKey(language) { return buildScopedCacheKey(`personal-equipment-text:${this.meetingId}:${this.loadedVersion}:${language}`); }
-
-  /** Changing the chosen language or leaving the screen discards late translated output. */
-  async translateList() {
-    if (!this.active() || this.translationBusy) { return; }
-    const language = this.targetLanguage;
-    if (this.translations.has(language)) { this.renderFamily(); return; }
-    this.translationBusy = true; this.renderFamily();
-    try {
-      const result = await translatePersonalEquipment(this.meetingId, language);
-      if (!this.active()) { return; }
-      this.translations.set(language, result.data);
-      try { localStorage.setItem(this.translationKey(language), JSON.stringify(result.data)); } catch { /* Current text remains usable. */ }
-    } catch (err) {
-      if (this.active()) { this.app.showMessage(apiErrorMessage(err, 'personal_equipment_translation_failed'), 'error'); }
-    } finally {
-      this.translationBusy = false;
-      if (this.active()) { this.renderFamily(); this.root().querySelector('#personal-translate').focus(); }
-    }
-  }
   print() {
     const printWindow = openPrintWindow();
     const html = `<h1>${escapeHTML(this.title())}</h1><h2>${escapeHTML(this.data.camp.theme)}</h2><p>${escapeHTML(this.text(this.data.list, 'notes'))}</p>

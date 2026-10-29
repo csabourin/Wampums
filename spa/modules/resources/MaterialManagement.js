@@ -1,3 +1,4 @@
+import { canUseAI, aiActionLabel } from '../../utils/AIUtils.js';
 import { translate } from '../../app.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML, escapeAttribute, sanitizeURL } from '../../utils/SecurityUtils.js';
@@ -480,10 +481,10 @@ export class MaterialManagement {
 
         <div class="card">
           <h2 id="material-select-title">${escapeHTML(translate('select_equipment'))}</h2>
-          ${this.canReserve ? `
+          ${this.canReserve && canUseAI() ? `
             <button type="button" class="button button--secondary material-suggest-button" id="material-suggest">
               <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
-              ${escapeHTML(translate('material_suggest_button'))}
+              ${aiActionLabel('material_suggest_button')}
             </button>` : ''}
           <div class="material-picker-controls" role="search" aria-labelledby="material-select-title">
             <label class="stacked material-search">
@@ -881,7 +882,7 @@ export class MaterialManagement {
       footer: `
         <button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button>
         <button type="submit" class="button button--primary" form="material-suggest-form">
-          ${escapeHTML(translate('material_suggest_submit'))}
+          ${aiActionLabel('material_suggest_submit')}
         </button>`,
       initialFocus: '#material-suggest-description',
     });

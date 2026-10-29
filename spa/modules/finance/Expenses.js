@@ -1,3 +1,4 @@
+import { canUseAI, aiActionLabel } from '../../utils/AIUtils.js';
 import {
   getBudgetExpenses,
   createBudgetExpense,
@@ -770,7 +771,7 @@ export class Expenses {
               <div class="form-row">
                 <div class="form-group">
                    <div style="margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:15px;">
-                      <button type="button" class="button button--secondary" id="upload-receipt-btn"><span aria-hidden="true">📸</span> ${translate('upload_receipt')}</button>
+                      ${canUseAI() ? `<button type="button" class="button button--secondary" id="upload-receipt-btn">${aiActionLabel('upload_receipt')}</button>` : ''}
                       <input type="file" id="receipt-upload-input" accept="image/*,.pdf" style="display:none">
                       <small style="display:block; margin-top:5px; color:#666;">${translate('upload_receipt_help')}</small>
                    </div>

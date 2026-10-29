@@ -1,6 +1,8 @@
 /**
  * @jest-environment jsdom
  */
+jest.mock('../../spa/utils/AIUtils.js', () => ({ canUseAI: () => true, aiActionLabel: (key) => `${key} IA` }));
+
 
 /**
  * The equipment screens moved out of the spa/ root, held to CLAUDE.md §7: a
