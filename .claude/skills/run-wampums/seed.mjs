@@ -110,7 +110,7 @@ try {
     `INSERT INTO role_permissions (role_id, permission_id)
      SELECT $1, id FROM permissions
       WHERE permission_key IN ('participants.view', 'participants.create_own', 'permission_slips.sign',
-                               'activities.view', 'carpools.view')
+                               'activities.view', 'carpools.view', 'personal_equipment.view')
      ON CONFLICT DO NOTHING`,
     [parentRole]
   );
@@ -151,7 +151,7 @@ try {
     `INSERT INTO role_permissions (role_id, permission_id)
      SELECT $1, id FROM permissions
       WHERE permission_key IN ('participants.view', 'participants.create_own', 'permission_slips.sign',
-                               'activities.view', 'carpools.view')
+                               'activities.view', 'carpools.view', 'personal_equipment.view')
      ON CONFLICT DO NOTHING`,
     [demoParentRole]
   );
