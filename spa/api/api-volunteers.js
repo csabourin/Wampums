@@ -13,3 +13,8 @@ export const signUpForShift = (id) => API.post(`v1/volunteer-shifts/${encodeURIC
 export const withdrawFromShift = (id) => API.delete(`v1/volunteer-shifts/${encodeURIComponent(id)}/signups/me`);
 export const removeVolunteer = (id, userId) =>
   API.delete(`v1/volunteer-shifts/${encodeURIComponent(id)}/signups/${encodeURIComponent(userId)}`);
+/** What a manager verified for one member: requirement keys with their expiry. */
+export const getVolunteerRequirements = (userId) => API.getNoCache(`v1/volunteer-shifts/requirements/${encodeURIComponent(userId)}`);
+/** Replace that record; the member's upcoming places follow (confirmed when complete). */
+export const saveVolunteerRequirements = (userId, verified) =>
+  API.put(`v1/volunteer-shifts/requirements/${encodeURIComponent(userId)}`, { verified });

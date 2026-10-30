@@ -27,7 +27,7 @@ jest.mock('../middleware/auth', () => {
   };
 });
 
-const { signUp, saveShift, listShifts } = require('../services/volunteerShifts');
+const { signUp, saveShift, listShifts, recordRequirements } = require('../services/volunteerShifts');
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 
 describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
@@ -105,14 +105,14 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
 
   test('a volunteer sees shifts and places, but not who else signed up', async () => {
     const shift = await saveShift(pool, ids.unit, ids.manager, {
-      activity_id: ids.camp, title: 'Cuisine', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
+      activity_id: ids.camp, volunteer_type: 'cook', title: 'Cuisine', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
       start_time: '17:00', end_time: '19:00', slots: 2, notes: '',
     });
     await signUp(pool, ids.unit, shift.id, ids.driver);
     const response = await as(ids.cook).get('/api/v1/volunteer-shifts');
     expect(response.status).toBe(200);
     const listed = response.body.data.find((row) => row.id === shift.id);
-    expect(listed).toMatchObject({ title: 'Cuisine', slots: 2, taken: 1, mine: false, volunteers: null });
+    expect(listed).toMatchObject({ volunteer_type: 'cook', title: 'Cuisine', slots: 2, taken: 1, mine: false, volunteers: null });
     expect(JSON.stringify(response.body)).not.toContain('Grace Hopper');
     const managerView = await listShifts(pool, ids.unit, ids.manager, { withNames: true });
     expect(managerView.find((row) => row.id === shift.id).volunteers.map((person) => person.name)).toEqual(['Grace Hopper']);
@@ -120,7 +120,7 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
 
   test('two volunteers taking the last place at once: one is confirmed, the other is refused with 409', async () => {
     const shift = await saveShift(pool, ids.unit, ids.manager, {
-      activity_id: ids.camp, title: 'Veille de nuit', shift_date: await one('SELECT (CURRENT_DATE + 4)::text'),
+      activity_id: ids.camp, volunteer_type: 'cook', title: 'Veille de nuit', shift_date: await one('SELECT (CURRENT_DATE + 4)::text'),
       start_time: '22:00', end_time: '23:30', slots: 1, notes: '',
     });
     const results = await Promise.allSettled([
@@ -135,7 +135,7 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
 
   test('through the API, the second person on a full shift gets a clear 409', async () => {
     const shift = await saveShift(pool, ids.unit, ids.manager, {
-      activity_id: ids.camp, title: 'Transport', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
+      activity_id: ids.camp, volunteer_type: 'cook', title: 'Transport', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
       start_time: '08:00', end_time: '09:00', slots: 1, notes: '',
     });
     expect((await as(ids.cook).post(`/api/v1/volunteer-shifts/${shift.id}/signups`)).status).toBe(201);
@@ -148,38 +148,127 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
   test('places cannot drop below the people already signed up, and a shift stays within its activity', async () => {
     const day = await one('SELECT (CURRENT_DATE + 3)::text');
     const shift = await saveShift(pool, ids.unit, ids.manager, {
-      activity_id: ids.camp, title: 'Vaisselle', shift_date: day, start_time: '19:00', end_time: '20:00', slots: 2, notes: '',
+      activity_id: ids.camp, volunteer_type: 'cook', title: 'Vaisselle', shift_date: day, start_time: '19:00', end_time: '20:00', slots: 2, notes: '',
     });
     await signUp(pool, ids.unit, shift.id, ids.cook);
     await signUp(pool, ids.unit, shift.id, ids.driver);
     await expect(saveShift(pool, ids.unit, ids.manager, {
-      activity_id: ids.camp, title: 'Vaisselle', shift_date: day, start_time: '19:00', end_time: '20:00', slots: 1, notes: '',
+      activity_id: ids.camp, volunteer_type: 'cook', title: 'Vaisselle', shift_date: day, start_time: '19:00', end_time: '20:00', slots: 1, notes: '',
     }, shift.id)).rejects.toMatchObject({ message: 'volunteer_slots_below_signups', status: 409 });
     await expect(saveShift(pool, ids.unit, ids.manager, {
-      activity_id: ids.camp, title: 'Trop tard', shift_date: await one('SELECT (CURRENT_DATE + 30)::text'),
+      activity_id: ids.camp, volunteer_type: 'cook', title: 'Trop tard', shift_date: await one('SELECT (CURRENT_DATE + 30)::text'),
       start_time: '19:00', end_time: '20:00', slots: 1, notes: '',
     })).rejects.toMatchObject({ message: 'volunteer_shift_outside_activity', status: 400 });
   });
 
   test('another unit cannot see, fill or change this unit\'s shifts', async () => {
     const shift = await saveShift(pool, ids.unit, ids.manager, {
-      activity_id: ids.camp, title: 'Accueil', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
+      activity_id: ids.camp, volunteer_type: 'cook', title: 'Accueil', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
       start_time: '18:00', end_time: '19:00', slots: 3, notes: '',
     });
     await expect(signUp(pool, ids.other, shift.id, ids.cook)).rejects.toMatchObject({ status: 404 });
     expect((await listShifts(pool, ids.other, ids.cook, { withNames: true })).map((row) => row.id)).not.toContain(shift.id);
     await expect(saveShift(pool, ids.other, ids.manager, {
-      activity_id: ids.camp, title: 'Hijack', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
+      activity_id: ids.camp, volunteer_type: 'cook', title: 'Hijack', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
       start_time: '18:00', end_time: '19:00', slots: 3, notes: '',
     }, shift.id)).rejects.toMatchObject({ status: 404 });
   });
 
   test('a volunteer cannot create shifts or remove someone else', async () => {
     const created = await as(ids.cook).post('/api/v1/volunteer-shifts').send({
-      activity_id: ids.camp, title: 'Cuisine', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
+      activity_id: ids.camp, volunteer_type: 'cook', title: 'Cuisine', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
       start_time: '17:00', end_time: '19:00', slots: 2,
     });
     expect(created.status).toBe(403);
     expect(created.body.missing).toEqual(['volunteers.manage']);
+  });
+
+  describe('a type with requirements, such as camp aide', () => {
+    const day = (offset) => one(`SELECT (CURRENT_DATE + ${Number(offset)})::text`);
+    const aideShift = async (slots = 2) => saveShift(pool, ids.unit, ids.manager, {
+      activity_id: ids.camp, volunteer_type: 'camp_aide', title: '', shift_date: await day(4),
+      start_time: '09:00', end_time: '12:00', slots, notes: '',
+    });
+    const placeOf = (shiftId, userId) => one(
+      'SELECT status FROM volunteer_signups WHERE shift_id = $1 AND user_id = $2', [shiftId, userId]);
+
+    test('a person not yet verified holds the place, pending, and is told what is missing', async () => {
+      const aide = await member('Mary Jackson', 'volunteer');
+      const shift = await aideShift();
+      const result = await signUp(pool, ids.unit, shift.id, aide);
+      expect(result).toEqual({ created: true, status: 'pending', missing: ['background_check', 'safety_training'] });
+      const listed = (await listShifts(pool, ids.unit, aide, { withNames: false })).find((row) => row.id === shift.id);
+      expect(listed).toMatchObject({ mine: true, my_status: 'pending', pending: 1, taken: 1,
+        my_missing: ['background_check', 'safety_training'] });
+    });
+
+    test('a pending place still counts: the last seat is not given twice', async () => {
+      const first = await member('Katherine Johnson', 'volunteer');
+      const second = await member('Dorothy Vaughan', 'volunteer');
+      const shift = await aideShift(1);
+      await signUp(pool, ids.unit, shift.id, first);
+      await expect(signUp(pool, ids.unit, shift.id, second)).rejects.toMatchObject({ message: 'volunteer_shift_full', status: 409 });
+    });
+
+    test('recording the requirements confirms the person\'s places; withdrawing one holds them again', async () => {
+      const aide = await member('Annie Easley', 'volunteer');
+      const shift = await aideShift();
+      await signUp(pool, ids.unit, shift.id, aide);
+      expect(await recordRequirements(pool, ids.unit, ids.manager, aide, {
+        background_check: { valid_until: null }, safety_training: { valid_until: await day(365) },
+      })).toEqual({ confirmed: 1 });
+      expect(await placeOf(shift.id, aide)).toBe('confirmed');
+      const managerView = (await listShifts(pool, ids.unit, ids.manager, { withNames: true })).find((row) => row.id === shift.id);
+      expect(managerView.volunteers).toEqual([expect.objectContaining({ name: 'Annie Easley', status: 'confirmed', missing: [] })]);
+
+      await recordRequirements(pool, ids.unit, ids.manager, aide, { safety_training: { valid_until: null } });
+      expect(await placeOf(shift.id, aide)).toBe('pending');
+    });
+
+    test('a requirement expired by the shift\'s day counts as missing', async () => {
+      const aide = await member('Joan Clarke', 'volunteer');
+      await recordRequirements(pool, ids.unit, ids.manager, aide, {
+        background_check: { valid_until: await day(1) }, safety_training: { valid_until: null },
+      });
+      const shift = await aideShift();
+      expect((await signUp(pool, ids.unit, shift.id, aide)).missing).toEqual(['background_check']);
+    });
+
+    test('a verified person is confirmed at once; a cook needs nothing verified', async () => {
+      const aide = await member('Hedy Lamarr', 'volunteer');
+      await recordRequirements(pool, ids.unit, ids.manager, aide, {
+        background_check: { valid_until: null }, safety_training: { valid_until: null },
+      });
+      const shift = await aideShift();
+      expect((await signUp(pool, ids.unit, shift.id, aide)).status).toBe('confirmed');
+      const cookShift = await saveShift(pool, ids.unit, ids.manager, {
+        activity_id: ids.camp, volunteer_type: 'cook', title: '', shift_date: await day(4),
+        start_time: '07:00', end_time: '08:00', slots: 2, notes: '',
+      });
+      expect((await signUp(pool, ids.unit, cookShift.id, ids.cook)).status).toBe('confirmed');
+    });
+
+    test('changing a cook shift into a camp aide shift holds places that lack the requirements', async () => {
+      const shift = await saveShift(pool, ids.unit, ids.manager, {
+        activity_id: ids.camp, volunteer_type: 'cook', title: '', shift_date: await day(4),
+        start_time: '13:00', end_time: '14:00', slots: 2, notes: '',
+      });
+      await signUp(pool, ids.unit, shift.id, ids.driver);
+      await saveShift(pool, ids.unit, ids.manager, {
+        activity_id: ids.camp, volunteer_type: 'camp_aide', title: '', shift_date: await day(4),
+        start_time: '13:00', end_time: '14:00', slots: 2, notes: '',
+      }, shift.id);
+      expect(await placeOf(shift.id, ids.driver)).toBe('pending');
+    });
+
+    test('a volunteer cannot read or record anyone\'s requirements; managers only record for members', async () => {
+      const read = await as(ids.cook).get(`/api/v1/volunteer-shifts/requirements/${ids.driver}`);
+      expect(read.status).toBe(403);
+      expect((await as(ids.cook).get('/api/v1/volunteer-shifts/requirements/me')).status).toBe(200);
+      const stranger = await one(`INSERT INTO users (email, password, full_name)
+        VALUES ('stranger-' || gen_random_uuid() || '@example.test', 'x', 'Stranger') RETURNING id`);
+      await expect(recordRequirements(pool, ids.unit, ids.manager, stranger, { background_check: { valid_until: null } }))
+        .rejects.toMatchObject({ message: 'volunteer_member_not_found', status: 404 });
+    });
   });
 });

@@ -162,3 +162,16 @@ test('volunteer places still open are part of what is left, each shift linking t
   expect(filled.classList.contains('is-clear')).toBe(true);
   expect(filled.textContent).toContain('camp_readiness_left_volunteers_done');
 });
+
+test('volunteer places held for verification are still part of what is left', async () => {
+  const payload = data();
+  payload.sections.volunteers = [
+    { volunteer_type: 'camp_aide', title: '', shift_date: '2026-11-15', start_time: '09:00', end_time: '12:00', slots: 1, taken: 1, pending: 1 },
+  ];
+  getCampReadiness.mockResolvedValue({ data: payload });
+  await screen.init();
+  const line = document.querySelector('.camp-readiness__left a[href="#camp-readiness-volunteers"]').closest('li');
+  expect(line.classList.contains('is-attention')).toBe(true);
+  expect(line.textContent).toContain('volunteers_pending_count');
+  expect(document.querySelector('#camp-readiness-volunteers a[href="/volunteers"]').textContent).toBe('volunteer_type_camp_aide');
+});

@@ -19,6 +19,7 @@ import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { CAMP_LOTS } from '../../config/camp-lots.js';
 import { getCampReadiness, getActivityCampReadiness } from '../../api/api-camp-readiness.js';
+import { shiftName } from '../../utils/VolunteerTypeUtils.js';
 import styles from '../../../css/camp-readiness.css?url';
 
 export const READINESS_LABELS = {
@@ -140,9 +141,13 @@ export class CampReadiness {
       if (!recorded(section)) { return { text: translate('camp_readiness_left_none'), attention: true }; }
       const vacant = section.reduce((sum, shift) => sum + Math.max(0, Number(shift.slots) - Number(shift.taken)), 0);
       const total = section.reduce((sum, shift) => sum + Number(shift.slots), 0);
-      return { attention: vacant > 0, text: vacant
+      // A place held while its requirements are verified is taken, but not yet settled.
+      const pending = section.reduce((sum, shift) => sum + Number(shift.pending || 0), 0);
+      const parts = [vacant
         ? translate('camp_readiness_left_volunteers').replace('{vacant}', this.count(vacant)).replace('{total}', this.count(total))
-        : translate('camp_readiness_left_volunteers_done') };
+        : translate('camp_readiness_left_volunteers_done')];
+      if (pending) { parts.push(translate('volunteers_pending_count').replace('{count}', this.count(pending))); }
+      return { attention: vacant > 0 || pending > 0, text: parts.join(' · ') };
     }
     if (!recorded(section)) { return { text: translate('camp_readiness_left_none'), attention: true }; }
     const open = section.filter((task) => task.status !== 'done');
@@ -220,10 +225,12 @@ export class CampReadiness {
     if (sections.volunteers) {
       body += this.section('volunteers', sections.volunteers.map((shift) => {
         const free = Math.max(0, Number(shift.slots) - Number(shift.taken));
+        const places = free ? translate('volunteers_places_free').replace('{free}', this.count(free)).replace('{slots}', this.count(shift.slots))
+          : translate('volunteers_full');
         return this.row({
-          title: shift.title, href: '/volunteers',
-          chip: free ? translate('volunteers_places_free').replace('{free}', this.count(free)).replace('{slots}', this.count(shift.slots))
-            : translate('volunteers_full'),
+          title: shiftName(shift), href: '/volunteers',
+          chip: Number(shift.pending) > 0
+            ? `${places} · ${translate('volunteers_pending_count').replace('{count}', this.count(shift.pending))}` : places,
           detail: translate('volunteers_when').replace('{date}', this.date(shift.shift_date))
             .replace('{start}', shift.start_time).replace('{end}', shift.end_time),
         });

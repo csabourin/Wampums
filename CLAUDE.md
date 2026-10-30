@@ -506,7 +506,8 @@ choices rather than requesting participants, families, contacts or health forms.
 each activity's or camp's needs by time slot. Writes go through `services/volunteerShifts.js`, which
 locks the shift so its last place goes to one person (409 `volunteer_shift_full` for the other). The
 built-in `volunteer` role holds only `volunteers.view` and `tasks.view`: no youth, family or health
-record. Other volunteers' names go to managers only. See `devdocs/VOLUNTEERS.md`.
+record. Other volunteers' names go to managers only. Each shift has a type (`config/volunteer_shifts.json`); a type's
+requirements (a background check for a camp aide) keep a place pending until a manager records them. See `devdocs/VOLUNTEERS.md`.
 
 ### Camp equipment lots
 

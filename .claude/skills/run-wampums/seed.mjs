@@ -130,7 +130,7 @@ try {
     return userId;
   };
   const adminId = await member('admin@run.test', 'Akela Admin', adminRole);
-  await member('leader@run.test', 'Baloo Leader', leaderRole);
+  const leaderId = await member('leader@run.test', 'Baloo Leader', leaderRole);
   const parentId = await member('parent@run.test', 'Marie Parent', parentRole);
 
   // The demo unit's two read-only accounts (demoadmin, demoparent), signed in
@@ -356,7 +356,8 @@ try {
   });
 
   // A camp in ten days, recorded as an activity marked as a camp, with volunteer shifts:
-  // one still open, one already filled, for the volunteering screen and camp readiness.
+  // cooks (one place still open), a driver (filled), and camp aides, whose place stays to
+  // verify until a background check and training are recorded.
   const winterCampId = await one(
     `INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
                              meeting_time_going, departure_time_going, activity_start_date, activity_start_time,
@@ -367,14 +368,29 @@ try {
     [organizationId, adminId]
   );
   const cookShiftId = await one(
-    `INSERT INTO volunteer_shifts (organization_id, activity_id, title, shift_date, start_time, end_time, slots, notes, created_by)
-     VALUES ($1, $2, 'Cuisine', CURRENT_DATE + 11, '16:30', '19:00', 2, 'Tablier fourni', $3) RETURNING id`,
+    `INSERT INTO volunteer_shifts (organization_id, activity_id, volunteer_type, title, shift_date, start_time, end_time, slots, notes, created_by)
+     VALUES ($1, $2, 'cook', 'Souper', CURRENT_DATE + 11, '16:30', '19:00', 2, 'Tablier fourni', $3) RETURNING id`,
     [organizationId, winterCampId, adminId]
   );
   const driverShiftId = await one(
-    `INSERT INTO volunteer_shifts (organization_id, activity_id, title, shift_date, start_time, end_time, slots, created_by)
-     VALUES ($1, $2, 'Transport aller', CURRENT_DATE + 10, '17:30', '18:30', 1, $3) RETURNING id`,
+    `INSERT INTO volunteer_shifts (organization_id, activity_id, volunteer_type, title, shift_date, start_time, end_time, slots, created_by)
+     VALUES ($1, $2, 'driver', 'Aller', CURRENT_DATE + 10, '17:30', '18:30', 1, $3) RETURNING id`,
     [organizationId, winterCampId, adminId]
+  );
+  const aideShiftId = await one(
+    `INSERT INTO volunteer_shifts (organization_id, activity_id, volunteer_type, shift_date, start_time, end_time, slots, created_by)
+     VALUES ($1, $2, 'camp_aide', CURRENT_DATE + 11, '09:00', '16:00', 2, $3) RETURNING id`,
+    [organizationId, winterCampId, adminId]
+  );
+  await pool.query(
+    `INSERT INTO volunteer_signups (organization_id, shift_id, user_id, status) VALUES ($1, $2, $3, 'pending')`,
+    [organizationId, aideShiftId, leaderId]
+  );
+  // The admin's licence was verified, so their driving place is confirmed.
+  await pool.query(
+    `INSERT INTO volunteer_requirements (organization_id, user_id, requirement_key, valid_until, verified_by)
+     VALUES ($1, $2, 'driver_licence', CURRENT_DATE + 365, $2)`,
+    [organizationId, adminId]
   );
   await pool.query(
     'INSERT INTO volunteer_signups (organization_id, shift_id, user_id) VALUES ($1, $2, $3), ($1, $4, $3)',

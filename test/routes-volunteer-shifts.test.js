@@ -10,7 +10,8 @@ const { authorizationContextRow } = require('./mock-helpers');
 jest.mock('../services/volunteerShifts', () => {
   const actual = jest.requireActual('../services/volunteerShifts');
   return {
-    VolunteerError: actual.VolunteerError,
+    VolunteerError: actual.VolunteerError, VOLUNTEER_TYPES: actual.VOLUNTEER_TYPES, REQUIREMENTS: actual.REQUIREMENTS,
+    getRequirements: jest.fn(), recordRequirements: jest.fn(),
     listShifts: jest.fn(), listShiftActivities: jest.fn(), saveShift: jest.fn(), deleteShift: jest.fn(),
     signUp: jest.fn(), withdraw: jest.fn(), shiftsForActivity: jest.fn(),
   };
@@ -34,7 +35,7 @@ const call = (method, path, body) => {
   const req = request(app)[method](`/api/v1/volunteer-shifts${path}`).set('Authorization', `Bearer ${token()}`);
   return body ? req.send(body) : req;
 };
-const SHIFT = { activity_id: 3, title: 'Cuisine', shift_date: '2026-11-07', start_time: '17:00', end_time: '19:00', slots: 2 };
+const SHIFT = { activity_id: 3, volunteer_type: 'cook', title: 'Cuisine', shift_date: '2026-11-07', start_time: '17:00', end_time: '19:00', slots: 2 };
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -42,7 +43,9 @@ beforeEach(() => {
   roles = [{ role_name: 'volunteer', display_name: 'Volunteer', data_scope: 'organization' }];
   service.listShifts.mockResolvedValue([]);
   service.saveShift.mockResolvedValue({ id: 5 });
-  service.signUp.mockResolvedValue({ created: true });
+  service.signUp.mockResolvedValue({ created: true, status: 'confirmed', missing: [] });
+  service.recordRequirements.mockResolvedValue({ confirmed: 1 });
+  service.getRequirements.mockResolvedValue([]);
   service.withdraw.mockResolvedValue(true);
   service.deleteShift.mockResolvedValue(true);
 });
@@ -73,6 +76,7 @@ test('someone without volunteers.view is refused, saying what is missing', async
 test('a volunteer takes a place for themselves, never for a person named in the request', async () => {
   const response = await call('post', '/4/signups', { user_id: '00000000-0000-4000-8000-000000000099' });
   expect(response.status).toBe(201);
+  expect(response.body.data).toEqual({ status: 'confirmed', missing: [] });
   expect(service.signUp).toHaveBeenCalledWith(pool, 7, 4, USER_ID);
 });
 
@@ -115,7 +119,8 @@ test.each([
   ['too many places', { slots: 51 }, 'slots'],
   ['a malformed day', { shift_date: '2026-02-30' }, 'shift_date'],
   ['a malformed activity', { activity_id: '12abc' }, 'activity_id'],
-  ['an empty role', { title: '  ' }, 'title'],
+  ['"other" without saying what it is', { volunteer_type: 'other', title: '  ' }, 'title'],
+  ['an unknown type', { volunteer_type: 'babysitter' }, 'volunteer_type'],
 ])('a shift with %s is refused with its field named', async (_label, change, field) => {
   permissions.push('volunteers.manage');
   const response = await call('post', '/', { ...SHIFT, ...change });
@@ -134,4 +139,50 @@ test('another unit\'s shift, or a place already given up, is missing', async () 
   permissions.push('volunteers.manage');
   service.deleteShift.mockResolvedValue(false);
   expect((await call('delete', '/4')).status).toBe(404);
+});
+
+test('a place held for verification says so, and what is missing', async () => {
+  service.signUp.mockResolvedValue({ created: true, status: 'pending', missing: ['background_check'] });
+  const response = await call('post', '/4/signups');
+  expect(response.status).toBe(201);
+  expect(response.body.message).toBe('volunteer_pending');
+  expect(response.body.data).toEqual({ status: 'pending', missing: ['background_check'] });
+});
+
+describe('what was verified for a person', () => {
+  const OTHER = '00000000-0000-4000-8000-000000000002';
+
+  test('a volunteer reads their own record, never someone else\'s', async () => {
+    expect((await call('get', '/requirements/me')).status).toBe(200);
+    expect(service.getRequirements).toHaveBeenCalledWith(pool, 7, USER_ID);
+    const other = await call('get', `/requirements/${OTHER}`);
+    expect(other.status).toBe(403);
+    expect(other.body.missing).toEqual(['volunteers.manage']);
+  });
+
+  test('a manager records requirements for a member of the unit', async () => {
+    permissions.push('volunteers.manage');
+    const verified = { background_check: { valid_until: '2027-09-01' }, safety_training: { valid_until: null } };
+    const response = await call('put', `/requirements/${OTHER}`, { verified });
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({ confirmed: 1 });
+    expect(service.recordRequirements).toHaveBeenCalledWith(pool, 7, USER_ID, OTHER, verified);
+  });
+
+  test.each([
+    ['an unknown requirement', { criminal_record_copy: { valid_until: null } }],
+    ['a malformed expiry', { background_check: { valid_until: 'next year' } }],
+    ['no record at all', null],
+  ])('%s is refused', async (_label, verified) => {
+    permissions.push('volunteers.manage');
+    expect((await call('put', `/requirements/${OTHER}`, { verified })).status).toBe(400);
+    expect(service.recordRequirements).not.toHaveBeenCalled();
+  });
+
+  test('a malformed person id is refused, and a volunteer cannot record anything', async () => {
+    permissions.push('volunteers.manage');
+    expect((await call('get', '/requirements/12')).status).toBe(400);
+    permissions = ['volunteers.view'];
+    expect((await call('put', `/requirements/${OTHER}`, { verified: {} })).status).toBe(403);
+  });
 });

@@ -26,3 +26,15 @@
 .volunteers__times > div { display: grid; gap: .35rem; }
 .volunteers__form :is(input, select, textarea) { min-block-size: var(--touch-target-min, 44px); max-inline-size: 100%; }
 #volunteers-form-error:not([hidden]) { color: var(--color-error, #b42318); font-weight: 600; }
+
+.volunteers__type-filter { display: grid; gap: .25rem; }
+.volunteers__type-filter select { min-block-size: var(--touch-target-min, 44px); max-inline-size: 100%; }
+.volunteers__requires { font-size: .925rem; }
+.volunteers__mine--pending { font-weight: 600; }
+.volunteers__person { display: grid; gap: .1rem; }
+.volunteers__status { font-size: .875rem; color: var(--color-text-muted); }
+.volunteers__status.is-pending { color: var(--color-text); font-weight: 600; }
+.volunteers__person-actions { display: flex; flex-wrap: wrap; gap: .25rem; }
+.volunteers__requirement { border: 1px solid var(--color-border); border-radius: var(--radius-md, .5rem); padding: .5rem .75rem; margin: .5rem 0 0; display: grid; gap: .35rem; }
+.volunteers__requirement legend { font-weight: 600; padding-inline: .25rem; }
+#volunteers-verify-error:not([hidden]) { color: var(--color-error, #b42318); font-weight: 600; }

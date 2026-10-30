@@ -3,8 +3,12 @@
  *
  * Every write runs in one transaction that locks the shift, so its places are never exceeded:
  * when two people take the last place at once, one is recorded and the other is refused (409).
- * A sign-up is confirmed when it is recorded. Lists show other volunteers' names only to managers.
+ * Each shift has a type (config/volunteer_shifts.json); a type may carry requirements, such as a
+ * background check for a camp aide. A place is confirmed when the person meets them all on the
+ * shift's day, and otherwise held as pending until a manager records them. Lists show other
+ * volunteers' names, and anyone's requirements, only to managers.
  */
+const config = require('../config/volunteer_shifts.json');
 
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
@@ -16,6 +20,41 @@ class VolunteerError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+/** Volunteer type keys, and the requirements each carries. */
+const TYPE_REQUIREMENTS = new Map(config.types.map((type) => [type.key, type.requirements]));
+const VOLUNTEER_TYPES = [...TYPE_REQUIREMENTS.keys()];
+const REQUIREMENTS = config.requirements;
+
+/**
+ * Requirements of a shift's type that a person does not meet on the shift's day.
+ * @param {string} type - Volunteer type
+ * @param {string} shiftDate - YYYY-MM-DD
+ * @param {Array<{requirement_key: string, valid_until: string|null}>} records - What was verified for the person
+ * @returns {Array<string>} Missing requirement keys, in the type's order
+ */
+function missingRequirements(type, shiftDate, records = []) {
+  return (TYPE_REQUIREMENTS.get(type) || []).filter((key) => !records.some((record) =>
+    record.requirement_key === key && (!record.valid_until || record.valid_until >= shiftDate)));
+}
+
+/**
+ * @param {Object} db
+ * @param {number} organizationId
+ * @param {Array<string>} userIds
+ * @returns {Promise<Map<string, Array<Object>>>} Each person's verified requirements
+ */
+async function requirementsByUser(db, organizationId, userIds) {
+  const records = new Map(userIds.map((id) => [id, []]));
+  if (!userIds.length) { return records; }
+  const result = await db.query(
+    `SELECT user_id, requirement_key, valid_until::text AS valid_until FROM volunteer_requirements
+      WHERE organization_id = $1 AND user_id = ANY($2::uuid[])`,
+    [organizationId, userIds]
+  );
+  result.rows.forEach((row) => records.get(row.user_id)?.push(row));
+  return records;
 }
 
 /**
@@ -39,7 +78,9 @@ async function transaction(pool, work) {
 }
 
 /**
- * Upcoming shifts of the unit, soonest first, with their places and the caller's own sign-up.
+ * Upcoming shifts of the unit, soonest first: type, places (confirmed and pending), and the
+ * caller's own place with what it still lacks. Managers also get each volunteer's name, status
+ * and missing requirements.
  * @param {Object} db
  * @param {number} organizationId - Authenticated unit
  * @param {string} userId - The caller
@@ -47,26 +88,41 @@ async function transaction(pool, work) {
  * @returns {Promise<Array<Object>>}
  */
 async function listShifts(db, organizationId, userId, { withNames }) {
-  const result = await db.query(
+  const shifts = (await db.query(
     `SELECT s.id, s.activity_id, a.name AS activity_name, a.is_camp,
             a.activity_start_date::text AS activity_start_date, a.activity_end_date::text AS activity_end_date,
-            s.title, s.shift_date::text AS shift_date, to_char(s.start_time, 'HH24:MI') AS start_time,
+            s.volunteer_type, s.title, s.shift_date::text AS shift_date, to_char(s.start_time, 'HH24:MI') AS start_time,
             to_char(s.end_time, 'HH24:MI') AS end_time, s.slots, s.notes,
             COUNT(v.id)::int AS taken,
-            BOOL_OR(v.user_id = $2) IS TRUE AS mine,
-            CASE WHEN $3::boolean THEN COALESCE(
-              JSON_AGG(JSON_BUILD_OBJECT('user_id', u.id, 'name', u.full_name) ORDER BY v.created_at, v.id)
-                FILTER (WHERE v.id IS NOT NULL), '[]'::json) END AS volunteers
+            COUNT(v.id) FILTER (WHERE v.status = 'pending')::int AS pending,
+            MAX(v.status) FILTER (WHERE v.user_id = $2) AS my_status
        FROM volunteer_shifts s
        JOIN activities a ON a.id = s.activity_id AND a.organization_id = s.organization_id AND a.is_active = TRUE
        LEFT JOIN volunteer_signups v ON v.shift_id = s.id AND v.organization_id = s.organization_id
-       LEFT JOIN users u ON u.id = v.user_id
       WHERE s.organization_id = $1 AND s.shift_date >= CURRENT_DATE
       GROUP BY s.id, a.id
       ORDER BY s.shift_date, s.start_time, s.id`,
-    [organizationId, userId, withNames === true]
-  );
-  return result.rows;
+    [organizationId, userId]
+  )).rows;
+  const signups = withNames && shifts.length ? (await db.query(
+    `SELECT v.shift_id, v.user_id, u.full_name AS name, v.status
+       FROM volunteer_signups v JOIN users u ON u.id = v.user_id
+      WHERE v.organization_id = $1 AND v.shift_id = ANY($2::int[])
+      ORDER BY v.created_at, v.id`,
+    [organizationId, shifts.map((shift) => shift.id)]
+  )).rows : [];
+  const records = await requirementsByUser(db, organizationId, [...new Set([userId, ...signups.map((row) => row.user_id)])]);
+  return shifts.map((shift) => ({
+    ...shift,
+    requirements: TYPE_REQUIREMENTS.get(shift.volunteer_type) || [],
+    mine: Boolean(shift.my_status),
+    my_missing: shift.my_status === 'pending'
+      ? missingRequirements(shift.volunteer_type, shift.shift_date, records.get(userId)) : [],
+    volunteers: withNames ? signups.filter((row) => row.shift_id === shift.id).map((row) => ({
+      user_id: row.user_id, name: row.name, status: row.status,
+      missing: row.status === 'pending' ? missingRequirements(shift.volunteer_type, shift.shift_date, records.get(row.user_id)) : [],
+    })) : null,
+  }));
 }
 
 /**
@@ -108,7 +164,7 @@ async function checkActivity(db, organizationId, shift) {
  * @param {Object} pool
  * @param {number} organizationId
  * @param {string} userId - Who saves it
- * @param {Object} shift - Validated fields: activity_id, title, shift_date, start_time, end_time, slots, notes
+ * @param {Object} shift - Validated fields: activity_id, volunteer_type, title, shift_date, start_time, end_time, slots, notes
  * @param {number|null} shiftId - The shift to change, or null to create
  * @returns {Promise<Object>} The saved shift
  */
@@ -116,11 +172,12 @@ function saveShift(pool, organizationId, userId, shift, shiftId = null) {
   return transaction(pool, async (db) => {
     await checkActivity(db, organizationId, shift);
     const values = [organizationId, shift.activity_id, shift.title, shift.shift_date, shift.start_time,
-      shift.end_time, shift.slots, shift.notes];
+      shift.end_time, shift.slots, shift.notes, shift.volunteer_type];
     if (!shiftId) {
       return (await db.query(
-        `INSERT INTO volunteer_shifts (organization_id, activity_id, title, shift_date, start_time, end_time, slots, notes, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+        `INSERT INTO volunteer_shifts (organization_id, activity_id, title, shift_date, start_time, end_time, slots, notes,
+           volunteer_type, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
         [...values, userId]
       )).rows[0];
     }
@@ -131,12 +188,15 @@ function saveShift(pool, organizationId, userId, shift, shiftId = null) {
     )).rows[0];
     if (!current) { throw new VolunteerError('volunteer_shift_not_found', HTTP_NOT_FOUND); }
     if (shift.slots < current.taken) { throw new VolunteerError('volunteer_slots_below_signups', HTTP_CONFLICT); }
-    return (await db.query(
+    const saved = (await db.query(
       `UPDATE volunteer_shifts SET activity_id = $2, title = $3, shift_date = $4, start_time = $5, end_time = $6,
-              slots = $7, notes = $8, updated_at = NOW()
-        WHERE organization_id = $1 AND id = $9 RETURNING id`,
+              slots = $7, notes = $8, volunteer_type = $9, updated_at = NOW()
+        WHERE organization_id = $1 AND id = $10 RETURNING id`,
       [...values, shiftId]
     )).rows[0];
+    // A new type or day changes what its places require.
+    await refreshStatuses(db, organizationId, { shiftId });
+    return saved;
   });
 }
 
@@ -153,33 +213,131 @@ async function deleteShift(pool, organizationId, shiftId) {
 
 /**
  * Take a place on a shift. The shift row is locked first, so its places are counted once:
- * the last place goes to one person, and the next is told the shift is full.
+ * the last place goes to one person, and the next is told the shift is full. A pending place
+ * holds its seat while a manager verifies what the shift's type requires.
  * @param {Object} pool
  * @param {number} organizationId
  * @param {number} shiftId
  * @param {string} userId - The caller, an active member of the unit
- * @returns {Promise<{created: boolean}>} False when the caller already had a place
+ * @returns {Promise<{created: boolean, status: string, missing: Array<string>}>}
+ *   `created` is false when the caller already had a place
  */
 function signUp(pool, organizationId, shiftId, userId) {
   return transaction(pool, async (db) => {
     const shift = (await db.query(
-      `SELECT id, slots FROM volunteer_shifts
+      `SELECT id, slots, volunteer_type, shift_date::text AS shift_date FROM volunteer_shifts
         WHERE organization_id = $1 AND id = $2 AND shift_date >= CURRENT_DATE FOR UPDATE`,
       [organizationId, shiftId]
     )).rows[0];
     if (!shift) { throw new VolunteerError('volunteer_shift_not_found', HTTP_NOT_FOUND); }
     const places = (await db.query(
-      `SELECT COUNT(*)::int AS taken, BOOL_OR(user_id = $3) IS TRUE AS mine
+      `SELECT COUNT(*)::int AS taken, MAX(status) FILTER (WHERE user_id = $3) AS mine
          FROM volunteer_signups WHERE organization_id = $1 AND shift_id = $2`,
       [organizationId, shiftId, userId]
     )).rows[0];
-    if (places.mine) { return { created: false }; }
+    const missing = missingRequirements(shift.volunteer_type, shift.shift_date,
+      (await requirementsByUser(db, organizationId, [userId])).get(userId));
+    if (places.mine) { return { created: false, status: places.mine, missing: places.mine === 'pending' ? missing : [] }; }
     if (places.taken >= shift.slots) { throw new VolunteerError('volunteer_shift_full', HTTP_CONFLICT); }
+    const status = missing.length ? 'pending' : 'confirmed';
     await db.query(
-      'INSERT INTO volunteer_signups (organization_id, shift_id, user_id) VALUES ($1, $2, $3)',
-      [organizationId, shiftId, userId]
+      `INSERT INTO volunteer_signups (organization_id, shift_id, user_id, status, confirmed_at)
+       VALUES ($1, $2, $3, $4::varchar, CASE WHEN $4::varchar = 'confirmed' THEN NOW() END)`,
+      [organizationId, shiftId, userId, status]
     );
-    return { created: true };
+    return { created: true, status, missing };
+  });
+}
+
+/**
+ * Set each upcoming place's status from what its holder meets on the shift's day: confirmed
+ * when nothing is missing, pending otherwise. Limited to one person or one shift.
+ * @param {Object} db - Transaction client
+ * @param {number} organizationId
+ * @param {{userId?: string, shiftId?: number}} scope
+ * @returns {Promise<number>} Places now confirmed that were pending
+ */
+async function refreshStatuses(db, organizationId, { userId = null, shiftId = null }) {
+  const places = (await db.query(
+    `SELECT v.id, v.user_id, v.status, s.volunteer_type, s.shift_date::text AS shift_date
+       FROM volunteer_signups v
+       JOIN volunteer_shifts s ON s.id = v.shift_id AND s.organization_id = v.organization_id
+      WHERE v.organization_id = $1 AND s.shift_date >= CURRENT_DATE
+        AND ($2::uuid IS NULL OR v.user_id = $2) AND ($3::int IS NULL OR v.shift_id = $3)
+      FOR UPDATE OF v`,
+    [organizationId, userId, shiftId]
+  )).rows;
+  const records = await requirementsByUser(db, organizationId, [...new Set(places.map((place) => place.user_id))]);
+  const changes = places.map((place) => ({
+    ...place,
+    next: missingRequirements(place.volunteer_type, place.shift_date, records.get(place.user_id)).length ? 'pending' : 'confirmed',
+  })).filter((place) => place.next !== place.status);
+  if (changes.length) {
+    await db.query(
+      `UPDATE volunteer_signups v SET status = c.next,
+              confirmed_at = CASE WHEN c.next = 'confirmed' THEN NOW() END
+         FROM UNNEST($2::int[], $3::text[]) AS c(id, next)
+        WHERE v.organization_id = $1 AND v.id = c.id`,
+      [organizationId, changes.map((place) => place.id), changes.map((place) => place.next)]
+    );
+  }
+  return changes.filter((place) => place.next === 'confirmed').length;
+}
+
+/**
+ * What was verified for one member of the unit.
+ * @param {Object} db
+ * @param {number} organizationId
+ * @param {string} userId
+ * @returns {Promise<Array<{requirement_key: string, valid_until: string|null, verified_at: string}>>}
+ * @throws {VolunteerError} 404 when the person is not an active member of the unit
+ */
+async function getRequirements(db, organizationId, userId) {
+  const member = await db.query(
+    "SELECT 1 FROM user_organizations WHERE organization_id = $1 AND user_id = $2 AND status = 'active'",
+    [organizationId, userId]
+  );
+  if (!member.rows.length) { throw new VolunteerError('volunteer_member_not_found', HTTP_NOT_FOUND); }
+  return (await db.query(
+    `SELECT requirement_key, valid_until::text AS valid_until, verified_at FROM volunteer_requirements
+      WHERE organization_id = $1 AND user_id = $2 ORDER BY requirement_key`,
+    [organizationId, userId]
+  )).rows;
+}
+
+/**
+ * Record what a manager verified for a member, replacing the previous record: requirements
+ * named are verified (until their date, if any), the others are not. The member's upcoming
+ * places then follow: confirmed when complete, pending again when something was withdrawn.
+ * @param {Object} pool
+ * @param {number} organizationId
+ * @param {string} managerId - Who verified
+ * @param {string} userId - The member
+ * @param {Object<string, {valid_until: string|null}>} verified - Validated keys
+ * @returns {Promise<{confirmed: number}>} Places confirmed by this record
+ */
+function recordRequirements(pool, organizationId, managerId, userId, verified) {
+  return transaction(pool, async (db) => {
+    const member = await db.query(
+      "SELECT 1 FROM user_organizations WHERE organization_id = $1 AND user_id = $2 AND status = 'active' FOR SHARE",
+      [organizationId, userId]
+    );
+    if (!member.rows.length) { throw new VolunteerError('volunteer_member_not_found', HTTP_NOT_FOUND); }
+    const keys = Object.keys(verified);
+    await db.query(
+      'DELETE FROM volunteer_requirements WHERE organization_id = $1 AND user_id = $2 AND NOT (requirement_key = ANY($3::text[]))',
+      [organizationId, userId, keys]
+    );
+    if (keys.length) {
+      await db.query(
+        `INSERT INTO volunteer_requirements (organization_id, user_id, requirement_key, valid_until, verified_by)
+         SELECT $1, $2, k.key, k.valid_until, $5 FROM UNNEST($3::text[], $4::date[]) AS k(key, valid_until)
+         ON CONFLICT (organization_id, user_id, requirement_key) DO UPDATE SET
+           valid_until = EXCLUDED.valid_until, verified_by = EXCLUDED.verified_by, verified_at = NOW()`,
+        [organizationId, userId, keys, keys.map((key) => verified[key].valid_until || null), managerId]
+      );
+    }
+    return { confirmed: await refreshStatuses(db, organizationId, { userId }) };
   });
 }
 
@@ -208,8 +366,9 @@ async function withdraw(pool, organizationId, shiftId, userId) {
  */
 async function shiftsForActivity(db, organizationId, activityId) {
   return (await db.query(
-    `SELECT s.id, s.title, s.shift_date::text AS shift_date, to_char(s.start_time, 'HH24:MI') AS start_time,
-            to_char(s.end_time, 'HH24:MI') AS end_time, s.slots, COUNT(v.id)::int AS taken
+    `SELECT s.id, s.volunteer_type, s.title, s.shift_date::text AS shift_date, to_char(s.start_time, 'HH24:MI') AS start_time,
+            to_char(s.end_time, 'HH24:MI') AS end_time, s.slots, COUNT(v.id)::int AS taken,
+            COUNT(v.id) FILTER (WHERE v.status = 'pending')::int AS pending
        FROM volunteer_shifts s
        LEFT JOIN volunteer_signups v ON v.shift_id = s.id AND v.organization_id = s.organization_id
       WHERE s.organization_id = $1 AND s.activity_id = $2
@@ -219,5 +378,7 @@ async function shiftsForActivity(db, organizationId, activityId) {
 }
 
 module.exports = {
-  VolunteerError, listShifts, listShiftActivities, saveShift, deleteShift, signUp, withdraw, shiftsForActivity,
+  VOLUNTEER_TYPES, REQUIREMENTS, TYPE_REQUIREMENTS, VolunteerError, missingRequirements,
+  listShifts, listShiftActivities, saveShift, deleteShift, signUp, withdraw, shiftsForActivity,
+  getRequirements, recordRequirements,
 };

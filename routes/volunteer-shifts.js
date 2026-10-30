@@ -5,7 +5,8 @@ const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, user
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateIdParam, checkValidation } = require('../middleware/validation');
 const {
-  VolunteerError, listShifts, listShiftActivities, saveShift, deleteShift, signUp, withdraw,
+  VOLUNTEER_TYPES, REQUIREMENTS, VolunteerError, listShifts, listShiftActivities, saveShift, deleteShift, signUp, withdraw,
+  getRequirements, recordRequirements,
 } = require('../services/volunteerShifts');
 const { VOLUNTEER_SHIFTS: LIMITS } = require('../config/constants');
 
@@ -47,7 +48,12 @@ module.exports = (pool) => {
 
   const fields = () => [
     validateIdBody('activity_id'),
-    body('title').isString().bail().trim().isLength({ min: 1, max: LIMITS.TITLE_MAX_LENGTH }).withMessage('volunteer_invalid_title'),
+    body('volunteer_type').isString().bail().isIn(VOLUNTEER_TYPES).withMessage('volunteer_invalid_type'),
+    // "Other" says what it is in its title; a listed type may add a precision.
+    body('title').optional({ values: 'null' }).isString().bail().trim().isLength({ max: LIMITS.TITLE_MAX_LENGTH })
+      .withMessage('volunteer_invalid_title'),
+    body('title').if((_value, { req }) => req.body.volunteer_type === 'other')
+      .custom((value) => typeof value === 'string' && value.trim().length > 0).withMessage('volunteer_other_needs_title'),
     body('shift_date').isString().bail().matches(DATE_PATTERN).bail().isDate({ format: 'YYYY-MM-DD', strictMode: true }).withMessage('volunteer_invalid_date'),
     body('start_time').isString().bail().matches(TIME_PATTERN).withMessage('volunteer_invalid_time'),
     body('end_time').isString().bail().matches(TIME_PATTERN).withMessage('volunteer_invalid_time')
@@ -58,7 +64,7 @@ module.exports = (pool) => {
   ];
   /** @returns {Object} The validated shift, as the service takes it */
   const shiftFrom = (req) => ({
-    activity_id: Number(req.body.activity_id), title: req.body.title, shift_date: req.body.shift_date,
+    activity_id: Number(req.body.activity_id), volunteer_type: req.body.volunteer_type, title: req.body.title || '', shift_date: req.body.shift_date,
     start_time: req.body.start_time, end_time: req.body.end_time, slots: req.body.slots, notes: req.body.notes || '',
   });
 
@@ -79,12 +85,39 @@ module.exports = (pool) => {
         : error(res, 'volunteer_shift_not_found', HTTP_NOT_FOUND);
     }));
 
+  // What was verified for a person: managers, for anyone in the unit; a member, for themselves.
+  router.get('/requirements/me', requirePermission('volunteers.view'), volunteerHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    return success(res, await getRequirements(pool, organizationId, req.user.id));
+  }));
+  router.get('/requirements/:userId', requirePermission('volunteers.manage'),
+    param('userId').isUUID().withMessage('invalid_request'), checkValidation, volunteerHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      return success(res, await getRequirements(pool, organizationId, req.params.userId));
+    }));
+  // The complete record: requirements named are verified (until their date), the others are not.
+  router.put('/requirements/:userId', blockDemoRoles, requirePermission('volunteers.manage'),
+    param('userId').isUUID().withMessage('invalid_request'),
+    body('verified').isObject().withMessage('invalid_request').bail()
+      .custom((value) => Object.keys(value).every((key) => REQUIREMENTS.includes(key))).withMessage('volunteer_invalid_requirement')
+      .bail().custom((value) => Object.values(value).every((entry) => entry && typeof entry === 'object'
+        && (entry.valid_until === null || entry.valid_until === undefined
+          || (typeof entry.valid_until === 'string' && DATE_PATTERN.test(entry.valid_until)
+            && !Number.isNaN(Date.parse(`${entry.valid_until}T00:00:00Z`))))))
+      .withMessage('volunteer_invalid_date'),
+    checkValidation, volunteerHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      return success(res, await recordRequirements(pool, organizationId, req.user.id, req.params.userId, req.body.verified),
+        'volunteer_requirements_saved');
+    }));
+
   // One's own place: the caller is the volunteer, never a body field.
   router.post('/:id/signups', blockDemoRoles, requirePermission('volunteers.view'), validateIdParam('id'), checkValidation,
     volunteerHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const { created } = await signUp(pool, organizationId, Number(req.params.id), req.user.id);
-      return success(res, { confirmed: true }, 'volunteer_signed_up', created ? HTTP_CREATED : HTTP_OK);
+      const { created, status, missing } = await signUp(pool, organizationId, Number(req.params.id), req.user.id);
+      return success(res, { status, missing }, status === 'confirmed' ? 'volunteer_signed_up' : 'volunteer_pending',
+        created ? HTTP_CREATED : HTTP_OK);
     }));
   router.delete('/:id/signups/me', blockDemoRoles, requirePermission('volunteers.view'), validateIdParam('id'), checkValidation,
     volunteerHandler(async (req, res) => {
