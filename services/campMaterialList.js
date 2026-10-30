@@ -60,7 +60,7 @@ function roundQuantity(value) {
  */
 async function loadCamp(db, organizationId, meetingId) {
   const result = await db.query(
-    `SELECT m.id, m.theme, m.meeting_kind, m.activity_id,
+    `SELECT m.id, m.theme, m.meeting_kind, m.activity_id, m.year_plan_id,
             COALESCE(NULLIF(btrim(m.theme), ''), act.name, '') AS label,
             m.meeting_date::text AS date_from,
             (m.meeting_date + GREATEST(
@@ -326,6 +326,7 @@ async function buildCampMaterialList(db, organizationId, meetingId, { withInvent
       id: camp.id,
       theme: camp.theme,
       meeting_kind: camp.meeting_kind,
+      year_plan_id: camp.year_plan_id,
       date_from: camp.date_from,
       date_to: camp.date_to,
     },

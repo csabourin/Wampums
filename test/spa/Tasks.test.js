@@ -294,3 +294,16 @@ test('an uncertain send stays visible and configuring a lot duty\'s stale remind
   expect(form.isConnected).toBe(true);
   expect(form.elements.reminder_materials.value).toBe('Tents');
 });
+
+test('opening a task from a camp\'s material list fills the form once, with its reminder ready', async () => {
+  hasPermission.mockReturnValue(true);
+  api.getTaskOptions.mockResolvedValue({ data: { members: [{ id: USER, full_name: 'Ada' }], activities: [], meetings: [{ id: 42, name: 'Camp', date: '2026-11-14' }] } });
+  window.history.replaceState(null, '', '/tasks?meeting_id=42&material=Tente&materials=2+%C3%97+Tente');
+  await new Tasks(app).init(); await settle();
+  const form = document.getElementById('tasks-form');
+  expect(form.elements.task_title.value).toBe('tasks_bring_material');
+  expect(form.elements.task_event.value).toBe('meeting:42');
+  expect(form.elements.reminder_enabled.checked).toBe(true);
+  expect(form.elements.reminder_materials.value).toBe('2 × Tente');
+  expect(window.location.search).toBe('?meeting_id=42');
+});

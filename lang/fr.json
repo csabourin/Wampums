@@ -5093,5 +5093,8 @@
   "equipment_reminder_repeat_days": "Aux {count} jours",
   "equipment_reminder_repeat_hours": "Aux {count} heures",
   "equipment_reminder_materials_required": "Indiquez le matériel à apporter, ou désactivez le rappel.",
-  "tasks_saved_reminder_failed": "La tâche est enregistrée, mais pas son rappel. Appuyez sur Enregistrer pour réessayer le rappel."
+  "tasks_saved_reminder_failed": "La tâche est enregistrée, mais pas son rappel. Appuyez sur Enregistrer pour réessayer le rappel.",
+  "camp_material_assign": "Confier à quelqu’un",
+  "camp_material_who": "Qui l’apporte",
+  "tasks_bring_material": "Apporter : {item}"
 }

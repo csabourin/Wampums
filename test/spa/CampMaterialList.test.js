@@ -19,7 +19,7 @@
 import axe from 'axe-core';
 
 jest.mock('../../spa/config.js', () => ({
-  CONFIG: {},
+  CONFIG: { TASKS: { TITLE_MAX_LENGTH: 255 }, EQUIPMENT_REMINDERS: { MATERIALS_MAX_LENGTH: 5000 } },
   getStorageKey: (key) => key,
 }));
 // Keys with placeholders keep them, so what fills them shows on screen.
@@ -410,5 +410,41 @@ describe('reserving what is missing', () => {
     await openScreen();
     document.getElementById('camp-material-reserve').click();
     expect((await axe.run(document.body, AXE_OPTIONS)).violations).toEqual([]);
+  });
+});
+
+describe('handing missing material to someone', () => {
+  const withTasks = () => hasAllPermissions.mockImplementation(() => true);
+  const assignLinks = () => [...document.querySelectorAll('a[href^="/tasks?"]')];
+
+  test('each missing or uninventoried article, and each free-text line, links to a filled task form for this camp', async () => {
+    withTasks();
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    const links = assignLinks();
+    // Tente (missing), the kitchen article (not in inventory) and the free-text line; not the reserved Lanternes.
+    expect(links).toHaveLength(3);
+    const tent = new URL(links.find((link) => link.textContent.includes('Tente')).getAttribute('href'), 'https://unit.test');
+    expect(tent.searchParams.get('meeting_id')).toBe(String(CAMP_ID));
+    expect(tent.searchParams.get('material')).toBe('Tente 4 places');
+    expect(document.querySelector('#app img')).toBeNull();
+    expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
+  });
+
+  test('without the right to manage tasks, nothing is offered', async () => {
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    expect(assignLinks()).toHaveLength(0);
+    expect(document.body.textContent).not.toContain('camp_material_who');
+  });
+
+  test('a demo account is not offered a task it could not save', async () => {
+    withTasks(); isDemoUser.mockReturnValue(true);
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    expect(assignLinks()).toHaveLength(0);
+  });
+
+  test('the way back leads to the camp\'s year plan', async () => {
+    api.getCampMaterialList.mockResolvedValue({ success: true, data: list({ camp: { ...list().camp, year_plan_id: 5 } }) });
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    expect(document.querySelector('#app a').getAttribute('href')).toBe('/yearly-planner/5');
   });
 });

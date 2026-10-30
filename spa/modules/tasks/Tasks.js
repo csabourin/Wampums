@@ -51,6 +51,13 @@ export class Tasks {
     this.campMeetingId = id('meeting_id');
     this.campActivityId = id('activity_id');
     this.unitView = this.canManage && Boolean(this.campMeetingId || this.campActivityId);
+    // From a camp's material list: open the task form for that material once the list is shown.
+    const material = (query.get('material') || '').trim();
+    this.pendingAssignment = this.canManage && !this.readOnly && material && this.campMeetingId ? {
+      title: translate('tasks_bring_material').replace('{item}', material).slice(0, CONFIG.TASKS.TITLE_MAX_LENGTH),
+      materials: (query.get('materials') || material).trim().slice(0, CONFIG.EQUIPMENT_REMINDERS.MATERIALS_MAX_LENGTH),
+      event: `meeting:${this.campMeetingId}`,
+    } : null;
     this.tasks = [];
     this.destroyed = false;
   }
@@ -67,6 +74,15 @@ export class Tasks {
         || (this.campMeetingId && Number(task.meeting_id) === this.campMeetingId)
         || (this.campActivityId && Number(task.activity_id) === this.campActivityId)));
       this.render();
+      if (this.pendingAssignment) {
+        const prefill = this.pendingAssignment;
+        this.pendingAssignment = null;
+        // A reload or Back must not open the form a second time.
+        const url = new URL(window.location.href);
+        ['material', 'materials'].forEach((key) => url.searchParams.delete(key));
+        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`);
+        await this.edit(null, prefill);
+      }
     } catch (err) {
       debugError('Failed to load tasks', err);
       this.renderState('error');

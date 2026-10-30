@@ -20,6 +20,7 @@ import { debugError } from '../../utils/DebugUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { hasAllPermissions, isDemoUser } from '../../utils/PermissionUtils.js';
+import { CONFIG } from '../../config.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { pageLoadingMarkup, pageErrorMarkup } from '../../utils/PageStateUtils.js';
@@ -36,6 +37,9 @@ const RANGE_LABEL = { day: 'numeric', month: 'long', year: 'numeric' };
 const ISO_DATE_LENGTH = 10;
 const HTTP_NOT_FOUND = 404;
 const HTTP_CONFLICT = 409;
+
+/** Standings where the camp still needs someone to bring, borrow or buy the article. */
+const NEEDS_SOMEONE = ['missing', 'unavailable', 'not_in_inventory'];
 
 /** What each inventory standing reads as. Literal keys, so the translation test sees them. */
 const STATUS_LABELS = {
@@ -69,6 +73,35 @@ export class CampMaterialList {
     this.reserving = false;
     // The reservation endpoint requires these, as well as meetings.view (the page's guard).
     this.canReserve = hasAllPermissions('inventory.view', 'inventory.reserve') && !isDemoUser();
+    // Creating a task requires these on the tasks routes.
+    this.canAssign = hasAllPermissions('tasks.view', 'tasks.manage') && !isDemoUser();
+  }
+
+  /** @returns {string} Back to this camp's year plan, where its schedule opens */
+  backHref() {
+    const planId = Number(this.list?.camp?.year_plan_id);
+    return Number.isInteger(planId) && planId > 0 ? `/yearly-planner/${planId}` : BACK_HREF;
+  }
+
+  /** @param {Object} item @returns {boolean} Whether the camp still needs someone to bring it */
+  needsSomeone(item) {
+    return !this.list.inventory_compared || NEEDS_SOMEONE.includes(item.inventory?.status);
+  }
+
+  /**
+   * A link to the task form, filled with this material for this camp.
+   * @param {string} name - Article name or free-text material
+   * @param {string} materials - What the reminder will list
+   * @returns {string} HTML
+   */
+  assignLink(name, materials) {
+    const params = new URLSearchParams({
+      meeting_id: String(this.meetingId),
+      material: name.slice(0, CONFIG.TASKS.TITLE_MAX_LENGTH),
+      materials: materials.slice(0, CONFIG.EQUIPMENT_REMINDERS.MATERIALS_MAX_LENGTH),
+    });
+    return `<a class="button button--secondary button--small" href="/tasks?${escapeHTML(params.toString())}">
+      ${escapeHTML(translate('camp_material_assign'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a>`;
   }
 
   destroy() {
@@ -227,6 +260,8 @@ export class CampMaterialList {
           <td data-label="${escapeHTML(translate('camp_material_status'))}">
             <span class="camp-material__status camp-material__status--${escapeHTML(item.inventory.status)}">${escapeHTML(this.statusLabel(item.inventory))}</span>
           </td>` : ''}
+        ${this.canAssign ? `<td data-label="${escapeHTML(translate('camp_material_who'))}">
+          ${this.needsSomeone(item) ? this.assignLink(item.name, `${this.quantityLabel(item)} — ${item.name}`) : '—'}</td>` : ''}
       </tr>`).join('');
     return `
       <section class="camp-material__group" aria-labelledby="${headingId}">
@@ -242,6 +277,7 @@ export class CampMaterialList {
                   <th scope="col">${escapeHTML(translate('camp_material_reserved'))}</th>
                   <th scope="col">${escapeHTML(translate('camp_material_free'))}</th>
                   <th scope="col">${escapeHTML(translate('camp_material_status'))}</th>` : ''}
+                ${this.canAssign ? `<th scope="col">${escapeHTML(translate('camp_material_who'))}</th>` : ''}
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -251,7 +287,7 @@ export class CampMaterialList {
   }
 
   /** @returns {string} HTML: free-text material, activity by activity */
-  freeTextMarkup() {
+  freeTextMarkup({ actions = true } = {}) {
     if (!this.list.free_text.length) {
       return '';
     }
@@ -264,6 +300,7 @@ export class CampMaterialList {
             <li>
               <strong>${escapeHTML(this.dayLabel(entry.day_offset))} · ${escapeHTML(entry.name)}</strong>
               <span class="camp-material__free-material">${escapeHTML(entry.material)}</span>
+              ${actions && this.canAssign ? this.assignLink(entry.material, entry.material) : ''}
             </li>`).join('')}
         </ul>
       </section>`;
@@ -309,7 +346,7 @@ export class CampMaterialList {
       </section>` : '';
     setContent(this.root(), `
       <section class="page camp-material">
-        ${renderBackLink(BACK_HREF)}
+        ${renderBackLink(this.backHref())}
         <h1>${escapeHTML(translate('camp_material_title'))}</h1>
         <p class="camp-material__camp">${escapeHTML(this.campLabel())}</p>
         ${this.hasContent() ? `
@@ -452,7 +489,7 @@ export class CampMaterialList {
           </thead>
           <tbody>${rows}</tbody>
         </table>` : ''}
-      ${this.freeTextMarkup()}
+      ${this.freeTextMarkup({ actions: false })}
       ${this.unlistedMarkup()}
     `, title, { styles: REPORT_PRINT_STYLES });
     printWindow.focus();

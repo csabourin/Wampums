@@ -5093,5 +5093,8 @@
   "equipment_reminder_repeat_days": "Every {count} days",
   "equipment_reminder_repeat_hours": "Every {count} hours",
   "equipment_reminder_materials_required": "List the material to bring, or turn the reminder off.",
-  "tasks_saved_reminder_failed": "The task is saved, but its reminder is not. Press Save to try the reminder again."
+  "tasks_saved_reminder_failed": "The task is saved, but its reminder is not. Press Save to try the reminder again.",
+  "camp_material_assign": "Assign to someone",
+  "camp_material_who": "Who brings it",
+  "tasks_bring_material": "Bring: {item}"
 }
