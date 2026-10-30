@@ -550,3 +550,20 @@ test('after narrowing the list by name, its return and delete buttons still work
   await flush();
   expect(confirmDestructive).toHaveBeenCalled();
 });
+
+test('a name filter left active stays visible and clearable when only one other person remains', async () => {
+  api.getEquipmentLoans.mockImplementation(() => Promise.resolve({ data: { loans: [...JSON.parse(JSON.stringify(OPEN_LOANS)),
+    { ...OPEN_LOANS[1], id: 24, holder_participant_id: 12, holder_name: 'Léon Gagnon' }] } }));
+  await openScreen();
+  const filter = document.getElementById('equipment-loans-filter');
+  filter.value = 'leon'; filter.dispatchEvent(new Event('input', { bubbles: true }));
+  // Léon returns everything: only Ada's and the former member's loans remain, neither named Léon.
+  api.getEquipmentLoans.mockImplementation(() => Promise.resolve({ data: { loans: [JSON.parse(JSON.stringify(OPEN_LOANS))[0]] } }));
+  document.querySelector('[data-return="24"]').click();
+  await flush();
+  const kept = document.getElementById('equipment-loans-filter');
+  expect(kept).not.toBeNull();
+  expect(kept.value).toBe('leon');
+  kept.value = ''; kept.dispatchEvent(new Event('input', { bubbles: true }));
+  expect(document.querySelector('.equipment-loans__group h3').textContent).toBe('Ada Lovelace');
+});

@@ -810,7 +810,7 @@ export class EquipmentLoans {
             <option value="returned" ${this.status === 'returned' ? 'selected' : ''}>${escapeHTML(translate('equipment_loans_status_returned'))}</option>
           </select>
         </div>
-        ${groups.length > 1 ? `<div class="form-group equipment-loans__filter">
+        ${groups.length > 1 || this.loanFilter ? `<div class="form-group equipment-loans__filter">
           <label for="equipment-loans-filter">${escapeHTML(translate('equipment_loans_filter_label'))}</label>
           <input type="search" id="equipment-loans-filter" autocomplete="off" data-archive-safe value="${escapeAttribute(this.loanFilter)}"
             aria-describedby="equipment-loans-filter-count" />
