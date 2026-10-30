@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import axe from 'axe-core';
-jest.mock('../../spa/config.js', () => ({ CONFIG: { EQUIPMENT_REMINDERS: { MATERIALS_MAX_LENGTH: 5000, MAX_LEAD_DAYS: 30, MIN_REPEAT_HOURS: 24, MAX_REPEAT_HOURS: 168, DEFAULT_LEAD_DAYS: 2, DEFAULT_REPEAT_HOURS: 24 }, TASKS: { TITLE_MAX_LENGTH: 255, STATUS_KEYS: { todo: 'tasks_status_todo', in_progress: 'tasks_status_in_progress', done: 'tasks_status_done' } } }, getStorageKey: (key) => key }));
+jest.mock('../../spa/config.js', () => ({ CONFIG: { EQUIPMENT_REMINDERS: { MATERIALS_MAX_LENGTH: 5000, MAX_LEAD_DAYS: 30, MIN_REPEAT_HOURS: 24, MAX_REPEAT_HOURS: 168, DEFAULT_LEAD_DAYS: 2, DEFAULT_REPEAT_HOURS: 24, LEAD_PRESET_DAYS: [0, 1, 2, 3, 7, 14], REPEAT_PRESET_HOURS: [24, 48, 72, 168] }, TASKS: { TITLE_MAX_LENGTH: 255, STATUS_KEYS: { todo: 'tasks_status_todo', in_progress: 'tasks_status_in_progress', done: 'tasks_status_done' } } }, getStorageKey: (key) => key }));
 jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(), isDemoUser: jest.fn(() => false) }));
@@ -30,19 +30,40 @@ beforeEach(() => {
 });
 afterEach(() => closeAllModals());
 
-test('an assignee sees task details as text and can update only their own status', async () => {
+test('an assignee sees task details as text and marks their own task done in one tap', async () => {
   await new Tasks(app).init();
-  expect(document.querySelector('h2').textContent).toBe(task.title);
+  expect(document.querySelector('.task-card h3').textContent).toBe(task.title);
   expect(document.querySelector('#app img, #app b')).toBeNull();
   expect(document.querySelector('#app').textContent).toContain('novembre');
   expect(document.getElementById('tasks-create')).toBeNull();
-  const form = document.querySelector('[data-task-status]');
-  form.elements.status.value = 'done';
-  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-  await settle();
+  api.getMyTasks.mockResolvedValue({ data: [{ ...task, status: 'done' }] });
+  document.querySelector('[data-task-status="3"][data-status="done"]').click();
+  await settle(); await settle();
   expect(api.changeTaskStatus).toHaveBeenCalledWith(3, 'done', 'todo', true);
-  expect(document.activeElement).toBe(document.getElementById('tasks-status-3'));
   expect(app.showMessage).toHaveBeenCalledWith('tasks_saved', 'success');
+  // The finished task moves to the folded Done group, which opens so focus is not hidden.
+  expect(document.activeElement).toBe(document.querySelector('[data-task-status="3"][data-status="todo"]'));
+  expect(document.activeElement.closest('details').open).toBe(true);
+});
+
+test('a task to do can be started, and a finished one reopened', async () => {
+  await new Tasks(app).init();
+  expect([...document.querySelectorAll('[data-task-status="3"]')].map((button) => button.dataset.status)).toEqual(['in_progress', 'done']);
+  document.querySelector('[data-status="in_progress"]').click(); await settle();
+  expect(api.changeTaskStatus).toHaveBeenCalledWith(3, 'in_progress', 'todo', true);
+});
+
+test('unfinished tasks are grouped by due date, overdue first, and finished ones are folded away', async () => {
+  const day = (offset) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
+  api.getMyTasks.mockResolvedValue({ data: [
+    { ...task, id: 1, title: 'Later', due_date: day(30) }, { ...task, id: 2, title: 'Late', due_date: day(-3) },
+    { ...task, id: 4, title: 'Soon', due_date: day(2) }, { ...task, id: 5, title: 'Finished', due_date: day(-1), status: 'done' }] });
+  await new Tasks(app).init();
+  expect([...document.querySelectorAll('.task-group > h2, .task-group > summary')].map((heading) => heading.textContent))
+    .toEqual(['tasks_group_overdue (1)', 'tasks_group_week (1)', 'tasks_group_later (1)', 'tasks_group_done (1)']);
+  expect(document.querySelector('details.task-group--done').open).toBe(false);
+  expect(document.querySelector('[data-task-card="2"]').textContent).toContain('tasks_overdue');
+  expect(document.querySelector('[data-task-card="5"]').textContent).not.toContain('tasks_overdue');
 });
 
 test('task lists and their status controls have no WCAG A/AA violations', async () => {
@@ -56,7 +77,7 @@ test('failed loading offers a retry and never appears as an empty list', async (
   expect(document.querySelector('[role="alert"]').textContent).toBe('tasks_load_failed');
   document.getElementById('tasks-retry').click();
   await settle();
-  expect(document.querySelector('h2').textContent).toBe(task.title);
+  expect(document.querySelector('.task-card h3').textContent).toBe(task.title);
 });
 
 test('an empty task list explains where assignments will appear', async () => {
@@ -80,9 +101,12 @@ test('a late response never redraws the screen after navigation', async () => {
 test('managers can switch to unit tasks and create an assigned task', async () => {
   hasPermission.mockReturnValue(true);
   await new Tasks(app).init();
-  document.getElementById('tasks-view').click();
+  expect(document.getElementById('tasks-view-mine').getAttribute('aria-pressed')).toBe('true');
+  document.getElementById('tasks-view-unit').click();
   await settle();
   expect(api.getUnitTasks).toHaveBeenCalledWith({ forceRefresh: true });
+  expect(document.getElementById('tasks-view-unit').getAttribute('aria-pressed')).toBe('true');
+  expect(document.activeElement.id).toBe('tasks-view-unit');
   document.getElementById('tasks-create').click();
   await settle();
   const form = document.getElementById('tasks-form');
@@ -135,7 +159,7 @@ test('failed saving keeps entered fields available for correction', async () => 
 test('a saved change remains successful when reloading fails', async () => {
   await new Tasks(app).init();
   api.getMyTasks.mockRejectedValue(new Error('offline'));
-  document.querySelector('[data-task-status]').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  document.querySelector('[data-task-status]').click();
   await settle();
   expect(app.showMessage).toHaveBeenCalledWith('tasks_saved', 'success');
   expect(app.showMessage).not.toHaveBeenCalledWith('tasks_save_failed', 'error');
@@ -151,7 +175,7 @@ test.each([
   api.getUnitTasks.mockResolvedValue({ data: [current] });
   api.getTaskOptions.mockResolvedValue({ data: { members: [{ id: USER, full_name: 'Ada' }], activities: [], meetings: [] } });
   await new Tasks(app).init();
-  document.getElementById('tasks-view').click(); await settle();
+  document.getElementById('tasks-view-unit').click(); await settle();
   document.querySelector('[data-task-edit]').click(); await settle();
   const form = document.getElementById('tasks-form');
   expect(form.elements.task_event.value).toBe(selected);
@@ -184,27 +208,70 @@ test('a camp link opens unit assignments for that camp and its linked outing onl
 });
 
 
-test('a manager schedules material reminders with a configurable lead and repeat delay', async () => {
+test('a manager schedules the material reminder in the same form as the task, with named delays', async () => {
   hasPermission.mockReturnValue(true);
+  api.saveTask.mockResolvedValue({ data: { id: 12 } });
   await new Tasks(app).init();
-  document.querySelector('[data-equipment-reminder]').click();
-  const form = document.getElementById('equipment-reminder-form');
+  document.getElementById('tasks-create').click(); await settle();
+  const form = document.getElementById('tasks-form');
+  expect(form.querySelector('.task-reminder-details').hidden).toBe(true);
+  form.elements.task_title.value = 'Bring tents'; form.elements.task_event.value = 'activity:4';
+  form.elements.task_assignee.value = USER; form.elements.task_due.value = '2026-11-13';
+  form.elements.reminder_enabled.checked = true; form.elements.reminder_enabled.dispatchEvent(new Event('change'));
+  expect(form.querySelector('.task-reminder-details').hidden).toBe(false);
+  expect([...form.elements.reminder_lead.options].map((option) => option.textContent)).toContain('equipment_reminder_lead_day_before');
   form.elements.reminder_materials.value = '2 tentes\n1 trousse';
   form.elements.reminder_lead.value = '3';
   form.elements.reminder_repeat.value = '48';
   expect((await axe.run(document.querySelector('[role="dialog"]'), AXE_OPTIONS)).violations).toEqual([]);
   form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-  await settle();
-  expect(api.configureEquipmentReminder).toHaveBeenCalledWith(3, {
+  await settle(); await settle();
+  expect(api.configureEquipmentReminder).toHaveBeenCalledWith(12, {
     enabled: true, expected_revision: 0, materials: '2 tentes\n1 trousse', lead_days: 3, repeat_hours: 48,
   });
 });
 
-test('the assignee confirms material independently of task progress and an inactive assignment is visible', async () => {
+test('a reminder that fails after its task was saved is retried alone, never creating a second task', async () => {
+  hasPermission.mockReturnValue(true);
+  api.saveTask.mockResolvedValue({ data: { id: 12 } });
+  api.configureEquipmentReminder.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ success: true });
+  await new Tasks(app).init();
+  document.getElementById('tasks-create').click(); await settle();
+  const form = document.getElementById('tasks-form');
+  form.elements.task_title.value = 'Bring tents'; form.elements.task_event.value = 'activity:4';
+  form.elements.task_assignee.value = USER; form.elements.task_due.value = '2026-11-13';
+  form.elements.reminder_enabled.checked = true; form.elements.reminder_enabled.dispatchEvent(new Event('change'));
+  expect(form.elements.reminder_materials.value).toBe('Bring tents');
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle(); await settle();
+  expect(document.getElementById('tasks-form-error').textContent).toContain('tasks_saved_reminder_failed');
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle(); await settle();
+  expect(api.saveTask).toHaveBeenCalledTimes(1);
+  expect(api.configureEquipmentReminder).toHaveBeenCalledTimes(2);
+  expect(document.getElementById('tasks-editor')).toBeNull();
+});
+
+test('a task created from a camp page starts on that camp', async () => {
+  hasPermission.mockReturnValue(true);
+  window.history.replaceState(null, '', '/tasks?activity_id=4');
+  await new Tasks(app).init();
+  document.getElementById('tasks-create').click(); await settle();
+  expect(document.getElementById('tasks-form').elements.task_event.value).toBe('activity:4');
+});
+
+test('the team sees an assignee who cannot be reached; the assignee is not told to fix permissions', async () => {
+  const unreachable = { ...task, assignee_active: false, equipment_reminder: { revision: 7, materials: 'Tents', delivery_status: 'sent' } };
+  api.getMyTasks.mockResolvedValue({ data: [unreachable] });
+  await new Tasks(app).init();
+  expect(document.body.textContent).not.toContain('equipment_reminder_unavailable');
+  hasPermission.mockReturnValue(true);
+  await new Tasks(app).init();
+  expect(document.body.textContent).toContain('equipment_reminder_unavailable');
+});
+
+test('the assignee confirms material independently of task progress', async () => {
   api.getMyTasks.mockResolvedValue({ data: [{ ...task, assignee_active: false,
     equipment_reminder: { revision: 7, materials: '<img src=x>', delivery_status: 'sent' } }] });
   await new Tasks(app).init();
-  expect(document.body.textContent).toContain('equipment_reminder_unavailable');
   expect(document.querySelector('.equipment-task-reminder img')).toBeNull();
   document.querySelector('[data-equipment-confirm]').click();
   await settle();
@@ -212,9 +279,11 @@ test('the assignee confirms material independently of task progress and an inact
   expect(api.changeTaskStatus).not.toHaveBeenCalled();
 });
 
-test('an uncertain send stays visible and configuring a stale reminder preserves the form', async () => {
+test('an uncertain send stays visible and configuring a lot duty\'s stale reminder preserves the form', async () => {
   hasPermission.mockReturnValue(true);
-  api.getMyTasks.mockResolvedValue({ data: [{ ...task, equipment_reminder: { revision: 2, materials: 'Tents', delivery_status: 'uncertain', lead_days: 2, repeat_hours: 24 } }] });
+  window.history.replaceState(null, '', '/tasks?meeting_id=7');
+  api.getUnitTasks.mockResolvedValue({ data: [{ ...task, activity_id: null, meeting_id: 7, equipment_lot_id: 3, equipment_lot_role: 'transport',
+    equipment_reminder: { revision: 2, materials: 'Tents', delivery_status: 'uncertain', lead_days: 2, repeat_hours: 24 } }] });
   api.configureEquipmentReminder.mockRejectedValueOnce({ status: 409, message: 'equipment_reminder_stale' });
   await new Tasks(app).init();
   expect(document.body.textContent).toContain('equipment_reminder_uncertain');
@@ -224,4 +293,64 @@ test('an uncertain send stays visible and configuring a stale reminder preserves
   await settle();
   expect(form.isConnected).toBe(true);
   expect(form.elements.reminder_materials.value).toBe('Tents');
+});
+
+test('opening a task from a camp\'s material list fills the form once, with its reminder ready', async () => {
+  hasPermission.mockReturnValue(true);
+  api.getTaskOptions.mockResolvedValue({ data: { members: [{ id: USER, full_name: 'Ada' }], activities: [], meetings: [{ id: 42, name: 'Camp', date: '2026-11-14' }] } });
+  window.history.replaceState(null, '', '/tasks?meeting_id=42&material=Tente&materials=2+%C3%97+Tente');
+  await new Tasks(app).init(); await settle();
+  const form = document.getElementById('tasks-form');
+  expect(form.elements.task_title.value).toBe('tasks_bring_material');
+  expect(form.elements.task_event.value).toBe('meeting:42');
+  expect(form.elements.reminder_enabled.checked).toBe(true);
+  expect(form.elements.reminder_materials.value).toBe('2 × Tente');
+  expect(window.location.search).toBe('?meeting_id=42');
+});
+
+test('a field corrected after a failed reminder is saved to the same task, not dropped', async () => {
+  hasPermission.mockReturnValue(true);
+  api.saveTask.mockResolvedValue({ data: { id: 12 } });
+  api.configureEquipmentReminder.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ success: true });
+  await new Tasks(app).init();
+  document.getElementById('tasks-create').click(); await settle();
+  const form = document.getElementById('tasks-form');
+  form.elements.task_title.value = 'Bring tents'; form.elements.task_event.value = 'activity:4';
+  form.elements.task_assignee.value = USER; form.elements.task_due.value = '2026-11-13';
+  form.elements.reminder_enabled.checked = true; form.elements.reminder_enabled.dispatchEvent(new Event('change'));
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle(); await settle();
+  form.elements.task_due.value = '2026-11-12';
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle(); await settle();
+  expect(api.saveTask).toHaveBeenCalledTimes(2);
+  expect(api.saveTask.mock.calls[1]).toEqual([expect.objectContaining({ due_date: '2026-11-12' }), 12]);
+});
+
+test('editing a task that has a reminder sends the reminder revision its save renewed', async () => {
+  hasPermission.mockReturnValue(true);
+  const withReminder = { ...task, equipment_reminder: { revision: 5, materials: 'Tents', delivery_status: 'pending', lead_days: 2, repeat_hours: 24 } };
+  api.getUnitTasks.mockResolvedValue({ data: [withReminder] });
+  api.saveTask.mockResolvedValue({ data: { id: 3, equipment_reminder_revision: 9 } });
+  api.configureEquipmentReminder.mockResolvedValue({ success: true });
+  await new Tasks(app).init();
+  document.getElementById('tasks-view-unit').click(); await settle();
+  document.querySelector('[data-task-edit]').click(); await settle();
+  const form = document.getElementById('tasks-form');
+  form.elements.task_due.value = '2026-11-12';
+  form.elements.reminder_materials.value = 'Tents and pegs';
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle(); await settle();
+  expect(api.saveTask).toHaveBeenCalledWith(expect.objectContaining({ due_date: '2026-11-12', expected_reminder_revision: 5 }), 3);
+  expect(api.configureEquipmentReminder).toHaveBeenCalledWith(3, expect.objectContaining({ expected_revision: 9, materials: 'Tents and pegs' }));
+});
+
+test('saving a task without touching its reminder leaves the reminder and its confirmation alone', async () => {
+  hasPermission.mockReturnValue(true);
+  const confirmed = { ...task, equipment_reminder: { revision: 5, materials: 'Tents', delivery_status: 'sent', confirmed_at: '2026-10-29T12:00:00Z', lead_days: 2, repeat_hours: 24 } };
+  api.getUnitTasks.mockResolvedValue({ data: [confirmed] });
+  api.saveTask.mockResolvedValue({ data: { id: 3, equipment_reminder_revision: 5 } });
+  await new Tasks(app).init();
+  document.getElementById('tasks-view-unit').click(); await settle();
+  document.querySelector('[data-task-edit]').click(); await settle();
+  document.getElementById('tasks-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle(); await settle();
+  expect(api.saveTask).toHaveBeenCalledWith(expect.not.objectContaining({ expected_reminder_revision: expect.anything() }), 3);
+  expect(api.configureEquipmentReminder).not.toHaveBeenCalled();
 });

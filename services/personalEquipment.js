@@ -4,7 +4,7 @@ const { generateText } = require('./aiText');
 const { listChildrenInYear } = require('./participantAccess');
 const { getActivityParticipation } = require('./activityInvitations');
 const transaction = require('../utils/transaction');
-const { readPublication, publish, sameText } = require('./packingPublications');
+const { readPublication, publish, carryTranslation, isComplete } = require('./packingPublications');
 const POSTGRES_INTEGER_MAX = 2147483647;
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
@@ -28,6 +28,7 @@ function readList(value) {
     if (!item || typeof item.key !== 'string' || !/^[a-z][a-z0-9_-]{0,79}$/.test(item.key) || keys.has(item.key)
       || !text(item.label_fr, RULES.LABEL_MAX) || !text(item.label_en, RULES.LABEL_MAX) || (!item.label_fr.trim() && !item.label_en.trim())
       || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > RULES.MAX_QUANTITY
+      || (item.category !== null && item.category !== undefined && !RULES.CATEGORIES.includes(item.category))
       || (item.catalog_item_id !== null && item.catalog_item_id !== undefined && (!Number.isInteger(item.catalog_item_id) || item.catalog_item_id < 1 || item.catalog_item_id > POSTGRES_INTEGER_MAX))) { return null; }
     keys.add(item.key);
   }
@@ -44,7 +45,7 @@ async function campFor(db, organizationId, meetingId, lock = '') {
 async function listFor(db, organizationId, meetingId) {
   const list = (await db.query('SELECT * FROM personal_equipment_lists WHERE organization_id=$1 AND meeting_id=$2', [organizationId, meetingId])).rows[0];
   if (!list) { return null; }
-  const items = (await db.query(`SELECT item_key AS key,label_fr,label_en,quantity,catalog_item_id FROM personal_equipment_items
+  const items = (await db.query(`SELECT item_key AS key,label_fr,label_en,quantity,catalog_item_id,category FROM personal_equipment_items
     WHERE organization_id=$1 AND meeting_id=$2 AND active ORDER BY position,item_key`, [organizationId, meetingId])).rows;
   return { ...list, items };
 }
@@ -69,16 +70,17 @@ function saveList(pool, organizationId, actorId, meetingId, value, transactionDb
     [organizationId, meetingId, input.season, input.nights, input.stay_type, input.notes_fr, input.notes_en, input.published, actorId]);
     await db.query('UPDATE personal_equipment_items SET active=FALSE WHERE organization_id=$1 AND meeting_id=$2', [organizationId, meetingId]);
     await Promise.all(input.items.map((item, position) => db.query(`INSERT INTO personal_equipment_items
-      (organization_id,meeting_id,item_key,label_fr,label_en,quantity,catalog_item_id,position)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (organization_id,meeting_id,item_key) DO UPDATE SET
-      label_fr=$4,label_en=$5,quantity=$6,catalog_item_id=$7,position=$8,active=TRUE`,
-    [organizationId, meetingId, item.key, item.label_fr.trim(), item.label_en.trim(), item.quantity, item.catalog_item_id || null, position])));
+      (organization_id,meeting_id,item_key,label_fr,label_en,quantity,catalog_item_id,position,category)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (organization_id,meeting_id,item_key) DO UPDATE SET
+      label_fr=$4,label_en=$5,quantity=$6,catalog_item_id=$7,position=$8,category=$9,active=TRUE`,
+    [organizationId, meetingId, item.key, item.label_fr.trim(), item.label_en.trim(), item.quantity, item.catalog_item_id || null, position, item.category || null])));
     const saved = await listFor(db, organizationId, meetingId);
-    if (sameText(previous, saved)) {
-      await db.query(`INSERT INTO personal_equipment_translations (organization_id,meeting_id,version,language,content)
-        SELECT organization_id,meeting_id,$3,language,content FROM personal_equipment_translations
-        WHERE organization_id=$1 AND meeting_id=$2 AND version=$4 ON CONFLICT DO NOTHING`, [organizationId, meetingId, saved.version, previous.version]);
-    }
+    const before = previous ? await translationsFor(db, organizationId, meetingId, previous.version) : {};
+    await Promise.all(Object.entries(before).map(([language, content]) => {
+      const carried = carryTranslation(previous, saved, content);
+      return carried && db.query(`INSERT INTO personal_equipment_translations (organization_id,meeting_id,version,language,content)
+        VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`, [organizationId, meetingId, saved.version, language, JSON.stringify(carried)]);
+    }));
     if (saved.published) { await publish(db, organizationId, meetingId, saved, await translationsFor(db, organizationId, meetingId, saved.version)); }
     return saved;
   };
@@ -135,17 +137,39 @@ function readTranslation(value, items) {
   return { notes: value.notes.trim(), items: value.items.map((item) => ({ key: item.key, label: item.label.trim() })) };
 }
 
-/** Shared text-only translation for camps and standalone activities. */
-async function translateContent(list, language, context) {
-  const completeNotes = Boolean(list[`notes_${language}`]?.trim()) || ![list.notes_fr, list.notes_en].some((notes) => notes?.trim());
-  const direct = ['fr', 'en'].includes(language) && completeNotes && list.items.every((item) => item[`label_${language}`]);
-  if (direct) { return { notes: list[`notes_${language}`], items: list.items.map((item) => ({ key: item.key, label: item[`label_${language}`] })) }; }
-  const input = { targetLocale: language, notes: list.notes_fr || list.notes_en,
-    items: list.items.map((item) => ({ key: item.key, label: item.label_fr || item.label_en })) };
-  const generated = await generateText('packing_translate', input, { organizationId: context.organizationId, userId: context.userId });
-  const translated = readTranslation(generated.data, list.items);
-  if (!translated) { const err = new Error('Invalid list translation'); err.code = 'AI_INVALID_RESPONSE'; throw err; }
-  return translated;
+/**
+ * Shared text-only translation for camps and standalone activities.
+ *
+ * Only what `existing` lacks is translated: items it already holds keep their label,
+ * French and English take the labels and instructions the team wrote, and the AI
+ * receives the rest. A list whose items are all known makes no AI call.
+ *
+ * @param {Object} list - The current source list
+ * @param {string} language - Target language
+ * @param {Object} context - { organizationId, userId } for the AI budget
+ * @param {Object|null} existing - A partial translation carried from an earlier version
+ * @returns {Promise<{notes: string, items: Array<{key: string, label: string}>}>}
+ */
+async function translateContent(list, language, context, existing = null) {
+  const authored = ['fr', 'en'].includes(language);
+  const known = new Map((existing?.items || []).map((item) => [item.key, item.label]));
+  list.items.forEach((item) => {
+    if (!known.has(item.key) && authored && item[`label_${language}`]?.trim()) { known.set(item.key, item[`label_${language}`]); }
+  });
+  let notes = typeof existing?.notes === 'string' ? existing.notes : null;
+  if (notes === null && authored && list[`notes_${language}`]?.trim()) { notes = list[`notes_${language}`]; }
+  if (notes === null && ![list.notes_fr, list.notes_en].some((value) => value?.trim())) { notes = ''; }
+  const missing = list.items.filter((item) => !known.has(item.key));
+  if (missing.length || notes === null) {
+    const input = { targetLocale: language, notes: notes === null ? (list.notes_fr || list.notes_en) : '',
+      items: missing.map((item) => ({ key: item.key, label: item.label_fr || item.label_en })) };
+    const generated = await generateText('packing_translate', input, { organizationId: context.organizationId, userId: context.userId });
+    const translated = readTranslation(generated.data, missing);
+    if (!translated) { const err = new Error('Invalid list translation'); err.code = 'AI_INVALID_RESPONSE'; throw err; }
+    translated.items.forEach((item) => known.set(item.key, item.label));
+    if (notes === null) { notes = translated.notes; }
+  }
+  return { notes, items: list.items.map((item) => ({ key: item.key, label: known.get(item.key) })) };
 }
 
 /** Staff see prepared versions; families receive only the last publication snapshot. */
@@ -163,7 +187,7 @@ function editTranslation(pool, context, meetingId, language, value, transactionD
     if (!list || camp.is_cancelled) { refuse('personal_equipment_not_found', HTTP_NOT_FOUND); }
     if (value.expected_version !== list.version) { refuse('personal_equipment_conflict', HTTP_CONFLICT); }
     const existing = (await db.query('SELECT content FROM personal_equipment_translations WHERE organization_id=$1 AND meeting_id=$2 AND version=$3 AND language=$4', [context.organizationId, meetingId, list.version, language])).rows[0];
-    if (!existing || JSON.stringify(readTranslation(existing.content, list.items)) !== JSON.stringify(readTranslation(value.expected_content, list.items))) { refuse('personal_equipment_conflict', HTTP_CONFLICT); }
+    if (!existing || !isComplete(existing.content) || JSON.stringify(readTranslation(existing.content, list.items)) !== JSON.stringify(readTranslation(value.expected_content, list.items))) { refuse('personal_equipment_conflict', HTTP_CONFLICT); }
     const content = readTranslation(value.content, list.items);
     if (!content) { refuse('personal_equipment_invalid'); }
     await db.query(`INSERT INTO personal_equipment_translations (organization_id,meeting_id,version,language,content) VALUES ($1,$2,$3,$4,$5)
@@ -185,10 +209,11 @@ function translateList(pool, context, meetingId, language) {
     await db.query("SELECT pg_advisory_xact_lock(hashtext('personal-equipment'), hashtext($1))", [`${context.organizationId}:${meetingId}:${language}`]);
     const cached = (await db.query('SELECT content FROM personal_equipment_translations WHERE organization_id=$1 AND meeting_id=$2 AND version=$3 AND language=$4',
       [context.organizationId, meetingId, list.version, language])).rows[0];
-    if (cached) { return cached.content; }
-    const translated = await translateContent(list, language, context);
-    await db.query('INSERT INTO personal_equipment_translations (organization_id,meeting_id,version,language,content) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
-      [context.organizationId, meetingId, list.version, language, JSON.stringify(translated)]);
+    if (isComplete(cached?.content)) { return cached.content; }
+    const translated = await translateContent(list, language, context, cached?.content);
+    await db.query(`INSERT INTO personal_equipment_translations (organization_id,meeting_id,version,language,content) VALUES ($1,$2,$3,$4,$5)
+      ON CONFLICT (organization_id,meeting_id,version,language) DO UPDATE SET content=$5`,
+    [context.organizationId, meetingId, list.version, language, JSON.stringify(translated)]);
     await db.query('UPDATE personal_equipment_lists SET published=FALSE WHERE organization_id=$1 AND meeting_id=$2', [context.organizationId, meetingId]);
     return translated;
   });

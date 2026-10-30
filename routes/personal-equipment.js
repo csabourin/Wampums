@@ -8,6 +8,7 @@ const RULES = require('../config/personal_equipment.json');
 const { success, error, asyncHandler } = require('../middleware/response');
 const equipment = require('../services/personalEquipment');
 const activityEquipment = require('../services/activityPersonalEquipment');
+const { readPublicationInfo } = require('../services/packingPublications');
 const HTTP_CONFLICT = 409;
 /** Restrict to the caller's linked children unless the route explicitly permits a staff read. */
 async function contextFor(req, pool, write = false) {
@@ -53,7 +54,8 @@ module.exports = (pool) => {
       const camp = await equipment.campFor(pool, organizationId, Number(req.params.id));
       const list = await equipment.listFor(pool, organizationId, camp.id);
       const catalog = (await pool.query('SELECT id,name FROM equipment_catalog_items WHERE organization_id=$1 AND archived_at IS NULL ORDER BY name,id', [organizationId])).rows;
-      return success(res, { camp, list, catalog, translations: await equipment.translationsFor(pool, organizationId, camp.id, list?.version || 0) });
+      return success(res, { camp, list, catalog, translations: await equipment.translationsFor(pool, organizationId, camp.id, list?.version || 0),
+        publication: await readPublicationInfo(pool, organizationId, camp.id) });
     }));
   router.get('/:id', requirePermission('personal_equipment.view'), validateIdParam('id'), checkValidation, handle(async (req, res) =>
     success(res, await equipment.readFamilyList(pool, await contextFor(req, pool), Number(req.params.id)))));

@@ -105,3 +105,12 @@
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
+
+/* Converting a free-text line into catalogue articles. */
+.camp-material__free-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm, 0.5rem); margin-top: var(--space-xs, 0.25rem); }
+.camp-material__convert { display: grid; gap: var(--space-sm, 0.5rem); min-width: 0; }
+.camp-material__convert textarea, .camp-material__convert input, .camp-material__convert select { width: 100%; box-sizing: border-box; min-height: var(--touch-target-min, 44px); }
+.camp-material__original { margin: 0; padding: var(--space-sm, 0.5rem); border-inline-start: 4px solid var(--color-border); white-space: pre-wrap; overflow-wrap: anywhere; }
+.camp-material__new-article { display: grid; gap: var(--space-xs, 0.25rem); }
+.camp-material__new-article[open] { padding: var(--space-sm, 0.5rem); border: 1px solid var(--color-border); border-radius: 0.5rem; }
+.camp-material__new-article summary { min-height: var(--touch-target-min, 44px); cursor: pointer; font-weight: 600; }

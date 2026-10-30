@@ -192,8 +192,8 @@ export async function addMeetingActivity(meetingId, data) {
   return response;
 }
 
-export async function updateMeetingActivity(activityId, data) {
-  const response = await API.patch(`v1/yearly-planner/meeting-activities/${activityId}`, data);
+export async function updateMeetingActivity(activityId, data, options = {}) {
+  const response = await API.patch(`v1/yearly-planner/meeting-activities/${activityId}`, data, {}, options);
   await invalidatePlanner({ includeMeetingPrep: true });
   return response;
 }

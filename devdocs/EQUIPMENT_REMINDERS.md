@@ -1,10 +1,17 @@
 # Material reminders (#1248)
 
 A task is the only source of the responsible active account, event and due date.
-Create or open an assignment in **My tasks / Unit tasks**, then choose **Schedule a material reminder**.
-The material text accepts one article per line. Configure how many days before the task's due date
-(the default is two), and the minimum interval between follow-ups (24–168 hours).
-Existing camp-lot duties may also have reminders; no parallel task or assignee is created.
+The reminder is part of the task form (**Assign a task** or **Edit** in Unit tasks): tick
+**Schedule a material reminder**, list the material (one article per line; it starts from the task
+title), and choose the first reminder ("The day before", "3 days before", …; the default is two days)
+and the follow-up delay ("Every day" … "Every week", 24–168 hours) from named presets. A stored value
+outside the presets stays selectable. The task is saved first; if its reminder then fails, the form says
+the task is saved and Save retries only the reminder, never creating a second task.
+Camp-lot duties, which have no task form here, keep a reminder button in Unit tasks; no parallel task
+or assignee is created. Only members who can manage tasks see that an assignee cannot be reached.
+
+Tasks are listed by due date (Overdue, This week, Later), with finished tasks folded under Done.
+Status changes are one-tap buttons (Start, Mark as done, Reopen).
 
 The assignee opens their task from the email and presses **Confirmed — I will bring it**.
 A GET never confirms anything. Confirmation stops reminders independently of task progress.

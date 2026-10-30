@@ -19,7 +19,7 @@
 import axe from 'axe-core';
 
 jest.mock('../../spa/config.js', () => ({
-  CONFIG: {},
+  CONFIG: { TASKS: { TITLE_MAX_LENGTH: 255 }, EQUIPMENT_REMINDERS: { MATERIALS_MAX_LENGTH: 5000 } },
   getStorageKey: (key) => key,
 }));
 // Keys with placeholders keep them, so what fills them shows on screen.
@@ -33,6 +33,8 @@ jest.mock('../../spa/app.js', () => ({ translate: (key) => mockTemplates[key] ||
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
 jest.mock('../../spa/api/api-camp-material.js', () => ({ getCampMaterialList: jest.fn(), reserveCampMaterial: jest.fn() }));
 jest.mock('../../spa/utils/ExportUtils.js', () => ({ exportToCSV: jest.fn() }));
+jest.mock('../../spa/api/api-yearly-planner.js', () => ({ getMeetingSchedule: jest.fn(), updateMeetingActivity: jest.fn() }));
+jest.mock('../../spa/api/api-equipment-catalog.js', () => ({ getMaterialOptions: jest.fn(), createCatalogItem: jest.fn() }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasAllPermissions: jest.fn(), isDemoUser: jest.fn() }));
 jest.mock('../../spa/utils/PrintUtils.js', () => ({
   REPORT_PRINT_STYLES: 'body {}',
@@ -410,5 +412,127 @@ describe('reserving what is missing', () => {
     await openScreen();
     document.getElementById('camp-material-reserve').click();
     expect((await axe.run(document.body, AXE_OPTIONS)).violations).toEqual([]);
+  });
+});
+
+describe('handing missing material to someone', () => {
+  const withTasks = () => hasAllPermissions.mockImplementation(() => true);
+  const assignLinks = () => [...document.querySelectorAll('a[href^="/tasks?"]')];
+
+  test('each missing or uninventoried article, and each free-text line, links to a filled task form for this camp', async () => {
+    withTasks();
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    const links = assignLinks();
+    // Tente (missing), the kitchen article (not in inventory) and the free-text line; not the reserved Lanternes.
+    expect(links).toHaveLength(3);
+    const tent = new URL(links.find((link) => link.textContent.includes('Tente')).getAttribute('href'), 'https://unit.test');
+    expect(tent.searchParams.get('meeting_id')).toBe(String(CAMP_ID));
+    expect(tent.searchParams.get('material')).toBe('Tente 4 places');
+    expect(document.querySelector('#app img')).toBeNull();
+    expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
+  });
+
+  test('without the right to manage tasks, nothing is offered', async () => {
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    expect(assignLinks()).toHaveLength(0);
+    expect(document.body.textContent).not.toContain('camp_material_who');
+  });
+
+  test('a demo account is not offered a task it could not save', async () => {
+    withTasks(); isDemoUser.mockReturnValue(true);
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    expect(assignLinks()).toHaveLength(0);
+  });
+
+  test('the way back leads to the camp\'s year plan', async () => {
+    api.getCampMaterialList.mockResolvedValue({ success: true, data: list({ camp: { ...list().camp, year_plan_id: 5 } }) });
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    expect(document.querySelector('#app a').getAttribute('href')).toBe('/yearly-planner/5');
+  });
+});
+
+describe('converting free-text material into catalogue articles', () => {
+  const planner = require('../../spa/api/api-yearly-planner.js');
+  const catalog = require('../../spa/api/api-equipment-catalog.js');
+  const line = { id: 1, name: 'Montage', material: `Maillets ${HOSTILE}`, material_items: [{ catalog_item_id: 3, equipment_item_id: null, quantity: 4, name: 'Tente 4 places', unit_of_measure: 'each' }] };
+  const canPlan = (...extra) => hasAllPermissions.mockImplementation((...keys) => keys.every((key) => ['meetings.manage', ...extra].includes(key)));
+  const open = async () => {
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    document.querySelector('[data-convert-line="1"]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return document.getElementById('camp-material-convert-form');
+  };
+  beforeEach(() => {
+    planner.getMeetingSchedule.mockResolvedValue({ data: { days: [{ day_offset: 0, activities: [line] }] } });
+    planner.updateMeetingActivity.mockResolvedValue({ success: true });
+    catalog.getMaterialOptions.mockResolvedValue({ data: { articles: [{ id: 3, name: 'Tente 4 places', category: 'camping', unit_of_measure: 'each' }, { id: 8, name: 'Maillet', category: 'camping', unit_of_measure: 'each' }], equipment: [] } });
+  });
+
+  test('only someone who may edit the schedule is offered the conversion', async () => {
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    expect(document.querySelector('[data-convert-line]')).toBeNull();
+  });
+
+  test('picking an article and trimming the text saves both in one change to the line, keeping its other articles', async () => {
+    canPlan();
+    const form = await open();
+    expect(form.querySelector('blockquote').textContent).toBe(line.material);
+    expect(form.querySelector('img')).toBeNull();
+    expect((await axe.run(document.querySelector('[role="dialog"]'), AXE_OPTIONS)).violations).toEqual([]);
+    form.querySelector('[data-item-select]').value = 'a8';
+    form.querySelector('[data-add-item]').click();
+    form.querySelector('[data-quantity-for="a8"]').value = '6';
+    form.querySelector('#camp-material-remaining').value = '';
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(planner.updateMeetingActivity).toHaveBeenCalledWith(1, { material: '', material_items: [
+      { catalog_item_id: 3, quantity: 4 }, { catalog_item_id: 8, quantity: 6 }] }, { queueOffline: false });
+    expect(app.showMessage).toHaveBeenCalledWith('camp_material_converted', 'success');
+    expect(api.getCampMaterialList).toHaveBeenCalledTimes(2);
+  });
+
+  test('saving without any change says so and sends nothing', async () => {
+    canPlan();
+    const form = await open();
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(planner.updateMeetingActivity).not.toHaveBeenCalled();
+    expect(form.querySelector('#camp-material-convert-error').textContent).toBe('camp_material_convert_nothing');
+  });
+
+  test('with the catalogue right, a missing article is created and added to the line at once', async () => {
+    canPlan('equipment_catalog.manage');
+    catalog.createCatalogItem.mockResolvedValue({ data: { id: 21, name: 'Maillets', category: 'camping', unit_of_measure: 'each' } });
+    const form = await open();
+    expect(form.querySelector('#camp-material-new-name').value).toBe(`Maillets ${HOSTILE}`);
+    form.querySelector('#camp-material-new-name').value = 'Maillets';
+    form.querySelector('#camp-material-new-create').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(catalog.createCatalogItem).toHaveBeenCalledWith({ name: 'Maillets', category: 'other', unit_of_measure: 'each', equipment_item_id: null });
+    expect(document.activeElement).toBe(form.querySelector('[data-quantity-for="a21"]'));
+  });
+
+  test('a conversion that is only queued is never reported as done', async () => {
+    canPlan();
+    planner.updateMeetingActivity.mockResolvedValue({ queued: true });
+    const form = await open();
+    form.querySelector('#camp-material-remaining').value = 'Maillets';
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(form.isConnected).toBe(true);
+    expect(app.showMessage).not.toHaveBeenCalledWith('camp_material_converted', 'success');
+    expect(form.querySelector('#camp-material-convert-error').hidden).toBe(false);
+  });
+
+  test('a failed save keeps the dialog and the choices for correction', async () => {
+    canPlan();
+    planner.updateMeetingActivity.mockRejectedValue(new Error('offline'));
+    const form = await open();
+    form.querySelector('#camp-material-remaining').value = 'Maillets';
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(form.isConnected).toBe(true);
+    expect(form.querySelector('#camp-material-convert-error').textContent).toBe('camp_material_convert_failed');
+    expect(form.querySelector('#camp-material-remaining').value).toBe('Maillets');
   });
 });

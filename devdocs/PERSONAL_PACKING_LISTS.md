@@ -6,11 +6,19 @@ An activity already linked to a camp uses that camp's list and packing keys.
 
 ## Staff workflow
 
-Management requires `personal_equipment.manage` and organization scope. The editor
-shows one writing language, compact quantity/item rows, optional catalogue links,
-family instructions, a bulk-entry area and a translation panel. Desktop uses a
-table and sidebar; phones stack the rows and panels. Actions remain in a fixed
-bar, with bottom space and scroll margins protecting content and keyboard focus.
+Management requires `personal_equipment.manage` and organization scope. Items are
+grouped by category (`CATEGORIES` in `config/personal_equipment.json`, migration 067;
+older items without one are placed by their suggestion key, else under Other). Each
+item is one compact row: quantity, label and an options button (`aria-expanded`)
+that reveals its category, an optional catalogue link, Move up / Move down within
+its category (the keyboard alternative to dragging; focus stays on the button used)
+and Remove. A list never saved opens on its season, stay and nights. "Paste a list
+of items" sits next to "Add an item". The sidebar holds family instructions, the
+writing language and translations: the other team language and the unit's optional
+languages are checked by default, the rest wait under "Other languages", and the
+writing language is never offered. Preview shows the family view, categories and
+checkboxes included. Actions remain in a fixed bar, with bottom space and scroll
+margins protecting content and keyboard focus.
 
 Bulk entry previews its line count, adds editable items, recognises leading whole
 quantities, preserves stable keys and focuses the first addition. Saving or
@@ -25,6 +33,9 @@ stores the last common content and translations explicitly published; it contain
 no child identity or packing progress. Saving a new draft leaves that publication
 unchanged. Cancellation/eligibility checks still apply before any family read.
 Migration 065 backfills publications for existing published camp/activity lists.
+Migration 066 records `published_at`. The editor's status line says whether families
+have never received the list, have the current version, or still see the version
+published on a given date while changes wait ("Publish changes").
 
 ## AI is staff-only throughout the application
 
@@ -50,13 +61,23 @@ PUT requiring management rights (no AI permission or provider call needed).
 Generating or correcting a translation marks the source list as a draft. Families
 do not see these changes until staff explicitly publish again.
 
-Text changes invalidate prepared translations; unchanged text can retain them
-across quantity and publication changes. Stable keys and local checks survive
+Text changes invalidate only what they touch (`carryTranslation` in
+`services/packingPublications.js`): an item whose labels did not change keeps its
+translated or hand-corrected label in the next version, and changed or new items and
+changed instructions are left to translate. Such a translation is stored with
+`partial: true`; translating it again sends the AI only the missing text, and
+French or English take what the team wrote. A partial translation is never
+published to families nor offered for hand correction. Stable keys and local checks survive
 translation, publication and ordinary edits. Families choose only authored or
 prepared languages included in their publication. No generation request and no
 old device-side translation cache can provide unpublished text.
 
 ## Device-only packing progress
+
+Families see the instructions first, then each child's progress ("7 of 18 packed",
+with a `<progress>` bar), items grouped by category, and "Hide packed items" (a
+per-device preference; a ticked item leaves the list only once focus moves on).
+A tick announces nothing unless the browser refuses to keep it, in one shared status.
 
 `packingStorage.js` stores item keys in localStorage, scoped by account, unit,
 selected year, camp/activity and child. Standalone activity ids use an `activity-`

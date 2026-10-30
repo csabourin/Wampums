@@ -15,11 +15,12 @@
  */
 import { translate } from '../../app.js';
 import { setContent, loadStylesheet, withFormBusy } from '../../utils/DOMUtils.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { hasAllPermissions, isDemoUser } from '../../utils/PermissionUtils.js';
+import { CONFIG } from '../../config.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { pageLoadingMarkup, pageErrorMarkup } from '../../utils/PageStateUtils.js';
@@ -28,6 +29,12 @@ import { formatEquipmentQuantity, equipmentUnitLabel } from '../../utils/Equipme
 import { exportToCSV } from '../../utils/ExportUtils.js';
 import { openPrintWindow, setPrintContent, REPORT_PRINT_STYLES } from '../../utils/PrintUtils.js';
 import { getCampMaterialList, reserveCampMaterial } from '../../api/api-camp-material.js';
+import { getMeetingSchedule, updateMeetingActivity } from '../../api/api-yearly-planner.js';
+import { getMaterialOptions, createCatalogItem } from '../../api/api-equipment-catalog.js';
+import { MaterialItemsField } from '../equipment-catalog/MaterialItemsField.js';
+import { EQUIPMENT_CATALOG_LIMITS } from '../../config/equipment-catalog.js';
+import { equipmentCategoryOptions } from '../../utils/EquipmentCategoryUtils.js';
+import { equipmentUnitOptions } from '../../utils/EquipmentUnitUtils.js';
 import campMaterialStylesheetUrl from '../../../css/camp-material.css?url';
 
 const BACK_HREF = '/yearly-planner';
@@ -36,6 +43,11 @@ const RANGE_LABEL = { day: 'numeric', month: 'long', year: 'numeric' };
 const ISO_DATE_LENGTH = 10;
 const HTTP_NOT_FOUND = 404;
 const HTTP_CONFLICT = 409;
+/** A schedule line's free-text material, as the planner route accepts it. */
+const LINE_MATERIAL_MAX = 10000;
+
+/** Standings where the camp still needs someone to bring, borrow or buy the article. */
+const NEEDS_SOMEONE = ['missing', 'unavailable', 'not_in_inventory'];
 
 /** What each inventory standing reads as. Literal keys, so the translation test sees them. */
 const STATUS_LABELS = {
@@ -69,6 +81,38 @@ export class CampMaterialList {
     this.reserving = false;
     // The reservation endpoint requires these, as well as meetings.view (the page's guard).
     this.canReserve = hasAllPermissions('inventory.view', 'inventory.reserve') && !isDemoUser();
+    // Creating a task requires these on the tasks routes.
+    this.canAssign = hasAllPermissions('tasks.view', 'tasks.manage') && !isDemoUser();
+    // Editing a schedule line's material requires meetings.manage; naming a new article, the catalogue right.
+    this.canConvert = hasAllPermissions('meetings.manage') && !isDemoUser();
+    this.canCreateArticle = this.canConvert && hasAllPermissions('equipment_catalog.manage');
+  }
+
+  /** @returns {string} Back to this camp's year plan, where its schedule opens */
+  backHref() {
+    const planId = Number(this.list?.camp?.year_plan_id);
+    return Number.isInteger(planId) && planId > 0 ? `/yearly-planner/${planId}` : BACK_HREF;
+  }
+
+  /** @param {Object} item @returns {boolean} Whether the camp still needs someone to bring it */
+  needsSomeone(item) {
+    return !this.list.inventory_compared || NEEDS_SOMEONE.includes(item.inventory?.status);
+  }
+
+  /**
+   * A link to the task form, filled with this material for this camp.
+   * @param {string} name - Article name or free-text material
+   * @param {string} materials - What the reminder will list
+   * @returns {string} HTML
+   */
+  assignLink(name, materials) {
+    const params = new URLSearchParams({
+      meeting_id: String(this.meetingId),
+      material: name.slice(0, CONFIG.TASKS.TITLE_MAX_LENGTH),
+      materials: materials.slice(0, CONFIG.EQUIPMENT_REMINDERS.MATERIALS_MAX_LENGTH),
+    });
+    return `<a class="button button--secondary button--small" href="/tasks?${escapeHTML(params.toString())}">
+      ${escapeHTML(translate('camp_material_assign'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a>`;
   }
 
   destroy() {
@@ -227,6 +271,8 @@ export class CampMaterialList {
           <td data-label="${escapeHTML(translate('camp_material_status'))}">
             <span class="camp-material__status camp-material__status--${escapeHTML(item.inventory.status)}">${escapeHTML(this.statusLabel(item.inventory))}</span>
           </td>` : ''}
+        ${this.canAssign ? `<td data-label="${escapeHTML(translate('camp_material_who'))}">
+          ${this.needsSomeone(item) ? this.assignLink(item.name, `${this.quantityLabel(item)} — ${item.name}`) : '—'}</td>` : ''}
       </tr>`).join('');
     return `
       <section class="camp-material__group" aria-labelledby="${headingId}">
@@ -242,6 +288,7 @@ export class CampMaterialList {
                   <th scope="col">${escapeHTML(translate('camp_material_reserved'))}</th>
                   <th scope="col">${escapeHTML(translate('camp_material_free'))}</th>
                   <th scope="col">${escapeHTML(translate('camp_material_status'))}</th>` : ''}
+                ${this.canAssign ? `<th scope="col">${escapeHTML(translate('camp_material_who'))}</th>` : ''}
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -251,7 +298,7 @@ export class CampMaterialList {
   }
 
   /** @returns {string} HTML: free-text material, activity by activity */
-  freeTextMarkup() {
+  freeTextMarkup({ actions = true } = {}) {
     if (!this.list.free_text.length) {
       return '';
     }
@@ -264,6 +311,10 @@ export class CampMaterialList {
             <li>
               <strong>${escapeHTML(this.dayLabel(entry.day_offset))} · ${escapeHTML(entry.name)}</strong>
               <span class="camp-material__free-material">${escapeHTML(entry.material)}</span>
+              ${actions && (this.canConvert || this.canAssign) ? `<span class="camp-material__free-actions">
+                ${this.canConvert ? `<button type="button" class="button button--secondary button--small" data-convert-line="${Number(entry.activity_id)}">
+                  ${escapeHTML(translate('camp_material_convert'))}<span class="sr-only"> : ${escapeHTML(entry.material)}</span></button>` : ''}
+                ${this.canAssign ? this.assignLink(entry.material, entry.material) : ''}</span>` : ''}
             </li>`).join('')}
         </ul>
       </section>`;
@@ -309,7 +360,7 @@ export class CampMaterialList {
       </section>` : '';
     setContent(this.root(), `
       <section class="page camp-material">
-        ${renderBackLink(BACK_HREF)}
+        ${renderBackLink(this.backHref())}
         <h1>${escapeHTML(translate('camp_material_title'))}</h1>
         <p class="camp-material__camp">${escapeHTML(this.campLabel())}</p>
         ${this.hasContent() ? `
@@ -335,6 +386,170 @@ export class CampMaterialList {
     document.getElementById('camp-material-print')?.addEventListener('click', () => this.print());
     document.getElementById('camp-material-export')?.addEventListener('click', () => this.exportCsv());
     document.getElementById('camp-material-reserve')?.addEventListener('click', () => this.openReserve());
+    this.root().querySelectorAll('[data-convert-line]').forEach((button) => button.addEventListener('click', () => {
+      this.openConvert(this.list.free_text.find((entry) => entry.activity_id === Number(button.dataset.convertLine)), button);
+    }));
+  }
+
+  /**
+   * Turn a line's free-text material into catalogue articles: pick or create the
+   * articles with their quantities, and keep only the text they do not replace.
+   * One PATCH of the line saves both, so the list never counts it twice.
+   *
+   * @param {Object} entry - A free_text entry (activity_id is the schedule line)
+   * @param {HTMLElement} opener - Receives focus if the dialog cannot open
+   */
+  async openConvert(entry, opener) {
+    if (!entry || this.converting) {
+      return;
+    }
+    this.converting = true;
+    opener.disabled = true;
+    let line;
+    let choices;
+    try {
+      const [schedule, options] = await Promise.all([
+        getMeetingSchedule(this.meetingId, { forceRefresh: true }),
+        getMaterialOptions(),
+      ]);
+      line = (schedule?.data?.days || []).flatMap((day) => day.activities || []).find((item) => item.id === entry.activity_id);
+      choices = options?.data || null;
+    } catch (error) {
+      debugError('Failed to prepare the material conversion:', error);
+    } finally {
+      this.converting = false;
+      opener.disabled = false;
+    }
+    if (this.destroyed) {
+      return;
+    }
+    if (!line || !choices) {
+      this.app.showMessage(translate('camp_material_convert_unavailable'), 'error');
+      opener.focus();
+      return;
+    }
+    this.showConvertDialog(entry, line, choices);
+  }
+
+  /** @returns {string} HTML: a small form naming a new catalogue article */
+  newArticleMarkup(entry) {
+    return `<details class="camp-material__new-article">
+      <summary>${escapeHTML(translate('camp_material_new_article'))}</summary>
+      <label for="camp-material-new-name">${escapeHTML(translate('equipment_catalog_name'))}</label>
+      <input id="camp-material-new-name" maxlength="${EQUIPMENT_CATALOG_LIMITS.NAME_MAX_LENGTH}" value="${escapeAttribute(entry.material.split(/[,;\n]/)[0].trim().slice(0, EQUIPMENT_CATALOG_LIMITS.NAME_MAX_LENGTH))}">
+      <label for="camp-material-new-category">${escapeHTML(translate('equipment_catalog_category'))}</label>
+      <select id="camp-material-new-category">${equipmentCategoryOptions()}</select>
+      <label for="camp-material-new-unit">${escapeHTML(translate('equipment_catalog_unit'))}</label>
+      <select id="camp-material-new-unit">${equipmentUnitOptions()}</select>
+      <button type="button" class="button button--secondary button--small" id="camp-material-new-create">${escapeHTML(translate('camp_material_create_article'))}</button>
+    </details>`;
+  }
+
+  showConvertDialog(entry, line, choices) {
+    const field = new MaterialItemsField({
+      choices, items: line.material_items || [], idPrefix: 'camp-material-convert-items', lang: this.lang(),
+    });
+    const original = line.material || '';
+    let saving = false;
+    const modal = openModal({
+      id: 'camp-material-convert-dialog',
+      title: escapeHTML(translate('camp_material_convert_title')),
+      closeOnBackdrop: false,
+      canClose: () => !saving,
+      body: `
+        <form id="camp-material-convert-form" class="camp-material__convert" novalidate>
+          <p><strong>${escapeHTML(this.dayLabel(entry.day_offset))} · ${escapeHTML(entry.name)}</strong></p>
+          <p>${escapeHTML(translate('camp_material_convert_intro'))}</p>
+          <blockquote class="camp-material__original">${escapeHTML(original)}</blockquote>
+          ${field.markup()}
+          ${this.canCreateArticle ? this.newArticleMarkup(entry) : ''}
+          <label for="camp-material-remaining">${escapeHTML(translate('camp_material_remaining'))}</label>
+          <textarea id="camp-material-remaining" rows="3" maxlength="${LINE_MATERIAL_MAX}" aria-describedby="camp-material-remaining-hint">${escapeHTML(original)}</textarea>
+          <p id="camp-material-remaining-hint">${escapeHTML(translate('camp_material_remaining_hint'))}</p>
+          <p id="camp-material-convert-error" class="field-error" role="alert" tabindex="-1" hidden></p>
+        </form>`,
+      footer: `
+        <button type="button" class="button button--secondary" data-modal-close>${escapeHTML(translate('cancel'))}</button>
+        <button type="submit" class="button button--primary" form="camp-material-convert-form">${escapeHTML(translate('save'))}</button>`,
+    });
+    const form = modal.overlay.querySelector('#camp-material-convert-form');
+    field.attach(form);
+    const problem = form.querySelector('#camp-material-convert-error');
+    const say = (message, focusTarget = problem) => {
+      problem.textContent = message;
+      problem.hidden = false;
+      focusTarget.focus();
+    };
+    form.querySelector('#camp-material-new-create')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const name = form.querySelector('#camp-material-new-name');
+      if (!name.value.trim()) {
+        name.setAttribute('aria-invalid', 'true');
+        name.setAttribute('aria-describedby', problem.id);
+        say(translate('equipment_catalog_name_required'), name);
+        return;
+      }
+      name.removeAttribute('aria-invalid');
+      button.disabled = true;
+      try {
+        const created = (await createCatalogItem({
+          name: name.value.trim(), category: form.querySelector('#camp-material-new-category').value,
+          unit_of_measure: form.querySelector('#camp-material-new-unit').value, equipment_item_id: null,
+        }))?.data;
+        if (!created?.id) {
+          throw new Error('No article returned');
+        }
+        // The new article joins the choices and the line; its quantity takes focus.
+        field.choices.articles.push(created);
+        field.syncTyped();
+        field.items.push({ key: `a${Number(created.id)}`, catalog_item_id: Number(created.id), equipment_item_id: null, name: created.name,
+          category: created.category, unit_of_measure: created.unit_of_measure, archived: false, typed: '1' });
+        field.redraw();
+        form.querySelector('.camp-material__new-article').open = false;
+        problem.hidden = true;
+        form.querySelector(`[data-quantity-for="a${Number(created.id)}"]`)?.focus();
+      } catch (error) {
+        debugError('Failed to create a catalogue article:', error);
+        say(apiErrorMessage(error, 'equipment_catalog_save_failed'));
+      } finally {
+        button.disabled = false;
+      }
+    });
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      withFormBusy(form, async () => {
+        const items = field.value();
+        if (items === null) {
+          return;
+        }
+        const remaining = form.querySelector('#camp-material-remaining').value.trim();
+        const before = (line.material_items || []).map((item) => `${item.catalog_item_id || ''}:${item.equipment_item_id || ''}:${Number(item.quantity)}`).sort().join('|');
+        const after = items.map((item) => `${item.catalog_item_id || ''}:${item.equipment_item_id || ''}:${Number(item.quantity)}`).sort().join('|');
+        if (remaining === original.trim() && before === after) {
+          say(translate('camp_material_convert_nothing'));
+          return;
+        }
+        saving = true;
+        try {
+          // A conversion is only reported once the server has it: offline, it is refused rather than queued.
+          const result = await updateMeetingActivity(line.id, { material: remaining, material_items: items }, { queueOffline: false });
+          if (result?.queued) {
+            throw Object.assign(new Error('Conversion not confirmed'), { code: 'online_required' });
+          }
+        } catch (error) {
+          debugError('Failed to convert free-text material:', error);
+          saving = false;
+          say(apiErrorMessage(error, 'camp_material_convert_failed'));
+          return;
+        }
+        saving = false;
+        modal.close();
+        this.app.showMessage(translate('camp_material_converted'), 'success');
+        await this.reload();
+        (this.root().querySelector('#camp-material-items-title') || this.root().querySelector('h1'))?.setAttribute('tabindex', '-1');
+        (this.root().querySelector('#camp-material-items-title') || this.root().querySelector('h1'))?.focus();
+      });
+    });
   }
 
   /** @returns {Object[]} Entries with something still to reserve, when this person may reserve */
@@ -452,7 +667,7 @@ export class CampMaterialList {
           </thead>
           <tbody>${rows}</tbody>
         </table>` : ''}
-      ${this.freeTextMarkup()}
+      ${this.freeTextMarkup({ actions: false })}
       ${this.unlistedMarkup()}
     `, title, { styles: REPORT_PRINT_STYLES });
     printWindow.focus();

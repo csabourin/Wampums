@@ -62,9 +62,12 @@ module.exports = (pool) => {
     return success(res, await saveTask(pool, organizationId, req.user.id, req.body), 'tasks_saved', HTTP_CREATED);
   }));
   router.put('/:id', requirePermission('tasks.manage'), blockDemoRoles,
+    // Sent when the same form then changes the reminder: the revision that form loaded.
+    body('expected_reminder_revision').optional().isInt({ min: 0 }).custom((value) => Number.isInteger(value)),
     validateIdParam('id'), fields(), taskHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      return success(res, await saveTask(pool, organizationId, req.user.id, req.body, Number(req.params.id)));
+      return success(res, await saveTask(pool, organizationId, req.user.id, req.body, Number(req.params.id),
+        { expectedReminderRevision: req.body.expected_reminder_revision }));
     }));
 
   const statusFields = () => [

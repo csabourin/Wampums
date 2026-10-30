@@ -133,7 +133,7 @@ test('saving does not silently discard bulk text awaiting addition', async () =>
 });
 test('adding suggestions retains personalized items and their stable keys', async () => {
   const screen = new PersonalEquipment(app, { meetingId: 7, manage: true }); await screen.init();
-  document.querySelector('[data-field="label_fr"]').value = 'Mon sac personnalisé';
+  document.querySelector('[data-item-key="bag"] [data-field="label_fr"]').value = 'Mon sac personnalisé';
   document.getElementById('personal-apply-template').click(); await settle();
   expect(document.querySelector('[data-item-key="bag"] textarea').value).toBe('Mon sac personnalisé');
   screen.destroy();
@@ -152,7 +152,9 @@ test('an editor with unsaved changes protects navigation and prepares translatio
   screen.dirty = false;
   api.translatePersonalEquipment.mockResolvedValue({ data: { notes: '', items } });
   await screen.translateAll();
-  expect(api.translatePersonalEquipment.mock.calls.map((args) => args[1])).toEqual(['fr','en']);
+  // The list is written in French: English is suggested, French is not offered at all.
+  expect(api.translatePersonalEquipment.mock.calls.map((args) => args[1])).toEqual(['en']);
+  expect(document.querySelector('[data-language="fr"]')).toBeNull();
   expect(document.getElementById('packing-translate-all').textContent).toContain('ai_label');
   screen.destroy();
 });
@@ -186,4 +188,189 @@ test('declining the discard prompt keeps unsaved translation corrections open', 
   confirm.mockResolvedValueOnce(true);
   overlay.querySelector('[data-modal-close]').click(); await settle();
   expect(overlay.isConnected).toBe(false); screen.destroy();
+});
+
+describe('translations and publication status in the editor', () => {
+  const prepared = () => {
+    const data = fixture();
+    data.translations = { es: { notes: '', items: [{ key: 'bag', label: 'Mochila' }, { key: 'socks', label: 'Calcetines' }] },
+      de: { notes: '', items: [{ key: 'bag', label: 'Rucksack' }], partial: true } };
+    data.publication = { published_at: '2026-10-20T14:00:00Z', version: 1 };
+    return data;
+  };
+  test('fixing an item label keeps the prepared translations on screen', async () => {
+    api.getPersonalEquipment.mockResolvedValue({ data: prepared() });
+    await new PersonalEquipment(app, { meetingId: 7, manage: true }).init();
+    const label = document.querySelector('[data-item-key="socks"] textarea');
+    label.value = 'Bas de laine'; label.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(document.getElementById('packing-translation-preview').textContent).toContain('Calcetines');
+    expect(document.getElementById('packing-translation-status').textContent).toBe('packing_translations_stale');
+  });
+  test('a partly translated language says what is left and cannot be edited by hand', async () => {
+    api.getPersonalEquipment.mockResolvedValue({ data: prepared() });
+    await new PersonalEquipment(app, { meetingId: 7, manage: true }).init();
+    expect(document.getElementById('packing-translation-preview').textContent).toContain('packing_translation_partial');
+    expect(document.querySelector('[data-edit-translation="de"]')).toBeNull();
+    expect(document.querySelector('[data-edit-translation="es"]')).not.toBeNull();
+  });
+  test('translating again requests only languages that are missing something', async () => {
+    jest.spyOn(require('../../spa/utils/AIUtils.js'), 'canUseAI').mockReturnValue(true);
+    api.getPersonalEquipment.mockResolvedValue({ data: prepared() });
+    api.translatePersonalEquipment.mockResolvedValue({ data: { notes: '', items: [{ key: 'bag', label: 'Rucksack' }, { key: 'socks', label: 'Socken' }] } });
+    await new PersonalEquipment(app, { meetingId: 7, manage: true }).init();
+    document.querySelectorAll('[data-language]').forEach((box) => { box.checked = ['es', 'de'].includes(box.dataset.language); });
+    document.getElementById('packing-translate-all').click(); await settle(); await settle();
+    expect(api.translatePersonalEquipment.mock.calls).toEqual([[7, 'de']]);
+  });
+  test('staff see whether families have the current version', async () => {
+    const published = prepared();
+    api.getPersonalEquipment.mockResolvedValue({ data: published });
+    await new PersonalEquipment(app, { meetingId: 7, manage: true }).init();
+    expect(document.getElementById('packing-publication-status').textContent).toBe('packing_status_published');
+    const pending = prepared(); pending.list.published = false;
+    api.getPersonalEquipment.mockResolvedValue({ data: pending });
+    await new PersonalEquipment(app, { meetingId: 7, manage: true }).init();
+    expect(document.getElementById('packing-publication-status').textContent).toBe('packing_status_changes_pending');
+    expect(document.querySelector('button[value="publish"]').textContent).toBe('packing_publish_changes');
+    const never = fixture(); never.list.published = false;
+    api.getPersonalEquipment.mockResolvedValue({ data: never });
+    await new PersonalEquipment(app, { meetingId: 7, manage: true }).init();
+    expect(document.getElementById('packing-publication-status').textContent).toBe('packing_status_never_published');
+  });
+  test('families are offered only complete translations', async () => {
+    api.getPersonalEquipment.mockResolvedValue({ data: prepared() });
+    await new PersonalEquipment(app, { meetingId: 7 }).init();
+    const offered = [...document.querySelectorAll('#personal-language option')].map((option) => option.value);
+    expect(offered).toContain('es'); expect(offered).not.toContain('de');
+  });
+});
+
+describe('editing items in compact rows', () => {
+  const editor = async () => { const screen = new PersonalEquipment(app, { meetingId: 7, manage: true }); await screen.init(); return screen; };
+  test('items are grouped under translated category headings', async () => {
+    const screen = await editor();
+    const headings = [...document.querySelectorAll('.packing-group h3')].map((heading) => heading.textContent);
+    expect(headings).toEqual(['packing_category_clothing', 'packing_category_other']);
+    screen.destroy();
+  });
+  test('the options button reveals category, catalogue, order and removal, and reports its state', async () => {
+    const screen = await editor();
+    const toggle = document.querySelector('[data-item-key="bag"] [data-toggle-panel]');
+    const panel = document.getElementById(toggle.getAttribute('aria-controls'));
+    expect(toggle.getAttribute('aria-expanded')).toBe('false'); expect(panel.hidden).toBe(true);
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true'); expect(panel.hidden).toBe(false);
+    expect(panel.querySelector('[data-field="category"]')).not.toBeNull();
+    expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
+    screen.destroy();
+  });
+  test('moving an item down keeps focus on the button used and saves the new order', async () => {
+    const data = fixture(); data.list.items = [
+      { key: 'a', label_fr: 'Premier', label_en: '', quantity: 1, category: 'gear' },
+      { key: 'b', label_fr: 'Deuxième', label_en: '', quantity: 1, category: 'gear' },
+      { key: 'c', label_fr: 'Troisième', label_en: '', quantity: 1, category: 'gear' }];
+    api.getPersonalEquipment.mockResolvedValue({ data });
+    const screen = await editor();
+    document.querySelector('[data-item-key="a"] [data-toggle-panel]').click();
+    document.querySelector('[data-item-key="a"] [data-move="1"]').click();
+    expect([...document.querySelectorAll('[data-item-key]')].map((row) => row.dataset.itemKey)).toEqual(['b', 'a', 'c']);
+    expect(document.activeElement).toBe(document.querySelector('[data-item-key="a"] [data-move="1"]'));
+    document.activeElement.click();
+    expect(document.querySelector('[data-item-key="a"] [data-move="1"]').disabled).toBe(true);
+    expect(document.activeElement).toBe(document.querySelector('[data-item-key="a"] [data-move="-1"]'));
+    document.getElementById('personal-equipment-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle();
+    expect(api.savePersonalEquipment.mock.calls[0][1].items.map((item) => item.key)).toEqual(['b', 'c', 'a']);
+    screen.destroy();
+  });
+  test('changing an item\'s category moves it to that group and is saved', async () => {
+    const screen = await editor();
+    const select = document.querySelector('[data-item-key="bag"] [data-field="category"]');
+    select.value = 'sleep'; select.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.querySelector('[data-item-key="bag"]').closest('.packing-group').querySelector('h3').textContent).toBe('packing_category_sleep');
+    expect(document.activeElement).toBe(document.querySelector('[data-item-key="bag"] [data-field="category"]'));
+    document.getElementById('personal-equipment-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle();
+    expect(api.savePersonalEquipment.mock.calls[0][1].items.find((item) => item.key === 'bag').category).toBe('sleep');
+    screen.destroy();
+  });
+  test('pasting a list is one visible button away and its panel reports whether it is open', async () => {
+    const screen = await editor();
+    const toggle = document.getElementById('packing-bulk-toggle');
+    expect(document.getElementById('packing-bulk-panel').hidden).toBe(true);
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement.id).toBe('personal-bulk');
+    screen.destroy();
+  });
+  test('the preview shows the family view with categories and checkboxes', async () => {
+    const screen = await editor();
+    document.getElementById('packing-preview').click();
+    const dialog = screen.modal.overlay;
+    expect(dialog.querySelectorAll('input[type="checkbox"]')).toHaveLength(2);
+    expect(dialog.textContent).toContain('packing_category_clothing');
+    expect(dialog.querySelector('img')).toBeNull();
+    screen.destroy();
+  });
+  test('a new list opens on its season, stay and nights', async () => {
+    const data = fixture(); data.list = null;
+    api.getPersonalEquipment.mockResolvedValue({ data });
+    const screen = await editor();
+    expect(document.querySelector('.packing-context').open).toBe(true);
+    screen.destroy();
+  });
+});
+
+describe('a family packing for several children', () => {
+  test('each child shows how much is packed, updated as items are ticked', async () => {
+    await new PersonalEquipment(app, { meetingId: 7 }).init();
+    const section = document.querySelector('[data-child-section="2"]');
+    expect(section.querySelector('progress').value).toBe(0);
+    const box = section.querySelector('[data-key="bag"]'); box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(section.querySelector('progress').value).toBe(1);
+    expect(document.querySelector('[data-child-section="3"] progress').value).toBe(0);
+    expect(section.querySelector('[data-all-packed]').hidden).toBe(true);
+    const socks = section.querySelector('[data-key="socks"]'); socks.checked = true; socks.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(section.querySelector('[data-all-packed]').hidden).toBe(false);
+  });
+  test('ticking an item announces nothing unless the device refuses to keep it', async () => {
+    await new PersonalEquipment(app, { meetingId: 7 }).init();
+    expect(document.querySelectorAll('#app [role="status"]')).toHaveLength(1);
+    const box = document.querySelector('[data-child="2"][data-key="bag"]'); box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.getElementById('personal-equipment-storage-status').textContent).toBe('');
+  });
+  test('hiding packed items is remembered on this device and keeps the ticked item while it has focus', async () => {
+    await new PersonalEquipment(app, { meetingId: 7 }).init();
+    const hide = document.getElementById('personal-hide-packed'); hide.checked = true; hide.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.querySelector('.personal-equipment').classList.contains('personal-equipment--hide-packed')).toBe(true);
+    const box = document.querySelector('[data-child="2"][data-key="bag"]'); box.focus(); box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(box.closest('li').classList.contains('is-packed')).toBe(true);
+    expect(document.activeElement).toBe(box);
+    await new PersonalEquipment(app, { meetingId: 7 }).init();
+    expect(document.getElementById('personal-hide-packed').checked).toBe(true);
+  });
+  test('the family view with progress and categories meets WCAG A and AA', async () => {
+    await new PersonalEquipment(app, { meetingId: 7 }).init();
+    expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
+  });
+});
+
+test('a hand-corrected English translation is what families read, even where English was authored', async () => {
+  const data = fixture();
+  data.translations = { en: { notes: '', items: [{ key: 'bag', label: 'Sleeping bag (labelled)' }, { key: 'socks', label: 'Socks' }] } };
+  api.getPersonalEquipment.mockResolvedValue({ data });
+  await new PersonalEquipment({ ...app, lang: 'en' }, { meetingId: 7 }).init();
+  const language = document.getElementById('personal-language'); language.value = 'en'; language.dispatchEvent(new Event('change', { bubbles: true }));
+  expect(document.body.textContent).toContain('Sleeping bag (labelled)');
+});
+
+test('text waiting in the bulk area survives moving an item or changing its category', async () => {
+  const screen = new PersonalEquipment(app, { meetingId: 7, manage: true }); await screen.init();
+  document.getElementById('packing-bulk-toggle').click();
+  const bulk = document.getElementById('personal-bulk'); bulk.value = 'Tuque\nGourde'; bulk.dispatchEvent(new Event('input', { bubbles: true }));
+  const select = document.querySelector('[data-item-key="bag"] [data-field="category"]');
+  select.value = 'sleep'; select.dispatchEvent(new Event('change', { bubbles: true }));
+  expect(document.getElementById('personal-bulk').value).toBe('Tuque\nGourde');
+  expect(document.getElementById('packing-bulk-panel').hidden).toBe(false);
+  await screen.save(false);
+  expect(api.savePersonalEquipment).not.toHaveBeenCalled();
+  screen.destroy();
 });

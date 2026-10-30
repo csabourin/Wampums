@@ -11,3 +11,10 @@ test('translated text must preserve exactly the offered stable item keys', () =>
   expect(readTranslation({ notes: '', items: [{ key: 'new', label: 'Sleeping bag' }] }, items)).toBeNull();
   expect(readTranslation({ notes: '', items: [] }, items)).toBeNull();
 });
+test('an item may name one of the configured categories, or none', () => {
+  const withCategory = (category) => ({ ...input(), items: [{ ...input().items[0], category }] });
+  expect(readList(withCategory('sleep'))).not.toBeNull();
+  expect(readList(withCategory(null))).not.toBeNull();
+  expect(readList(withCategory('weapons'))).toBeNull();
+  expect(readList(withCategory(['sleep']))).toBeNull();
+});

@@ -12981,6 +12981,25 @@ body:has(> .settings-icon) .demo-banner__inner {
 .tasks-page select, .task-editor input, .task-editor select { min-height: var(--touch-target-min); }
 .tasks-page summary { min-height: var(--touch-target-min); display: list-item; align-content: center; cursor: pointer; }
 .tasks-page details li { overflow-wrap: anywhere; }
+.tasks-page .task-group { margin-block: var(--space-lg) 0; }
+.tasks-page .task-group > h2, .tasks-page .task-group > summary { text-align: start; font-size: var(--font-size-lg, 1.125rem); font-weight: 700; margin-block: 0 var(--space-sm); }
+.tasks-page .task-card h3 { margin: 0 0 var(--space-xs); font-size: var(--font-size-lg, 1.125rem); text-align: start; }
+.tasks-page .task-card p { margin-block: var(--space-xs); }
+.tasks-page .task-card--done h3 { text-decoration: line-through; }
+.task-card__badges { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.task-badge { display: inline-block; padding: 0.1rem 0.5rem; border: 1px solid var(--color-border); border-radius: 999px; font-size: 0.875rem; }
+.task-badge--overdue { border-color: var(--color-error, #b42318); color: var(--color-error, #b42318); font-weight: 700; }
+.task-status, .task-view-switch { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-block: var(--space-sm); }
+.task-view-switch .button[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-text-on-primary, #fff); }
+.equipment-task-reminder { margin-block: var(--space-sm); padding-top: var(--space-sm); border-top: 1px solid var(--color-border); }
+.equipment-task-reminder h4 { margin: 0; font-size: 1rem; }
+.task-warning { font-weight: 700; }
+.task-reminder-fields { display: grid; gap: var(--space-sm); min-width: 0; border: 1px solid var(--color-border); border-radius: 0.5rem; padding: var(--space-sm); }
+.task-reminder-details { display: grid; gap: var(--space-sm); }
+.task-reminder-details[hidden] { display: none; }
+.task-editor textarea { width: 100%; box-sizing: border-box; }
+.equipment-reminder-toggle { display: flex; align-items: center; gap: var(--space-sm); min-height: var(--touch-target-min); }
+.equipment-reminder-toggle input { width: 24px; height: 24px; flex: 0 0 auto; }
 
 /* Equipment catalogue (spa/modules/equipment-catalog/). */
 .equipment-catalog__list {
