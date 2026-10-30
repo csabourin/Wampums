@@ -128,6 +128,11 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
     await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 2, items }));
     expect((await readFamilyList(pool, context(), meetingId)).translations.es).toBeUndefined();
   });
+  test('categories are kept with each item and reach families', async () => {
+    const items = input().items.map((item) => ({ ...item, category: item.key === 'bag' ? 'sleep' : 'clothing' }));
+    await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1, items }));
+    expect((await readFamilyList(pool, context(), meetingId)).list.items.map((item) => item.category)).toEqual(['sleep', 'clothing']);
+  });
   test('staff see when families last received the list', async () => {
     const before = (await request(app).get(`/api/v1/personal-equipment/${meetingId}/manage`).set(auth(manager))).body.data;
     expect(before.publication).toMatchObject({ version: 1 }); expect(Date.parse(before.publication.published_at)).not.toBeNaN();

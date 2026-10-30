@@ -6,11 +6,19 @@ An activity already linked to a camp uses that camp's list and packing keys.
 
 ## Staff workflow
 
-Management requires `personal_equipment.manage` and organization scope. The editor
-shows one writing language, compact quantity/item rows, optional catalogue links,
-family instructions, a bulk-entry area and a translation panel. Desktop uses a
-table and sidebar; phones stack the rows and panels. Actions remain in a fixed
-bar, with bottom space and scroll margins protecting content and keyboard focus.
+Management requires `personal_equipment.manage` and organization scope. Items are
+grouped by category (`CATEGORIES` in `config/personal_equipment.json`, migration 067;
+older items without one are placed by their suggestion key, else under Other). Each
+item is one compact row: quantity, label and an options button (`aria-expanded`)
+that reveals its category, an optional catalogue link, Move up / Move down within
+its category (the keyboard alternative to dragging; focus stays on the button used)
+and Remove. A list never saved opens on its season, stay and nights. "Paste a list
+of items" sits next to "Add an item". The sidebar holds family instructions, the
+writing language and translations: the other team language and the unit's optional
+languages are checked by default, the rest wait under "Other languages", and the
+writing language is never offered. Preview shows the family view, categories and
+checkboxes included. Actions remain in a fixed bar, with bottom space and scroll
+margins protecting content and keyboard focus.
 
 Bulk entry previews its line count, adds editable items, recognises leading whole
 quantities, preserves stable keys and focuses the first addition. Saving or
@@ -65,6 +73,11 @@ prepared languages included in their publication. No generation request and no
 old device-side translation cache can provide unpublished text.
 
 ## Device-only packing progress
+
+Families see the instructions first, then each child's progress ("7 of 18 packed",
+with a `<progress>` bar), items grouped by category, and "Hide packed items" (a
+per-device preference; a ticked item leaves the list only once focus moves on).
+A tick announces nothing unless the browser refuses to keep it, in one shared status.
 
 `packingStorage.js` stores item keys in localStorage, scoped by account, unit,
 selected year, camp/activity and child. Standalone activity ids use an `activity-`

@@ -15,118 +15,142 @@
     "cabin",
     "tent"
   ],
+  "CATEGORIES": [
+    "clothing",
+    "sleep",
+    "hygiene",
+    "meals",
+    "gear",
+    "other"
+  ],
   "items": [
     {
       "key": "scarf",
       "label_fr": "Foulard scout porté à l’arrivée",
       "label_en": "Scout scarf worn on arrival",
       "per_day": false,
-      "overnight": false
+      "overnight": false,
+      "category": "clothing"
     },
     {
       "key": "waterproof_bag",
       "label_fr": "Sac de randonnée et sacs imperméables",
       "label_en": "Backpack and waterproof bags",
       "per_day": false,
-      "overnight": false
+      "overnight": false,
+      "category": "gear"
     },
     {
       "key": "sleeping_bag",
       "label_fr": "Sac de couchage adapté aux conditions prévues, à confirmer avec l’équipe",
       "label_en": "Sleeping bag suited to forecast conditions, confirmed with the team",
       "per_day": false,
-      "overnight": true
+      "overnight": true,
+      "category": "sleep"
     },
     {
       "key": "sleeping_mat",
       "label_fr": "Matelas de sol isolant",
       "label_en": "Insulated sleeping mat",
       "per_day": false,
-      "overnight": true
+      "overnight": true,
+      "category": "sleep"
     },
     {
       "key": "underwear",
       "label_fr": "Sous-vêtements de rechange",
       "label_en": "Spare underwear",
       "per_day": true,
-      "overnight": true
+      "overnight": true,
+      "category": "clothing"
     },
     {
       "key": "socks",
       "label_fr": "Paires de bas de rechange",
       "label_en": "Pairs of spare socks",
       "per_day": true,
-      "overnight": false
+      "overnight": false,
+      "category": "clothing"
     },
     {
       "key": "base_layers",
       "label_fr": "Ensemble de couches de base",
       "label_en": "Base-layer outfit",
       "per_day": false,
-      "overnight": false
+      "overnight": false,
+      "category": "clothing"
     },
     {
       "key": "warm_layer",
       "label_fr": "Chandail chaud ou polar",
       "label_en": "Warm sweater or fleece",
       "per_day": false,
-      "overnight": false
+      "overnight": false,
+      "category": "clothing"
     },
     {
       "key": "trousers",
       "label_fr": "Pantalon adapté aux activités",
       "label_en": "Trousers suited to the activities",
       "per_day": false,
-      "overnight": false
+      "overnight": false,
+      "category": "clothing"
     },
     {
       "key": "sleepwear",
       "label_fr": "Vêtements secs réservés à la nuit",
       "label_en": "Dry clothes kept for sleeping",
       "per_day": false,
-      "overnight": true
+      "overnight": true,
+      "category": "sleep"
     },
     {
       "key": "rainwear",
       "label_fr": "Ensemble de pluie",
       "label_en": "Rain jacket and trousers",
       "per_day": false,
-      "overnight": false
+      "overnight": false,
+      "category": "clothing"
     },
     {
       "key": "footwear",
       "label_fr": "Chaussures ou bottes adaptées au terrain",
       "label_en": "Footwear suited to the terrain",
       "per_day": false,
-      "overnight": false
+      "overnight": false,
+      "category": "clothing"
     },
     {
       "key": "water",
       "label_fr": "Gourde remplie",
       "label_en": "Filled water bottle",
       "per_day": false,
-      "overnight": false
+      "overnight": false,
+      "category": "meals"
     },
     {
       "key": "mess_kit",
       "label_fr": "Gamelle et ustensiles",
       "label_en": "Bowl, plate, mug and utensils",
       "per_day": false,
-      "overnight": false
+      "overnight": false,
+      "category": "meals"
     },
     {
       "key": "toiletries",
       "label_fr": "Trousse de toilette et articles personnels nécessaires",
       "label_en": "Wash kit and necessary personal supplies",
       "per_day": false,
-      "overnight": true
+      "overnight": true,
+      "category": "hygiene"
     },
     {
       "key": "headlamp",
       "label_fr": "Lampe frontale et piles de rechange",
       "label_en": "Headlamp and spare batteries",
       "per_day": false,
-      "overnight": false
+      "overnight": false,
+      "category": "gear"
     }
   ],
   "seasonal": {
@@ -134,46 +158,54 @@
       {
         "key": "sun_hat",
         "label_fr": "Chapeau de soleil",
-        "label_en": "Sun hat"
+        "label_en": "Sun hat",
+        "category": "clothing"
       },
       {
         "key": "sun_protection",
         "label_fr": "Protection solaire et contre les insectes selon les consignes de l’équipe",
-        "label_en": "Sun and insect protection according to the team’s instructions"
+        "label_en": "Sun and insect protection according to the team’s instructions",
+        "category": "hygiene"
       }
     ],
     "winter": [
       {
         "key": "winter_coat",
         "label_fr": "Manteau et pantalon d’hiver",
-        "label_en": "Winter coat and snow pants"
+        "label_en": "Winter coat and snow pants",
+        "category": "clothing"
       },
       {
         "key": "winter_boots",
         "label_fr": "Bottes d’hiver isolées",
-        "label_en": "Insulated winter boots"
+        "label_en": "Insulated winter boots",
+        "category": "clothing"
       },
       {
         "key": "winter_hat",
         "label_fr": "Tuques de rechange",
-        "label_en": "Spare warm hats"
+        "label_en": "Spare warm hats",
+        "category": "clothing"
       },
       {
         "key": "mittens",
         "label_fr": "Paires de mitaines de rechange",
-        "label_en": "Pairs of spare mittens"
+        "label_en": "Pairs of spare mittens",
+        "category": "clothing"
       }
     ],
     "shoulder": [
       {
         "key": "warm_hat",
         "label_fr": "Tuque et gants de rechange",
-        "label_en": "Warm hat and spare gloves"
+        "label_en": "Warm hat and spare gloves",
+        "category": "clothing"
       },
       {
         "key": "warm_shell",
         "label_fr": "Manteau adapté au froid et à la pluie",
-        "label_en": "Outerwear suited to cold and rain"
+        "label_en": "Outerwear suited to cold and rain",
+        "category": "clothing"
       }
     ]
   },

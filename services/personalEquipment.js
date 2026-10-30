@@ -28,6 +28,7 @@ function readList(value) {
     if (!item || typeof item.key !== 'string' || !/^[a-z][a-z0-9_-]{0,79}$/.test(item.key) || keys.has(item.key)
       || !text(item.label_fr, RULES.LABEL_MAX) || !text(item.label_en, RULES.LABEL_MAX) || (!item.label_fr.trim() && !item.label_en.trim())
       || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > RULES.MAX_QUANTITY
+      || (item.category !== null && item.category !== undefined && !RULES.CATEGORIES.includes(item.category))
       || (item.catalog_item_id !== null && item.catalog_item_id !== undefined && (!Number.isInteger(item.catalog_item_id) || item.catalog_item_id < 1 || item.catalog_item_id > POSTGRES_INTEGER_MAX))) { return null; }
     keys.add(item.key);
   }
@@ -44,7 +45,7 @@ async function campFor(db, organizationId, meetingId, lock = '') {
 async function listFor(db, organizationId, meetingId) {
   const list = (await db.query('SELECT * FROM personal_equipment_lists WHERE organization_id=$1 AND meeting_id=$2', [organizationId, meetingId])).rows[0];
   if (!list) { return null; }
-  const items = (await db.query(`SELECT item_key AS key,label_fr,label_en,quantity,catalog_item_id FROM personal_equipment_items
+  const items = (await db.query(`SELECT item_key AS key,label_fr,label_en,quantity,catalog_item_id,category FROM personal_equipment_items
     WHERE organization_id=$1 AND meeting_id=$2 AND active ORDER BY position,item_key`, [organizationId, meetingId])).rows;
   return { ...list, items };
 }
@@ -69,10 +70,10 @@ function saveList(pool, organizationId, actorId, meetingId, value, transactionDb
     [organizationId, meetingId, input.season, input.nights, input.stay_type, input.notes_fr, input.notes_en, input.published, actorId]);
     await db.query('UPDATE personal_equipment_items SET active=FALSE WHERE organization_id=$1 AND meeting_id=$2', [organizationId, meetingId]);
     await Promise.all(input.items.map((item, position) => db.query(`INSERT INTO personal_equipment_items
-      (organization_id,meeting_id,item_key,label_fr,label_en,quantity,catalog_item_id,position)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (organization_id,meeting_id,item_key) DO UPDATE SET
-      label_fr=$4,label_en=$5,quantity=$6,catalog_item_id=$7,position=$8,active=TRUE`,
-    [organizationId, meetingId, item.key, item.label_fr.trim(), item.label_en.trim(), item.quantity, item.catalog_item_id || null, position])));
+      (organization_id,meeting_id,item_key,label_fr,label_en,quantity,catalog_item_id,position,category)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (organization_id,meeting_id,item_key) DO UPDATE SET
+      label_fr=$4,label_en=$5,quantity=$6,catalog_item_id=$7,position=$8,category=$9,active=TRUE`,
+    [organizationId, meetingId, item.key, item.label_fr.trim(), item.label_en.trim(), item.quantity, item.catalog_item_id || null, position, item.category || null])));
     const saved = await listFor(db, organizationId, meetingId);
     const before = previous ? await translationsFor(db, organizationId, meetingId, previous.version) : {};
     await Promise.all(Object.entries(before).map(([language, content]) => {

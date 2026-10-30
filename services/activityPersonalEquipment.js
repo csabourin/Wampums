@@ -62,7 +62,8 @@ function save(pool, context, id, value) {
     if (ids.some((key) => !valid.some((item) => item.id === key))) { fail('personal_equipment_invalid', HTTP_BAD_REQUEST); }
     const content = Object.fromEntries(['season','nights','stay_type','notes_fr','notes_en','published','reviewed'].map((key) => [key, value[key]]));
     content.notes_fr = content.notes_fr.trim(); content.notes_en = content.notes_en.trim();
-    content.items = value.items.map((item) => ({ key: item.key, label_fr: item.label_fr.trim(), label_en: item.label_en.trim(), quantity: item.quantity, catalog_item_id: item.catalog_item_id || null }));
+    content.items = value.items.map((item) => ({ key: item.key, label_fr: item.label_fr.trim(), label_en: item.label_en.trim(), quantity: item.quantity,
+      catalog_item_id: item.catalog_item_id || null, category: item.category || null }));
     await db.query(`INSERT INTO activity_personal_equipment_lists (organization_id,activity_id,content) VALUES ($1,$2,$3)
       ON CONFLICT (organization_id,activity_id) DO UPDATE SET content=$3,version=activity_personal_equipment_lists.version+1`, [context.organizationId, id, JSON.stringify(content)]);
     const saved = await listFor(db, context, id);
