@@ -726,7 +726,7 @@ describe('PUT /api/v1/activities/:id', () => {
       .send({ activity_start_date: '2026-06-12', activity_end_date: '2026-06-14' });
 
     expect(res.status).toBe(200);
-    const move = captured.plannedQueries.find(({ query }) => query.startsWith('UPDATE year_plan_meetings SET meeting_date'));
+    const move = captured.plannedQueries.find(({ query }) => query.includes('SET meeting_date = $1'));
     expect(move.params).toEqual(['2026-06-12', 40, ORG_ID]);
   });
 

@@ -62,6 +62,15 @@ describe.skipIf(!DATABASE_URL)('camp dates and the year plan', () => {
     expect((await plannedFor(camp.id))[0].meeting_date).toBe('2031-02-13');
   });
 
+  test('a camp moved into another year moves to the year plan covering it', async () => {
+    const nextPlan = await one(`INSERT INTO year_plans (organization_id, title, start_date, end_date, created_by)
+      VALUES ($1, 'Next fictional year', '2031-09-01', '2032-06-30', $2) RETURNING id`, [unit, user]);
+    const camp = await activity('Mistyped camp', '2031-02-20', '2031-02-22');
+    const plannedId = await planCamp(db, unit, camp.id);
+    await alignPlannedDate(db, unit, camp.id, '2032-02-20', '2032-02-22');
+    expect(await one('SELECT year_plan_id FROM year_plan_meetings WHERE id = $1', [plannedId])).toBe(nextPlan);
+  });
+
   test('a camp cannot move onto a first day the unit already uses, nor shrink under its schedule', async () => {
     const camp = await activity('Spring camp', '2031-03-06', '2031-03-08');
     const plannedId = await planCamp(db, unit, camp.id);

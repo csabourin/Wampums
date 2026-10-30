@@ -66,8 +66,14 @@ async function alignPlannedDate(client, organizationId, activityId, startDate, e
       [organizationId, startDate, planned.id]
     );
     if (taken.rows.length) { throw new CampDateError('camp_date_taken'); }
+    // A year plan lists its own dates: a camp moved into another plan's year follows it there.
     await client.query(
-      'UPDATE year_plan_meetings SET meeting_date = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3',
+      `UPDATE year_plan_meetings m SET meeting_date = $1, updated_at = NOW(),
+         year_plan_id = COALESCE((SELECT p.id FROM year_plans p
+           WHERE p.organization_id = m.organization_id AND p.is_active = TRUE
+             AND p.start_date <= $1::date AND p.end_date >= $1::date
+           ORDER BY (p.id = m.year_plan_id) DESC, p.start_date DESC, p.id DESC LIMIT 1), m.year_plan_id)
+       WHERE m.id = $2 AND m.organization_id = $3`,
       [startDate, planned.id, organizationId]
     );
   }
