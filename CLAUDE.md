@@ -500,6 +500,17 @@ are edited through their lot and use its preparation and receipt rules below. Co
 task reads through the shared API client. The task screen uses minimal event/member
 choices rather than requesting participants, families, contacts or health forms.
 
+### Volunteering
+
+`/volunteers` (`volunteers.view`; managing shifts takes `volunteers.manage`, migration 069) lists
+each activity's or camp's needs by time slot. Writes go through `services/volunteerShifts.js`, which
+locks the shift so its last place goes to one person (409 `volunteer_shift_full` for the other). The
+built-in `volunteer` role holds only `volunteers.view` and `tasks.view`: no youth, family or health
+record. Other volunteers' names go to managers only. Each shift has a type (`config/volunteer_shifts.json`); a type's
+requirements keep a place pending until a manager records them. Every adult of the team and every
+volunteer needs a background check, valid three years from the day it was done (the server sets the
+expiry); managers follow them on `/volunteers`. See `devdocs/VOLUNTEERS.md`.
+
 ### Camp equipment lots
 
 `/camp-lots/:id` requires `camp_lots.view`; editing additionally requires
@@ -1527,7 +1538,11 @@ Before submitting code, verify:
 ### Team camp readiness
 
 The camp schedule opens `/camp-readiness/:id` for organization-scoped members with
-`meetings.view`. The read-only summary includes only sections whose destination
+`meetings.view`; a camp not scheduled in the year plan opens `/camp-readiness/activity-:id`
+(tasks and consent only). A camp is always an activity (`activities.is_camp`, migration 068); not
+every activity is a camp. `services/campDates.js` keeps a camp's activity and its year-plan date on
+one set of dates: an activity marked as a camp joins the covering year plan, moving either moves
+both, and no event lasts more than `config/event_limits.json` days. The read-only summary includes only sections whose destination
 permissions the shared authorization engine confirms; it never equates empty or
 hidden sections with readiness. See `devdocs/CAMP_READINESS.md`. Offline readiness
 still belongs to `CampPreparation` on each device.

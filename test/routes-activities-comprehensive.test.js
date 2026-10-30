@@ -551,9 +551,9 @@ describe('PUT /api/v1/activities/:id', () => {
    * @param {number} pendingSlips - Rows the permission slip refresh touches
    * @returns {Object} Captured statements
    */
-  function mockUpdateTransaction(existing = EXISTING_ACTIVITY, pendingSlips = 0) {
+  function mockUpdateTransaction(existing = EXISTING_ACTIVITY, pendingSlips = 0, planned = null) {
     const { __mClient, __mPool } = require('pg');
-    const captured = { statements: [], activityUpdate: null, slipUpdate: null };
+    const captured = { statements: [], activityUpdate: null, slipUpdate: null, plannedQueries: [] };
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (typeof query !== 'string') {
@@ -573,6 +573,21 @@ describe('PUT /api/v1/activities/:id', () => {
       if (query.includes('UPDATE permission_slips')) {
         captured.slipUpdate = params;
         return { rows: [], rowCount: pendingSlips };
+      }
+      // Nothing recorded for the activity's dates holds it back unless a test says so.
+      if (['FROM volunteer_shifts', 'FROM equipment_reservations', 'FROM attendance'].some((table) => query.includes(table))) {
+        return { rows: planned?.holds && query.includes(planned.holds) ? [{ '?column?': 1 }] : [] };
+      }
+      // Unless a test plans it, the activity has no planned date in the year plan.
+      if (query.includes('year_plan_meeting') || query.includes('year_plans')) {
+        captured.plannedQueries.push({ query, params });
+        if (planned && query.includes('FOR UPDATE')) {
+          return { rows: [{ id: planned.id, meeting_date: planned.date }] };
+        }
+        if (planned?.taken && query.includes('meeting_date = $2 AND id <> $3')) {
+          return { rows: [{ '?column?': 1 }] };
+        }
+        return { rows: [] };
       }
       return undefined;
     });
@@ -688,6 +703,94 @@ describe('PUT /api/v1/activities/:id', () => {
     expect(res.status).toBe(200);
     expect(captured.activityUpdate[3]).toBe('2026-06-12');
     expect(captured.slipUpdate[3]).toBe('2026-06-12');
+  });
+
+  test('a camp moved onto a first day another date of the year plan holds is refused, saving nothing', async () => {
+    const captured = mockUpdateTransaction(EXISTING_ACTIVITY, 0, { id: 40, date: '2026-06-05', taken: true });
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ activity_start_date: '2026-06-12', activity_end_date: '2026-06-14' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toBe('camp_date_taken');
+    expect(captured.statements).toContain('ROLLBACK');
+    expect(captured.statements).not.toContain('COMMIT');
+  });
+
+  test('a planned camp moved to a free day takes its planned date along', async () => {
+    const captured = mockUpdateTransaction(EXISTING_ACTIVITY, 0, { id: 40, date: '2026-06-05' });
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ activity_start_date: '2026-06-12', activity_end_date: '2026-06-14' });
+
+    expect(res.status).toBe(200);
+    const move = captured.plannedQueries.find(({ query }) => query.includes('SET meeting_date = $1'));
+    expect(move.params).toEqual(['2026-06-12', 40, ORG_ID]);
+  });
+
+  test.each([
+    ['volunteer shifts on dropped days', 'FROM volunteer_shifts', 'volunteer_shifts_outside_dates'],
+    ['equipment reserved for it', 'FROM equipment_reservations', 'camp_reservations_need_moving'],
+    ['attendance taken on its days', 'FROM attendance', 'camp_attendance_recorded'],
+  ])('a camp with %s cannot move, and nothing is saved', async (_label, holds, code) => {
+    const captured = mockUpdateTransaction(EXISTING_ACTIVITY, 0, { id: 40, date: '2026-06-05', holds });
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ activity_start_date: '2026-06-12', activity_end_date: '2026-06-14' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toBe(code);
+    expect(captured.statements).not.toContain('COMMIT');
+  });
+
+  test('an activity lasting more than a month, such as a mistyped year, is refused', async () => {
+    const captured = mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ activity_start_date: '2026-02-06', activity_end_date: '2027-02-08' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('activity_too_long');
+    expect(captured.activityUpdate).toBeNull();
+  });
+
+  test('whether an activity is a camp must be true or false', async () => {
+    const captured = mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ is_camp: 'yes' });
+
+    expect(res.status).toBe(400);
+    expect(captured.activityUpdate).toBeNull();
+  });
+
+  test('marking an activity as a camp records it and plans it in the year plan', async () => {
+    const captured = mockUpdateTransaction();
+    const token = generateToken({ permissions: ['activities.edit'] });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ is_camp: true });
+
+    expect(res.status).toBe(200);
+    expect(captured.activityUpdate[21]).toBe(true);
+    expect(captured.plannedQueries.some(({ query }) => query.includes("SET meeting_kind = 'camp'"))).toBe(true);
   });
 
   test('rejects clearing a required field', async () => {

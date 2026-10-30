@@ -191,3 +191,64 @@ test('the sheet meets WCAG A/AA', async () => {
 
   expect(results.violations).toEqual([]);
 });
+
+describe('a camp\'s dates', () => {
+  const CAMP = { date: '2027-02-05', spanDays: 3, spanEndDate: '2027-02-07', activityId: 21, series: [] };
+
+  test('someone who may edit activities sees the camp\'s first and last days, labelled', async () => {
+    const { overlay } = open(CAMP, { canEditDates: true });
+
+    expect(sheet('#yp-sheet-start').value).toBe('2027-02-05');
+    expect(sheet('#yp-sheet-end').value).toBe('2027-02-07');
+    expect(sheet('.yp-sheet__dates legend').textContent).toContain('yearly_planner_camp_dates');
+    expect((await axe.run(overlay, AXE_OPTIONS)).violations).toEqual([]);
+  });
+
+  test('without the right to edit activities, or without a linked activity, no date is offered', () => {
+    open(CAMP);
+    expect(sheet('#yp-sheet-start')).toBeNull();
+    closeAllModals();
+    open({ ...CAMP, activityId: null }, { canEditDates: true });
+    expect(sheet('#yp-sheet-start')).toBeNull();
+  });
+
+  test('moved dates travel with the save', () => {
+    const { callbacks } = open(CAMP, { canEditDates: true });
+
+    sheet('#yp-sheet-start').value = '2027-02-12';
+    sheet('#yp-sheet-end').value = '2027-02-14';
+    sheet('#yp-sheet-save').click();
+
+    expect(callbacks.onSave.mock.calls[0][0].dates).toEqual({ start: '2027-02-12', end: '2027-02-14' });
+  });
+
+  test('unchanged dates are not sent', () => {
+    const { callbacks } = open(CAMP, { canEditDates: true });
+    sheet('#yp-sheet-save').click();
+    expect(callbacks.onSave.mock.calls[0][0]).not.toHaveProperty('dates');
+  });
+
+  test('a camp of more than a month, such as a mistyped year, is refused in the sheet, which stays open', () => {
+    const { callbacks } = open(CAMP, { canEditDates: true });
+
+    sheet('#yp-sheet-end').value = '2028-02-07';
+    sheet('#yp-sheet-save').click();
+
+    expect(callbacks.onSave).not.toHaveBeenCalled();
+    const message = sheet('#yp-sheet-dates-error');
+    expect(message.hidden).toBe(false);
+    expect(message.getAttribute('role')).toBe('alert');
+    expect(message.textContent).toBe('activity_too_long');
+    expect(sheet('#yp-sheet-end').getAttribute('aria-invalid')).toBe('true');
+    expect(sheet('#yp-sheet-end').getAttribute('aria-describedby')).toBe('yp-sheet-dates-error');
+    expect(document.activeElement).toBe(sheet('#yp-sheet-end'));
+  });
+
+  test('an end before the start is refused the same way', () => {
+    const { callbacks } = open(CAMP, { canEditDates: true });
+    sheet('#yp-sheet-end').value = '2027-02-01';
+    sheet('#yp-sheet-save').click();
+    expect(callbacks.onSave).not.toHaveBeenCalled();
+    expect(sheet('#yp-sheet-dates-error').textContent).toBe('activity_form_end_before_start');
+  });
+});

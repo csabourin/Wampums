@@ -9,6 +9,7 @@ import { translate } from '../../app.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
+import { MAX_EVENT_DAYS, eventDays } from '../../utils/ActivityDateUtils.js';
 
 /**
  * Open the sheet for one date.
@@ -18,7 +19,9 @@ import { openModal } from '../../utils/ModalUtils.js';
  * @param {Object} options.plan - The current plan (for period choices and the back link)
  * @param {string} options.lang - Language code
  * @param {boolean} options.canManage - Whether write controls are shown
- * @param {Function} options.onSave - async ({ theme, location, period_id, is_cancelled }) => void
+ * @param {boolean} [options.canEditDates] - Whether the linked activity's dates may be changed (activities.edit)
+ * @param {Function} options.onSave - async ({ theme, location, period_id, is_cancelled, dates? }) => void;
+ *   `dates` ({ start, end }) is present only when the camp's dates changed
  * @param {Function} options.onDelete - async () => void
  * @param {Function} options.onOpenPrep - (date) => void
  * @param {Function} [options.onUnlinkActivity] - async () => void
@@ -33,7 +36,7 @@ export function openMeetingSheet(options) {
   const modal = openModal({
     id: 'yp-meeting-sheet',
     title: escapeHTML(sheetTitle(chip, lang)),
-    body: renderSheetBody(chip, plan, lang, canManage),
+    body: renderSheetBody(chip, plan, lang, canManage, options.canEditDates === true),
     footer: renderSheetFooter(chip, canManage)
   });
 
@@ -58,9 +61,10 @@ function sheetTitle(chip, lang) {
  * @param {Object} plan - Current plan
  * @param {string} lang - Language code
  * @param {boolean} canManage - Whether inputs are editable
+ * @param {boolean} canEditDates - Whether the linked activity's dates are editable
  * @returns {string} Body HTML
  */
-function renderSheetBody(chip, plan, lang, canManage) {
+function renderSheetBody(chip, plan, lang, canManage, canEditDates) {
   const periods = Array.isArray(plan?.periods) ? plan.periods : [];
   const disabled = canManage ? '' : 'disabled';
 
@@ -72,6 +76,8 @@ function renderSheetBody(chip, plan, lang, canManage) {
           ${chip.spanDays} ${escapeHTML(translate('days'))}
         </p>
       ` : ''}
+
+      ${renderDates(chip, canManage && canEditDates)}
 
       <label class="form-group">
         <span>${escapeHTML(translate('yearly_planner_theme'))}</span>
@@ -108,6 +114,46 @@ function renderSheetBody(chip, plan, lang, canManage) {
       ${renderSheetStatus(chip)}
     </div>
   `;
+}
+
+/**
+ * A camp's first and last days. They are the linked activity's dates: saving moves the
+ * activity, and the server moves the planned date with it.
+ * @param {Object} chip - Chip descriptor
+ * @param {boolean} editable - Whether the dates may be changed
+ * @returns {string} HTML, empty for a date without a linked activity
+ */
+function renderDates(chip, editable) {
+  if (!chip.meetingId || !chip.activityId || !editable) {
+    return '';
+  }
+  const end = chip.spanEndDate || chip.date;
+  return `
+    <fieldset class="form-fieldset yp-sheet__dates" aria-describedby="yp-sheet-dates-help">
+      <legend>${escapeHTML(translate('yearly_planner_camp_dates'))}</legend>
+      <label class="form-group">
+        <span>${escapeHTML(translate('activity_start_date'))}</span>
+        <input type="date" id="yp-sheet-start" value="${escapeHTML(chip.date)}" required>
+      </label>
+      <label class="form-group">
+        <span>${escapeHTML(translate('activity_end_date'))}</span>
+        <input type="date" id="yp-sheet-end" value="${escapeHTML(end)}" required>
+      </label>
+      <small class="form-help" id="yp-sheet-dates-help">${escapeHTML(translate('yearly_planner_camp_dates_help'))}</small>
+      <p class="form-error" id="yp-sheet-dates-error" role="alert" hidden></p>
+    </fieldset>
+  `;
+}
+
+/**
+ * @param {string} start - YYYY-MM-DD
+ * @param {string} end - YYYY-MM-DD
+ * @returns {string|null} Translation key of the problem, or null
+ */
+function datesProblem(start, end) {
+  if (!start || !end) { return 'activity_form_missing_required'; }
+  if (end < start) { return 'activity_form_end_before_start'; }
+  return eventDays(start, end) > MAX_EVENT_DAYS ? 'activity_too_long' : null;
 }
 
 /**
@@ -291,6 +337,26 @@ function wireSheet(modal, options) {
     };
     if (periodSelect) {
       payload.period_id = periodSelect.value ? parseInt(periodSelect.value, 10) : null;
+    }
+    const startInput = root.querySelector('#yp-sheet-start');
+    const endInput = root.querySelector('#yp-sheet-end');
+    if (startInput && endInput) {
+      const dates = { start: startInput.value, end: endInput.value };
+      const problem = datesProblem(dates.start, dates.end);
+      const message = root.querySelector('#yp-sheet-dates-error');
+      if (problem) {
+        message.textContent = translate(problem);
+        message.hidden = false;
+        [startInput, endInput].forEach((input) => {
+          input.setAttribute('aria-invalid', 'true');
+          input.setAttribute('aria-describedby', 'yp-sheet-dates-error');
+        });
+        (dates.start ? endInput : startInput).focus();
+        return;
+      }
+      if (dates.start !== chip.date || dates.end !== (chip.spanEndDate || chip.date)) {
+        payload.dates = dates;
+      }
     }
     modal.close();
     await onSave?.(payload);

@@ -130,7 +130,7 @@ try {
     return userId;
   };
   const adminId = await member('admin@run.test', 'Akela Admin', adminRole);
-  await member('leader@run.test', 'Baloo Leader', leaderRole);
+  const leaderId = await member('leader@run.test', 'Baloo Leader', leaderRole);
   const parentId = await member('parent@run.test', 'Marie Parent', parentRole);
 
   // The demo unit's two read-only accounts (demoadmin, demoparent), signed in
@@ -355,6 +355,50 @@ try {
       { key: 'socks', label_fr: 'Paires de bas', label_en: 'Pairs of socks', quantity: 3 }],
   });
 
+  // A camp in ten days, recorded as an activity marked as a camp, with volunteer shifts:
+  // cooks (one place still open), a driver (filled), and camp aides, whose place stays to
+  // verify until a background check and training are recorded.
+  const winterCampId = await one(
+    `INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+                             meeting_time_going, departure_time_going, activity_start_date, activity_start_time,
+                             activity_end_date, activity_end_time, is_camp)
+     VALUES ($1, $2, 'Camp d''hiver', CURRENT_DATE + 10, 'Local scout', '17:30', '18:00',
+             CURRENT_DATE + 10, '18:00', CURRENT_DATE + 12, '14:00', TRUE)
+     RETURNING id`,
+    [organizationId, adminId]
+  );
+  const cookShiftId = await one(
+    `INSERT INTO volunteer_shifts (organization_id, activity_id, volunteer_type, title, shift_date, start_time, end_time, slots, notes, created_by)
+     VALUES ($1, $2, 'cook', 'Souper', CURRENT_DATE + 11, '16:30', '19:00', 2, 'Tablier fourni', $3) RETURNING id`,
+    [organizationId, winterCampId, adminId]
+  );
+  const driverShiftId = await one(
+    `INSERT INTO volunteer_shifts (organization_id, activity_id, volunteer_type, title, shift_date, start_time, end_time, slots, created_by)
+     VALUES ($1, $2, 'driver', 'Aller', CURRENT_DATE + 10, '17:30', '18:30', 1, $3) RETURNING id`,
+    [organizationId, winterCampId, adminId]
+  );
+  const aideShiftId = await one(
+    `INSERT INTO volunteer_shifts (organization_id, activity_id, volunteer_type, shift_date, start_time, end_time, slots, created_by)
+     VALUES ($1, $2, 'camp_aide', CURRENT_DATE + 11, '09:00', '16:00', 2, $3) RETURNING id`,
+    [organizationId, winterCampId, adminId]
+  );
+  await pool.query(
+    `INSERT INTO volunteer_signups (organization_id, shift_id, user_id, status) VALUES ($1, $2, $3, 'pending')`,
+    [organizationId, aideShiftId, leaderId]
+  );
+  // The admin's licence and background check were verified, so their driving and cooking places are confirmed.
+  await pool.query(
+    `INSERT INTO volunteer_requirements (organization_id, user_id, requirement_key, checked_on, valid_until, verified_by)
+     VALUES ($1, $2, 'driver_licence', NULL, CURRENT_DATE + 365, $2),
+            ($1, $2, 'background_check', CURRENT_DATE - 400, (CURRENT_DATE - 400 + INTERVAL '3 years')::date, $2)`,
+    [organizationId, adminId]
+  );
+  await pool.query(
+    'INSERT INTO volunteer_signups (organization_id, shift_id, user_id) VALUES ($1, $2, $3), ($1, $4, $3)',
+    [organizationId, driverShiftId, adminId, cookShiftId]
+  );
+  await pool.query('UPDATE activities SET is_camp = TRUE WHERE id = $1', [campId]);
+
   const seed = {
     organizationId,
     database: `postgresql:///${DB}?host=/var/run/postgresql`,
@@ -365,6 +409,7 @@ try {
     fundraiserId,
     yearPlanId,
     campMeetingId,
+    winterCampId,
     campLotId: campLot.id,
     campLotArticleId: tentArticle.id,
     adminId,

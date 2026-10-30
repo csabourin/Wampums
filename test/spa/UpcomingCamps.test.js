@@ -32,3 +32,8 @@ test('with no camp near, or when the list cannot be read, the dashboard shows no
   getUpcomingCamps.mockRejectedValue(new Error('offline'));
   expect(await loadUpcomingCamps()).toEqual([]);
 });
+
+test('a camp created as an activity links to the overview opened by its activity', () => {
+  document.body.innerHTML = `<main id="app">${upcomingCampsMarkup([{ id: null, activity_id: 8, theme: 'Camp de la Toussaint', date_from: '2026-10-30', date_to: '2026-11-01' }], 'fr')}</main>`;
+  expect(document.querySelector('a[href="/camp-readiness/activity-8"]')).not.toBeNull();
+});

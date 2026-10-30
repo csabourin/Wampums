@@ -9,6 +9,8 @@ import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { updateActivity } from '../../api/api-activities.js';
 import { skeletonTable } from '../../utils/SkeletonUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { CONFIG } from '../../config.js';
@@ -392,6 +394,7 @@ export class YearlyPlanner extends BaseModule {
       plan: this.currentPlan,
       lang: this.lang,
       canManage: this.canManage,
+      canEditDates: hasPermission('activities.edit'),
       onOpenPrep: (meetingDate) => {
         // Full preparation lives in its own module; carry the plan so the back
         // link returns to the year view rather than the plan list.
@@ -413,7 +416,19 @@ export class YearlyPlanner extends BaseModule {
    * @param {Object} payload - PATCH body
    * @returns {Promise<void>}
    */
-  async handleSheetSave(chip, payload) {
+  async handleSheetSave(chip, { dates, ...payload }) {
+    // The camp's dates are its activity's: the server moves the planned date with them.
+    if (dates) {
+      try {
+        await updateActivity(chip.activityId, {
+          activity_date: dates.start, activity_start_date: dates.start, activity_end_date: dates.end,
+        });
+      } catch (err) {
+        debugError('Error moving camp dates:', err);
+        this.app.showMessage(apiErrorMessage(err, 'yearly_planner_error_saving'), 'error');
+        return;
+      }
+    }
     try {
       await updateYearPlanMeeting(chip.meetingId, payload);
       this.app.showMessage(translate('yearly_planner_meeting_updated'), 'success');

@@ -18,7 +18,8 @@ import { formatEquipmentQuantity } from '../../utils/EquipmentUnitUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { CAMP_LOTS } from '../../config/camp-lots.js';
-import { getCampReadiness } from '../../api/api-camp-readiness.js';
+import { getCampReadiness, getActivityCampReadiness } from '../../api/api-camp-readiness.js';
+import { shiftName } from '../../utils/VolunteerTypeUtils.js';
 import styles from '../../../css/camp-readiness.css?url';
 
 export const READINESS_LABELS = {
@@ -32,14 +33,16 @@ export const READINESS_LABELS = {
 
 /** Standings that still call for reserving, borrowing or buying; an article outside the inventory has neither. */
 const MATERIAL_TO_DO = ['available', 'missing', 'unavailable', 'not_in_inventory'];
-const SECTION_ORDER = ['permissions', 'material', 'lots', 'tasks'];
+const SECTION_ORDER = ['permissions', 'material', 'lots', 'volunteers', 'tasks'];
 /** A consent deadline is an instant; its calendar date is its first YYYY-MM-DD characters. */
 const ISO_DATE_LENGTH = 10;
 
 export class CampReadiness {
-  constructor(app, { meetingId }) {
+  /** @param {Object} app @param {{meetingId?: number, activityId?: number}} camp - A planned camp, or a camp recorded as an activity */
+  constructor(app, { meetingId = null, activityId = null }) {
     this.app = app;
     this.meetingId = meetingId;
+    this.activityId = activityId;
     this.destroyed = false;
     this.request = 0;
     this.scope = buildScopedCacheKey('');
@@ -60,8 +63,9 @@ export class CampReadiness {
 
   count(value) { return new Intl.NumberFormat(localeForLanguage(this.lang())).format(value); }
 
-  /** @returns {string} Back to the camp's year plan, where its schedule opens */
+  /** @returns {string} Back to the camp's year plan, where its schedule opens, or to the activities */
   backHref() {
+    if (this.activityId && !this.data?.camp?.id) { return '/activities'; }
     const planId = Number(this.data?.camp?.year_plan_id);
     return Number.isInteger(planId) && planId > 0 ? `/yearly-planner/${planId}` : '/yearly-planner';
   }
@@ -77,7 +81,7 @@ export class CampReadiness {
     loadStylesheet(styles).catch((err) => debugError('Camp readiness stylesheet failed', err));
     setContent(this.root(), pageLoadingMarkup(options));
     try {
-      const response = await getCampReadiness(this.meetingId);
+      const response = await (this.activityId ? getActivityCampReadiness(this.activityId) : getCampReadiness(this.meetingId));
       if (this.stale(request)) { return; }
       if (!response?.data?.camp || !response.data.sections) { throw new Error('Missing camp preparation'); }
       this.data = response.data;
@@ -132,6 +136,18 @@ export class CampReadiness {
       return { attention: left > 0, text: left
         ? translate('camp_readiness_left_lots').replace('{count}', this.count(left)).replace('{total}', this.count(section.length))
         : translate('camp_readiness_left_lots_done') };
+    }
+    if (key === 'volunteers') {
+      if (!recorded(section)) { return { text: translate('camp_readiness_left_none'), attention: true }; }
+      const vacant = section.reduce((sum, shift) => sum + Math.max(0, Number(shift.slots) - Number(shift.taken)), 0);
+      const total = section.reduce((sum, shift) => sum + Number(shift.slots), 0);
+      // A place held while its requirements are verified is taken, but not yet settled.
+      const pending = section.reduce((sum, shift) => sum + Number(shift.pending || 0), 0);
+      const parts = [vacant
+        ? translate('camp_readiness_left_volunteers').replace('{vacant}', this.count(vacant)).replace('{total}', this.count(total))
+        : translate('camp_readiness_left_volunteers_done')];
+      if (pending) { parts.push(translate('volunteers_pending_count').replace('{count}', this.count(pending))); }
+      return { attention: vacant > 0 || pending > 0, text: parts.join(' · ') };
     }
     if (!recorded(section)) { return { text: translate('camp_readiness_left_none'), attention: true }; }
     const open = section.filter((task) => task.status !== 'done');
@@ -206,8 +222,23 @@ export class CampReadiness {
         });
       }).join(''), `/camp-lots/${meetingId}`);
     }
+    if (sections.volunteers) {
+      body += this.section('volunteers', sections.volunteers.map((shift) => {
+        const free = Math.max(0, Number(shift.slots) - Number(shift.taken));
+        const places = free ? translate('volunteers_places_free').replace('{free}', this.count(free)).replace('{slots}', this.count(shift.slots))
+          : translate('volunteers_full');
+        return this.row({
+          title: shiftName(shift), href: '/volunteers',
+          chip: Number(shift.pending) > 0
+            ? `${places} · ${translate('volunteers_pending_count').replace('{count}', this.count(shift.pending))}` : places,
+          detail: translate('volunteers_when').replace('{date}', this.date(shift.shift_date))
+            .replace('{start}', shift.start_time).replace('{end}', shift.end_time),
+        });
+      }).join(''), '/volunteers');
+    }
     if (sections.tasks) {
-      const tasksHref = `/tasks?meeting_id=${meetingId}${camp.activity_id ? `&activity_id=${Number(camp.activity_id)}` : ''}`;
+      const tasksHref = `/tasks?${[meetingId ? `meeting_id=${meetingId}` : '', camp.activity_id ? `activity_id=${Number(camp.activity_id)}` : '']
+        .filter(Boolean).join('&')}`;
       body += this.section('tasks', sections.tasks.map((task) => this.row({
         title: task.title, href: task.equipment_lot_id && sections.lots ? `/camp-lots/${meetingId}` : tasksHref,
         chip: this.status(task.status), late: this.overdue(task.due_date, task.status === 'done'),
@@ -224,6 +255,7 @@ export class CampReadiness {
       <p class="camp-readiness__camp"><strong>${escapeHTML(camp.theme || translate('camp_readiness_camp'))}</strong>
         <span>${escapeHTML(this.date(camp.date_from))} – ${escapeHTML(this.date(camp.date_to))}</span></p>
       ${camp.is_cancelled ? `<p role="status">${escapeHTML(translate('camp_readiness_cancelled'))}</p>` : ''}
+      ${camp.scheduled === false ? `<p class="camp-readiness__notice">${escapeHTML(translate('camp_readiness_unscheduled'))}</p>` : ''}
       ${this.leftMarkup()}
       <p class="camp-readiness__explanation">${escapeHTML(translate('camp_readiness_explanation'))}</p>
       <button class="button button--secondary button--small" type="button" id="camp-readiness-refresh">${escapeHTML(translate('refresh'))}</button>

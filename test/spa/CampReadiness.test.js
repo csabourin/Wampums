@@ -3,8 +3,8 @@ import axe from 'axe-core';
 jest.mock('../../spa/config.js', () => ({ CONFIG: {}, getStorageKey: (key) => key }));
 jest.mock('../../spa/app.js', () => ({ translate: jest.fn((key) => key) }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
-jest.mock('../../spa/api/api-camp-readiness.js', () => ({ getCampReadiness: jest.fn() }));
-import { getCampReadiness } from '../../spa/api/api-camp-readiness.js';
+jest.mock('../../spa/api/api-camp-readiness.js', () => ({ getCampReadiness: jest.fn(), getActivityCampReadiness: jest.fn() }));
+import { getCampReadiness, getActivityCampReadiness } from '../../spa/api/api-camp-readiness.js';
 import { CampReadiness, READINESS_LABELS } from '../../spa/modules/camp-readiness/CampReadiness.js';
 import { translate } from '../../spa/app.js';
 import en from '../../lang/en.json';
@@ -123,4 +123,55 @@ test('an article outside the inventory is still left to find, never "everything 
   const line = [...document.querySelectorAll('.camp-readiness__left li')].find((item) => item.querySelector('a').getAttribute('href') === '#camp-readiness-material');
   expect(line.querySelector('span').textContent).toBe('camp_readiness_left_material');
   expect(line.classList.contains('is-attention')).toBe(true);
+});
+
+test('a camp created as an activity opens by its activity, says why material is absent, and leads back to the activities', async () => {
+  screen.destroy();
+  getActivityCampReadiness.mockResolvedValue({ data: {
+    camp: { id: null, activity_id: 8, theme: 'Camp de la Toussaint', date_from: '2026-10-30', date_to: '2026-11-01', scheduled: false },
+    sections: { tasks: [{ title: 'Buy food', status: 'todo', assignee_name: 'Fictional helper', due_date: '2026-10-29' }], permissions: [] },
+  } });
+  screen = new CampReadiness({ lang: 'fr' }, { activityId: 8 });
+
+  await screen.init();
+
+  expect(getActivityCampReadiness).toHaveBeenCalledWith(8);
+  expect(getCampReadiness).not.toHaveBeenCalled();
+  expect(document.body.textContent).toContain('camp_readiness_unscheduled');
+  expect(document.querySelector('a[href="/tasks?activity_id=8"]')).not.toBeNull();
+  expect(document.querySelector('a[href*="meeting_id"]')).toBeNull();
+  expect(document.querySelector('a[href="/activities"]')).not.toBeNull();
+  expect((await axe.run(document.getElementById('app'), { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([]);
+});
+
+test('volunteer places still open are part of what is left, each shift linking to volunteering', async () => {
+  const payload = data();
+  payload.sections.volunteers = [
+    { title: 'Cuisine', shift_date: '2026-11-15', start_time: '17:00', end_time: '19:00', slots: 2, taken: 1 },
+    { title: 'Transport', shift_date: '2026-11-14', start_time: '08:00', end_time: '09:00', slots: 1, taken: 1 },
+  ];
+  getCampReadiness.mockResolvedValue({ data: payload });
+  await screen.init();
+  const line = document.querySelector('.camp-readiness__left a[href="#camp-readiness-volunteers"]').closest('li');
+  expect(line.classList.contains('is-attention')).toBe(true);
+  expect(line.textContent).toContain('camp_readiness_left_volunteers');
+  expect(document.querySelectorAll('#camp-readiness-volunteers a[href="/volunteers"]')).toHaveLength(2);
+  payload.sections.volunteers[0].taken = 2;
+  await screen.init();
+  const filled = document.querySelector('.camp-readiness__left a[href="#camp-readiness-volunteers"]').closest('li');
+  expect(filled.classList.contains('is-clear')).toBe(true);
+  expect(filled.textContent).toContain('camp_readiness_left_volunteers_done');
+});
+
+test('volunteer places held for verification are still part of what is left', async () => {
+  const payload = data();
+  payload.sections.volunteers = [
+    { volunteer_type: 'camp_aide', title: '', shift_date: '2026-11-15', start_time: '09:00', end_time: '12:00', slots: 1, taken: 1, pending: 1 },
+  ];
+  getCampReadiness.mockResolvedValue({ data: payload });
+  await screen.init();
+  const line = document.querySelector('.camp-readiness__left a[href="#camp-readiness-volunteers"]').closest('li');
+  expect(line.classList.contains('is-attention')).toBe(true);
+  expect(line.textContent).toContain('volunteers_pending_count');
+  expect(document.querySelector('#camp-readiness-volunteers a[href="/volunteers"]').textContent).toBe('volunteer_type_camp_aide');
 });

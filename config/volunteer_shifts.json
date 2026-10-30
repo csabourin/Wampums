@@ -1,0 +1,16 @@
+{
+  "title_max_length": 120,
+  "notes_max_length": 1000,
+  "max_slots": 50,
+  "types": [
+    { "key": "camp_aide", "requirements": ["background_check", "safety_training"] },
+    { "key": "cook", "requirements": ["background_check"] },
+    { "key": "driver", "requirements": ["background_check", "driver_licence"] },
+    { "key": "night_watch", "requirements": ["background_check", "safety_training"] },
+    { "key": "first_aid", "requirements": ["background_check", "first_aid_certificate"] },
+    { "key": "other", "requirements": ["background_check"] }
+  ],
+  "requirements": ["background_check", "safety_training", "first_aid_certificate", "driver_licence"],
+  "validity_years": { "background_check": 3 },
+  "expiring_soon_days": 60
+}

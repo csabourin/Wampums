@@ -16,7 +16,7 @@ import { debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { setButtonLoading } from '../../utils/SkeletonUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
-import { getActivityEndDate, getActivityStartDate } from '../../utils/ActivityDateUtils.js';
+import { MAX_EVENT_DAYS, eventDays, getActivityEndDate, getActivityStartDate } from '../../utils/ActivityDateUtils.js';
 import { aiGenerateText } from '../../api/api-ai.js';
 import { attachInviteesPicker, buildInviteesFieldsetHTML } from './ActivityInviteesPicker.js';
 import {
@@ -120,6 +120,13 @@ function buildFormHTML(activity, defaultAuthorization) {
                  value="${time('activity_end_time')}" required class="form-control">
         </div>
       </div>
+
+      <div class="checkbox-option">
+        <input type="checkbox" id="activity-is-camp" name="is_camp" aria-describedby="activity-is-camp-help"
+               ${activity?.is_camp === true || activity?.linked_year_plan_meeting_kind === 'camp' ? 'checked' : ''}>
+        <label for="activity-is-camp">${translate('activity_is_camp')}</label>
+      </div>
+      <small class="form-help" id="activity-is-camp-help">${translate('activity_is_camp_help')}</small>
 
       ${buildInviteesFieldsetHTML(activity)}
 
@@ -227,6 +234,7 @@ function readForm(form, isEdit) {
   data.activity_date = data.activity_start_date;
   data.authorization_required = formData.get('authorization_required') === 'on';
   data.transport_required = formData.get('transport_required') === 'on';
+  data.is_camp = formData.get('is_camp') === 'on';
   if (!data.transport_required) {
     data.meeting_time_going = data.activity_start_time;
     data.departure_time_going = data.activity_start_time;
@@ -268,6 +276,9 @@ function validate(data) {
   }
   if (`${data.activity_end_date}T${data.activity_end_time}` < `${data.activity_start_date}T${data.activity_start_time}`) {
     return 'activity_form_end_before_start';
+  }
+  if (eventDays(data.activity_start_date, data.activity_end_date) > MAX_EVENT_DAYS) {
+    return 'activity_too_long';
   }
   if (data.transport_required && data.meeting_time_going >= data.departure_time_going) {
     return 'activity_form_departure_before_meeting';

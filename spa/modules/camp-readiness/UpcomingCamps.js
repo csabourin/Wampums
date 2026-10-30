@@ -16,6 +16,15 @@ export function canSeeTeamReadiness() {
   return hasPermission('meetings.view') && hasOrganizationScope();
 }
 
+/**
+ * A camp's team overview: by its planned camp, or by its activity when the year plan does not schedule it.
+ * @param {{id?: number|null, activity_id?: number|null}} camp
+ * @returns {string} Path
+ */
+export function campReadinessHref(camp) {
+  return Number(camp?.id) > 0 ? `/camp-readiness/${Number(camp.id)}` : `/camp-readiness/activity-${Number(camp?.activity_id)}`;
+}
+
 /** @returns {Promise<Array<Object>>} The camps, or none when they cannot be read */
 export async function loadUpcomingCamps() {
   try {
@@ -29,7 +38,7 @@ export async function loadUpcomingCamps() {
 }
 
 /**
- * @param {Array<{id: number, theme: string, date_from: string, date_to: string}>} camps
+ * @param {Array<{id: number|null, activity_id: number|null, theme: string, date_from: string, date_to: string}>} camps
  * @param {string} lang
  * @returns {string} HTML, empty when there is no camp to show
  */
@@ -38,7 +47,7 @@ export function upcomingCampsMarkup(camps, lang) {
   const items = camps.map((camp) => {
     const dates = translate('camp_readiness_upcoming_dates')
       .replace('{from}', formatDate(camp.date_from, lang)).replace('{to}', formatDate(camp.date_to, lang));
-    return `<li><a class="button button--secondary" href="/camp-readiness/${Number(camp.id)}">
+    return `<li><a class="button button--secondary" href="${campReadinessHref(camp)}">
       ${escapeHTML(translate('camp_readiness_title'))} : ${escapeHTML(camp.theme || translate('camp_readiness_camp'))}</a>
       <span>${escapeHTML(dates)}</span></li>`;
   }).join('');

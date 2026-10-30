@@ -68,6 +68,8 @@ export const CONFIG = {
     'announcements', 'activities', 'activity-authorizations', 'resources/permission-slips',
     // How the unit is reached and what it is: never replayed later from a queue.
     'organizations/domains', 'organizations/settings/branch',
+    // A place on a shift is confirmed or refused now, never later from a queue.
+    'volunteer-shifts',
   ],
   /**
      * Cache Duration Settings

@@ -51,6 +51,14 @@ export const DASHBOARD_TILES = [
     domain: 'logistics',
     gate: { permission: 'tasks.view' },
   },
+  {
+    href: '/volunteers',
+    icon: 'fa-handshake-angle',
+    label: 'tile_volunteers',
+    moment: 'week',
+    domain: 'logistics',
+    gate: { permission: 'volunteers.view' },
+  },
   // ---------------------------------------------------------------
   // EN CE MOMENT — actions tied to a meeting happening right now.
   // Attendance leads: you mark who is here before awarding anything.
