@@ -4,7 +4,7 @@
   "max_slots": 50,
   "types": [
     { "key": "camp_aide", "requirements": ["background_check", "safety_training"] },
-    { "key": "cook", "requirements": [] },
+    { "key": "cook", "requirements": ["background_check"] },
     { "key": "driver", "requirements": ["driver_licence"] },
     { "key": "night_watch", "requirements": ["background_check", "safety_training"] },
     { "key": "first_aid", "requirements": ["first_aid_certificate", "background_check"] },

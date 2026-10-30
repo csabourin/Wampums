@@ -386,10 +386,10 @@ try {
     `INSERT INTO volunteer_signups (organization_id, shift_id, user_id, status) VALUES ($1, $2, $3, 'pending')`,
     [organizationId, aideShiftId, leaderId]
   );
-  // The admin's licence was verified, so their driving place is confirmed.
+  // The admin's licence and background check were verified, so their driving and cooking places are confirmed.
   await pool.query(
     `INSERT INTO volunteer_requirements (organization_id, user_id, requirement_key, valid_until, verified_by)
-     VALUES ($1, $2, 'driver_licence', CURRENT_DATE + 365, $2)`,
+     VALUES ($1, $2, 'driver_licence', CURRENT_DATE + 365, $2), ($1, $2, 'background_check', NULL, $2)`,
     [organizationId, adminId]
   );
   await pool.query(

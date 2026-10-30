@@ -24,7 +24,7 @@ server and the SPA; migration 069 checks the same keys, `test/volunteer-types.te
 | Type | Requires |
 |---|---|
 | `camp_aide` (aide de camp) | background check, safety training |
-| `cook` (cuisine) | nothing |
+| `cook` (cuisine) | background check |
 | `driver` (transport) | driver's licence |
 | `night_watch` (veille de nuit) | background check, safety training |
 | `first_aid` (premiers soins) | first-aid certificate, background check |

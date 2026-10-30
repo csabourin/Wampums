@@ -28,10 +28,10 @@ test('every type requires only listed requirements, and "other" exists for anyth
   expect(config.types.map((type) => type.key)).toContain('other');
 });
 
-test('a camp aide is not confirmed without a background check; a cook needs nothing to verify', () => {
+test('camp aides and cooks are not confirmed without a background check; a cook needs nothing more', () => {
   const requirementsOf = (key) => config.types.find((type) => type.key === key).requirements;
   expect(requirementsOf('camp_aide')).toContain('background_check');
-  expect(requirementsOf('cook')).toEqual([]);
+  expect(requirementsOf('cook')).toEqual(['background_check']);
 });
 
 test.each([['en', en], ['fr', fr]])('every type and requirement has a %s name', (_lang, messages) => {
