@@ -134,7 +134,7 @@ test('creating a one-day activity opens its packing list without a planner camp 
   expect(await axeViolations(page)).toEqual([]);
   await form.getByRole('button', { name: 'Enregistrer et préparer les effets personnels' }).click();
   await expect(page).toHaveURL(new RegExp(`/personal-equipment/activity-${ID}/manage$`));
-  await expect(page.locator('.packing-bulk > summary')).toBeVisible();
+  await expect(page.locator('#packing-bulk-toggle')).toBeVisible();
   expect(writes.activities).toHaveLength(1);
   expect(writes.sends).toBe(0);
   expect(await axeViolations(page)).toEqual([]);

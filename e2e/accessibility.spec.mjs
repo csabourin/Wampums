@@ -466,11 +466,16 @@ test.describe('the leaders\' programme bar', () => {
 test.describe('task assignment', () => {
   signedInAs('admin');
 
-  test('material reminder settings are accessible and keep keyboard focus', async ({ page }, testInfo) => {
+  test('material reminder settings in the task form are accessible and keep keyboard focus', async ({ page }, testInfo) => {
     await openScreen(page, '/tasks');
-    const opener = page.locator('[data-equipment-reminder]').first();
+    const opener = page.locator('#tasks-create');
     await opener.click();
+    const toggle = page.locator('#equipment-reminder-enabled');
+    await toggle.focus();
+    await page.keyboard.press('Space');
+    await expect(toggle).toBeChecked();
     await expect(page.locator('#equipment-reminder-materials')).toBeVisible();
+    await expect(toggle).toBeFocused();
     await waitForAnimations(page);
     expect(await axeViolations(page)).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
@@ -535,11 +540,14 @@ test.describe('preparing personal packing lists', () => {
   signedInAs('admin');
   test('multiline additions become editable effects before publication', async ({ page }, testInfo) => {
     await openScreen(page, `/personal-equipment/${seededRecord('campMeetingId')}/manage`);
-    await page.locator('.packing-bulk > summary').click();
+    const toggle = page.locator('#packing-bulk-toggle');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#personal-bulk')).toBeFocused();
     await page.locator('#personal-bulk').fill('Sac étanche\nTuque de rechange');
     await page.locator('#personal-add-bulk').click();
     await expect(page.locator('[data-item-key]')).toHaveCount(4);
-    await expect(page.locator('.packing-items-table')).toBeVisible();
+    await expect(page.locator('.packing-group').first()).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
     await page.screenshot({ path: testInfo.outputPath('material-personal-editor.png'), fullPage: true });
