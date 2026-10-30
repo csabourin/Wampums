@@ -3,8 +3,8 @@
 -- the built-in volunteer role holds only volunteers.view and tasks.view.
 -- Types and the requirements each one carries (a background check for a camp aide…) are listed in
 -- config/volunteer_shifts.json; the checks below must list the same keys
--- (test/volunteer-types.test.js). A place on a shift whose requirements the person does not meet
--- is held, pending, until a manager records them.
+-- (test/volunteer-types.test.js). Every type requires a background check. A place on a shift whose
+-- requirements the person does not meet is held, pending, until a manager records them.
 SELECT setval(pg_get_serial_sequence('public.permissions', 'id'),
   COALESCE((SELECT MAX(id) FROM public.permissions), 0) + 1, false);
 INSERT INTO public.permissions (permission_key, permission_name, category, description)
@@ -74,16 +74,20 @@ CREATE TABLE IF NOT EXISTS public.volunteer_signups (
 CREATE INDEX IF NOT EXISTS volunteer_signups_by_user ON public.volunteer_signups (organization_id, user_id);
 
 -- What a manager verified for one person in one unit: a requirement and how long it stays valid.
--- Only the fact and the date are kept, never the document itself.
+-- Only the fact and the dates are kept, never the document itself. A background check is required
+-- of every adult of the unit (its team, and anyone taking a volunteer shift); it records the day it
+-- was done and lasts three years from it (config/volunteer_shifts.json validity_years).
 CREATE TABLE IF NOT EXISTS public.volunteer_requirements (
   organization_id INTEGER NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   requirement_key VARCHAR(40) NOT NULL
     CHECK (requirement_key IN ('background_check', 'safety_training', 'first_aid_certificate', 'driver_licence')),
+  checked_on DATE,
   valid_until DATE,
   verified_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
   verified_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (organization_id, user_id, requirement_key)
+  PRIMARY KEY (organization_id, user_id, requirement_key),
+  CHECK (requirement_key <> 'background_check' OR (checked_on IS NOT NULL AND valid_until IS NOT NULL))
 );
 
 COMMENT ON TABLE public.volunteer_shifts IS 'Volunteer needs of one activity or camp, by time slot. Written through services/volunteerShifts.js, which locks the shift so its places are never exceeded.';

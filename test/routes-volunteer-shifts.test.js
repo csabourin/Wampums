@@ -11,6 +11,7 @@ jest.mock('../services/volunteerShifts', () => {
   const actual = jest.requireActual('../services/volunteerShifts');
   return {
     VolunteerError: actual.VolunteerError, VOLUNTEER_TYPES: actual.VOLUNTEER_TYPES, REQUIREMENTS: actual.REQUIREMENTS,
+    VALIDITY_YEARS: actual.VALIDITY_YEARS, teamChecks: jest.fn(),
     getRequirements: jest.fn(), recordRequirements: jest.fn(),
     listShifts: jest.fn(), listShiftActivities: jest.fn(), saveShift: jest.fn(), deleteShift: jest.fn(),
     signUp: jest.fn(), withdraw: jest.fn(), shiftsForActivity: jest.fn(),
@@ -162,7 +163,7 @@ describe('what was verified for a person', () => {
 
   test('a manager records requirements for a member of the unit', async () => {
     permissions.push('volunteers.manage');
-    const verified = { background_check: { valid_until: '2027-09-01' }, safety_training: { valid_until: null } };
+    const verified = { background_check: { checked_on: '2025-09-01' }, safety_training: { valid_until: null } };
     const response = await call('put', `/requirements/${OTHER}`, { verified });
     expect(response.status).toBe(200);
     expect(response.body.data).toEqual({ confirmed: 1 });
@@ -171,7 +172,10 @@ describe('what was verified for a person', () => {
 
   test.each([
     ['an unknown requirement', { criminal_record_copy: { valid_until: null } }],
-    ['a malformed expiry', { background_check: { valid_until: 'next year' } }],
+    ['a malformed expiry', { safety_training: { valid_until: 'next year' } }],
+    ['a background check without the date it was done', { background_check: { valid_until: '2029-01-01' } }],
+    ['a background check dated in the future', { background_check: { checked_on: '2999-01-01' } }],
+    ['an impossible date', { background_check: { checked_on: '2025-02-30' } }],
     ['no record at all', null],
   ])('%s is refused', async (_label, verified) => {
     permissions.push('volunteers.manage');
@@ -185,4 +189,14 @@ describe('what was verified for a person', () => {
     permissions = ['volunteers.view'];
     expect((await call('put', `/requirements/${OTHER}`, { verified: {} })).status).toBe(403);
   });
+});
+
+test('the team\'s background checks are listed for managers only', async () => {
+  service.teamChecks.mockResolvedValue([]);
+  const refused = await call('get', '/checks');
+  expect(refused.status).toBe(403);
+  expect(refused.body.missing).toEqual(['volunteers.manage']);
+  permissions.push('volunteers.manage');
+  expect((await call('get', '/checks')).status).toBe(200);
+  expect(service.teamChecks).toHaveBeenCalledWith(pool, 7);
 });

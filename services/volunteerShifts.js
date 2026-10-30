@@ -26,6 +26,10 @@ class VolunteerError extends Error {
 const TYPE_REQUIREMENTS = new Map(config.types.map((type) => [type.key, type.requirements]));
 const VOLUNTEER_TYPES = [...TYPE_REQUIREMENTS.keys()];
 const REQUIREMENTS = config.requirements;
+/** Requirements that last a set number of years from the day they were done (a background check: 3). */
+const VALIDITY_YEARS = config.validity_years;
+/** A check that lapses within this many days is listed as expiring soon. */
+const EXPIRING_SOON_DAYS = config.expiring_soon_days;
 
 /**
  * Requirements of a shift's type that a person does not meet on the shift's day.
@@ -49,7 +53,7 @@ async function requirementsByUser(db, organizationId, userIds) {
   const records = new Map(userIds.map((id) => [id, []]));
   if (!userIds.length) { return records; }
   const result = await db.query(
-    `SELECT user_id, requirement_key, valid_until::text AS valid_until FROM volunteer_requirements
+    `SELECT user_id, requirement_key, checked_on::text AS checked_on, valid_until::text AS valid_until FROM volunteer_requirements
       WHERE organization_id = $1 AND user_id = ANY($2::uuid[])`,
     [organizationId, userIds]
   );
@@ -299,7 +303,8 @@ async function getRequirements(db, organizationId, userId) {
   );
   if (!member.rows.length) { throw new VolunteerError('volunteer_member_not_found', HTTP_NOT_FOUND); }
   return (await db.query(
-    `SELECT requirement_key, valid_until::text AS valid_until, verified_at FROM volunteer_requirements
+    `SELECT requirement_key, checked_on::text AS checked_on, valid_until::text AS valid_until, verified_at
+       FROM volunteer_requirements
       WHERE organization_id = $1 AND user_id = $2 ORDER BY requirement_key`,
     [organizationId, userId]
   )).rows;
@@ -307,13 +312,15 @@ async function getRequirements(db, organizationId, userId) {
 
 /**
  * Record what a manager verified for a member, replacing the previous record: requirements
- * named are verified (until their date, if any), the others are not. The member's upcoming
- * places then follow: confirmed when complete, pending again when something was withdrawn.
+ * named are verified, the others are not. A requirement with a set validity (a background check)
+ * records the day it was done and lasts that many years from it, whatever the caller sends;
+ * others last until their optional date. The member's upcoming places then follow: confirmed
+ * when complete, pending again when something was withdrawn or lapses before the shift.
  * @param {Object} pool
  * @param {number} organizationId
  * @param {string} managerId - Who verified
  * @param {string} userId - The member
- * @param {Object<string, {valid_until: string|null}>} verified - Validated keys
+ * @param {Object<string, {checked_on?: string, valid_until?: string|null}>} verified - Validated keys
  * @returns {Promise<{confirmed: number}>} Places confirmed by this record
  */
 function recordRequirements(pool, organizationId, managerId, userId, verified) {
@@ -330,11 +337,17 @@ function recordRequirements(pool, organizationId, managerId, userId, verified) {
     );
     if (keys.length) {
       await db.query(
-        `INSERT INTO volunteer_requirements (organization_id, user_id, requirement_key, valid_until, verified_by)
-         SELECT $1, $2, k.key, k.valid_until, $5 FROM UNNEST($3::text[], $4::date[]) AS k(key, valid_until)
+        `INSERT INTO volunteer_requirements (organization_id, user_id, requirement_key, checked_on, valid_until, verified_by)
+         SELECT $1, $2, k.key, k.checked_on,
+                CASE WHEN k.years IS NULL THEN k.valid_until ELSE (k.checked_on + make_interval(years => k.years))::date END, $7
+           FROM UNNEST($3::text[], $4::date[], $5::date[], $6::int[]) AS k(key, checked_on, valid_until, years)
          ON CONFLICT (organization_id, user_id, requirement_key) DO UPDATE SET
-           valid_until = EXCLUDED.valid_until, verified_by = EXCLUDED.verified_by, verified_at = NOW()`,
-        [organizationId, userId, keys, keys.map((key) => verified[key].valid_until || null), managerId]
+           checked_on = EXCLUDED.checked_on, valid_until = EXCLUDED.valid_until,
+           verified_by = EXCLUDED.verified_by, verified_at = NOW()`,
+        [organizationId, userId, keys,
+          keys.map((key) => verified[key].checked_on || null),
+          keys.map((key) => (VALIDITY_YEARS[key] ? null : verified[key].valid_until || null)),
+          keys.map((key) => VALIDITY_YEARS[key] || null), managerId]
       );
     }
     return { confirmed: await refreshStatuses(db, organizationId, { userId }) };
@@ -358,6 +371,43 @@ async function withdraw(pool, organizationId, shiftId, userId) {
 }
 
 /**
+ * Every adult of the unit whose background check a manager follows: the team (anyone holding a
+ * role beyond a family's own children: leaders, finance, equipment, district…) and anyone holding
+ * a place on an upcoming shift. Each with their check and its state: missing, expired, expiring
+ * soon or valid.
+ * @param {Object} db
+ * @param {number} organizationId
+ * @returns {Promise<Array<{user_id: string, name: string, on_team: boolean, volunteering: boolean,
+ *   checked_on: string|null, valid_until: string|null, state: string}>>} Most urgent first
+ */
+async function teamChecks(db, organizationId) {
+  const rows = (await db.query(
+    `SELECT u.id AS user_id, u.full_name AS name,
+            EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+                      JOIN roles r ON r.id = role_id_text::integer
+                     WHERE r.data_scope IS DISTINCT FROM 'linked') AS on_team,
+            EXISTS (SELECT 1 FROM volunteer_signups v
+                      JOIN volunteer_shifts s ON s.id = v.shift_id AND s.organization_id = v.organization_id
+                     WHERE v.organization_id = uo.organization_id AND v.user_id = u.id AND s.shift_date >= CURRENT_DATE) AS volunteering,
+            c.checked_on::text AS checked_on, c.valid_until::text AS valid_until,
+            CASE WHEN c.valid_until IS NULL THEN 'missing'
+                 WHEN c.valid_until < CURRENT_DATE THEN 'expired'
+                 WHEN c.valid_until <= CURRENT_DATE + $2::int THEN 'expiring'
+                 ELSE 'valid' END AS state
+       FROM user_organizations uo
+       JOIN users u ON u.id = uo.user_id
+       LEFT JOIN volunteer_requirements c
+              ON c.organization_id = uo.organization_id AND c.user_id = u.id AND c.requirement_key = 'background_check'
+      WHERE uo.organization_id = $1 AND uo.status = 'active'`,
+    [organizationId, EXPIRING_SOON_DAYS]
+  )).rows;
+  const order = { missing: 0, expired: 1, expiring: 2, valid: 3 };
+  return rows.filter((row) => row.on_team || row.volunteering)
+    .sort((a, b) => order[a.state] - order[b.state] || String(a.valid_until).localeCompare(String(b.valid_until))
+      || String(a.name).localeCompare(String(b.name)));
+}
+
+/**
  * Volunteer needs of one activity, for the camp readiness overview.
  * @param {Object} db
  * @param {number} organizationId
@@ -378,7 +428,7 @@ async function shiftsForActivity(db, organizationId, activityId) {
 }
 
 module.exports = {
-  VOLUNTEER_TYPES, REQUIREMENTS, TYPE_REQUIREMENTS, VolunteerError, missingRequirements,
+  VOLUNTEER_TYPES, REQUIREMENTS, TYPE_REQUIREMENTS, VALIDITY_YEARS, VolunteerError, missingRequirements, teamChecks,
   listShifts, listShiftActivities, saveShift, deleteShift, signUp, withdraw, shiftsForActivity,
   getRequirements, recordRequirements,
 };

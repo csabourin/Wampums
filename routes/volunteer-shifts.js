@@ -1,11 +1,12 @@
 /** Volunteer shifts (#1251): needs by time slot, and taking or giving up a place. */
 const express = require('express');
 const { body, param } = require('express-validator');
+const isDate = require('validator/lib/isDate');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, userHasPermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateIdParam, checkValidation } = require('../middleware/validation');
 const {
-  VOLUNTEER_TYPES, REQUIREMENTS, VolunteerError, listShifts, listShiftActivities, saveShift, deleteShift, signUp, withdraw,
+  VOLUNTEER_TYPES, REQUIREMENTS, VALIDITY_YEARS, VolunteerError, teamChecks, listShifts, listShiftActivities, saveShift, deleteShift, signUp, withdraw,
   getRequirements, recordRequirements,
 } = require('../services/volunteerShifts');
 const { VOLUNTEER_SHIFTS: LIMITS } = require('../config/constants');
@@ -15,6 +16,11 @@ const HTTP_CREATED = 201;
 const HTTP_NOT_FOUND = 404;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+const ISO_DATE_LENGTH = 10;
+
+/** @returns {boolean} Whether a value is absent or a real YYYY-MM-DD date */
+const optionalDate = (value) => value === null || value === undefined
+  || (typeof value === 'string' && DATE_PATTERN.test(value) && isDate(value, { format: 'YYYY-MM-DD', strictMode: true }));
 
 /** Return known refusals; anything else goes to the global handler as a 500. */
 const volunteerHandler = (handler) => asyncHandler(async (req, res) => {
@@ -90,6 +96,11 @@ module.exports = (pool) => {
     const organizationId = await getOrganizationId(req, pool);
     return success(res, await getRequirements(pool, organizationId, req.user.id));
   }));
+  // The team's background checks, most urgent first: managers only.
+  router.get('/checks', requirePermission('volunteers.manage'), volunteerHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    return success(res, await teamChecks(pool, organizationId));
+  }));
   router.get('/requirements/:userId', requirePermission('volunteers.manage'),
     param('userId').isUUID().withMessage('invalid_request'), checkValidation, volunteerHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
@@ -101,10 +112,12 @@ module.exports = (pool) => {
     body('verified').isObject().withMessage('invalid_request').bail()
       .custom((value) => Object.keys(value).every((key) => REQUIREMENTS.includes(key))).withMessage('volunteer_invalid_requirement')
       .bail().custom((value) => Object.values(value).every((entry) => entry && typeof entry === 'object'
-        && (entry.valid_until === null || entry.valid_until === undefined
-          || (typeof entry.valid_until === 'string' && DATE_PATTERN.test(entry.valid_until)
-            && !Number.isNaN(Date.parse(`${entry.valid_until}T00:00:00Z`))))))
-      .withMessage('volunteer_invalid_date'),
+        && optionalDate(entry.valid_until) && optionalDate(entry.checked_on)))
+      .withMessage('volunteer_invalid_date')
+      // A check that lasts a set time says when it was done, and it cannot be done in the future.
+      .bail().custom((value) => Object.entries(value).every(([key, entry]) => !VALIDITY_YEARS[key]
+        || (entry.checked_on && entry.checked_on <= new Date().toISOString().slice(0, ISO_DATE_LENGTH))))
+      .withMessage('volunteer_checked_on_required'),
     checkValidation, volunteerHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       return success(res, await recordRequirements(pool, organizationId, req.user.id, req.params.userId, req.body.verified),

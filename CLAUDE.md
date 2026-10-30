@@ -507,7 +507,9 @@ each activity's or camp's needs by time slot. Writes go through `services/volunt
 locks the shift so its last place goes to one person (409 `volunteer_shift_full` for the other). The
 built-in `volunteer` role holds only `volunteers.view` and `tasks.view`: no youth, family or health
 record. Other volunteers' names go to managers only. Each shift has a type (`config/volunteer_shifts.json`); a type's
-requirements (a background check for a camp aide or a cook) keep a place pending until a manager records them. See `devdocs/VOLUNTEERS.md`.
+requirements keep a place pending until a manager records them. Every adult of the team and every
+volunteer needs a background check, valid three years from the day it was done (the server sets the
+expiry); managers follow them on `/volunteers`. See `devdocs/VOLUNTEERS.md`.
 
 ### Camp equipment lots
 

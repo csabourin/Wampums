@@ -25,10 +25,19 @@ server and the SPA; migration 069 checks the same keys, `test/volunteer-types.te
 |---|---|
 | `camp_aide` (aide de camp) | background check, safety training |
 | `cook` (cuisine) | background check |
-| `driver` (transport) | driver's licence |
+| `driver` (transport) | background check, driver's licence |
 | `night_watch` (veille de nuit) | background check, safety training |
-| `first_aid` (premiers soins) | first-aid certificate, background check |
-| `other` (autre) | nothing; the shift's title says what it is (required) |
+| `first_aid` (premiers soins) | background check, first-aid certificate |
+| `other` (autre) | background check; the shift's title says what it is (required) |
+
+**Every adult needs a background check**, valid three years from the day it was done
+(`validity_years`). A manager records the day of the check; the server sets its expiry, whatever the
+request says (a check done on 29 February lasts until 28 February). Managers follow everyone's
+checks under "Vérification des antécédents" on `/volunteers` (`GET /api/v1/volunteer-shifts/checks`,
+`volunteers.manage`): every active member holding a role beyond a family's own children (leaders,
+finance, equipment, district…) and anyone with a place on an upcoming shift, most urgent first:
+missing, expired, expiring within `expiring_soon_days` (60), valid. A parent who takes no shift is
+not listed.
 
 A listed type may add a precision in its title ("Cuisine · Souper"). To change what a type requires,
 edit the JSON; adding a type or requirement also needs a migration extending the check and labels in

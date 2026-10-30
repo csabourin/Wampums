@@ -15,7 +15,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(
 jest.mock('../../spa/api/api-volunteers.js', () => ({
   getVolunteerShifts: jest.fn(), getVolunteerShiftActivities: jest.fn(), saveVolunteerShift: jest.fn(),
   deleteVolunteerShift: jest.fn(), signUpForShift: jest.fn(), withdrawFromShift: jest.fn(), removeVolunteer: jest.fn(),
-  getVolunteerRequirements: jest.fn(), saveVolunteerRequirements: jest.fn(),
+  getVolunteerRequirements: jest.fn(), saveVolunteerRequirements: jest.fn(), getTeamChecks: jest.fn(),
 }));
 jest.mock('../../spa/utils/DialogUtils.js', () => ({
   confirmDestructive: jest.fn(() => Promise.resolve(true)),
@@ -24,7 +24,7 @@ jest.mock('../../spa/utils/DialogUtils.js', () => ({
 
 import {
   getVolunteerShifts, getVolunteerShiftActivities, saveVolunteerShift, signUpForShift, withdrawFromShift, removeVolunteer,
-  getVolunteerRequirements, saveVolunteerRequirements,
+  getVolunteerRequirements, saveVolunteerRequirements, getTeamChecks,
 } from '../../spa/api/api-volunteers.js';
 import { Volunteers } from '../../spa/modules/volunteers/Volunteers.js';
 import { closeAllModals } from '../../spa/utils/ModalUtils.js';
@@ -64,6 +64,7 @@ beforeEach(() => {
   getVolunteerShifts.mockResolvedValue({ data: SHIFTS });
   signUpForShift.mockResolvedValue({ success: true, data: { status: 'confirmed', missing: [] } });
   withdrawFromShift.mockResolvedValue({ success: true });
+  getTeamChecks.mockResolvedValue({ data: [] });
 });
 
 afterEach(() => {
@@ -333,7 +334,7 @@ describe('types and what they require', () => {
       requirements: ['background_check', 'safety_training'],
       volunteers: [{ user_id: '00000000-0000-4000-8000-000000000003', name: 'Mary Jackson', status: 'pending', missing: ['safety_training'] }],
     })] });
-    getVolunteerRequirements.mockResolvedValue({ data: [{ requirement_key: 'background_check', valid_until: '2027-09-01' }] });
+    getVolunteerRequirements.mockResolvedValue({ data: [{ requirement_key: 'background_check', checked_on: '2025-09-01', valid_until: '2028-09-01' }] });
     saveVolunteerRequirements.mockResolvedValue({ data: { confirmed: 1 } });
     await open();
     expect(document.querySelector('.volunteers__status').textContent).toBe('volunteers_status_pending');
@@ -343,7 +344,9 @@ describe('types and what they require', () => {
     await flush();
     const form = document.getElementById('volunteers-verify-form');
     expect(form.elements.req_background_check.checked).toBe(true);
-    expect(form.elements.until_background_check.value).toBe('2027-09-01');
+    expect(form.elements.checked_background_check.value).toBe('2025-09-01');
+    expect(form.elements.until_background_check).toBeUndefined();
+    expect(document.getElementById('volunteers-checked-background_check-lasts').textContent).toBe('volunteers_check_valid_until');
     expect(form.querySelector('legend').textContent).toContain('volunteers_needed_here');
     expect((await axe.run(document.getElementById('volunteers-verify'), AXE_OPTIONS)).violations).toEqual([]);
     form.elements.req_safety_training.checked = true;
@@ -351,8 +354,67 @@ describe('types and what they require', () => {
     await flush();
     await flush();
     expect(saveVolunteerRequirements).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000003', {
-      background_check: { valid_until: '2027-09-01' }, safety_training: { valid_until: null },
+      background_check: { checked_on: '2025-09-01' }, safety_training: { valid_until: null },
     });
     expect(app.showMessage).toHaveBeenCalledWith('volunteers_verified_confirmed', 'success');
+  });
+});
+
+describe('background checks of the whole team', () => {
+  const PEOPLE = [
+    { user_id: '00000000-0000-4000-8000-000000000011', name: 'Margaret Hamilton', on_team: true, volunteering: false, state: 'missing', checked_on: null, valid_until: null },
+    { user_id: '00000000-0000-4000-8000-000000000012', name: 'Mary Somerville', on_team: true, volunteering: true, state: 'expiring', checked_on: '2023-11-20', valid_until: '2026-11-20' },
+    { user_id: '00000000-0000-4000-8000-000000000013', name: 'Ada Lovelace', on_team: true, volunteering: false, state: 'valid', checked_on: '2026-01-10', valid_until: '2029-01-10' },
+  ];
+
+  beforeEach(() => {
+    mockPermissions.add('volunteers.manage');
+    getTeamChecks.mockResolvedValue({ data: PEOPLE });
+  });
+
+  test('a manager sees each adult\'s check in words, with how many still need one', async () => {
+    await open();
+    const section = document.getElementById('volunteers-checks');
+    expect(section.querySelector('h2').textContent).toBe('volunteers_checks_title');
+    expect(section.querySelector('.volunteers__checks-summary').textContent).toBe('volunteers_checks_todo');
+    const states = [...section.querySelectorAll('.volunteers__check-state')].map((item) => item.textContent);
+    expect(states).toEqual(['volunteers_check_missing', 'volunteers_check_expiring', 'volunteers_check_valid']);
+    expect(document.querySelector('.volunteers__checks-link a').getAttribute('href')).toBe('#volunteers-checks');
+    expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
+  });
+
+  test('a volunteer does not see the team\'s checks, nor is the list requested', async () => {
+    mockPermissions.delete('volunteers.manage');
+    await open();
+    expect(document.getElementById('volunteers-checks')).toBeNull();
+    expect(getTeamChecks).not.toHaveBeenCalled();
+  });
+
+  test('recording a check asks the day it was done, says it lasts three years, and refuses a missing date', async () => {
+    getVolunteerRequirements.mockResolvedValue({ data: [] });
+    saveVolunteerRequirements.mockResolvedValue({ data: { confirmed: 0 } });
+    await open();
+    const button = document.querySelector('[data-check-user="00000000-0000-4000-8000-000000000011"]');
+    expect(button.getAttribute('aria-label')).toBe('volunteers_check_update_person');
+    button.click();
+    await flush();
+    const form = document.getElementById('volunteers-verify-form');
+    expect(document.getElementById('volunteers-checked-background_check-lasts').textContent).toBe('volunteers_check_lasts');
+    form.elements.req_background_check.checked = true;
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    expect(saveVolunteerRequirements).not.toHaveBeenCalled();
+    expect(form.elements.checked_background_check.getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(form.elements.checked_background_check);
+
+    form.elements.checked_background_check.value = '2026-10-01';
+    form.elements.checked_background_check.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(document.getElementById('volunteers-checked-background_check-lasts').textContent).toBe('volunteers_check_valid_until');
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    await flush();
+    expect(saveVolunteerRequirements).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000011', {
+      background_check: { checked_on: '2026-10-01' },
+    });
   });
 });

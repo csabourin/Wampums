@@ -18,3 +18,5 @@ export const getVolunteerRequirements = (userId) => API.getNoCache(`v1/volunteer
 /** Replace that record; the member's upcoming places follow (confirmed when complete). */
 export const saveVolunteerRequirements = (userId, verified) =>
   API.put(`v1/volunteer-shifts/requirements/${encodeURIComponent(userId)}`, { verified });
+/** Managers: every adult of the unit whose background check is followed, most urgent first. */
+export const getTeamChecks = () => API.getNoCache('v1/volunteer-shifts/checks');

@@ -10,6 +10,8 @@ import config from '../../config/volunteer_shifts.json';
 export const TYPE_REQUIREMENTS = new Map(config.types.map((type) => [type.key, type.requirements]));
 export const VOLUNTEER_TYPES = [...TYPE_REQUIREMENTS.keys()];
 export const VOLUNTEER_REQUIREMENTS = config.requirements;
+/** Requirements lasting a set number of years from the day they were done (a background check: 3). */
+export const VALIDITY_YEARS = config.validity_years;
 
 /** @param {string} type @returns {string} The type's name in the interface language */
 export function volunteerTypeLabel(type) {

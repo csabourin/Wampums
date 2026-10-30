@@ -173,6 +173,11 @@ function materialSorts() {
   return [...source.match(/MATERIAL_SORTS = \[([^\]]*)\]/)[1].matchAll(/'([a-z_]+)'/g)].map((match) => match[1]);
 }
 
+/** @returns {Object} Volunteer types and requirements, from the list the server validates against */
+function volunteerConfig() {
+  return JSON.parse(fs.readFileSync(path.join(ROOT, 'config/volunteer_shifts.json'), 'utf8'));
+}
+
 test('every key built from a state exists for each state the server returns', () => {
   const built = [
     ...['pending', 'expired', 'accepted', 'revoked', 'invalid'].map((s) => [`parent_invitation_state_${s}`, 'ParentInvitations']),
@@ -193,6 +198,9 @@ test('every key built from a state exists for each state the server returns', ()
     ...starterVocabulary('branches').map((key) => [`starter_branch_${key}`, 'ActivityLibraryUtils']),
     ...starterVocabulary('seasons').map((key) => [`starter_season_${key}`, 'ActivityLibraryUtils']),
     ...['indoor', 'outdoor'].map((key) => [`starter_setting_${key}`, 'ActivityLibraryUtils']),
+    ...volunteerConfig().types.map((type) => [`volunteer_type_${type.key}`, 'VolunteerTypeUtils']),
+    ...volunteerConfig().requirements.map((key) => [`volunteer_requirement_${key}`, 'VolunteerTypeUtils']),
+    ...['missing', 'expired', 'expiring', 'valid'].map((state) => [`volunteers_check_${state}`, 'Volunteers']),
   ];
 
   expect(programProgressStatuses().length).toBeGreaterThan(10);

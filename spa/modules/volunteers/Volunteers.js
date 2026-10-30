@@ -4,7 +4,9 @@
  * Each shift has a type (camp aide, cook, driver…; config/volunteer_shifts.json). A type may
  * require things, such as a background check for a camp aide: a place is confirmed when its
  * holder meets them on the shift's day, and otherwise held, "to verify", until a manager records
- * them. Anyone with `volunteers.view` takes or gives up their own place; the last place goes to one
+ * them. Every type requires a background check, which lasts three years from the day it was done;
+ * managers also follow the check of every adult on the unit's team. Anyone with `volunteers.view`
+ * takes or gives up their own place; the last place goes to one
  * person only. Managers (`volunteers.manage`) add, edit and remove shifts, see who signed up, and
  * record requirements. Nothing here reads a youth, family or health record.
  *
@@ -15,7 +17,7 @@ import { setContent, withFormBusy, loadStylesheet } from '../../utils/DOMUtils.j
 import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
-import { formatDate } from '../../utils/DateUtils.js';
+import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
@@ -23,11 +25,11 @@ import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import limits from '../../../config/volunteer_shifts.json';
 import {
-  TYPE_REQUIREMENTS, VOLUNTEER_TYPES, VOLUNTEER_REQUIREMENTS, volunteerTypeLabel, requirementsLabel, shiftName,
+  TYPE_REQUIREMENTS, VOLUNTEER_TYPES, VOLUNTEER_REQUIREMENTS, VALIDITY_YEARS, volunteerTypeLabel, requirementsLabel, shiftName,
 } from '../../utils/VolunteerTypeUtils.js';
 import {
   getVolunteerShifts, getVolunteerShiftActivities, saveVolunteerShift, deleteVolunteerShift,
-  signUpForShift, withdrawFromShift, removeVolunteer, getVolunteerRequirements, saveVolunteerRequirements,
+  signUpForShift, withdrawFromShift, removeVolunteer, getVolunteerRequirements, saveVolunteerRequirements, getTeamChecks,
 } from '../../api/api-volunteers.js';
 import styles from '../../../css/volunteers.css?url';
 
@@ -42,6 +44,7 @@ export class Volunteers {
   constructor(app) {
     this.app = app;
     this.shifts = [];
+    this.checks = [];
     this.vacantOnly = false;
     this.typeFilter = '';
     this.canManage = hasPermission('volunteers.manage');
@@ -73,8 +76,44 @@ export class Volunteers {
   }
 
   async load() {
-    const response = await getVolunteerShifts();
+    const [response, checks] = await Promise.all([
+      getVolunteerShifts(),
+      this.canManage ? getTeamChecks() : Promise.resolve(null),
+    ]);
     this.shifts = Array.isArray(response?.data) ? response.data : [];
+    this.checks = Array.isArray(checks?.data) ? checks.data : [];
+  }
+
+  /** @returns {string} A person's background check, in words: missing, expired, expiring or valid */
+  checkState(person) {
+    const date = person.valid_until ? formatDate(person.valid_until, this.lang()) : '';
+    return translate(`volunteers_check_${person.state}`).replace('{date}', date);
+  }
+
+  /** Managers: every adult of the team and every volunteer, whose check is missing or lapsing first. */
+  checksMarkup() {
+    if (!this.canManage) { return ''; }
+    const todo = this.checks.filter((person) => person.state !== 'valid').length;
+    const rows = this.checks.map((person) => {
+      const name = person.name || translate('tasks_member');
+      const who = [person.on_team ? translate('volunteers_check_team') : '', person.volunteering ? translate('volunteers_check_volunteer') : '']
+        .filter(Boolean).join(' · ');
+      return `<li class="volunteers__check is-${escapeAttribute(person.state)}">
+        <span class="volunteers__person"><span>${escapeHTML(name)}</span>
+          <span class="volunteers__status">${escapeHTML(who)}</span>
+          <span class="volunteers__check-state">${escapeHTML(this.checkState(person))}</span></span>
+        <button type="button" class="button button--secondary button--small" data-check-user="${escapeAttribute(person.user_id)}"
+          data-name="${escapeAttribute(name)}"
+          aria-label="${escapeAttribute(translate('volunteers_check_update_person').replace('{name}', name))}">${escapeHTML(translate('volunteers_check_update'))}</button>
+      </li>`;
+    }).join('');
+    return `<section class="volunteers__checks" id="volunteers-checks" aria-labelledby="volunteers-checks-title" tabindex="-1">
+      <h2 id="volunteers-checks-title">${escapeHTML(translate('volunteers_checks_title'))}</h2>
+      <p>${escapeHTML(translate('volunteers_checks_intro'))}</p>
+      <p class="volunteers__checks-summary"><strong>${escapeHTML(todo
+    ? translate('volunteers_checks_todo').replace('{count}', String(todo)) : translate('volunteers_checks_all_valid'))}</strong></p>
+      ${rows ? `<ul class="volunteers__names">${rows}</ul>` : `<p>${escapeHTML(translate('volunteers_checks_empty'))}</p>`}
+    </section>`;
   }
 
   header() {
@@ -213,7 +252,15 @@ export class Volunteers {
           <label for="volunteers-vacant-only">${escapeHTML(translate('volunteers_vacant_only'))}</label>
         </div>
       </div>
-      <div id="volunteers-list">${this.groupsMarkup()}</div></section>`);
+      ${this.canManage && this.checks.some((person) => person.state !== 'valid') ? `<p class="volunteers__checks-link">
+        <a href="#volunteers-checks">${escapeHTML(translate('volunteers_checks_todo')
+    .replace('{count}', String(this.checks.filter((person) => person.state !== 'valid').length)))}</a></p>` : ''}
+      <div id="volunteers-list">${this.groupsMarkup()}</div>
+      ${this.checksMarkup()}</section>`);
+    root.querySelector('#volunteers-checks')?.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-check-user]');
+      if (button) { this.openVerify(null, button.dataset.checkUser, button.dataset.name); }
+    });
     root.querySelector('#volunteers-add')?.addEventListener('click', () => this.openForm());
     root.querySelector('#volunteers-vacant-only').addEventListener('change', (event) => {
       this.vacantOnly = event.target.checked;
@@ -300,9 +347,15 @@ export class Volunteers {
           <input type="checkbox" id="volunteers-req-${key}" name="req_${key}" ${record ? 'checked' : ''}>
           <label for="volunteers-req-${key}">${escapeHTML(translate('volunteers_verified'))}</label>
         </div>
+        ${VALIDITY_YEARS[key] ? `
+        <label for="volunteers-checked-${key}">${escapeHTML(translate('volunteers_checked_on'))}</label>
+        <input type="date" id="volunteers-checked-${key}" name="checked_${key}" value="${escapeAttribute(record?.checked_on || '')}"
+          max="${escapeAttribute(getTodayISO())}" aria-describedby="volunteers-checked-${key}-lasts">
+        <p class="form-help" id="volunteers-checked-${key}-lasts" aria-live="polite">${escapeHTML(this.lastsText(key, record?.checked_on))}</p>`
+    : `
         <label for="volunteers-until-${key}">${escapeHTML(translate('volunteers_valid_until'))}</label>
         <input type="date" id="volunteers-until-${key}" name="until_${key}" value="${escapeAttribute(record?.valid_until || '')}"
-          aria-describedby="volunteers-until-help">
+          aria-describedby="volunteers-until-help">`}
       </fieldset>`;
     }).join('');
     const modal = openModal({
@@ -320,13 +373,43 @@ export class Volunteers {
         <button type="submit" class="button button--primary" form="volunteers-verify-form">${escapeHTML(translate('save'))}</button>`,
     });
     const form = document.getElementById('volunteers-verify-form');
+    // Say how long a check lasts as its date is typed.
+    keys.filter((key) => VALIDITY_YEARS[key]).forEach((key) => {
+      form.elements[`checked_${key}`].addEventListener('input', (event) => {
+        form.querySelector(`#volunteers-checked-${key}-lasts`).textContent = this.lastsText(key, event.target.value);
+      });
+    });
+    form.addEventListener('input', () => {
+      form.querySelectorAll('[aria-invalid]').forEach((control) => control.removeAttribute('aria-invalid'));
+      document.getElementById('volunteers-verify-error').hidden = true;
+    });
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       withFormBusy(form, async () => {
         const verified = {};
+        const undated = [];
         keys.forEach((key) => {
-          if (form.elements[`req_${key}`].checked) { verified[key] = { valid_until: form.elements[`until_${key}`].value || null }; }
+          if (!form.elements[`req_${key}`].checked) { return; }
+          if (VALIDITY_YEARS[key]) {
+            const checkedOn = form.elements[`checked_${key}`].value;
+            if (!checkedOn || checkedOn > getTodayISO()) { undated.push(key); }
+            verified[key] = { checked_on: checkedOn };
+          } else {
+            verified[key] = { valid_until: form.elements[`until_${key}`].value || null };
+          }
         });
+        if (undated.length) {
+          const problem = document.getElementById('volunteers-verify-error');
+          problem.textContent = translate('volunteer_checked_on_required');
+          problem.hidden = false;
+          undated.forEach((key) => {
+            const input = form.elements[`checked_${key}`];
+            input.setAttribute('aria-invalid', 'true');
+            input.setAttribute('aria-describedby', `volunteers-checked-${key}-lasts volunteers-verify-error`);
+          });
+          form.elements[`checked_${undated[0]}`].focus();
+          return;
+        }
         let result;
         try {
           result = await saveVolunteerRequirements(userId, verified);
@@ -349,6 +432,21 @@ export class Volunteers {
         await this.reload();
       });
     });
+  }
+
+  /**
+   * @param {string} key - A requirement with a set validity
+   * @param {string} checkedOn - The day it was done, YYYY-MM-DD
+   * @returns {string} How long it lasts, or the rule when no day is entered yet
+   */
+  lastsText(key, checkedOn) {
+    const years = VALIDITY_YEARS[key];
+    if (!checkedOn) { return translate('volunteers_check_lasts').replace('{years}', String(years)); }
+    const [year, month, day] = checkedOn.split('-').map(Number);
+    const until = new Date(year + years, month - 1, day);
+    // A check done on 29 February lasts until 28 February, as the server computes it.
+    if (until.getMonth() !== month - 1) { until.setDate(0); }
+    return translate('volunteers_check_valid_until').replace('{date}', formatDate(until.toLocaleDateString('en-CA'), this.lang()));
   }
 
   async reload() {

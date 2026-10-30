@@ -38,3 +38,12 @@
 .volunteers__requirement { border: 1px solid var(--color-border); border-radius: var(--radius-md, .5rem); padding: .5rem .75rem; margin: .5rem 0 0; display: grid; gap: .35rem; }
 .volunteers__requirement legend { font-weight: 600; padding-inline: .25rem; }
 #volunteers-verify-error:not([hidden]) { color: var(--color-error, #b42318); font-weight: 600; }
+.volunteers__checks { margin-block: 2rem 1rem; scroll-margin-block-start: 5rem; }
+.volunteers__checks h2 { font-size: 1.2rem; }
+.volunteers__check { padding-inline-start: .75rem; border-inline-start: 4px solid var(--color-border); }
+/* The state is written out; the border only repeats it. */
+.volunteers__check:is(.is-missing, .is-expired) { border-inline-start-color: var(--color-error, #b42318); }
+.volunteers__check.is-expiring { border-inline-start-color: var(--color-warning, #b54708); }
+.volunteers__check.is-valid { border-inline-start-color: var(--color-success, #067647); }
+.volunteers__check-state { font-weight: 600; }
+.volunteers__checks-link a { display: inline-flex; align-items: center; min-block-size: var(--touch-target-min, 44px); font-weight: 600; }

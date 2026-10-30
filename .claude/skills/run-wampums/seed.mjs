@@ -388,8 +388,9 @@ try {
   );
   // The admin's licence and background check were verified, so their driving and cooking places are confirmed.
   await pool.query(
-    `INSERT INTO volunteer_requirements (organization_id, user_id, requirement_key, valid_until, verified_by)
-     VALUES ($1, $2, 'driver_licence', CURRENT_DATE + 365, $2), ($1, $2, 'background_check', NULL, $2)`,
+    `INSERT INTO volunteer_requirements (organization_id, user_id, requirement_key, checked_on, valid_until, verified_by)
+     VALUES ($1, $2, 'driver_licence', NULL, CURRENT_DATE + 365, $2),
+            ($1, $2, 'background_check', CURRENT_DATE - 400, (CURRENT_DATE - 400 + INTERVAL '3 years')::date, $2)`,
     [organizationId, adminId]
   );
   await pool.query(

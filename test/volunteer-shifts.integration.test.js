@@ -27,7 +27,7 @@ jest.mock('../middleware/auth', () => {
   };
 });
 
-const { signUp, saveShift, listShifts, recordRequirements } = require('../services/volunteerShifts');
+const { signUp, saveShift, listShifts, recordRequirements, teamChecks } = require('../services/volunteerShifts');
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 
 describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
@@ -215,7 +215,7 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
       const shift = await aideShift();
       await signUp(pool, ids.unit, shift.id, aide);
       expect(await recordRequirements(pool, ids.unit, ids.manager, aide, {
-        background_check: { valid_until: null }, safety_training: { valid_until: await day(365) },
+        background_check: { checked_on: await day(0) }, safety_training: { valid_until: await day(365) },
       })).toEqual({ confirmed: 1 });
       expect(await placeOf(shift.id, aide)).toBe('confirmed');
       const managerView = (await listShifts(pool, ids.unit, ids.manager, { withNames: true })).find((row) => row.id === shift.id);
@@ -228,7 +228,9 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
     test('a requirement expired by the shift\'s day counts as missing', async () => {
       const aide = await member('Joan Clarke', 'volunteer');
       await recordRequirements(pool, ids.unit, ids.manager, aide, {
-        background_check: { valid_until: await day(1) }, safety_training: { valid_until: null },
+        // Done three years ago less a day: it lapses tomorrow, before the shift.
+        background_check: { checked_on: await one("SELECT ((CURRENT_DATE - INTERVAL '3 years')::date + 1)::text") },
+        safety_training: { valid_until: null },
       });
       const shift = await aideShift();
       expect((await signUp(pool, ids.unit, shift.id, aide)).missing).toEqual(['background_check']);
@@ -237,7 +239,7 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
     test('a verified person is confirmed at once', async () => {
       const aide = await member('Hedy Lamarr', 'volunteer');
       await recordRequirements(pool, ids.unit, ids.manager, aide, {
-        background_check: { valid_until: null }, safety_training: { valid_until: null },
+        background_check: { checked_on: await day(0) }, safety_training: { valid_until: null },
       });
       const shift = await aideShift();
       expect((await signUp(pool, ids.unit, shift.id, aide)).status).toBe('confirmed');
@@ -250,7 +252,7 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
         start_time: '07:00', end_time: '08:00', slots: 2, notes: '',
       });
       expect(await signUp(pool, ids.unit, cookShift.id, cook)).toEqual({ created: true, status: 'pending', missing: ['background_check'] });
-      expect(await recordRequirements(pool, ids.unit, ids.manager, cook, { background_check: { valid_until: null } })).toEqual({ confirmed: 1 });
+      expect(await recordRequirements(pool, ids.unit, ids.manager, cook, { background_check: { checked_on: await day(0) } })).toEqual({ confirmed: 1 });
       expect(await placeOf(cookShift.id, cook)).toBe('confirmed');
     });
 
@@ -273,8 +275,59 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
       expect((await as(ids.cook).get('/api/v1/volunteer-shifts/requirements/me')).status).toBe(200);
       const stranger = await one(`INSERT INTO users (email, password, full_name)
         VALUES ('stranger-' || gen_random_uuid() || '@example.test', 'x', 'Stranger') RETURNING id`);
-      await expect(recordRequirements(pool, ids.unit, ids.manager, stranger, { background_check: { valid_until: null } }))
+      await expect(recordRequirements(pool, ids.unit, ids.manager, stranger, { background_check: { checked_on: await day(0) } }))
         .rejects.toMatchObject({ message: 'volunteer_member_not_found', status: 404 });
+    });
+  });
+
+  describe('background checks for every adult, valid three years', () => {
+    test('a check lasts three years from the day it was done, whatever expiry is sent', async () => {
+      const person = await member('Rosalind Franklin', 'volunteer');
+      await recordRequirements(pool, ids.unit, ids.manager, person, {
+        background_check: { checked_on: '2025-03-15', valid_until: '2099-01-01' },
+      });
+      expect(await one(`SELECT valid_until::text FROM volunteer_requirements
+        WHERE user_id = $1 AND requirement_key = 'background_check'`, [person])).toBe('2028-03-15');
+    });
+
+    test('a check done on 29 February lasts until 28 February three years later', async () => {
+      const person = await member('Lise Meitner', 'volunteer');
+      await recordRequirements(pool, ids.unit, ids.manager, person, { background_check: { checked_on: '2024-02-29' } });
+      expect(await one(`SELECT valid_until::text FROM volunteer_requirements
+        WHERE user_id = $1 AND requirement_key = 'background_check'`, [person])).toBe('2027-02-28');
+    });
+
+    test('every type, "other" included, holds a place until the check is recorded', async () => {
+      const person = await member('Chien-Shiung Wu', 'volunteer');
+      const shift = await saveShift(pool, ids.unit, ids.manager, {
+        activity_id: ids.camp, volunteer_type: 'other', title: 'Accueil des familles', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
+        start_time: '17:00', end_time: '18:00', slots: 3, notes: '',
+      });
+      expect(await signUp(pool, ids.unit, shift.id, person)).toMatchObject({ status: 'pending', missing: ['background_check'] });
+    });
+
+    test('managers follow the whole team and every volunteer, most urgent first; a parent alone is not listed', async () => {
+      const leader = await member('Margaret Hamilton', 'leader');
+      const treasurer = await member('Mary Somerville', 'district');
+      const parent = await member('Parent Only', 'parent');
+      await recordRequirements(pool, ids.unit, ids.manager, treasurer, { background_check: { checked_on: await one("SELECT ((CURRENT_DATE - INTERVAL '3 years')::date + 30)::text") } });
+      await recordRequirements(pool, ids.unit, ids.manager, ids.manager, { background_check: { checked_on: await one('SELECT CURRENT_DATE::text') } });
+      const checks = await teamChecks(pool, ids.unit);
+      const byId = new Map(checks.map((row) => [row.user_id, row]));
+      expect(byId.get(leader)).toMatchObject({ on_team: true, state: 'missing' });
+      expect(byId.get(treasurer)).toMatchObject({ on_team: true, state: 'expiring' });
+      expect(byId.get(ids.manager)).toMatchObject({ on_team: true, state: 'valid' });
+      expect(byId.has(parent)).toBe(false);
+      const states = checks.map((row) => row.state);
+      expect(states.indexOf('missing')).toBeLessThan(states.indexOf('expiring'));
+      expect(states.indexOf('expiring')).toBeLessThan(states.indexOf('valid'));
+    });
+
+    test('through the API, the team list is for managers only', async () => {
+      expect((await as(ids.manager).get('/api/v1/volunteer-shifts/checks')).status).toBe(200);
+      const refused = await as(ids.cook).get('/api/v1/volunteer-shifts/checks');
+      expect(refused.status).toBe(403);
+      expect(refused.body.missing).toEqual(['volunteers.manage']);
     });
   });
 });
