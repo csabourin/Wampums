@@ -58,6 +58,7 @@ import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 import { renderCampReadinessSummary } from '../offline/CampReadiness.js';
 import { loadUpcomingCamps, upcomingCampsMarkup } from '../camp-readiness/UpcomingCamps.js';
+import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { offlineManager } from '../OfflineManager.js';
 
 /**
@@ -148,7 +149,13 @@ export class Dashboard extends BaseModule {
 
   /** Camps coming up link to their team overview; loaded after the dashboard, never blocking it. */
   async showUpcomingCamps() {
-    this.upcomingCamps = await loadUpcomingCamps();
+    // A late answer must not draw another account's or unit's camps after a switch.
+    const scope = buildScopedCacheKey('');
+    const camps = await loadUpcomingCamps();
+    if (this.isDestroyed || scope !== buildScopedCacheKey('')) {
+      return;
+    }
+    this.upcomingCamps = camps;
     const target = document.getElementById('dashboard-team-camps');
     if (target && this.upcomingCamps.length) {
       setContent(target, upcomingCampsMarkup(this.upcomingCamps, this.app.lang || this.app.currentLanguage));
