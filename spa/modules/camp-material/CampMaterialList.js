@@ -257,21 +257,21 @@ export class CampMaterialList {
     const headingId = `camp-material-group-${index}`;
     const rows = group.items.map((item) => `
       <tr>
-        <td data-label="${escapeHTML(translate('camp_material_article'))}">
+        <td class="camp-material__cell--article" data-label="${escapeHTML(translate('camp_material_article'))}">
           <strong>${escapeHTML(item.name)}</strong>
           ${item.archived ? `<span class="camp-material__archived">${escapeHTML(translate('camp_material_archived'))}</span>` : ''}
         </td>
-        <td data-label="${escapeHTML(translate('camp_material_total'))}">${escapeHTML(this.quantityLabel(item))}</td>
-        <td data-label="${escapeHTML(translate('camp_material_used_by'))}">
+        <td class="camp-material__cell--total" data-label="${escapeHTML(translate('camp_material_total'))}">${escapeHTML(this.quantityLabel(item))}</td>
+        <td class="camp-material__cell--uses" data-label="${escapeHTML(translate('camp_material_used_by'))}">
           <ul class="camp-material__uses">${this.usesLabels(item).map((label) => `<li>${escapeHTML(label)}</li>`).join('')}</ul>
         </td>
         ${inventory ? `
-          <td data-label="${escapeHTML(translate('camp_material_reserved'))}">${item.inventory.status === 'not_in_inventory' ? '—' : Number(item.inventory.reserved)}</td>
-          <td data-label="${escapeHTML(translate('camp_material_free'))}">${item.inventory.status === 'not_in_inventory' ? '—' : Number(item.inventory.free)}</td>
-          <td data-label="${escapeHTML(translate('camp_material_status'))}">
+          <td class="camp-material__cell--reserved" data-label="${escapeHTML(translate('camp_material_reserved'))}">${item.inventory.status === 'not_in_inventory' ? '—' : Number(item.inventory.reserved)}</td>
+          <td class="camp-material__cell--free" data-label="${escapeHTML(translate('camp_material_free'))}">${item.inventory.status === 'not_in_inventory' ? '—' : Number(item.inventory.free)}</td>
+          <td class="camp-material__cell--status" data-label="${escapeHTML(translate('camp_material_status'))}">
             <span class="camp-material__status camp-material__status--${escapeHTML(item.inventory.status)}">${escapeHTML(this.statusLabel(item.inventory))}</span>
           </td>` : ''}
-        ${this.canAssign ? `<td data-label="${escapeHTML(translate('camp_material_who'))}">
+        ${this.canAssign ? `<td class="camp-material__cell--who ${this.needsSomeone(item) ? '' : 'camp-material__cell--empty'}" data-label="${escapeHTML(translate('camp_material_who'))}">
           ${this.needsSomeone(item) ? this.assignLink(item.name, `${this.quantityLabel(item)} — ${item.name}`) : '—'}</td>` : ''}
       </tr>`).join('');
     return `
@@ -365,17 +365,17 @@ export class CampMaterialList {
         <p class="camp-material__camp">${escapeHTML(this.campLabel())}</p>
         ${this.hasContent() ? `
           <div class="camp-material__actions">
-            ${hasAllPermissions('camp_lots.view') ? `<a class="button button--secondary" href="/camp-lots/${Number(this.meetingId)}">${translate('camp_lots_open')}</a>` : ''}
-            <button type="button" class="button button--secondary" id="camp-material-print">
-              ${escapeHTML(translate('print'))}
-            </button>
-            <button type="button" class="button button--secondary" id="camp-material-export">
-              ${escapeHTML(translate('export_csv'))}
-            </button>
             ${this.toReserve().length ? `
               <button type="button" class="button button--primary" id="camp-material-reserve">
                 ${escapeHTML(translate('camp_material_reserve'))}
               </button>` : ''}
+            ${hasAllPermissions('camp_lots.view') ? `<a class="button button--secondary button--small" href="/camp-lots/${Number(this.meetingId)}">${translate('camp_lots_open')}</a>` : ''}
+            <button type="button" class="button button--secondary button--small" id="camp-material-print">
+              ${escapeHTML(translate('print'))}
+            </button>
+            <button type="button" class="button button--secondary button--small" id="camp-material-export">
+              ${escapeHTML(translate('export_csv'))}
+            </button>
           </div>` : ''}
         ${this.hasScheduledMaterial() ? '' : `<p class="empty-state">${escapeHTML(translate('camp_material_empty'))}</p>`}
         ${listMarkup}

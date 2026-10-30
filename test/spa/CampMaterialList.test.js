@@ -536,3 +536,26 @@ describe('converting free-text material into catalogue articles', () => {
     expect(form.querySelector('#camp-material-remaining').value).toBe('Maillets');
   });
 });
+
+describe('reading the list on a phone', () => {
+  test('every value keeps its label, and only articles still needing someone show who brings them', async () => {
+    hasAllPermissions.mockImplementation(() => true);
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    document.querySelectorAll('.camp-material__table tbody td').forEach((cell) => {
+      expect(cell.getAttribute('data-label')).toBeTruthy();
+    });
+    const rows = [...document.querySelectorAll('.camp-material__table tbody tr')];
+    const who = (name) => rows.find((row) => row.textContent.includes(name)).querySelector('.camp-material__cell--who');
+    expect(who('Lanternes').classList.contains('camp-material__cell--empty')).toBe(true);
+    expect(who('Tente 4 places').classList.contains('camp-material__cell--empty')).toBe(false);
+  });
+
+  test('reserving what is missing is the first action offered', async () => {
+    hasAllPermissions.mockImplementation(() => true);
+    const data = list();
+    data.items[1].inventory = { ...data.items[1].inventory, status: 'available', to_reserve: 1 };
+    api.getCampMaterialList.mockResolvedValue({ success: true, data });
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    expect(document.querySelector('.camp-material__actions > *').id).toBe('camp-material-reserve');
+  });
+});

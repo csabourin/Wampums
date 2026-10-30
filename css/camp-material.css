@@ -114,3 +114,73 @@
 .camp-material__new-article { display: grid; gap: var(--space-xs, 0.25rem); }
 .camp-material__new-article[open] { padding: var(--space-sm, 0.5rem); border: 1px solid var(--color-border); border-radius: 0.5rem; }
 .camp-material__new-article summary { min-height: var(--touch-target-min, 44px); cursor: pointer; font-weight: 600; }
+
+.camp-material :is(h2, h3) {
+  text-align: start;
+}
+
+/* Phones: each article is a compact card. The name runs across the top; the
+   quantities sit three to a row, each still under its own label; nothing is hidden. */
+@media (width <=600px) {
+  .camp-material__table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .camp-material__table tbody {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .camp-material__table tr {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .camp-material__table td[data-label] {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+
+  .camp-material__table td[data-label]::before {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+    margin-block-end: 0.1rem;
+  }
+
+  .camp-material__table .camp-material__cell--article {
+    grid-column: 1 / -1;
+    order: -2;
+    font-size: 1.05rem;
+  }
+
+  .camp-material__table .camp-material__cell--status {
+    grid-column: 1 / -1;
+    order: -1;
+  }
+
+  .camp-material__table :is(.camp-material__cell--uses, .camp-material__cell--who) {
+    grid-column: 1 / -1;
+    order: 1;
+  }
+
+  .camp-material__table .camp-material__cell--uses {
+    font-size: 0.875rem;
+  }
+
+  /* Nobody needs to bring what is reserved: no empty "who" line on a phone. */
+  .camp-material__table .camp-material__cell--empty {
+    display: none;
+  }
+}
