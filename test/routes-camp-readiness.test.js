@@ -2,8 +2,8 @@ const express = require('express');
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const { authorizationContextRow } = require('./mock-helpers');
-jest.mock('../services/campReadiness', () => ({ campReadiness: jest.fn() }));
-const { campReadiness } = require('../services/campReadiness');
+jest.mock('../services/campReadiness', () => ({ campReadiness: jest.fn(), upcomingCamps: jest.fn() }));
+const { campReadiness, upcomingCamps } = require('../services/campReadiness');
 process.env.JWT_SECRET_KEY = 'fictional-readiness-tests';
 let permissions; let scope;
 const pool = { query: jest.fn((sql) => {
@@ -33,3 +33,21 @@ test('consent and task links require every permission their destination screen n
   expect(campReadiness).toHaveBeenCalledWith(pool, 7, 3, { inventory: true, lots: true, tasks: true, permissions: true });
 });
 test('a camp belonging to another unit is missing', async () => { campReadiness.mockResolvedValue(null); expect((await call()).status).toBe(404); });
+
+describe('camps coming up, for the dashboard', () => {
+  test('the team sees the next camps of its own unit only', async () => {
+    upcomingCamps.mockResolvedValue([{ id: 3, theme: 'Fictional camp', date_from: '2026-11-14', date_to: '2026-11-16' }]);
+    const result = await call('/upcoming?organization_id=99');
+    expect(result.status).toBe(200);
+    expect(result.body.data).toEqual([{ id: 3, theme: 'Fictional camp', date_from: '2026-11-14', date_to: '2026-11-16' }]);
+    expect(upcomingCamps).toHaveBeenCalledWith(pool, 7, 14, 3);
+  });
+  test('a family account or someone without meetings.view is refused, saying what is missing', async () => {
+    scope = 'linked';
+    const result = await call('/upcoming');
+    expect(result.status).toBe(403); expect(result.body.required).toBeDefined(); expect(upcomingCamps).not.toHaveBeenCalled();
+  });
+  test('without a token the list is refused', async () => {
+    expect((await request(app).get('/api/v1/camp-readiness/upcoming')).status).toBe(401);
+  });
+});

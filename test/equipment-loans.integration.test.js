@@ -143,6 +143,23 @@ describe.skipIf(!DATABASE_URL)('Equipment loans', () => {
     expect(holders.participants.map((youthRow) => youthRow.id)).not.toContain(ids.stranger);
   });
 
+  test('youths present at the camp are named first, only for someone who may read attendance', async () => {
+    const counter = await member(ids.unit, await role(['inventory.view', 'inventory.reserve', 'participants.view', 'attendance.view']), 'Katherine Johnson');
+    await pool.query(`INSERT INTO attendance (participant_id, date, status, organization_id) VALUES
+      ($1, CURRENT_DATE - 2, 'present', $3), ($2, CURRENT_DATE - 2, 'absent', $3), ($4, CURRENT_DATE - 2, 'present', $5)`,
+    [ids.ada, ids.max, ids.unit, ids.stranger, ids.otherUnit]);
+    try {
+      const seen = await as(counter).get(`/api/v1/equipment-loans/handout?activity_id=${ids.camp}`).expect(200);
+      expect(seen.body.data.holders.present_participant_ids).toEqual([ids.ada]);
+      const withoutActivity = await as(counter).get('/api/v1/equipment-loans/handout').expect(200);
+      expect(withoutActivity.body.data.holders.present_participant_ids).toBeNull();
+      const notAllowed = await as(ids.leader).get(`/api/v1/equipment-loans/handout?activity_id=${ids.camp}`).expect(200);
+      expect(notAllowed.body.data.holders.present_participant_ids).toBeNull();
+    } finally {
+      await pool.query('DELETE FROM attendance WHERE participant_id = ANY($1::int[])', [[ids.ada, ids.max, ids.stranger]]);
+    }
+  });
+
   test('a youth and a leader take tents and tarps home, and the inventory shows them out', async () => {
     const response = await as(ids.leader).post('/api/v1/equipment-loans', {
       activity_id: ids.camp,

@@ -35,7 +35,7 @@ jest.mock('../../spa/api/api-camp-material.js', () => ({ getCampMaterialList: je
 jest.mock('../../spa/utils/ExportUtils.js', () => ({ exportToCSV: jest.fn() }));
 jest.mock('../../spa/api/api-yearly-planner.js', () => ({ getMeetingSchedule: jest.fn(), updateMeetingActivity: jest.fn() }));
 jest.mock('../../spa/api/api-equipment-catalog.js', () => ({ getMaterialOptions: jest.fn(), createCatalogItem: jest.fn() }));
-jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasAllPermissions: jest.fn(), isDemoUser: jest.fn() }));
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasAllPermissions: jest.fn(), isDemoUser: jest.fn(), hasOrganizationScope: jest.fn(() => true) }));
 jest.mock('../../spa/utils/PrintUtils.js', () => ({
   REPORT_PRINT_STYLES: 'body {}',
   openPrintWindow: jest.fn(),
@@ -535,4 +535,32 @@ describe('converting free-text material into catalogue articles', () => {
     expect(form.querySelector('#camp-material-convert-error').textContent).toBe('camp_material_convert_failed');
     expect(form.querySelector('#camp-material-remaining').value).toBe('Maillets');
   });
+});
+
+describe('reading the list on a phone', () => {
+  test('every value keeps its label, and only articles still needing someone show who brings them', async () => {
+    hasAllPermissions.mockImplementation(() => true);
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    document.querySelectorAll('.camp-material__table tbody td').forEach((cell) => {
+      expect(cell.getAttribute('data-label')).toBeTruthy();
+    });
+    const rows = [...document.querySelectorAll('.camp-material__table tbody tr')];
+    const who = (name) => rows.find((row) => row.textContent.includes(name)).querySelector('.camp-material__cell--who');
+    expect(who('Lanternes').classList.contains('camp-material__cell--empty')).toBe(true);
+    expect(who('Tente 4 places').classList.contains('camp-material__cell--empty')).toBe(false);
+  });
+
+  test('reserving what is missing is the first action offered', async () => {
+    hasAllPermissions.mockImplementation(() => true);
+    const data = list();
+    data.items[1].inventory = { ...data.items[1].inventory, status: 'available', to_reserve: 1 };
+    api.getCampMaterialList.mockResolvedValue({ success: true, data });
+    await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+    expect(document.querySelector('.camp-material__actions > *').id).toBe('camp-material-reserve');
+  });
+});
+
+test('the list links to the camp\'s team overview', async () => {
+  await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+  expect(document.querySelector(`a[href="/camp-readiness/${CAMP_ID}"]`)).not.toBeNull();
 });

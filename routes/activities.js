@@ -72,6 +72,7 @@ module.exports = (pool) => {
         ypm.id AS linked_year_plan_meeting_id,
         ypm.meeting_date::text AS linked_year_plan_meeting_date,
         ypm.year_plan_id AS linked_year_plan_id,
+        ypm.meeting_kind AS linked_year_plan_meeting_kind,
         COUNT(DISTINCT co.id) as carpool_offer_count,
         COUNT(DISTINCT ca.participant_id) as assigned_participant_count,
         COUNT(DISTINCT ps.id) FILTER (WHERE ps.status = 'pending') as pending_slip_count,

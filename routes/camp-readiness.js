@@ -3,10 +3,18 @@ const express = require('express');
 const { authenticate, requirePermission, getOrganizationId, userHasPermission } = require('../middleware/auth');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { campReadiness } = require('../services/campReadiness');
+const { campReadiness, upcomingCamps } = require('../services/campReadiness');
 const HTTP_NOT_FOUND = 404;
+/** The dashboard names camps under way or starting within two weeks, at most three. */
+const UPCOMING_DAYS = 14;
+const UPCOMING_LIMIT = 3;
 module.exports = (pool) => {
   const router = express.Router();
+  router.get('/upcoming', authenticate, requirePermission({ permissions: ['meetings.view'], organizationScope: true }),
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      return success(res, await upcomingCamps(pool, organizationId, UPCOMING_DAYS, UPCOMING_LIMIT));
+    }));
   router.get('/:id', authenticate, requirePermission({ permissions: ['meetings.view'], organizationScope: true }),
     validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);

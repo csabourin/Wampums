@@ -103,7 +103,18 @@ jest.mock('../../spa/modules/CommandPalette.js', () => ({
 }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({ offlineManager: {} }));
 
+let mockScope = 'user:1|org:1';
+jest.mock('../../spa/utils/OfflineCacheKeys.js', () => ({
+  ...jest.requireActual('../../spa/utils/OfflineCacheKeys.js'),
+  buildScopedCacheKey: jest.fn((key) => `${key}|${mockScope}`),
+}));
+jest.mock('../../spa/modules/camp-readiness/UpcomingCamps.js', () => ({
+  loadUpcomingCamps: jest.fn(() => Promise.resolve([])),
+  upcomingCampsMarkup: jest.fn((camps = []) => `<ul>${camps.map((camp) => `<li>${camp.title}</li>`).join('')}</ul>`),
+}));
+
 import { Dashboard } from '../../spa/modules/dashboard/Dashboard.js';
+import { loadUpcomingCamps } from '../../spa/modules/camp-readiness/UpcomingCamps.js';
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
@@ -144,6 +155,7 @@ beforeEach(() => {
   document.body.innerHTML = '<main id="app"></main>';
   mockPermissions.clear();
   mockIsParent = false;
+  mockScope = 'user:1|org:1';
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
 });
 
@@ -217,5 +229,50 @@ test('a failed refresh shows the error, not a busy old dashboard', async () => {
 
   expect(app().textContent).toContain('error_loading_dashboard');
   expect(app().hasAttribute('aria-busy')).toBe(false);
+  dashboard.destroy();
+});
+
+/**
+ * Show the dashboard's upcoming-camp slot and hold the camps' answer until the test releases it.
+ * @returns {{dashboard: Dashboard, shown: Promise<void>, answer: function(Array): Promise<void>}}
+ */
+function holdUpcomingCamps() {
+  app().innerHTML = '<div id="dashboard-team-camps"></div>';
+  let answer;
+  loadUpcomingCamps.mockImplementationOnce(() => new Promise((resolve) => {
+    answer = resolve;
+  }));
+  const dashboard = new Dashboard(appWithRouter(false));
+  const shown = dashboard.showUpcomingCamps();
+  return { dashboard, shown, answer: (camps) => { answer(camps); return shown; } };
+}
+
+const campsSlot = () => document.getElementById('dashboard-team-camps');
+
+test('the camps coming up appear on the dashboard once they arrive', async () => {
+  const { dashboard, answer } = holdUpcomingCamps();
+
+  await answer([{ title: 'Camp d\'hiver' }]);
+
+  expect(campsSlot().textContent).toContain('Camp d\'hiver');
+  dashboard.destroy();
+});
+
+test('camps that arrive after leaving the dashboard are not drawn over the next screen', async () => {
+  const { dashboard, answer } = holdUpcomingCamps();
+  dashboard.destroy();
+
+  await answer([{ title: 'Camp d\'hiver' }]);
+
+  expect(campsSlot().textContent).toBe('');
+});
+
+test('camps that arrive after switching unit are not drawn for the new unit', async () => {
+  const { dashboard, answer } = holdUpcomingCamps();
+  mockScope = 'user:1|org:2';
+
+  await answer([{ title: 'Camp d\'hiver' }]);
+
+  expect(campsSlot().textContent).toBe('');
   dashboard.destroy();
 });
