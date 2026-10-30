@@ -307,3 +307,20 @@ test('opening a task from a camp\'s material list fills the form once, with its 
   expect(form.elements.reminder_materials.value).toBe('2 × Tente');
   expect(window.location.search).toBe('?meeting_id=42');
 });
+
+test('a field corrected after a failed reminder is saved to the same task, not dropped', async () => {
+  hasPermission.mockReturnValue(true);
+  api.saveTask.mockResolvedValue({ data: { id: 12 } });
+  api.configureEquipmentReminder.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ success: true });
+  await new Tasks(app).init();
+  document.getElementById('tasks-create').click(); await settle();
+  const form = document.getElementById('tasks-form');
+  form.elements.task_title.value = 'Bring tents'; form.elements.task_event.value = 'activity:4';
+  form.elements.task_assignee.value = USER; form.elements.task_due.value = '2026-11-13';
+  form.elements.reminder_enabled.checked = true; form.elements.reminder_enabled.dispatchEvent(new Event('change'));
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle(); await settle();
+  form.elements.task_due.value = '2026-11-12';
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle(); await settle();
+  expect(api.saveTask).toHaveBeenCalledTimes(2);
+  expect(api.saveTask.mock.calls[1]).toEqual([expect.objectContaining({ due_date: '2026-11-12' }), 12]);
+});

@@ -429,9 +429,10 @@ export class Tasks {
       });
       document.getElementById('tasks-form-error').hidden = true;
     });
-    // Once the task is saved, a retry only completes its reminder: it never creates a second task.
+    // Once the task is saved, a retry updates that task (when its fields changed) and its reminder:
+    // it never creates a second task.
     let savedId = task?.id || null;
-    let taskSaved = false;
+    let savedPayload = null;
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       withFormBusy(form, async () => {
@@ -452,11 +453,11 @@ export class Tasks {
           form.elements.reminder_materials.focus();
           return;
         }
-        if (!taskSaved) {
+        if (JSON.stringify(payload) !== savedPayload) {
           try {
             const result = await saveTask(payload, savedId);
             savedId = result?.data?.id || savedId;
-            taskSaved = true;
+            savedPayload = JSON.stringify(payload);
           } catch (err) {
             if (this.destroyed) {return;}
             problem.textContent = apiErrorMessage(err, 'tasks_save_failed');

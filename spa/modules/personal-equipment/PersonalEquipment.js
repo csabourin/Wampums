@@ -168,18 +168,14 @@ export class PersonalEquipment {
   // --- Shared text helpers -------------------------------------------------------------
 
   /** An item's label or the list's notes in the language being read. */
+  /** A complete prepared translation wins, so a team's hand corrections, French and English included, reach families. */
   text(item, field = 'label') {
     const translated = this.translations.get(this.targetLanguage);
-    if (isComplete(translated) && !AUTHORED_LANGUAGES.includes(this.targetLanguage)) {
-      return field === 'notes' ? translated.notes : translated.items.find((entry) => entry.key === item.key)?.label || '';
-    }
-    const lang = AUTHORED_LANGUAGES.includes(this.targetLanguage) ? this.targetLanguage : 'fr';
-    const authored = item[`${field}_${lang}`];
-    if (authored) { return authored; }
     if (isComplete(translated)) {
       return field === 'notes' ? translated.notes : translated.items.find((entry) => entry.key === item.key)?.label || '';
     }
-    return item[`${field}_fr`] || item[`${field}_en`] || '';
+    const lang = AUTHORED_LANGUAGES.includes(this.targetLanguage) ? this.targetLanguage : 'fr';
+    return item[`${field}_${lang}`] || item[`${field}_fr`] || item[`${field}_en`] || '';
   }
 
   /** Languages a family may choose: those written by the team, then complete prepared translations. */
@@ -366,6 +362,8 @@ export class PersonalEquipment {
   }
 
   renderEditor() {
+    // Text waiting in the bulk area survives any re-render (moving an item, changing its category…).
+    const pendingBulk = this.root().querySelector('#personal-bulk')?.value || '';
     const disabled = this.readOnly || this.data.camp.is_cancelled;
     setContent(this.root(), `<section class="page personal-equipment personal-equipment--editor">${this.header()}
       <p role="status" id="packing-publication-status">${escapeHTML(this.publicationStatus())}</p>
@@ -387,6 +385,14 @@ export class PersonalEquipment {
         <button type="submit" class="button button--primary" value="publish">${escapeHTML(translate(this.changesPending() ? 'packing_publish_changes' : 'packing_publish'))}</button>
       </div></fieldset></form></section>`);
     this.bindEditor();
+    if (pendingBulk) { this.restoreBulk(pendingBulk); }
+  }
+
+  restoreBulk(text) {
+    this.root().querySelector('#personal-bulk').value = text;
+    this.root().querySelector('#packing-bulk-panel').hidden = false;
+    this.root().querySelector('#packing-bulk-toggle').setAttribute('aria-expanded', 'true');
+    this.showBulkPreview(text);
   }
 
   // --- Editor: behaviour ------------------------------------------------------------------
@@ -588,6 +594,8 @@ export class PersonalEquipment {
       key: newItemKey(), label_fr: lang === 'fr' ? label : '', label_en: lang === 'en' ? label : '', quantity, category: 'other', catalog_item_id: null,
     }));
     this.draft = { ...this.draft, ...input, items: [...input.items, ...additions] };
+    // The lines are now rows: the bulk area is emptied so the re-render does not bring them back.
+    this.root().querySelector('#personal-bulk').value = '';
     this.markDirty(true);
     this.rerender(`${rowSelector(additions[0].key)} textarea`);
   }

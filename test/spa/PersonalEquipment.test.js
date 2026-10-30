@@ -352,3 +352,25 @@ describe('a family packing for several children', () => {
     expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
   });
 });
+
+test('a hand-corrected English translation is what families read, even where English was authored', async () => {
+  const data = fixture();
+  data.translations = { en: { notes: '', items: [{ key: 'bag', label: 'Sleeping bag (labelled)' }, { key: 'socks', label: 'Socks' }] } };
+  api.getPersonalEquipment.mockResolvedValue({ data });
+  await new PersonalEquipment({ ...app, lang: 'en' }, { meetingId: 7 }).init();
+  const language = document.getElementById('personal-language'); language.value = 'en'; language.dispatchEvent(new Event('change', { bubbles: true }));
+  expect(document.body.textContent).toContain('Sleeping bag (labelled)');
+});
+
+test('text waiting in the bulk area survives moving an item or changing its category', async () => {
+  const screen = new PersonalEquipment(app, { meetingId: 7, manage: true }); await screen.init();
+  document.getElementById('packing-bulk-toggle').click();
+  const bulk = document.getElementById('personal-bulk'); bulk.value = 'Tuque\nGourde'; bulk.dispatchEvent(new Event('input', { bubbles: true }));
+  const select = document.querySelector('[data-item-key="bag"] [data-field="category"]');
+  select.value = 'sleep'; select.dispatchEvent(new Event('change', { bubbles: true }));
+  expect(document.getElementById('personal-bulk').value).toBe('Tuque\nGourde');
+  expect(document.getElementById('packing-bulk-panel').hidden).toBe(false);
+  await screen.save(false);
+  expect(api.savePersonalEquipment).not.toHaveBeenCalled();
+  screen.destroy();
+});
