@@ -1160,10 +1160,19 @@ export class EquipmentLoans {
       }
     });
     form.addEventListener('keydown', (event) => {
+      const searchId = event.target.dataset?.search;
+      if (!searchId) {
+        return;
+      }
       // Escape in the search closes the picker and returns to its button.
-      if (event.key === 'Escape' && event.target.dataset?.search) {
+      if (event.key === 'Escape') {
         event.preventDefault();
-        this.togglePicker(Number(event.target.dataset.search));
+        this.togglePicker(Number(searchId));
+      }
+      // Enter never records the handout from the search: it moves to the first person found.
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        document.querySelector(`[data-pick="${Number(searchId)}"]`)?.focus();
       }
     });
     form.addEventListener('input', (event) => {

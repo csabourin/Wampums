@@ -567,3 +567,17 @@ test('a name filter left active stays visible and clearable when only one other 
   kept.value = ''; kept.dispatchEvent(new Event('input', { bubbles: true }));
   expect(document.querySelector('.equipment-loans__group h3').textContent).toBe('Ada Lovelace');
 });
+
+test('Enter in the person search moves to the first match and never records the handout', async () => {
+  await openScreen();
+  openPicker(3);
+  pick(3, 'p:11');
+  search(3, 'trem');
+  const input = document.getElementById('equipment-loans-search-3');
+  const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+  input.dispatchEvent(enter);
+  await flush();
+  expect(enter.defaultPrevented).toBe(true);
+  expect(api.createEquipmentLoans).not.toHaveBeenCalled();
+  expect(document.activeElement).toBe(document.querySelector('[data-pick="3"]'));
+});
