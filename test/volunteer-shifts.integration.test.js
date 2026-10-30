@@ -65,7 +65,8 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
     pool = new Pool({ connectionString: DATABASE_URL });
     ids.unit = await unit('Fictional volunteer unit');
     ids.other = await unit('Another fictional unit');
-    ids.manager = await member('Ada Lovelace', 'unitadmin');
+    // The district role holds every permission by design; a test DB's 'unitadmin' may be another suite's fixture.
+    ids.manager = await member('Ada Lovelace', 'district');
     ids.cook = await member('Léa Tremblay', 'volunteer');
     ids.driver = await member('Grace Hopper', 'volunteer');
     ids.camp = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
