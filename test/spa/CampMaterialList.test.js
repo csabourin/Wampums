@@ -35,7 +35,7 @@ jest.mock('../../spa/api/api-camp-material.js', () => ({ getCampMaterialList: je
 jest.mock('../../spa/utils/ExportUtils.js', () => ({ exportToCSV: jest.fn() }));
 jest.mock('../../spa/api/api-yearly-planner.js', () => ({ getMeetingSchedule: jest.fn(), updateMeetingActivity: jest.fn() }));
 jest.mock('../../spa/api/api-equipment-catalog.js', () => ({ getMaterialOptions: jest.fn(), createCatalogItem: jest.fn() }));
-jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasAllPermissions: jest.fn(), isDemoUser: jest.fn() }));
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasAllPermissions: jest.fn(), isDemoUser: jest.fn(), hasOrganizationScope: jest.fn(() => true) }));
 jest.mock('../../spa/utils/PrintUtils.js', () => ({
   REPORT_PRINT_STYLES: 'body {}',
   openPrintWindow: jest.fn(),
@@ -558,4 +558,9 @@ describe('reading the list on a phone', () => {
     await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
     expect(document.querySelector('.camp-material__actions > *').id).toBe('camp-material-reserve');
   });
+});
+
+test('the list links to the camp\'s team overview', async () => {
+  await new CampMaterialList(app, { meetingId: CAMP_ID }).init();
+  expect(document.querySelector(`a[href="/camp-readiness/${CAMP_ID}"]`)).not.toBeNull();
 });

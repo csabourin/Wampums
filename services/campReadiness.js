@@ -9,7 +9,7 @@ const { listLots } = require('./campEquipmentLots');
  */
 async function campReadiness(db, organizationId, meetingId, allowed) {
   const camp = (await db.query(`SELECT m.id, m.theme, m.meeting_date::text AS date_from,
-      COALESCE(a.activity_end_date, m.meeting_date)::text AS date_to, m.activity_id, m.is_cancelled
+      COALESCE(a.activity_end_date, m.meeting_date)::text AS date_to, m.activity_id, m.is_cancelled, m.year_plan_id
     FROM year_plan_meetings m LEFT JOIN activities a ON a.id = m.activity_id AND a.organization_id = m.organization_id
     WHERE m.organization_id = $1 AND m.id = $2 AND m.meeting_kind = 'camp'`, [organizationId, meetingId])).rows[0];
   if (!camp) { return null; }
@@ -44,4 +44,20 @@ async function campReadiness(db, organizationId, meetingId, allowed) {
   await Promise.all(reads);
   return { camp, sections };
 }
-module.exports = { campReadiness };
+/**
+ * Camps under way or starting within `days`, soonest first, so the team finds their overview.
+ * @param {Object} db
+ * @param {number} organizationId
+ * @param {number} days
+ * @param {number} limit
+ * @returns {Promise<Array<{id: number, theme: string, date_from: string, date_to: string}>>}
+ */
+async function upcomingCamps(db, organizationId, days, limit) {
+  return (await db.query(`SELECT m.id, m.theme, m.meeting_date::text AS date_from,
+      COALESCE(a.activity_end_date, m.meeting_date)::text AS date_to
+    FROM year_plan_meetings m LEFT JOIN activities a ON a.id = m.activity_id AND a.organization_id = m.organization_id
+    WHERE m.organization_id = $1 AND m.meeting_kind = 'camp' AND NOT m.is_cancelled
+      AND COALESCE(a.activity_end_date, m.meeting_date) >= CURRENT_DATE AND m.meeting_date <= CURRENT_DATE + $2::int
+    ORDER BY m.meeting_date, m.id LIMIT $3`, [organizationId, days, limit])).rows;
+}
+module.exports = { campReadiness, upcomingCamps };

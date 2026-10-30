@@ -5115,5 +5115,19 @@
   "equipment_loans_present_group": "Present at the activity",
   "equipment_loans_other_youths": "Other youths",
   "equipment_loans_picker_done": "Done",
-  "equipment_loans_filter_label": "Find a person"
+  "equipment_loans_filter_label": "Find a person",
+  "camp_readiness_left_title": "What is left",
+  "camp_readiness_left_none": "Nothing recorded yet: check whether it is needed.",
+  "camp_readiness_left_permissions": "{pending} pending, {signed} signed",
+  "camp_readiness_left_material": "{count} article(s) to reserve or find",
+  "camp_readiness_left_material_done": "Everything is reserved",
+  "camp_readiness_left_material_unchecked": "{count} article(s); stock not compared with your access",
+  "camp_readiness_left_free_text": "{count} free-text note(s) to check",
+  "camp_readiness_left_lots": "{count} of {total} lot(s) still to prepare",
+  "camp_readiness_left_lots_done": "Every lot is loaded or returned",
+  "camp_readiness_left_tasks": "{count} task(s) to do",
+  "camp_readiness_left_tasks_late": "{count} task(s) to do, {late} overdue",
+  "camp_readiness_left_tasks_done": "Every task is done",
+  "camp_readiness_upcoming_title": "Camps coming up",
+  "camp_readiness_upcoming_dates": "{from} – {to}"
 }

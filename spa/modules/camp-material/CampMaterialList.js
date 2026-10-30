@@ -19,7 +19,7 @@ import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
-import { hasAllPermissions, isDemoUser } from '../../utils/PermissionUtils.js';
+import { hasAllPermissions, hasOrganizationScope, isDemoUser } from '../../utils/PermissionUtils.js';
 import { CONFIG } from '../../config.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
@@ -369,6 +369,7 @@ export class CampMaterialList {
               <button type="button" class="button button--primary" id="camp-material-reserve">
                 ${escapeHTML(translate('camp_material_reserve'))}
               </button>` : ''}
+            ${hasOrganizationScope() ? `<a class="button button--secondary button--small" href="/camp-readiness/${Number(this.meetingId)}">${escapeHTML(translate('camp_readiness_title'))}</a>` : ''}
             ${hasAllPermissions('camp_lots.view') ? `<a class="button button--secondary button--small" href="/camp-lots/${Number(this.meetingId)}">${translate('camp_lots_open')}</a>` : ''}
             <button type="button" class="button button--secondary button--small" id="camp-material-print">
               ${escapeHTML(translate('print'))}

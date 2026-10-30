@@ -1,6 +1,16 @@
 # Ready for camp (#1250)
 
-The camp schedule opens `/camp-readiness/:meetingId`. This is team preparation,
+The camp schedule, the camp's material list, its activity card (when the outing is linked to a
+planner camp, `linked_year_plan_meeting_kind = 'camp'`) and the dashboard open
+`/camp-readiness/:meetingId`. The dashboard lists camps under way or starting within 14 days (at most
+three) from `GET /api/v1/camp-readiness/upcoming`, which requires the same `meetings.view` and
+organization scope; it shows nothing when no camp is near or the list cannot be read.
+
+The screen opens on "What is left": one line per section the person may see, saying what remains
+(pending consent, articles to reserve or find, free-text notes, lots to prepare, open and overdue
+tasks). An empty section reads "nothing recorded yet", never as done. Each row then names its state
+in a chip, and an item past its date says it is late in words. The way back leads to the camp's
+year plan. This is team preparation,
 separate from `CampPreparation`, which verifies offline readiness of one device.
 No overall green readiness flag is inferred from empty lists or invisible sections.
 

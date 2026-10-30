@@ -75,3 +75,42 @@ test('all status and section labels exist in French and English', () => {
     expect(en[key]).toBeDefined(); expect(fr[key]).toBeDefined();
   }
 });
+
+describe('what is left, first', () => {
+  const lines = () => [...document.querySelectorAll('.camp-readiness__left li')].map((line) => ({
+    section: line.querySelector('a').getAttribute('href'), text: line.querySelector('span').textContent, attention: line.classList.contains('is-attention') }));
+
+  test('each visible section says what is left and links to its rows', async () => {
+    await screen.init();
+    expect(lines().map((line) => line.section)).toEqual(['#camp-readiness-permissions', '#camp-readiness-material', '#camp-readiness-lots', '#camp-readiness-tasks']);
+    expect(lines().find((line) => line.section === '#camp-readiness-material')).toMatchObject({ text: 'camp_readiness_left_material', attention: true });
+    expect(document.getElementById('camp-readiness-material')).not.toBeNull();
+  });
+
+  test('an empty section is never counted as done', async () => {
+    getCampReadiness.mockResolvedValue({ data: { camp: data().camp, sections: { lots: [], tasks: [] } } });
+    await screen.init();
+    expect(lines().map((line) => line.text)).toEqual(['camp_readiness_left_none', 'camp_readiness_left_none']);
+    expect(lines().every((line) => line.attention)).toBe(true);
+  });
+
+  test('finished work reads as finished, and a task past its date says it is late in words', async () => {
+    const payload = data();
+    payload.sections.material.items = [{ name: 'Tent', quantity: 3, inventory: { status: 'reserved' } }];
+    payload.sections.tasks = [{ title: 'Late task', status: 'todo', due_date: '2020-01-01' }, { title: 'Done task', status: 'done', due_date: '2020-01-01' }];
+    getCampReadiness.mockResolvedValue({ data: payload });
+    await screen.init();
+    expect(lines().find((line) => line.section === '#camp-readiness-material')).toMatchObject({ text: 'camp_readiness_left_material_done', attention: false });
+    expect(lines().find((line) => line.section === '#camp-readiness-tasks').text).toBe('camp_readiness_left_tasks_late');
+    const rows = [...document.querySelectorAll('#camp-readiness-tasks .camp-readiness__row')];
+    expect(rows[0].textContent).toContain('tasks_overdue');
+    expect(rows[1].textContent).not.toContain('tasks_overdue');
+  });
+
+  test('the way back leads to the camp\'s year plan', async () => {
+    const payload = data(); payload.camp.year_plan_id = 4;
+    getCampReadiness.mockResolvedValue({ data: payload });
+    await screen.init();
+    expect(document.querySelector('#app a').getAttribute('href')).toBe('/yearly-planner/4');
+  });
+});

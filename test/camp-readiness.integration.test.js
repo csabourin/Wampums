@@ -1,6 +1,6 @@
 /** Team overview against the migrated schema, with fictional unit and camp records. */
 const { Pool } = require('pg');
-const { campReadiness } = require('../services/campReadiness');
+const { campReadiness, upcomingCamps } = require('../services/campReadiness');
 require('./jest-conditional-helpers');
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 describe.skipIf(!DATABASE_URL)('Camp preparation isolation', () => {
@@ -33,6 +33,18 @@ describe.skipIf(!DATABASE_URL)('Camp preparation isolation', () => {
     expect(all.sections.tasks.map((task) => task.title).sort()).toEqual(['Check the route', 'Pack the tent']);
     expect(all.sections.permissions).toEqual([]); expect(all.sections.lots).toEqual([]);
     expect(all.camp.date_to).toBe('2026-11-16');
+  });
+  test('camps under way or starting soon are listed for their own unit only, cancelled ones left out', async () => {
+    const soon = await one("INSERT INTO year_plan_meetings (organization_id,meeting_date,theme,meeting_kind) VALUES ($1,CURRENT_DATE + 3,'Soon camp','camp') RETURNING id", [unit]);
+    await db.query("INSERT INTO year_plan_meetings (organization_id,meeting_date,theme,meeting_kind,is_cancelled) VALUES ($1,CURRENT_DATE + 2,'Cancelled camp','camp',TRUE)", [unit]);
+    await db.query("INSERT INTO year_plan_meetings (organization_id,meeting_date,theme,meeting_kind) VALUES ($1,CURRENT_DATE + 30,'Far camp','camp')", [unit]);
+    await db.query("INSERT INTO year_plan_meetings (organization_id,meeting_date,theme,meeting_kind) VALUES ($1,CURRENT_DATE + 1,'Foreign camp','camp')", [other]);
+    const camps = await upcomingCamps(db, unit, 14, 3);
+    expect(camps.map((entry) => entry.theme)).toContain('Soon camp');
+    expect(camps.map((entry) => entry.theme)).not.toEqual(expect.arrayContaining(['Cancelled camp']));
+    expect(camps.map((entry) => entry.theme)).not.toEqual(expect.arrayContaining(['Far camp']));
+    expect(camps.map((entry) => entry.theme)).not.toEqual(expect.arrayContaining(['Foreign camp']));
+    expect(camps.find((entry) => entry.id === soon)).toBeDefined();
   });
   test('consent deadlines remain ISO instants when the database uses a non-UTC time zone', async () => {
     const participant = await one("INSERT INTO participants (first_name,last_name) VALUES ('Fictional','Camper') RETURNING id");
