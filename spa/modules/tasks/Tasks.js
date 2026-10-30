@@ -323,6 +323,18 @@ export class Tasks {
     });
   }
 
+  /**
+   * Whether the form changes the reminder. Configuring renews it and clears a confirmation,
+   * so an unchanged reminder is never sent again.
+   */
+  reminderChanged(form, reminder) {
+    const enabled = form.elements.reminder_enabled.checked;
+    if (!reminder) {return enabled;}
+    return !enabled || form.elements.reminder_materials.value.trim() !== String(reminder.materials || '').trim()
+      || Number(form.elements.reminder_lead.value) !== Number(reminder.lead_days)
+      || Number(form.elements.reminder_repeat.value) !== Number(reminder.repeat_hours);
+  }
+
   /** @returns {Object} The reminder request for the form's current values */
   reminderPayload(form, reminder) {
     return {
@@ -455,9 +467,12 @@ export class Tasks {
           form.elements.reminder_materials.focus();
           return;
         }
+        const changesReminder = this.reminderChanged(form, reminder);
         if (JSON.stringify(payload) !== savedPayload) {
           try {
-            const result = await saveTask(payload, savedId);
+            // A reminder about to be changed is checked against the revision this form holds.
+            const request = changesReminder && savedId ? { ...payload, expected_reminder_revision: reminderRevision } : payload;
+            const result = await saveTask(request, savedId);
             savedId = result?.data?.id || savedId;
             savedPayload = JSON.stringify(payload);
             if (Number.isInteger(result?.data?.equipment_reminder_revision)) {reminderRevision = result.data.equipment_reminder_revision;}
@@ -477,7 +492,7 @@ export class Tasks {
             return;
           }
         }
-        if ((wantsReminder || reminder) && savedId) {
+        if (changesReminder && savedId) {
           try {
             await configureEquipmentReminder(savedId, { ...this.reminderPayload(form, reminder), expected_revision: reminderRevision });
           } catch (err) {

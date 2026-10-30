@@ -99,11 +99,19 @@ async function assertStandaloneTask(db, organizationId, taskId) {
 /**
  * Write an ordinary task through the same transaction-aware implementation used by equipment lots.
  * Changing what a reminder announces renews its revision (migration 061), so the saved task carries
- * the reminder's current revision for a manager who edits both in one form.
+ * the reminder's current revision for a manager who edits both in one form. That form names the
+ * revision it loaded: another manager's change since is refused here, before it could be overwritten.
+ *
+ * @param {{expectedReminderRevision?: number}} [options]
  */
-function saveTask(pool, organizationId, actorId, task, taskId = null) {
+function saveTask(pool, organizationId, actorId, task, taskId = null, { expectedReminderRevision } = {}) {
   return transaction(pool, async (db) => {
     if (taskId) {await assertStandaloneTask(db, organizationId, taskId);}
+    if (taskId && Number.isInteger(expectedReminderRevision)) {
+      const current = (await db.query('SELECT revision FROM task_equipment_reminders WHERE organization_id = $1 AND task_id = $2 FOR UPDATE',
+        [organizationId, taskId])).rows[0];
+      if (Number(current?.revision || 0) !== expectedReminderRevision) {throw new TaskError('equipment_reminder_stale', HTTP_CONFLICT);}
+    }
     const saved = await saveTaskInTransaction(db, organizationId, actorId, task, taskId);
     const reminder = (await db.query('SELECT revision FROM task_equipment_reminders WHERE organization_id = $1 AND task_id = $2',
       [organizationId, saved.id])).rows[0];

@@ -336,6 +336,21 @@ test('editing a task that has a reminder sends the reminder revision its save re
   document.querySelector('[data-task-edit]').click(); await settle();
   const form = document.getElementById('tasks-form');
   form.elements.task_due.value = '2026-11-12';
+  form.elements.reminder_materials.value = 'Tents and pegs';
   form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle(); await settle();
-  expect(api.configureEquipmentReminder).toHaveBeenCalledWith(3, expect.objectContaining({ expected_revision: 9 }));
+  expect(api.saveTask).toHaveBeenCalledWith(expect.objectContaining({ due_date: '2026-11-12', expected_reminder_revision: 5 }), 3);
+  expect(api.configureEquipmentReminder).toHaveBeenCalledWith(3, expect.objectContaining({ expected_revision: 9, materials: 'Tents and pegs' }));
+});
+
+test('saving a task without touching its reminder leaves the reminder and its confirmation alone', async () => {
+  hasPermission.mockReturnValue(true);
+  const confirmed = { ...task, equipment_reminder: { revision: 5, materials: 'Tents', delivery_status: 'sent', confirmed_at: '2026-10-29T12:00:00Z', lead_days: 2, repeat_hours: 24 } };
+  api.getUnitTasks.mockResolvedValue({ data: [confirmed] });
+  api.saveTask.mockResolvedValue({ data: { id: 3, equipment_reminder_revision: 5 } });
+  await new Tasks(app).init();
+  document.getElementById('tasks-view-unit').click(); await settle();
+  document.querySelector('[data-task-edit]').click(); await settle();
+  document.getElementById('tasks-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle(); await settle();
+  expect(api.saveTask).toHaveBeenCalledWith(expect.not.objectContaining({ expected_reminder_revision: expect.anything() }), 3);
+  expect(api.configureEquipmentReminder).not.toHaveBeenCalled();
 });
