@@ -96,11 +96,18 @@ async function assertStandaloneTask(db, organizationId, taskId) {
   if (linked.rows.length) {throw new TaskError('camp_lot_task_managed', HTTP_CONFLICT);}
 }
 
-/** Write an ordinary task through the same transaction-aware implementation used by equipment lots. */
+/**
+ * Write an ordinary task through the same transaction-aware implementation used by equipment lots.
+ * Changing what a reminder announces renews its revision (migration 061), so the saved task carries
+ * the reminder's current revision for a manager who edits both in one form.
+ */
 function saveTask(pool, organizationId, actorId, task, taskId = null) {
   return transaction(pool, async (db) => {
     if (taskId) {await assertStandaloneTask(db, organizationId, taskId);}
-    return saveTaskInTransaction(db, organizationId, actorId, task, taskId);
+    const saved = await saveTaskInTransaction(db, organizationId, actorId, task, taskId);
+    const reminder = (await db.query('SELECT revision FROM task_equipment_reminders WHERE organization_id = $1 AND task_id = $2',
+      [organizationId, saved.id])).rows[0];
+    return { ...saved, equipment_reminder_revision: reminder ? Number(reminder.revision) : null };
   });
 }
 

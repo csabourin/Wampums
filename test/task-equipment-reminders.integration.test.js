@@ -95,6 +95,14 @@ describe.skipIf(!DATABASE_URL)('Equipment reminders', () => {
     await tick(pool); expect(sendEmail).not.toHaveBeenCalled();
     await pool.query('UPDATE user_organizations SET role_ids = $3 WHERE organization_id = $1 AND user_id = $2', [organizationId, assignee, JSON.stringify([role])]);
   });
+  test('editing a task returns the reminder revision its change renewed, so the same form can update the reminder', async () => {
+    const first = await configure(pool, organizationId, task.id, settings());
+    const edited = await saveTask(pool, organizationId, manager, { ...task, title: 'Bring the big tents' }, task.id);
+    expect(edited.equipment_reminder_revision).not.toBe(first.revision);
+    await expect(configure(pool, organizationId, task.id, settings({ expected_revision: first.revision }))).rejects.toMatchObject({ status: 409 });
+    const next = await configure(pool, organizationId, task.id, settings({ expected_revision: edited.equipment_reminder_revision }));
+    expect(next.revision).not.toBe(edited.equipment_reminder_revision);
+  });
   test('a transport exception is visible as uncertain and never automatically replayed', async () => {
     await configure(pool, organizationId, task.id, settings()); sendEmail.mockRejectedValueOnce(new Error('socket reset'));
     await tick(pool); expect((await reminder()).delivery_status).toBe('uncertain');

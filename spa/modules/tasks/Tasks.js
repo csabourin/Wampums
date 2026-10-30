@@ -433,6 +433,8 @@ export class Tasks {
     // it never creates a second task.
     let savedId = task?.id || null;
     let savedPayload = null;
+    // Saving the task can renew its reminder's revision; the reminder request must name the new one.
+    let reminderRevision = reminder?.revision || 0;
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       withFormBusy(form, async () => {
@@ -458,6 +460,7 @@ export class Tasks {
             const result = await saveTask(payload, savedId);
             savedId = result?.data?.id || savedId;
             savedPayload = JSON.stringify(payload);
+            if (Number.isInteger(result?.data?.equipment_reminder_revision)) {reminderRevision = result.data.equipment_reminder_revision;}
           } catch (err) {
             if (this.destroyed) {return;}
             problem.textContent = apiErrorMessage(err, 'tasks_save_failed');
@@ -476,7 +479,7 @@ export class Tasks {
         }
         if ((wantsReminder || reminder) && savedId) {
           try {
-            await configureEquipmentReminder(savedId, this.reminderPayload(form, reminder));
+            await configureEquipmentReminder(savedId, { ...this.reminderPayload(form, reminder), expected_revision: reminderRevision });
           } catch (err) {
             if (this.destroyed) {return;}
             // The task stands; say so, and let Save retry the reminder alone.

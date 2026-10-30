@@ -324,3 +324,18 @@ test('a field corrected after a failed reminder is saved to the same task, not d
   expect(api.saveTask).toHaveBeenCalledTimes(2);
   expect(api.saveTask.mock.calls[1]).toEqual([expect.objectContaining({ due_date: '2026-11-12' }), 12]);
 });
+
+test('editing a task that has a reminder sends the reminder revision its save renewed', async () => {
+  hasPermission.mockReturnValue(true);
+  const withReminder = { ...task, equipment_reminder: { revision: 5, materials: 'Tents', delivery_status: 'pending', lead_days: 2, repeat_hours: 24 } };
+  api.getUnitTasks.mockResolvedValue({ data: [withReminder] });
+  api.saveTask.mockResolvedValue({ data: { id: 3, equipment_reminder_revision: 9 } });
+  api.configureEquipmentReminder.mockResolvedValue({ success: true });
+  await new Tasks(app).init();
+  document.getElementById('tasks-view-unit').click(); await settle();
+  document.querySelector('[data-task-edit]').click(); await settle();
+  const form = document.getElementById('tasks-form');
+  form.elements.task_due.value = '2026-11-12';
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle(); await settle();
+  expect(api.configureEquipmentReminder).toHaveBeenCalledWith(3, expect.objectContaining({ expected_revision: 9 }));
+});
