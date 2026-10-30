@@ -29,6 +29,7 @@ const {
   copyActivityMaterialItems
 } = require('../services/equipmentCatalog');
 const { buildCampMaterialList } = require('../services/campMaterialList');
+const { isTooLong } = require('../services/campDates');
 
 /**
  * Kinds of dated block on the planner calendar.
@@ -167,7 +168,7 @@ function buildActivityEventPlan(meeting, body = {}, defaults = {}) {
  * @param {Object} params - { organizationId, userId, meetingId, plan }
  * @returns {Promise<Object>} The inserted activities row
  */
-async function insertActivityEventForMeeting(client, { organizationId, userId, meetingId, plan }) {
+async function insertActivityEventForMeeting(client, { organizationId, userId, meetingId, plan, isCamp = false }) {
   // meeting_time_return and departure_time_return are `time` columns: they take
   // NULL when there is no return leg. Passing '' raised
   // `invalid input syntax for type time` and made this path fail outright.
@@ -176,8 +177,8 @@ async function insertActivityEventForMeeting(client, { organizationId, userId, m
        name, description, activity_date, activity_start_date, activity_start_time,
        activity_end_date, activity_end_time, meeting_location_going, meeting_time_going,
        departure_time_going, meeting_location_return, meeting_time_return,
-       departure_time_return, created_by, organization_id
-     ) VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $4, $8, '', NULL, NULL, $9, $10)
+       departure_time_return, created_by, organization_id, is_camp
+     ) VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $4, $8, '', NULL, NULL, $9, $10, $11)
      RETURNING *`,
     [
       plan.name,
@@ -189,7 +190,8 @@ async function insertActivityEventForMeeting(client, { organizationId, userId, m
       plan.location,
       plan.departureTime,
       userId,
-      organizationId
+      organizationId,
+      isCamp
     ]
   );
 
@@ -378,7 +380,7 @@ module.exports = (pool, logger) => {
       // Consent and transport status travels with the outing so a chip can show
       // its badges without a request per date.
       const eventsResult = await pool.query(
-        `SELECT a.id, a.name,
+        `SELECT a.id, a.name, a.is_camp,
                 COALESCE(a.activity_start_date, a.activity_date)::text as start_date,
                 COALESCE(a.activity_end_date, a.activity_start_date, a.activity_date)::text as end_date,
                 a.meeting_location_going as location,
@@ -1096,6 +1098,13 @@ module.exports = (pool, logger) => {
          WHERE id = $1 AND organization_id = $2
          RETURNING *`;
       const result = await pool.query(updateSql, [meetingId, organizationId, ...values]);
+      // The linked activity says whether it is a camp; the planner's kind and it stay in step.
+      if (Object.prototype.hasOwnProperty.call(req.body, 'meeting_kind') && result.rows[0]?.activity_id) {
+        await pool.query(
+          'UPDATE activities SET is_camp = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3',
+          [req.body.meeting_kind === 'camp', result.rows[0].activity_id, organizationId]
+        );
+      }
 
       return success(res, result.rows[0], 'Meeting updated');
     })
@@ -1197,7 +1206,8 @@ module.exports = (pool, logger) => {
           organizationId,
           userId: req.user.id,
           meetingId,
-          plan
+          plan,
+          isCamp: meeting.meeting_kind === 'camp'
         });
 
         await client.query('COMMIT');
@@ -1281,6 +1291,9 @@ module.exports = (pool, logger) => {
 
       if (end_date && end_date < meeting_date) {
         return error(res, 'end_date must be on or after meeting_date', 400);
+      }
+      if (req.body.end_date && isTooLong(req.body.meeting_date, req.body.end_date)) {
+        return error(res, 'activity_too_long', HTTP_BAD_REQUEST);
       }
 
       const planCheck = await pool.query(
@@ -1376,7 +1389,8 @@ module.exports = (pool, logger) => {
             organizationId,
             userId: req.user.id,
             meetingId: meeting.id,
-            plan
+            plan,
+            isCamp: meeting.meeting_kind === 'camp'
           });
           meeting.activity_id = activity.id;
           meeting.activity = activity;

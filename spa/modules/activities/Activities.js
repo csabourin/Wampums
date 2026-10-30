@@ -171,8 +171,9 @@ export class Activities extends BaseModule {
     // The device check is offered while this device would prepare the camp, not months ahead.
     const offersDeviceCheck = isMultiDay && hasOrganizationScope()
       && isCampPreparationWindow(isoToDateString(startDate), isoToDateString(endDate));
-    // Every camp has a team overview: its planned camp's, or its own when the year plan does not schedule it.
-    const readinessHref = isMultiDay && !isPast && hasOrganizationScope() && hasPermission('meetings.view')
+    // A camp has a team overview: its planned camp's, or its own when the year plan does not schedule it.
+    const isCamp = activity.is_camp === true || activity.linked_year_plan_meeting_kind === 'camp';
+    const readinessHref = isCamp && !isPast && hasOrganizationScope() && hasPermission('meetings.view')
       ? campReadinessHref(activity.linked_year_plan_meeting_kind === 'camp'
         ? { id: activity.linked_year_plan_meeting_id } : { activity_id: activity.id })
       : '';

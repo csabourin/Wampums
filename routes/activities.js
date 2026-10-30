@@ -14,6 +14,7 @@ const {
 const { carpoolRosterRestriction } = require('../services/carpoolAccess');
 const { mayReadInviteeList, readInvitation, saveInvitation } = require('../services/activityInvitations');
 const { readRichTextField } = require('../utils/richText');
+const { CampDateError, isTooLong, alignPlannedDate, planCamp, unplanCamp } = require('../services/campDates');
 const { buildActivitiesCalendar, buildICalFilename } = require('../utils/activityCalendar');
 
 module.exports = (pool) => {
@@ -301,6 +302,9 @@ module.exports = (pool) => {
     if (end < start) {
       return 'Activity must end after it starts';
     }
+    if (isTooLong(activity.activity_start_date, activity.activity_end_date)) {
+      return 'activity_too_long';
+    }
     if (activity.authorization_text && activity.authorization_text.length > AUTHORIZATION_TEXT_MAX_LENGTH) {
       return `Authorization text must be at most ${AUTHORIZATION_TEXT_MAX_LENGTH} characters`;
     }
@@ -319,7 +323,7 @@ module.exports = (pool) => {
     if (creationKey !== undefined && (typeof creationKey !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(creationKey))) {
       return error(res, 'invalid_request', HTTP_BAD_REQUEST);
     }
-    if ((req.body.transport_required !== undefined && typeof req.body.transport_required !== 'boolean') || (req.body.authorization_required !== undefined && typeof req.body.authorization_required !== 'boolean')) {
+    if (['transport_required', 'authorization_required', 'is_camp'].some((field) => req.body[field] !== undefined && typeof req.body[field] !== 'boolean')) {
       return error(res, 'invalid_request', HTTP_BAD_REQUEST);
     }
     // Debug logging to diagnose form submission issues
@@ -397,6 +401,7 @@ module.exports = (pool) => {
       name: activityName,
       transport_required: req.body.transport_required !== false,
       authorization_required: req.body.authorization_required === true,
+      is_camp: req.body.is_camp === true,
       authorization_deadline_date: optionalText(req.body.authorization_deadline_date),
       ...readDescription(req.body),
       authorization_text: optionalText(authorization_text),
@@ -423,7 +428,8 @@ module.exports = (pool) => {
       return error(res, invitation.problem, HTTP_BAD_REQUEST);
     }
 
-    if (invitation.invitesEveryone && !creationKey) {
+    // A camp joins the year plan in the same transaction, so it takes the transactional path.
+    if (invitation.invitesEveryone && !creationKey && !activity.is_camp) {
       const created = await insertActivity(pool, activity, userId, organizationId);
       return success(res, publicActivity(created), 'Activity created successfully', HTTP_CREATED);
     }
@@ -454,6 +460,9 @@ module.exports = (pool) => {
         await client.query('ROLLBACK');
         return error(res, 'Some invited participants are not in this unit', HTTP_BAD_REQUEST,
           [{ field: 'invited_participant_ids', value: saved.unknownParticipantIds }]);
+      }
+      if (activity.is_camp) {
+        await planCamp(client, organizationId, created.id);
       }
       if (creationKey) {
         await client.query('UPDATE activities SET creation_key = $1, creation_fingerprint = $2 WHERE id = $3 AND organization_id = $4', [creationKey, fingerprint, created.id, organizationId]);
@@ -487,12 +496,13 @@ module.exports = (pool) => {
         name, description, authorization_text, activity_date, activity_start_date, activity_start_time,
         activity_end_date, activity_end_time, meeting_location_going, meeting_time_going,
         departure_time_going, meeting_location_return, meeting_time_return,
-        departure_time_return, created_by, organization_id, description_html, authorization_required, authorization_deadline_date, transport_required
+        departure_time_return, created_by, organization_id, description_html, authorization_required, authorization_deadline_date, transport_required,
+        is_camp
       ) VALUES (
         $1, $2, $3, $4, $5, $6,
         $7, $8, $9, $10,
         $11, $12, $13,
-        $14, $15, $16, $17, $18, $19, $20
+        $14, $15, $16, $17, $18, $19, $20, $21
       ) RETURNING *`,
       [
         activity.name,
@@ -514,7 +524,8 @@ module.exports = (pool) => {
         activity.description_html,
         activity.authorization_required,
         activity.authorization_deadline_date,
-        activity.transport_required
+        activity.transport_required,
+        activity.is_camp === true
       ]
     );
     return result.rows[0];
@@ -545,7 +556,7 @@ module.exports = (pool) => {
       await client.query('BEGIN');
 
       const existingResult = await client.query(
-        `SELECT name, description, description_html, authorization_text, authorization_required, authorization_deadline_date::text AS authorization_deadline_date, transport_required, is_active, invites_everyone,
+        `SELECT name, description, description_html, authorization_text, authorization_required, is_camp, authorization_deadline_date::text AS authorization_deadline_date, transport_required, is_active, invites_everyone,
                 activity_date::text AS activity_date,
                 activity_start_date::text AS activity_start_date,
                 activity_start_time::text AS activity_start_time,
@@ -591,6 +602,13 @@ module.exports = (pool) => {
           return error(res, 'invalid_request', HTTP_BAD_REQUEST);
         }
         activity.authorization_required = body.authorization_required;
+      }
+      if (has('is_camp')) {
+        if (typeof body.is_camp !== 'boolean') {
+          await client.query('ROLLBACK');
+          return error(res, 'invalid_request', HTTP_BAD_REQUEST);
+        }
+        activity.is_camp = body.is_camp;
       }
       if (has('authorization_deadline_date')) {
         if (body.authorization_deadline_date && !isValidDate(body.authorization_deadline_date)) {
@@ -678,6 +696,7 @@ module.exports = (pool) => {
                 authorization_required = $19,
                 authorization_deadline_date = $20,
                 transport_required = $21,
+                is_camp = $22,
                 updated_at = CURRENT_TIMESTAMP
           WHERE id = $16 AND organization_id = $17
           RETURNING *`,
@@ -702,7 +721,8 @@ module.exports = (pool) => {
           activity.description_html,
           activity.authorization_required ?? false,
           activity.authorization_deadline_date || null,
-          activity.transport_required ?? true
+          activity.transport_required ?? true,
+          activity.is_camp === true
         ]
       );
 
@@ -739,6 +759,20 @@ module.exports = (pool) => {
           activity.authorization_deadline_date || null
         ]
       );
+
+      // A camp planned in the year plan keeps one set of dates: its planned date follows.
+      try {
+        await alignPlannedDate(client, organizationId, activityId, activity.activity_start_date, activity.activity_end_date);
+        if (activity.is_camp && activity.is_active !== false) {
+          await planCamp(client, organizationId, activityId);
+        } else if (existing.is_camp) {
+          await unplanCamp(client, organizationId, activityId);
+        }
+      } catch (dateError) {
+        if (!(dateError instanceof CampDateError)) { throw dateError; }
+        await client.query('ROLLBACK');
+        return error(res, dateError.code, dateError.status);
+      }
 
       let invitationChanges = { removedCarpoolAssignments: 0, archivedPermissionSlips: 0 };
       if (invitation.provided) {

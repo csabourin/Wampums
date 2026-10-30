@@ -133,6 +133,34 @@ describe('activity invitations', () => {
     close();
   });
 
+  test('a new activity is not a camp unless the leader ticks it, labelled and explained', async () => {
+    const { close } = openActivityFormModal(app);
+    const overlay = document.getElementById('activity-modal');
+    const box = overlay.querySelector('#activity-is-camp');
+    expect(box.checked).toBe(false);
+    expect(overlay.querySelector('label[for="activity-is-camp"]').textContent).toBe('activity_is_camp');
+    expect(box.getAttribute('aria-describedby')).toBe('activity-is-camp-help');
+
+    fillRequired(overlay);
+    box.checked = true;
+    overlay.querySelector('#activity-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    expect(createActivity).toHaveBeenCalledWith(expect.objectContaining({ is_camp: true }));
+    close();
+  });
+
+  test('an activity lasting more than a month, such as a mistyped year, is not sent', async () => {
+    const { close } = openActivityFormModal(app);
+    const overlay = document.getElementById('activity-modal');
+    fillRequired(overlay);
+    overlay.querySelector('#activity-start-date').value = '2026-02-06';
+    overlay.querySelector('#activity-end-date').value = '2027-02-08';
+    overlay.querySelector('#activity-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    expect(createActivity).not.toHaveBeenCalled();
+    close();
+  });
+
   test('filters narrow who is shown; "invite those shown" checks only them', async () => {
     const { close } = openActivityFormModal(app);
     const overlay = document.getElementById('activity-modal');

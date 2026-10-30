@@ -1,4 +1,18 @@
+import eventLimits from '../../config/event_limits.json';
 import { formatClockTime, formatDateShort, isoToDateString, parseDate } from './DateUtils.js';
+
+/** The longest event a unit records, in days, as the server enforces it (config/event_limits.json). */
+export const MAX_EVENT_DAYS = eventLimits.max_event_days;
+const MS_PER_DAY = 86400000;
+
+/**
+ * @param {string} startDate - YYYY-MM-DD
+ * @param {string} endDate - YYYY-MM-DD
+ * @returns {number} Calendar days covered, the first and last included
+ */
+export function eventDays(startDate, endDate) {
+  return Math.round((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / MS_PER_DAY) + 1;
+}
 
 export function getActivityStartDate(activity) {
   const safeActivity = activity || {};

@@ -281,7 +281,8 @@ describe('POST /api/v1/activities', () => {
       null,               // description_html (plain description)
       false,              // authorization_required
       null,               // authorization_deadline_date
-      true                // transport_required (legacy API default)
+      true,               // transport_required (legacy API default)
+      false               // is_camp: an activity is not a camp unless it says so
     ]);
   });
 

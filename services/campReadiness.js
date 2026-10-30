@@ -56,10 +56,10 @@ async function campReadiness(db, organizationId, meetingId, allowed) {
 }
 
 /**
- * A camp recorded as an activity of several days. When the year plan schedules it, its
- * planned camp answers; otherwise only tasks and consent exist, since collective material
+ * A camp recorded as an activity (`is_camp`). When the year plan schedules it, its planned camp
+ * answers; otherwise only tasks and consent exist, since collective material
  * and equipment lots are listed from a camp's schedule (`camp.scheduled` is false).
- * @returns {Promise<Object|null>} Null for another unit's, a removed, or a one-day activity
+ * @returns {Promise<Object|null>} Null for another unit's, a removed, or a non-camp activity
  */
 async function campReadinessForActivity(db, organizationId, activityId, allowed) {
   const planned = (await db.query(`SELECT id FROM year_plan_meetings
@@ -67,16 +67,15 @@ async function campReadinessForActivity(db, organizationId, activityId, allowed)
   if (planned) { return campReadiness(db, organizationId, planned.id, allowed); }
   const camp = (await db.query(`SELECT NULL::int AS id, a.name AS theme, a.activity_start_date::text AS date_from,
       a.activity_end_date::text AS date_to, a.id AS activity_id, false AS is_cancelled, NULL::int AS year_plan_id, false AS scheduled
-    FROM activities a WHERE a.organization_id = $1 AND a.id = $2 AND a.is_active = TRUE
-      AND a.activity_end_date > a.activity_start_date`, [organizationId, activityId])).rows[0];
+    FROM activities a WHERE a.organization_id = $1 AND a.id = $2 AND a.is_active = TRUE AND a.is_camp`, [organizationId, activityId])).rows[0];
   if (!camp) { return null; }
   const sections = {};
   await Promise.all(eventReads(db, organizationId, camp, allowed, sections));
   return { camp, sections };
 }
 /**
- * Camps under way or starting within `days`, soonest first: planned camps, and activities of
- * several days the year plan does not schedule as a camp, so the team finds their overview.
+ * Camps under way or starting within `days`, soonest first: planned camps, and camp activities
+ * the year plan does not schedule, so the team finds their overview.
  * @param {Object} db
  * @param {number} organizationId
  * @param {number} days
@@ -93,7 +92,7 @@ async function upcomingCamps(db, organizationId, days, limit) {
       UNION ALL
       SELECT NULL::int, a.id, a.name, a.activity_start_date::text, a.activity_end_date::text
       FROM activities a
-      WHERE a.organization_id = $1 AND a.is_active = TRUE AND a.activity_end_date > a.activity_start_date
+      WHERE a.organization_id = $1 AND a.is_active = TRUE AND a.is_camp
         AND a.activity_end_date >= CURRENT_DATE AND a.activity_start_date <= CURRENT_DATE + $2::int
         AND NOT EXISTS (SELECT 1 FROM year_plan_meetings m WHERE m.organization_id = a.organization_id
           AND m.activity_id = a.id AND m.meeting_kind = 'camp')

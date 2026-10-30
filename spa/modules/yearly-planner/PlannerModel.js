@@ -184,7 +184,8 @@ function buildEventOnlyChip(event, today) {
     isEvent: true,
     dayNum: parsed ? parsed.getDate() : null,
     weekday: parsed ? parsed.getDay() : null,
-    kind: spanDays > 1 ? 'camp' : 'weekend',
+    // Not every outing of several days is a camp: the activity says whether it is one.
+    kind: event.is_camp === true ? 'camp' : 'weekend',
     theme: event.name || null,
     periodId: null,
     isCancelled: false,

@@ -5130,5 +5130,13 @@
   "camp_readiness_left_tasks_done": "Every task is done",
   "camp_readiness_upcoming_title": "Camps coming up",
   "camp_readiness_upcoming_dates": "{from} – {to}",
-  "camp_readiness_unscheduled": "This camp was created as an activity, not in the year plan. Its assignments and parental permissions are below; collective equipment and equipment lots are prepared for camps planned in the year plan."
+  "camp_readiness_unscheduled": "This camp was created as an activity, not in the year plan. Its assignments and parental permissions are below; collective equipment and equipment lots are prepared for camps planned in the year plan.",
+  "activity_is_camp": "This activity is a camp",
+  "activity_is_camp_help": "A camp appears in the year plan and in “Ready for camp”, where the team follows its preparation.",
+  "activity_too_long": "An activity cannot last more than a month. Check the end date, especially its year.",
+  "camp_date_taken": "Another activity is already planned on that first day in the year plan. Move it first, or choose another date.",
+  "camp_schedule_outside_dates": "The camp schedule has lines on days these dates no longer include. Move or remove them in the camp schedule first.",
+  "yearly_planner_camp_dates": "Camp dates",
+  "yearly_planner_camp_dates_help": "Changing the dates here also changes the activity, its schedule days and its readiness overview.",
+  "yearly_planner_dates_saved": "Dates saved"
 }

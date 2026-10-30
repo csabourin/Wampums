@@ -5130,5 +5130,13 @@
   "camp_readiness_left_tasks_done": "Toutes les tâches sont faites",
   "camp_readiness_upcoming_title": "Camps à venir",
   "camp_readiness_upcoming_dates": "{from} – {to}",
-  "camp_readiness_unscheduled": "Ce camp a été créé comme activité, pas dans le plan de l’année. Ses tâches et autorisations parentales sont ci-dessous ; le matériel collectif et les lots se préparent pour les camps prévus au plan de l’année."
+  "camp_readiness_unscheduled": "Ce camp a été créé comme activité, pas dans le plan de l’année. Ses tâches et autorisations parentales sont ci-dessous ; le matériel collectif et les lots se préparent pour les camps prévus au plan de l’année.",
+  "activity_is_camp": "Cette activité est un camp",
+  "activity_is_camp_help": "Un camp apparaît au plan de l’année et dans « Prêt pour le camp », où l’équipe suit sa préparation.",
+  "activity_too_long": "Une activité ne peut pas durer plus d’un mois. Vérifiez la date de fin, en particulier son année.",
+  "camp_date_taken": "Une autre activité est déjà prévue à ce premier jour dans le plan de l’année. Déplacez-la d’abord, ou choisissez une autre date.",
+  "camp_schedule_outside_dates": "L’horaire du camp a des lignes sur des jours que ces dates n’incluent plus. Déplacez-les ou retirez-les d’abord dans l’horaire du camp.",
+  "yearly_planner_camp_dates": "Dates du camp",
+  "yearly_planner_camp_dates_help": "Modifier les dates ici modifie aussi l’activité, les jours de son horaire et sa vue « Prêt pour le camp ».",
+  "yearly_planner_dates_saved": "Dates enregistrées"
 }
