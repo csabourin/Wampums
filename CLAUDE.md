@@ -604,6 +604,11 @@ missing" sends exactly those to `POST /api/v1/resources/equipment/reservations/c
 recounts, and refuses with 409 `camp_material_reservation_stale` anything beyond what is still
 lacking or free, all or none; reservations name the camp's meeting and outing, and one already made
 for the camp over exactly its dates grows rather than doubling (any other booking is never altered).
+Each free-text line offers "Convert to catalogue articles" (`meetings.manage`; creating a missing
+article there also takes `equipment_catalog.manage`): the line's articles and the text they leave are
+saved in one `PATCH /api/v1/yearly-planner/meeting-activities/:id`, so the list never counts them twice.
+A line's articles and missing articles also offer "Assign to someone" (`tasks.manage`), which opens
+the task form filled for the camp with its material reminder.
 
 Meeting preparation sends a change to the server once the date (and the youth of honour, where
 the unit requires one) is filled; the leader in charge and the place are optional, as on the

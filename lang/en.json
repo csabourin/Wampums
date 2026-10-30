@@ -5096,5 +5096,16 @@
   "tasks_saved_reminder_failed": "The task is saved, but its reminder is not. Press Save to try the reminder again.",
   "camp_material_assign": "Assign to someone",
   "camp_material_who": "Who brings it",
-  "tasks_bring_material": "Bring: {item}"
+  "tasks_bring_material": "Bring: {item}",
+  "camp_material_convert": "Convert to catalogue articles",
+  "camp_material_convert_title": "Convert to catalogue articles",
+  "camp_material_convert_intro": "Choose the articles this note stands for, with their quantities, then keep only the text they do not replace. The list will add them up with the rest.",
+  "camp_material_new_article": "Name an article that is not in the catalogue yet",
+  "camp_material_create_article": "Create the article",
+  "camp_material_remaining": "Free text that remains",
+  "camp_material_remaining_hint": "Remove what the articles replace. Leave it empty if everything is converted.",
+  "camp_material_convert_nothing": "Add an article or change the remaining text before saving.",
+  "camp_material_convert_failed": "The material could not be converted. Your choices are kept.",
+  "camp_material_converted": "Material converted.",
+  "camp_material_convert_unavailable": "This activity's material could not be opened. Reload the list and try again."
 }

@@ -5096,5 +5096,16 @@
   "tasks_saved_reminder_failed": "La tâche est enregistrée, mais pas son rappel. Appuyez sur Enregistrer pour réessayer le rappel.",
   "camp_material_assign": "Confier à quelqu’un",
   "camp_material_who": "Qui l’apporte",
-  "tasks_bring_material": "Apporter : {item}"
+  "tasks_bring_material": "Apporter : {item}",
+  "camp_material_convert": "Convertir en articles du catalogue",
+  "camp_material_convert_title": "Convertir en articles du catalogue",
+  "camp_material_convert_intro": "Choisissez les articles que cette note désigne, avec leurs quantités, puis gardez seulement le texte qu’ils ne remplacent pas. La liste les additionnera avec le reste.",
+  "camp_material_new_article": "Nommer un article absent du catalogue",
+  "camp_material_create_article": "Créer l’article",
+  "camp_material_remaining": "Texte libre qui reste",
+  "camp_material_remaining_hint": "Retirez ce que les articles remplacent. Laissez vide si tout est converti.",
+  "camp_material_convert_nothing": "Ajoutez un article ou modifiez le texte restant avant d’enregistrer.",
+  "camp_material_convert_failed": "Le matériel n’a pas pu être converti. Vos choix sont conservés.",
+  "camp_material_converted": "Matériel converti.",
+  "camp_material_convert_unavailable": "Le matériel de cette activité n’a pas pu être ouvert. Rechargez la liste et réessayez."
 }
