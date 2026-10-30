@@ -1094,17 +1094,22 @@ module.exports = (pool, logger) => {
 
       // Field names come from the PATCHABLE_MEETING_FIELDS whitelist above, never
       // from the request; every value is parameterized.
-      const updateSql = `UPDATE year_plan_meetings SET ${updates.join(', ')}, updated_at = NOW()
-         WHERE id = $1 AND organization_id = $2
-         RETURNING *`;
-      const result = await pool.query(updateSql, [meetingId, organizationId, ...values]);
-      // The linked activity says whether it is a camp; the planner's kind and it stay in step.
-      if (Object.prototype.hasOwnProperty.call(req.body, 'meeting_kind') && result.rows[0]?.activity_id) {
-        await pool.query(
-          'UPDATE activities SET is_camp = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3',
-          [req.body.meeting_kind === 'camp', result.rows[0].activity_id, organizationId]
-        );
-      }
+      // The linked activity says whether it is a camp. One statement updates the date and, when its
+      // kind changes, that mark: the date's row lock orders concurrent changes, so the planner's kind
+      // and the activity's mark cannot end up from different requests.
+      const kindParam = `$${values.length + 3}::boolean`;
+      const updateSql = `WITH updated AS (
+           UPDATE year_plan_meetings SET ${updates.join(', ')}, updated_at = NOW()
+            WHERE id = $1 AND organization_id = $2
+            RETURNING *
+         ), camp_mark AS (
+           UPDATE activities a SET is_camp = (u.meeting_kind = 'camp'), updated_at = NOW()
+             FROM updated u
+            WHERE ${kindParam} AND a.id = u.activity_id AND a.organization_id = u.organization_id
+         )
+         SELECT * FROM updated`;
+      const changesKind = Object.prototype.hasOwnProperty.call(req.body, 'meeting_kind');
+      const result = await pool.query(updateSql, [meetingId, organizationId, ...values, changesKind]);
 
       return success(res, result.rows[0], 'Meeting updated');
     })
