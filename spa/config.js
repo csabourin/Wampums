@@ -51,6 +51,9 @@ export const CONFIG = {
   EQUIPMENT_REMINDERS: {
     MATERIALS_MAX_LENGTH: 5000, MAX_LEAD_DAYS: 30, MIN_REPEAT_HOURS: 24, MAX_REPEAT_HOURS: 168,
     DEFAULT_LEAD_DAYS: 2, DEFAULT_REPEAT_HOURS: 24,
+    /** Named choices in the task form; a stored value outside them is offered too. */
+    // eslint-disable-next-line no-magic-numbers -- these arrays are the configured values themselves
+    LEAD_PRESET_DAYS: [0, 1, 2, 3, 7, 14], REPEAT_PRESET_HOURS: [24, 48, 72, 168],
   },
   TASKS: {
     TITLE_MAX_LENGTH: 255,
