@@ -167,7 +167,16 @@ const INDEXNOW = Object.freeze({
   RATE_LIMITED_STATUS: 429,
 });
 
+/** Volunteer shifts (#1251), shared with the SPA; the database checks the same bounds (migration 069). */
+const volunteerShiftLimits = require('./volunteer_shifts.json');
+const VOLUNTEER_SHIFTS = Object.freeze({
+  TITLE_MAX_LENGTH: volunteerShiftLimits.title_max_length,
+  NOTES_MAX_LENGTH: volunteerShiftLimits.notes_max_length,
+  MAX_SLOTS: volunteerShiftLimits.max_slots,
+});
+
 module.exports = {
+  VOLUNTEER_SHIFTS,
   RATE_LIMITS,
   FILE_LIMITS,
   SISC_IMPORT_LIMITS,

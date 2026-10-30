@@ -78,6 +78,7 @@ module.exports = (app, pool) => {
   const messagesRoutes = require('./messages')(pool);
   const tasksRoutes = require('./tasks')(pool);
   const campReadinessRoutes = require('./camp-readiness')(pool);
+  const volunteerShiftRoutes = require('./volunteer-shifts')(pool);
   const equipmentCatalogRoutes = require('./equipmentCatalog')(pool);
   const announcementsRoutes = require('./announcements')(pool, logger, whatsappService, googleChatService);
   const newsRoutes = require('./news')(pool);
@@ -163,6 +164,7 @@ module.exports = (app, pool) => {
   app.use('/api/v1/messages', messagesRoutes);
   app.use('/api/v1/tasks', tasksRoutes);
   app.use('/api/v1/camp-readiness', campReadinessRoutes);
+  app.use('/api/v1/volunteer-shifts', volunteerShiftRoutes);
 
   app.use('/api/v1/news', newsRoutes);
 

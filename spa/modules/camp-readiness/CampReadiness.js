@@ -32,7 +32,7 @@ export const READINESS_LABELS = {
 
 /** Standings that still call for reserving, borrowing or buying; an article outside the inventory has neither. */
 const MATERIAL_TO_DO = ['available', 'missing', 'unavailable', 'not_in_inventory'];
-const SECTION_ORDER = ['permissions', 'material', 'lots', 'tasks'];
+const SECTION_ORDER = ['permissions', 'material', 'lots', 'volunteers', 'tasks'];
 /** A consent deadline is an instant; its calendar date is its first YYYY-MM-DD characters. */
 const ISO_DATE_LENGTH = 10;
 
@@ -136,6 +136,14 @@ export class CampReadiness {
         ? translate('camp_readiness_left_lots').replace('{count}', this.count(left)).replace('{total}', this.count(section.length))
         : translate('camp_readiness_left_lots_done') };
     }
+    if (key === 'volunteers') {
+      if (!recorded(section)) { return { text: translate('camp_readiness_left_none'), attention: true }; }
+      const vacant = section.reduce((sum, shift) => sum + Math.max(0, Number(shift.slots) - Number(shift.taken)), 0);
+      const total = section.reduce((sum, shift) => sum + Number(shift.slots), 0);
+      return { attention: vacant > 0, text: vacant
+        ? translate('camp_readiness_left_volunteers').replace('{vacant}', this.count(vacant)).replace('{total}', this.count(total))
+        : translate('camp_readiness_left_volunteers_done') };
+    }
     if (!recorded(section)) { return { text: translate('camp_readiness_left_none'), attention: true }; }
     const open = section.filter((task) => task.status !== 'done');
     const late = open.filter((task) => this.overdue(task.due_date, false)).length;
@@ -208,6 +216,18 @@ export class CampReadiness {
           owner: (lot.roles || []).map((role) => `${translate(CAMP_LOTS.ROLE_KEYS[role.role] || 'camp_readiness_unknown')}: ${role.name}`).join(', '),
         });
       }).join(''), `/camp-lots/${meetingId}`);
+    }
+    if (sections.volunteers) {
+      body += this.section('volunteers', sections.volunteers.map((shift) => {
+        const free = Math.max(0, Number(shift.slots) - Number(shift.taken));
+        return this.row({
+          title: shift.title, href: '/volunteers',
+          chip: free ? translate('volunteers_places_free').replace('{free}', this.count(free)).replace('{slots}', this.count(shift.slots))
+            : translate('volunteers_full'),
+          detail: translate('volunteers_when').replace('{date}', this.date(shift.shift_date))
+            .replace('{start}', shift.start_time).replace('{end}', shift.end_time),
+        });
+      }).join(''), '/volunteers');
     }
     if (sections.tasks) {
       const tasksHref = `/tasks?${[meetingId ? `meeting_id=${meetingId}` : '', camp.activity_id ? `activity_id=${Number(camp.activity_id)}` : '']

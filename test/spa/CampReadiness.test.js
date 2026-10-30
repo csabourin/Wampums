@@ -143,3 +143,22 @@ test('a camp created as an activity opens by its activity, says why material is 
   expect(document.querySelector('a[href="/activities"]')).not.toBeNull();
   expect((await axe.run(document.getElementById('app'), { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([]);
 });
+
+test('volunteer places still open are part of what is left, each shift linking to volunteering', async () => {
+  const payload = data();
+  payload.sections.volunteers = [
+    { title: 'Cuisine', shift_date: '2026-11-15', start_time: '17:00', end_time: '19:00', slots: 2, taken: 1 },
+    { title: 'Transport', shift_date: '2026-11-14', start_time: '08:00', end_time: '09:00', slots: 1, taken: 1 },
+  ];
+  getCampReadiness.mockResolvedValue({ data: payload });
+  await screen.init();
+  const line = document.querySelector('.camp-readiness__left a[href="#camp-readiness-volunteers"]').closest('li');
+  expect(line.classList.contains('is-attention')).toBe(true);
+  expect(line.textContent).toContain('camp_readiness_left_volunteers');
+  expect(document.querySelectorAll('#camp-readiness-volunteers a[href="/volunteers"]')).toHaveLength(2);
+  payload.sections.volunteers[0].taken = 2;
+  await screen.init();
+  const filled = document.querySelector('.camp-readiness__left a[href="#camp-readiness-volunteers"]').closest('li');
+  expect(filled.classList.contains('is-clear')).toBe(true);
+  expect(filled.textContent).toContain('camp_readiness_left_volunteers_done');
+});

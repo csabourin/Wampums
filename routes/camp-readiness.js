@@ -17,13 +17,14 @@ module.exports = (pool) => {
     }));
   /** Section rights come from the shared engine; none follows from the overview right. */
   async function sectionRights(req, organizationId) {
-    const keys = ['inventory.view', 'camp_lots.view', 'tasks.view', 'tasks.manage', 'activities.view', 'participants.view', 'groups.view'];
+    const keys = ['inventory.view', 'camp_lots.view', 'tasks.view', 'tasks.manage', 'activities.view', 'participants.view', 'groups.view', 'volunteers.view'];
     const grants = await Promise.all(keys.map((key) => userHasPermission(req, pool, organizationId, key)));
     const can = (key) => grants[keys.indexOf(key)];
     return {
       inventory: can('inventory.view'), lots: can('camp_lots.view'),
       tasks: can('tasks.view') && can('tasks.manage'),
       permissions: can('activities.view') && can('participants.view') && can('groups.view'),
+      volunteers: can('volunteers.view'),
     };
   }
   router.get('/activities/:id', authenticate, requirePermission({ permissions: ['meetings.view'], organizationScope: true }),

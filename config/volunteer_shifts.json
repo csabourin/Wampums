@@ -1,0 +1,5 @@
+{
+  "title_max_length": 120,
+  "notes_max_length": 1000,
+  "max_slots": 50
+}

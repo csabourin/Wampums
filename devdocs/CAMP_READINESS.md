@@ -66,8 +66,8 @@ explicitly identified. Errors offer a retry, never a successful empty overview.
 
 There is no camp-specific charge/payment model in the current schema: annual unit
 fees cannot honestly stand for camp payments. That section is absent until such a
-model exists. Structured volunteer slots (#1251) do not exist yet either, so their
-section is absent. Existing assigned tasks are shown as tasks. No new permission or
+model exists. Volunteer shifts (#1251, `devdocs/VOLUNTEERS.md`) appear as their own
+section with `volunteers.view`: places still open over the total. Existing assigned tasks are shown as tasks. No new permission or
 migration is needed: this read-only composition uses the existing resource rights.
 
 English/French labels, jsdom/axe, route permission tests, a migrated-PostgreSQL

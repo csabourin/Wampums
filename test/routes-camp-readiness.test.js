@@ -25,12 +25,12 @@ test.each([['linked', ['meetings.view']], ['organization', []]])('scope %s with 
 test.each(['0', '12abc', '2147483648'])('invalid camp id %s is refused', async (id) => { expect((await call(`/${id}`)).status).toBe(400); expect(campReadiness).not.toHaveBeenCalled(); });
 test('section decisions use refreshed permissions and the authenticated unit, ignoring query claims', async () => {
   expect((await call('/3?organization_id=99&permissions=true')).status).toBe(200);
-  expect(campReadiness).toHaveBeenCalledWith(pool, 7, 3, { inventory: false, lots: false, tasks: false, permissions: false });
+  expect(campReadiness).toHaveBeenCalledWith(pool, 7, 3, { inventory: false, lots: false, tasks: false, permissions: false, volunteers: false });
 });
 test('consent and task links require every permission their destination screen needs', async () => {
   permissions.push('participants.view', 'activities.view', 'groups.view', 'tasks.manage', 'tasks.view', 'inventory.view', 'camp_lots.view');
   expect((await call()).status).toBe(200);
-  expect(campReadiness).toHaveBeenCalledWith(pool, 7, 3, { inventory: true, lots: true, tasks: true, permissions: true });
+  expect(campReadiness).toHaveBeenCalledWith(pool, 7, 3, { inventory: true, lots: true, tasks: true, permissions: true, volunteers: false });
 });
 test('a camp belonging to another unit is missing', async () => { campReadiness.mockResolvedValue(null); expect((await call()).status).toBe(404); });
 
@@ -57,7 +57,7 @@ describe('a camp created as an activity', () => {
   test('the team opens its overview by the activity, in its own unit, with the section rights it holds', async () => {
     permissions.push('tasks.manage', 'tasks.view');
     expect((await call('/activities/8?organization_id=99')).status).toBe(200);
-    expect(campReadinessForActivity).toHaveBeenCalledWith(pool, 7, 8, { inventory: false, lots: false, tasks: true, permissions: false });
+    expect(campReadinessForActivity).toHaveBeenCalledWith(pool, 7, 8, { inventory: false, lots: false, tasks: true, permissions: false, volunteers: false });
   });
   test('without a token, without meetings.view, or with a malformed id it is refused', async () => {
     expect((await request(app).get('/api/v1/camp-readiness/activities/8')).status).toBe(401);

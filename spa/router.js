@@ -140,6 +140,7 @@ const lazyModules = {
   StarterActivities: () => import('./modules/yearly-planner/StarterActivities.js').then(m => m.StarterActivities),
   CampEquipmentLots: () => import('./modules/camp-lots/CampEquipmentLots.js').then(m => m.CampEquipmentLots),
   CampReadiness: () => import('./modules/camp-readiness/CampReadiness.js').then(m => m.CampReadiness),
+  Volunteers: () => import('./modules/volunteers/Volunteers.js').then(m => m.Volunteers),
   CampMaterialList: () => import('./modules/camp-material/CampMaterialList.js').then(m => m.CampMaterialList),
   ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
   AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink),
@@ -263,6 +264,7 @@ const routes = {
   '/camp-lots/:id': 'campLots',
   '/my-camp-lots/:id': 'myCampLots',
   '/camp-readiness/:id': 'campReadiness',
+  '/volunteers': 'volunteers',
   '/camp-material/:id': 'campMaterial',
   '/unit-settings': 'unitSettings',
   '/scout-year': 'scoutYear'
@@ -804,6 +806,13 @@ export class Router {
           if (!guard(hasPermission(ownOnly ? 'tasks.view' : 'camp_lots.view'))) { break; }
           const CampEquipmentLots = await this.loadModule('CampEquipmentLots');
           this.currentModuleInstance = new CampEquipmentLots(this.app, { meetingId: Number(param), ownOnly });
+          await this.currentModuleInstance.init();
+          break;
+        }
+        case 'volunteers': {
+          if (!guard(hasPermission('volunteers.view'))) { break; }
+          const Volunteers = await this.loadModule('Volunteers');
+          this.currentModuleInstance = new Volunteers(this.app);
           await this.currentModuleInstance.init();
           break;
         }

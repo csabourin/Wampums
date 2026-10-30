@@ -500,6 +500,14 @@ are edited through their lot and use its preparation and receipt rules below. Co
 task reads through the shared API client. The task screen uses minimal event/member
 choices rather than requesting participants, families, contacts or health forms.
 
+### Volunteering
+
+`/volunteers` (`volunteers.view`; managing shifts takes `volunteers.manage`, migration 069) lists
+each activity's or camp's needs by time slot. Writes go through `services/volunteerShifts.js`, which
+locks the shift so its last place goes to one person (409 `volunteer_shift_full` for the other). The
+built-in `volunteer` role holds only `volunteers.view` and `tasks.view`: no youth, family or health
+record. Other volunteers' names go to managers only. See `devdocs/VOLUNTEERS.md`.
+
 ### Camp equipment lots
 
 `/camp-lots/:id` requires `camp_lots.view`; editing additionally requires

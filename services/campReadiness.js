@@ -1,9 +1,10 @@
 /** Team preparation of a camp. Device/offline readiness is a separate concern. */
 const { buildCampMaterialList } = require('./campMaterialList');
 const { listLots } = require('./campEquipmentLots');
+const { shiftsForActivity } = require('./volunteerShifts');
 
 /**
- * Tasks and consent: what a planned camp and a camp recorded only as an activity share.
+ * Tasks, consent and volunteer shifts: what a planned camp and a camp recorded only as an activity share.
  * @returns {Array<Promise<void>>} Reads filling `sections`
  */
 function eventReads(db, organizationId, camp, allowed, sections) {
@@ -27,6 +28,9 @@ function eventReads(db, organizationId, camp, allowed, sections) {
       GROUP BY status ORDER BY status`, [organizationId, camp.activity_id]).then((data) => {
       sections.permissions = data.rows;
     }));
+  }
+  if (allowed.volunteers && camp.activity_id) {
+    reads.push(shiftsForActivity(db, organizationId, camp.activity_id).then((rows) => { sections.volunteers = rows; }));
   }
   return reads;
 }

@@ -1,0 +1,185 @@
+/**
+ * Volunteer shifts (#1251) on a migrated PostgreSQL.
+ *
+ * A volunteer account takes part without reading any youth or health record, and two
+ * people taking the last place at the same moment cannot both get it: one is confirmed,
+ * the other is told the shift is full (409).
+ */
+const express = require('express');
+const request = require('supertest');
+const { Pool } = require('pg');
+
+require('./jest-conditional-helpers');
+
+const DATABASE_URL = process.env.TEST_DATABASE_URL;
+process.env.JWT_SECRET_KEY = process.env.JWT_SECRET_KEY || 'volunteer-shifts-integration-secret';
+
+const mockContext = { userId: null, organizationId: null };
+// Only authentication is faked; membership, permissions and scope come from the database.
+jest.mock('../middleware/auth', () => {
+  const actual = jest.requireActual('../middleware/auth');
+  return {
+    ...actual,
+    authenticate: (req, _res, next) => {
+      req.user = { id: mockContext.userId, organizationId: mockContext.organizationId };
+      next();
+    },
+  };
+});
+
+const { signUp, saveShift, listShifts } = require('../services/volunteerShifts');
+const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+
+describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
+  let pool; let app;
+  const ids = {};
+  const one = async (sql, params = []) => Object.values((await pool.query(sql, params)).rows[0])[0];
+  /** A unit and its program section, created together as the deferred foreign key expects. */
+  const unit = async (name) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const id = (await client.query('INSERT INTO organizations (name) VALUES ($1) RETURNING id', [name])).rows[0].id;
+      await client.query("INSERT INTO organization_program_sections (organization_id, section_key, display_name) VALUES ($1, 'general', 'General')", [id]);
+      await client.query('COMMIT');
+      return id;
+    } finally {
+      client.release();
+    }
+  };
+  const member = async (name, roleName) => {
+    const userId = await one(`INSERT INTO users (email, password, full_name, is_verified)
+      VALUES ('volunteer-' || gen_random_uuid() || '@example.test', 'x', $1, TRUE) RETURNING id`, [name]);
+    const roleId = await one('SELECT id FROM roles WHERE role_name = $1 AND organization_id IS NULL', [roleName]);
+    await pool.query(`INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
+      VALUES ($1, $2, $3, 'active')`, [userId, ids.unit, JSON.stringify([roleId])]);
+    return userId;
+  };
+  const as = (userId, unit = ids.unit) => {
+    mockContext.userId = userId;
+    mockContext.organizationId = unit;
+    return request(app);
+  };
+
+  beforeAll(async () => {
+    pool = new Pool({ connectionString: DATABASE_URL });
+    ids.unit = await unit('Fictional volunteer unit');
+    ids.other = await unit('Another fictional unit');
+    ids.manager = await member('Ada Lovelace', 'unitadmin');
+    ids.cook = await member('Léa Tremblay', 'volunteer');
+    ids.driver = await member('Grace Hopper', 'volunteer');
+    ids.camp = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+        meeting_time_going, departure_time_going, activity_start_date, activity_start_time, activity_end_date, activity_end_time, is_camp)
+      VALUES ($1, $2, 'Camp de la Toussaint', CURRENT_DATE + 3, 'Hall', '18:00', '18:15', CURRENT_DATE + 3, '18:00', CURRENT_DATE + 5, '14:00', TRUE)
+      RETURNING id`, [ids.unit, ids.manager]);
+
+    app = express();
+    app.locals.pool = pool;
+    app.use(express.json());
+    app.use('/api/v1/volunteer-shifts', require('../routes/volunteer-shifts')(pool));
+    app.use('/api/v1/participants', require('../routes/participants')(pool));
+    app.use('/api', require('../routes/medication')(pool, logger));
+    app.use('/api/v1/forms', require('../routes/forms')(pool, logger));
+  });
+
+  afterAll(async () => { if (pool) { await pool.end(); } });
+
+  test('the volunteer role holds only shifts and its own tasks: no youth, family or health permission', async () => {
+    const keys = (await pool.query(`SELECT p.permission_key FROM roles r
+      JOIN role_permissions rp ON rp.role_id = r.id JOIN permissions p ON p.id = rp.permission_id
+      WHERE r.role_name = 'volunteer' AND r.organization_id IS NULL ORDER BY 1`)).rows.map((row) => row.permission_key);
+    expect(keys).toEqual(['tasks.view', 'volunteers.view']);
+  });
+
+  test.each([
+    ['the youth list', '/api/v1/participants'],
+    ['youth details', '/api/v1/participants/details'],
+    ['medication requirements', '/api/v1/medication/requirements'],
+    ['health declarations', '/api/v1/medication/fiche-declarations'],
+    ['submitted forms', '/api/v1/forms'],
+  ])('a volunteer is refused %s', async (_label, path) => {
+    const response = await as(ids.cook).get(path);
+    expect(response.status).toBe(403);
+    expect(response.body.missing.length).toBeGreaterThan(0);
+  });
+
+  test('a volunteer sees shifts and places, but not who else signed up', async () => {
+    const shift = await saveShift(pool, ids.unit, ids.manager, {
+      activity_id: ids.camp, title: 'Cuisine', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
+      start_time: '17:00', end_time: '19:00', slots: 2, notes: '',
+    });
+    await signUp(pool, ids.unit, shift.id, ids.driver);
+    const response = await as(ids.cook).get('/api/v1/volunteer-shifts');
+    expect(response.status).toBe(200);
+    const listed = response.body.data.find((row) => row.id === shift.id);
+    expect(listed).toMatchObject({ title: 'Cuisine', slots: 2, taken: 1, mine: false, volunteers: null });
+    expect(JSON.stringify(response.body)).not.toContain('Grace Hopper');
+    const managerView = await listShifts(pool, ids.unit, ids.manager, { withNames: true });
+    expect(managerView.find((row) => row.id === shift.id).volunteers.map((person) => person.name)).toEqual(['Grace Hopper']);
+  });
+
+  test('two volunteers taking the last place at once: one is confirmed, the other is refused with 409', async () => {
+    const shift = await saveShift(pool, ids.unit, ids.manager, {
+      activity_id: ids.camp, title: 'Veille de nuit', shift_date: await one('SELECT (CURRENT_DATE + 4)::text'),
+      start_time: '22:00', end_time: '23:30', slots: 1, notes: '',
+    });
+    const results = await Promise.allSettled([
+      signUp(pool, ids.unit, shift.id, ids.cook),
+      signUp(pool, ids.unit, shift.id, ids.driver),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const refused = results.find((result) => result.status === 'rejected');
+    expect(refused.reason).toMatchObject({ message: 'volunteer_shift_full', status: 409 });
+    expect(await one('SELECT COUNT(*)::int FROM volunteer_signups WHERE shift_id = $1', [shift.id])).toBe(1);
+  });
+
+  test('through the API, the second person on a full shift gets a clear 409', async () => {
+    const shift = await saveShift(pool, ids.unit, ids.manager, {
+      activity_id: ids.camp, title: 'Transport', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
+      start_time: '08:00', end_time: '09:00', slots: 1, notes: '',
+    });
+    expect((await as(ids.cook).post(`/api/v1/volunteer-shifts/${shift.id}/signups`)).status).toBe(201);
+    const second = await as(ids.driver).post(`/api/v1/volunteer-shifts/${shift.id}/signups`);
+    expect(second.status).toBe(409);
+    expect(second.body.message).toBe('volunteer_shift_full');
+    expect((await as(ids.cook).post(`/api/v1/volunteer-shifts/${shift.id}/signups`)).status).toBe(200);
+  });
+
+  test('places cannot drop below the people already signed up, and a shift stays within its activity', async () => {
+    const day = await one('SELECT (CURRENT_DATE + 3)::text');
+    const shift = await saveShift(pool, ids.unit, ids.manager, {
+      activity_id: ids.camp, title: 'Vaisselle', shift_date: day, start_time: '19:00', end_time: '20:00', slots: 2, notes: '',
+    });
+    await signUp(pool, ids.unit, shift.id, ids.cook);
+    await signUp(pool, ids.unit, shift.id, ids.driver);
+    await expect(saveShift(pool, ids.unit, ids.manager, {
+      activity_id: ids.camp, title: 'Vaisselle', shift_date: day, start_time: '19:00', end_time: '20:00', slots: 1, notes: '',
+    }, shift.id)).rejects.toMatchObject({ message: 'volunteer_slots_below_signups', status: 409 });
+    await expect(saveShift(pool, ids.unit, ids.manager, {
+      activity_id: ids.camp, title: 'Trop tard', shift_date: await one('SELECT (CURRENT_DATE + 30)::text'),
+      start_time: '19:00', end_time: '20:00', slots: 1, notes: '',
+    })).rejects.toMatchObject({ message: 'volunteer_shift_outside_activity', status: 400 });
+  });
+
+  test('another unit cannot see, fill or change this unit\'s shifts', async () => {
+    const shift = await saveShift(pool, ids.unit, ids.manager, {
+      activity_id: ids.camp, title: 'Accueil', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
+      start_time: '18:00', end_time: '19:00', slots: 3, notes: '',
+    });
+    await expect(signUp(pool, ids.other, shift.id, ids.cook)).rejects.toMatchObject({ status: 404 });
+    expect((await listShifts(pool, ids.other, ids.cook, { withNames: true })).map((row) => row.id)).not.toContain(shift.id);
+    await expect(saveShift(pool, ids.other, ids.manager, {
+      activity_id: ids.camp, title: 'Hijack', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
+      start_time: '18:00', end_time: '19:00', slots: 3, notes: '',
+    }, shift.id)).rejects.toMatchObject({ status: 404 });
+  });
+
+  test('a volunteer cannot create shifts or remove someone else', async () => {
+    const created = await as(ids.cook).post('/api/v1/volunteer-shifts').send({
+      activity_id: ids.camp, title: 'Cuisine', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
+      start_time: '17:00', end_time: '19:00', slots: 2,
+    });
+    expect(created.status).toBe(403);
+    expect(created.body.missing).toEqual(['volunteers.manage']);
+  });
+});
