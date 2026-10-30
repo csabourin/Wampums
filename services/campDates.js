@@ -66,13 +66,24 @@ async function alignPlannedDate(client, organizationId, activityId, startDate, e
       [organizationId, startDate, planned.id]
     );
     if (taken.rows.length) { throw new CampDateError('camp_date_taken'); }
-    // A year plan lists its own dates: a camp moved into another plan's year follows it there.
+    // A year plan lists its own dates: a camp moved into another plan's year follows it there, and
+    // takes that plan's period covering its new first day (or none), never its old plan's period.
     await client.query(
-      `UPDATE year_plan_meetings m SET meeting_date = $1, updated_at = NOW(),
-         year_plan_id = COALESCE((SELECT p.id FROM year_plans p
+      `WITH target AS (
+         SELECT COALESCE((SELECT p.id FROM year_plans p
            WHERE p.organization_id = m.organization_id AND p.is_active = TRUE
              AND p.start_date <= $1::date AND p.end_date >= $1::date
-           ORDER BY (p.id = m.year_plan_id) DESC, p.start_date DESC, p.id DESC LIMIT 1), m.year_plan_id)
+           ORDER BY (p.id = m.year_plan_id) DESC, p.start_date DESC, p.id DESC LIMIT 1), m.year_plan_id) AS plan_id
+           FROM year_plan_meetings m WHERE m.id = $2 AND m.organization_id = $3
+       )
+       UPDATE year_plan_meetings m SET meeting_date = $1, updated_at = NOW(),
+         year_plan_id = target.plan_id,
+         period_id = CASE WHEN target.plan_id IS NOT DISTINCT FROM m.year_plan_id THEN m.period_id
+           ELSE (SELECT pe.id FROM year_plan_periods pe
+                  WHERE pe.organization_id = m.organization_id AND pe.year_plan_id = target.plan_id
+                    AND pe.start_date <= $1::date AND pe.end_date >= $1::date
+                  ORDER BY pe.sort_order, pe.id LIMIT 1) END
+         FROM target
        WHERE m.id = $2 AND m.organization_id = $3`,
       [startDate, planned.id, organizationId]
     );

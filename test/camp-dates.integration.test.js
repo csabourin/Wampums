@@ -62,13 +62,29 @@ describe.skipIf(!DATABASE_URL)('camp dates and the year plan', () => {
     expect((await plannedFor(camp.id))[0].meeting_date).toBe('2031-02-13');
   });
 
-  test('a camp moved into another year moves to the year plan covering it', async () => {
+  test('a camp moved into another year moves to the year plan covering it, and to that plan\'s period', async () => {
     const nextPlan = await one(`INSERT INTO year_plans (organization_id, title, start_date, end_date, created_by)
       VALUES ($1, 'Next fictional year', '2031-09-01', '2032-06-30', $2) RETURNING id`, [unit, user]);
+    const oldWinter = await one(`INSERT INTO year_plan_periods (organization_id, year_plan_id, title, start_date, end_date)
+      VALUES ($1, $2, 'Hiver', '2031-01-01', '2031-03-31') RETURNING id`, [unit, plan]);
+    const newWinter = await one(`INSERT INTO year_plan_periods (organization_id, year_plan_id, title, start_date, end_date)
+      VALUES ($1, $2, 'Hiver', '2032-01-01', '2032-03-31') RETURNING id`, [unit, nextPlan]);
     const camp = await activity('Mistyped camp', '2031-02-20', '2031-02-22');
     const plannedId = await planCamp(db, unit, camp.id);
+    await db.query('UPDATE year_plan_meetings SET period_id = $1 WHERE id = $2', [oldWinter, plannedId]);
     await alignPlannedDate(db, unit, camp.id, '2032-02-20', '2032-02-22');
-    expect(await one('SELECT year_plan_id FROM year_plan_meetings WHERE id = $1', [plannedId])).toBe(nextPlan);
+    expect((await db.query('SELECT year_plan_id, period_id FROM year_plan_meetings WHERE id = $1', [plannedId])).rows[0])
+      .toEqual({ year_plan_id: nextPlan, period_id: newWinter });
+  });
+
+  test('a camp moved within its year plan keeps its period', async () => {
+    const period = await one(`INSERT INTO year_plan_periods (organization_id, year_plan_id, title, start_date, end_date)
+      VALUES ($1, $2, 'Automne', '2030-09-01', '2030-12-31') RETURNING id`, [unit, plan]);
+    const camp = await activity('Autumn camp', '2030-11-22', '2030-11-24');
+    const plannedId = await planCamp(db, unit, camp.id);
+    await db.query('UPDATE year_plan_meetings SET period_id = $1 WHERE id = $2', [period, plannedId]);
+    await alignPlannedDate(db, unit, camp.id, '2030-11-29', '2030-12-01');
+    expect(await one('SELECT period_id FROM year_plan_meetings WHERE id = $1', [plannedId])).toBe(period);
   });
 
   test('a camp cannot move onto a first day the unit already uses, nor shrink under its schedule', async () => {
