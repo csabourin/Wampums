@@ -486,7 +486,7 @@ describe('converting free-text material into catalogue articles', () => {
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(planner.updateMeetingActivity).toHaveBeenCalledWith(1, { material: '', material_items: [
-      { catalog_item_id: 3, quantity: 4 }, { catalog_item_id: 8, quantity: 6 }] });
+      { catalog_item_id: 3, quantity: 4 }, { catalog_item_id: 8, quantity: 6 }] }, { queueOffline: false });
     expect(app.showMessage).toHaveBeenCalledWith('camp_material_converted', 'success');
     expect(api.getCampMaterialList).toHaveBeenCalledTimes(2);
   });
@@ -510,6 +510,18 @@ describe('converting free-text material into catalogue articles', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(catalog.createCatalogItem).toHaveBeenCalledWith({ name: 'Maillets', category: 'other', unit_of_measure: 'each', equipment_item_id: null });
     expect(document.activeElement).toBe(form.querySelector('[data-quantity-for="a21"]'));
+  });
+
+  test('a conversion that is only queued is never reported as done', async () => {
+    canPlan();
+    planner.updateMeetingActivity.mockResolvedValue({ queued: true });
+    const form = await open();
+    form.querySelector('#camp-material-remaining').value = 'Maillets';
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(form.isConnected).toBe(true);
+    expect(app.showMessage).not.toHaveBeenCalledWith('camp_material_converted', 'success');
+    expect(form.querySelector('#camp-material-convert-error').hidden).toBe(false);
   });
 
   test('a failed save keeps the dialog and the choices for correction', async () => {

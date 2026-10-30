@@ -531,7 +531,11 @@ export class CampMaterialList {
         }
         saving = true;
         try {
-          await updateMeetingActivity(line.id, { material: remaining, material_items: items });
+          // A conversion is only reported once the server has it: offline, it is refused rather than queued.
+          const result = await updateMeetingActivity(line.id, { material: remaining, material_items: items }, { queueOffline: false });
+          if (result?.queued) {
+            throw Object.assign(new Error('Conversion not confirmed'), { code: 'online_required' });
+          }
         } catch (error) {
           debugError('Failed to convert free-text material:', error);
           saving = false;
