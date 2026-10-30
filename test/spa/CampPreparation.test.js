@@ -5,7 +5,7 @@ jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({ offlineManager: {} }));
 jest.mock('../../spa/indexedDB.js', () => ({ getCachedData: jest.fn() }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugError: jest.fn() }));
-import { CampPreparation, campPreparation } from '../../spa/modules/offline/CampPreparation.js';
+import { CampPreparation, campPreparation, isCampPreparationWindow } from '../../spa/modules/offline/CampPreparation.js';
 import { renderCampReadiness, renderCampReadinessSummary, isCampReadinessDue } from '../../spa/modules/offline/CampReadiness.js';
 import { getCachedData } from '../../spa/indexedDB.js';
 import { buildScopedCacheKey } from '../../spa/utils/OfflineCacheKeys.js';
@@ -156,4 +156,13 @@ test('a camp still days away is prepared in the background but not shown on the 
   expect(renderCampReadinessSummary('fr', new Date('2026-10-22T12:00:00'))).toBe('');
   expect(renderCampReadinessSummary('fr', new Date('2026-10-24T12:00:00'))).toContain('camp_device_title');
   Object.assign(campPreparation, previous);
+});
+
+test('a device offers to prepare a camp from a week before it starts until its last day, not months ahead', () => {
+  const now = new Date(2026, 9, 30, 12);
+  expect(isCampPreparationWindow('2026-10-30', '2026-11-01', now)).toBe(true);
+  expect(isCampPreparationWindow('2026-11-06', '2026-11-08', now)).toBe(true);
+  expect(isCampPreparationWindow('2026-11-07', '2026-11-09', now)).toBe(false);
+  expect(isCampPreparationWindow('2027-02-12', '2027-02-14', now)).toBe(false);
+  expect(isCampPreparationWindow('2026-10-27', '2026-10-29', now)).toBe(false);
 });

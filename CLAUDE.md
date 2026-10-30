@@ -1527,7 +1527,8 @@ Before submitting code, verify:
 ### Team camp readiness
 
 The camp schedule opens `/camp-readiness/:id` for organization-scoped members with
-`meetings.view`. The read-only summary includes only sections whose destination
+`meetings.view`; a camp created only as an activity of several days opens
+`/camp-readiness/activity-:id` (tasks and consent only). The read-only summary includes only sections whose destination
 permissions the shared authorization engine confirms; it never equates empty or
 hidden sections with readiness. See `devdocs/CAMP_READINESS.md`. Offline readiness
 still belongs to `CampPreparation` on each device.

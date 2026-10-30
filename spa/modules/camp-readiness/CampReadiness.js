@@ -18,7 +18,7 @@ import { formatEquipmentQuantity } from '../../utils/EquipmentUnitUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { CAMP_LOTS } from '../../config/camp-lots.js';
-import { getCampReadiness } from '../../api/api-camp-readiness.js';
+import { getCampReadiness, getActivityCampReadiness } from '../../api/api-camp-readiness.js';
 import styles from '../../../css/camp-readiness.css?url';
 
 export const READINESS_LABELS = {
@@ -37,9 +37,11 @@ const SECTION_ORDER = ['permissions', 'material', 'lots', 'tasks'];
 const ISO_DATE_LENGTH = 10;
 
 export class CampReadiness {
-  constructor(app, { meetingId }) {
+  /** @param {Object} app @param {{meetingId?: number, activityId?: number}} camp - A planned camp, or a camp recorded as an activity */
+  constructor(app, { meetingId = null, activityId = null }) {
     this.app = app;
     this.meetingId = meetingId;
+    this.activityId = activityId;
     this.destroyed = false;
     this.request = 0;
     this.scope = buildScopedCacheKey('');
@@ -60,8 +62,9 @@ export class CampReadiness {
 
   count(value) { return new Intl.NumberFormat(localeForLanguage(this.lang())).format(value); }
 
-  /** @returns {string} Back to the camp's year plan, where its schedule opens */
+  /** @returns {string} Back to the camp's year plan, where its schedule opens, or to the activities */
   backHref() {
+    if (this.activityId && !this.data?.camp?.id) { return '/activities'; }
     const planId = Number(this.data?.camp?.year_plan_id);
     return Number.isInteger(planId) && planId > 0 ? `/yearly-planner/${planId}` : '/yearly-planner';
   }
@@ -77,7 +80,7 @@ export class CampReadiness {
     loadStylesheet(styles).catch((err) => debugError('Camp readiness stylesheet failed', err));
     setContent(this.root(), pageLoadingMarkup(options));
     try {
-      const response = await getCampReadiness(this.meetingId);
+      const response = await (this.activityId ? getActivityCampReadiness(this.activityId) : getCampReadiness(this.meetingId));
       if (this.stale(request)) { return; }
       if (!response?.data?.camp || !response.data.sections) { throw new Error('Missing camp preparation'); }
       this.data = response.data;
@@ -207,7 +210,8 @@ export class CampReadiness {
       }).join(''), `/camp-lots/${meetingId}`);
     }
     if (sections.tasks) {
-      const tasksHref = `/tasks?meeting_id=${meetingId}${camp.activity_id ? `&activity_id=${Number(camp.activity_id)}` : ''}`;
+      const tasksHref = `/tasks?${[meetingId ? `meeting_id=${meetingId}` : '', camp.activity_id ? `activity_id=${Number(camp.activity_id)}` : '']
+        .filter(Boolean).join('&')}`;
       body += this.section('tasks', sections.tasks.map((task) => this.row({
         title: task.title, href: task.equipment_lot_id && sections.lots ? `/camp-lots/${meetingId}` : tasksHref,
         chip: this.status(task.status), late: this.overdue(task.due_date, task.status === 'done'),
@@ -224,6 +228,7 @@ export class CampReadiness {
       <p class="camp-readiness__camp"><strong>${escapeHTML(camp.theme || translate('camp_readiness_camp'))}</strong>
         <span>${escapeHTML(this.date(camp.date_from))} – ${escapeHTML(this.date(camp.date_to))}</span></p>
       ${camp.is_cancelled ? `<p role="status">${escapeHTML(translate('camp_readiness_cancelled'))}</p>` : ''}
+      ${camp.scheduled === false ? `<p class="camp-readiness__notice">${escapeHTML(translate('camp_readiness_unscheduled'))}</p>` : ''}
       ${this.leftMarkup()}
       <p class="camp-readiness__explanation">${escapeHTML(translate('camp_readiness_explanation'))}</p>
       <button class="button button--secondary button--small" type="button" id="camp-readiness-refresh">${escapeHTML(translate('refresh'))}</button>

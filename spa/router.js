@@ -810,7 +810,9 @@ export class Router {
         case 'campReadiness': {
           if (!guard(hasPermission('meetings.view') && hasOrganizationScope())) { break; }
           const CampReadiness = await this.loadModule('CampReadiness');
-          this.currentModuleInstance = new CampReadiness(this.app, { meetingId: Number(param) });
+          // A camp recorded only as an activity opens by its activity: /camp-readiness/activity-12.
+          const activityId = /^activity-[1-9]\d*$/.test(param) ? Number(param.slice('activity-'.length)) : null;
+          this.currentModuleInstance = new CampReadiness(this.app, activityId ? { activityId } : { meetingId: Number(param) });
           await this.currentModuleInstance.init();
           break;
         }

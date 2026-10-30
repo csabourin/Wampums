@@ -2,9 +2,22 @@
 
 The camp schedule, the camp's material list, its activity card (when the outing is linked to a
 planner camp, `linked_year_plan_meeting_kind = 'camp'`) and the dashboard open
-`/camp-readiness/:meetingId`. The dashboard lists camps under way or starting within 14 days (at most
-three) from `GET /api/v1/camp-readiness/upcoming`, which requires the same `meetings.view` and
-organization scope; it shows nothing when no camp is near or the list cannot be read.
+`/camp-readiness/:meetingId`. A camp created only as an activity (an active activity whose last day
+follows its first, not scheduled as a planner camp) opens `/camp-readiness/activity-:activityId`
+from its activity card and the dashboard; `GET /api/v1/camp-readiness/activities/:id` answers with
+the planner camp when one links the activity, and otherwise returns `camp.id = null`,
+`camp.scheduled = false` and only the tasks and consent sections, since collective material and
+equipment lots are listed from a planner camp's schedule. The screen says so. A one-day outing or a
+removed activity is 404.
+
+The dashboard lists camps under way or starting within 14 days (at most three) from
+`GET /api/v1/camp-readiness/upcoming`, which requires the same `meetings.view` and organization
+scope: planner camps, then activity-only camps (each camp once; an activity linked to a planner camp
+is listed as that camp). It shows nothing when no camp is near or the list cannot be read.
+
+The activity card's device check ("Vérifier la disponibilité hors ligne") and device status appear
+only while this device would prepare the camp (`isCampPreparationWindow`: from
+`OFFLINE_CAMPS.LOOKAHEAD_DAYS` before its first day until its last), not on camps months away.
 
 The screen opens on "What is left": one line per section the person may see, saying what remains
 (pending consent, articles to reserve or find, free-text notes, lots to prepare, open and overdue

@@ -5129,5 +5129,6 @@
   "camp_readiness_left_tasks_late": "{count} tâche(s) à faire, dont {late} en retard",
   "camp_readiness_left_tasks_done": "Toutes les tâches sont faites",
   "camp_readiness_upcoming_title": "Camps à venir",
-  "camp_readiness_upcoming_dates": "{from} – {to}"
+  "camp_readiness_upcoming_dates": "{from} – {to}",
+  "camp_readiness_unscheduled": "Ce camp a été créé comme activité, pas dans le plan de l’année. Ses tâches et autorisations parentales sont ci-dessous ; le matériel collectif et les lots se préparent pour les camps prévus au plan de l’année."
 }

@@ -9,7 +9,7 @@ import { skeletonActivityList, setButtonLoading } from '../../utils/SkeletonUtil
 import { debugError } from '../../utils/DebugUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { parseDate } from '../../utils/DateUtils.js';
+import { parseDate, isoToDateString } from '../../utils/DateUtils.js';
 import { debounce } from '../../utils/PerformanceUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { openActivityFormModal } from './ActivityFormModal.js';
@@ -19,8 +19,9 @@ import {
   getActivityEndDateObj,
   getActivityStartDate
 } from '../../utils/ActivityDateUtils.js';
-import { campPreparation } from '../offline/CampPreparation.js';
+import { campPreparation, isCampPreparationWindow } from '../offline/CampPreparation.js';
 import { renderCampReadiness } from '../offline/CampReadiness.js';
+import { campReadinessHref } from '../camp-readiness/UpcomingCamps.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { richTextOrPlain } from '../../utils/RichTextUtils.js';
@@ -167,6 +168,14 @@ export class Activities extends BaseModule {
     const startDate = activity.activity_start_date || activity.start_date;
     const endDate = activity.activity_end_date || activity.end_date;
     const isMultiDay = startDate && endDate && startDate !== endDate;
+    // The device check is offered while this device would prepare the camp, not months ahead.
+    const offersDeviceCheck = isMultiDay && hasOrganizationScope()
+      && isCampPreparationWindow(isoToDateString(startDate), isoToDateString(endDate));
+    // Every camp has a team overview: its planned camp's, or its own when the year plan does not schedule it.
+    const readinessHref = isMultiDay && !isPast && hasOrganizationScope() && hasPermission('meetings.view')
+      ? campReadinessHref(activity.linked_year_plan_meeting_kind === 'camp'
+        ? { id: activity.linked_year_plan_meeting_id } : { activity_id: activity.id })
+      : '';
 
     return `
       <div class="activity-card ${isPast ? 'activity-card--past' : ''}" data-activity-id="${activity.id}">
@@ -236,18 +245,18 @@ export class Activities extends BaseModule {
           </span>
         </div>
 
-        ${isMultiDay && !isPast && hasOrganizationScope() ? renderCampReadiness(activity.id, this.app.lang || this.app.currentLanguage) : ''}
+        ${offersDeviceCheck ? renderCampReadiness(activity.id, this.app.lang || this.app.currentLanguage) : ''}
         <div class="activity-card__actions">
           <button class="button button--small button--secondary view-carpools-btn" data-activity-id="${activity.id}">
             ${translate('view_carpools')}
           </button>
-          ${activity.linked_year_plan_meeting_kind === 'camp' && hasOrganizationScope() && hasPermission('meetings.view') ? `<a class="button button--small button--secondary" href="/camp-readiness/${Number(activity.linked_year_plan_meeting_id)}">${escapeHTML(translate('camp_readiness_title'))}</a>` : ''}
+          ${readinessHref ? `<a class="button button--small button--secondary" href="${readinessHref}">${escapeHTML(translate('camp_readiness_title'))}</a>` : ''}
           ${hasOrganizationScope() && hasPermission('personal_equipment.manage') ? `<a class="button button--small button--secondary" href="/personal-equipment/activity-${Number(activity.id)}/manage">${escapeHTML(translate('personal_equipment_manage'))}</a>` : ''}
           ${canFollowPermissionSlips() ? `
             <button class="button button--small button--secondary view-permission-slips-btn" data-activity-id="${activity.id}">
               ${translate('manage_permission_slips')}
             </button>` : ''}
-          ${isMultiDay && !isPast && hasOrganizationScope() ? `
+          ${offersDeviceCheck ? `
             <button class="button button--small button--secondary prepare-offline-btn"
                     data-activity-id="${activity.id}"
                     data-start-date="${startDate}"

@@ -23,3 +23,4 @@
 .camp-readiness__link { font-weight: 600; display: inline-flex; align-items: center; min-block-size: var(--touch-target-min, 44px); }
 .camp-readiness__chip { display: inline-block; padding: .05rem .5rem; border: 1px solid var(--color-border); border-radius: 999px; font-size: .85rem; }
 .camp-readiness__chip--late { border-color: var(--color-error, #b42318); color: var(--color-error, #b42318); font-weight: 700; }
+.camp-readiness__notice { padding: .75rem 1rem; border-inline-start: 4px solid var(--color-border); background: var(--color-surface); }

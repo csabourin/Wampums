@@ -6,6 +6,23 @@ import { verifyOfflineAssets } from './OfflineAssets.js';
 import { isArchiveMode } from '../scout-year/ScoutYearContext.js';
 import { debugError } from '../../utils/DebugUtils.js';
 
+/**
+ * Whether a camp is close enough for this device to prepare it: from
+ * `OFFLINE_CAMPS.LOOKAHEAD_DAYS` before its first day until its last. Farther
+ * camps are neither prepared nor offered a check, since their data would be stale.
+ *
+ * @param {string} startDate - YYYY-MM-DD
+ * @param {string} endDate - YYYY-MM-DD
+ * @param {Date} [now=new Date()] - The moment to judge
+ * @returns {boolean} True inside the window
+ */
+export function isCampPreparationWindow(startDate, endDate, now = new Date()) {
+  const limit = new Date(now.getTime());
+  limit.setDate(limit.getDate() + OFFLINE_CAMPS.LOOKAHEAD_DAYS);
+  return Boolean(startDate) && Boolean(endDate)
+    && startDate <= limit.toLocaleDateString('en-CA') && endDate >= now.toLocaleDateString('en-CA');
+}
+
 /** Automatic, account-scoped preparation. Readiness is rechecked on this device, never inferred from a flag. */
 export class CampPreparation {
   constructor(manager = offlineManager, checkAssets = verifyOfflineAssets) {
@@ -139,14 +156,10 @@ export class CampPreparation {
       this.activities = activities;
     }
     if (scope !== buildScopedCacheKey('')) { return; }
-    const today = new Date().toLocaleDateString('en-CA');
-    const limit = new Date();
-    limit.setDate(limit.getDate() + OFFLINE_CAMPS.LOOKAHEAD_DAYS);
-    const lastDate = limit.toLocaleDateString('en-CA');
     // Snapshots share caches: serialize camps to avoid overwriting each other mid-preparation.
     await this.activities.reduce(async (previous, activity) => {
       await previous;
-      if (activity.activity_start_date > lastDate || activity.activity_end_date < today) { return; }
+      if (!isCampPreparationWindow(activity.activity_start_date, activity.activity_end_date)) { return; }
       if (scope !== buildScopedCacheKey('')) { return; }
       await this.verify(activity.id);
       const prep = this.manager.preparedActivities.get(activity.id);

@@ -5129,5 +5129,6 @@
   "camp_readiness_left_tasks_late": "{count} task(s) to do, {late} overdue",
   "camp_readiness_left_tasks_done": "Every task is done",
   "camp_readiness_upcoming_title": "Camps coming up",
-  "camp_readiness_upcoming_dates": "{from} – {to}"
+  "camp_readiness_upcoming_dates": "{from} – {to}",
+  "camp_readiness_unscheduled": "This camp was created as an activity, not in the year plan. Its assignments and parental permissions are below; collective equipment and equipment lots are prepared for camps planned in the year plan."
 }

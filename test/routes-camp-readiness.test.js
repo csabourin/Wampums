@@ -2,8 +2,8 @@ const express = require('express');
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const { authorizationContextRow } = require('./mock-helpers');
-jest.mock('../services/campReadiness', () => ({ campReadiness: jest.fn(), upcomingCamps: jest.fn() }));
-const { campReadiness, upcomingCamps } = require('../services/campReadiness');
+jest.mock('../services/campReadiness', () => ({ campReadiness: jest.fn(), campReadinessForActivity: jest.fn(), upcomingCamps: jest.fn() }));
+const { campReadiness, campReadinessForActivity, upcomingCamps } = require('../services/campReadiness');
 process.env.JWT_SECRET_KEY = 'fictional-readiness-tests';
 let permissions; let scope;
 const pool = { query: jest.fn((sql) => {
@@ -49,5 +49,26 @@ describe('camps coming up, for the dashboard', () => {
   });
   test('without a token the list is refused', async () => {
     expect((await request(app).get('/api/v1/camp-readiness/upcoming')).status).toBe(401);
+  });
+});
+
+describe('a camp created as an activity', () => {
+  beforeEach(() => { campReadinessForActivity.mockResolvedValue({ camp: { id: null, activity_id: 8 }, sections: {} }); });
+  test('the team opens its overview by the activity, in its own unit, with the section rights it holds', async () => {
+    permissions.push('tasks.manage', 'tasks.view');
+    expect((await call('/activities/8?organization_id=99')).status).toBe(200);
+    expect(campReadinessForActivity).toHaveBeenCalledWith(pool, 7, 8, { inventory: false, lots: false, tasks: true, permissions: false });
+  });
+  test('without a token, without meetings.view, or with a malformed id it is refused', async () => {
+    expect((await request(app).get('/api/v1/camp-readiness/activities/8')).status).toBe(401);
+    expect((await call('/activities/12abc')).status).toBe(400);
+    permissions = [];
+    const refused = await call('/activities/8');
+    expect(refused.status).toBe(403); expect(refused.body.missing).toBeDefined();
+    expect(campReadinessForActivity).not.toHaveBeenCalled();
+  });
+  test('another unit\'s activity, or one that is not a camp, is missing', async () => {
+    campReadinessForActivity.mockResolvedValue(null);
+    expect((await call('/activities/8')).status).toBe(404);
   });
 });
