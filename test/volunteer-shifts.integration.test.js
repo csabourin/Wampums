@@ -330,4 +330,52 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
       expect(refused.body.missing).toEqual(['volunteers.manage']);
     });
   });
+
+  describe('changes racing each other', () => {
+    const day = (offset) => one(`SELECT (CURRENT_DATE + ${Number(offset)})::text`);
+
+    test('a shift of a removed activity takes no place', async () => {
+      const outing = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+          meeting_time_going, departure_time_going, activity_start_date, activity_start_time, activity_end_date, activity_end_time)
+        VALUES ($1, $2, 'Removed outing', CURRENT_DATE + 3, 'Hall', '09:00', '09:15', CURRENT_DATE + 3, '09:00', CURRENT_DATE + 3, '16:00')
+        RETURNING id`, [ids.unit, ids.manager]);
+      const shift = await saveShift(pool, ids.unit, ids.manager, {
+        activity_id: outing, volunteer_type: 'other', title: 'Accueil', shift_date: await day(3),
+        start_time: '09:00', end_time: '10:00', slots: 2, notes: '',
+      });
+      await pool.query('UPDATE activities SET is_active = FALSE WHERE id = $1', [outing]);
+      await expect(signUp(pool, ids.unit, shift.id, ids.cook)).rejects.toMatchObject({ message: 'volunteer_shift_not_found', status: 404 });
+    });
+
+    test('a check withdrawn while the person signs up never leaves a confirmed place without it', async () => {
+      const person = await member('Grace Murray', 'volunteer');
+      await recordRequirements(pool, ids.unit, ids.manager, person, { background_check: { checked_on: await day(0) } });
+      const shift = await saveShift(pool, ids.unit, ids.manager, {
+        activity_id: ids.camp, volunteer_type: 'cook', title: '', shift_date: await day(4),
+        start_time: '12:00', end_time: '13:00', slots: 3, notes: '',
+      });
+      await Promise.all([
+        signUp(pool, ids.unit, shift.id, person),
+        recordRequirements(pool, ids.unit, ids.manager, person, {}),
+      ]);
+      expect(await one('SELECT status FROM volunteer_signups WHERE shift_id = $1 AND user_id = $2', [shift.id, person])).toBe('pending');
+    });
+
+    test('lowering places while someone signs up never leaves more people than places', async () => {
+      const people = await Promise.all(['Alan Kay', 'Barbara Liskov'].map((name) => member(name, 'volunteer')));
+      const values = async (slots) => ({
+        activity_id: ids.camp, volunteer_type: 'other', title: 'Rangement', shift_date: await day(4),
+        start_time: '15:00', end_time: '16:00', slots, notes: '',
+      });
+      const shift = await saveShift(pool, ids.unit, ids.manager, await values(2));
+      await signUp(pool, ids.unit, shift.id, people[0]);
+      await Promise.allSettled([
+        signUp(pool, ids.unit, shift.id, people[1]),
+        saveShift(pool, ids.unit, ids.manager, await values(1), shift.id),
+      ]);
+      const { slots, taken } = (await pool.query(`SELECT s.slots, (SELECT COUNT(*)::int FROM volunteer_signups v WHERE v.shift_id = s.id) AS taken
+        FROM volunteer_shifts s WHERE s.id = $1`, [shift.id])).rows[0];
+      expect(taken).toBeLessThanOrEqual(slots);
+    });
+  });
 });

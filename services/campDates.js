@@ -144,4 +144,43 @@ async function unplanCamp(client, organizationId, activityId) {
   );
 }
 
-module.exports = { MAX_EVENT_DAYS, CampDateError, eventDays, isTooLong, alignPlannedDate, planCamp, unplanCamp };
+/**
+ * Refuse to move an activity's dates while something recorded for its current dates would be
+ * left behind: volunteer shifts outside the new dates, equipment reserved for it, or attendance
+ * already taken on the days of its planned camp. Each is moved or removed first, on its own screen.
+ *
+ * @param {Object} client - pg client inside the caller's transaction
+ * @param {number} organizationId
+ * @param {number} activityId
+ * @param {{start: string, end: string}} from - Current first and last days
+ * @param {{start: string, end: string}} to - New first and last days
+ * @throws {CampDateError}
+ */
+async function assertMovable(client, organizationId, activityId, from, to) {
+  if (from.start === to.start && from.end === to.end) { return; }
+  const shifts = await client.query(
+    `SELECT 1 FROM volunteer_shifts WHERE organization_id = $1 AND activity_id = $2
+        AND (shift_date < $3::date OR shift_date > $4::date) LIMIT 1`,
+    [organizationId, activityId, to.start, to.end]
+  );
+  if (shifts.rows.length) { throw new CampDateError('volunteer_shifts_outside_dates'); }
+  const reserved = await client.query(
+    `SELECT 1 FROM equipment_reservations r
+      WHERE r.organization_id = $1 AND r.status IN ('reserved', 'confirmed')
+        AND (r.activity_id = $2 OR r.meeting_id IN (
+          SELECT m.id FROM year_plan_meetings m WHERE m.organization_id = $1 AND m.activity_id = $2))
+      LIMIT 1`,
+    [organizationId, activityId]
+  );
+  if (reserved.rows.length) { throw new CampDateError('camp_reservations_need_moving'); }
+  const attended = await client.query(
+    `SELECT 1 FROM attendance a
+      WHERE a.organization_id = $1 AND a.date BETWEEN $3::date AND $4::date
+        AND EXISTS (SELECT 1 FROM year_plan_meetings m WHERE m.organization_id = $1 AND m.activity_id = $2)
+      LIMIT 1`,
+    [organizationId, activityId, from.start, from.end]
+  );
+  if (attended.rows.length) { throw new CampDateError('camp_attendance_recorded'); }
+}
+
+module.exports = { MAX_EVENT_DAYS, CampDateError, eventDays, isTooLong, alignPlannedDate, assertMovable, planCamp, unplanCamp };

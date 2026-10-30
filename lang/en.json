@@ -5255,5 +5255,8 @@
   "volunteers_checked_on": "Date of the check",
   "volunteers_check_lasts": "Valid for {years} years from the date of the check.",
   "volunteers_check_valid_until": "Valid until {date}.",
-  "volunteer_checked_on_required": "Enter the date the background check was done, today or earlier."
+  "volunteer_checked_on_required": "Enter the date the background check was done, today or earlier.",
+  "volunteer_shifts_outside_dates": "Volunteer shifts are planned on days these dates no longer include. Move or remove them on the volunteering screen first.",
+  "camp_reservations_need_moving": "Equipment is reserved for this camp’s current dates. Cancel or change those reservations first, then move the camp.",
+  "camp_attendance_recorded": "Attendance was already taken on this camp’s days, so its dates can no longer change."
 }

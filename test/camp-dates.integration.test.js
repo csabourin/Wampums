@@ -3,7 +3,7 @@
  * from the year plan or from the activities page. Runs on a migrated PostgreSQL.
  */
 const { Pool } = require('pg');
-const { planCamp, unplanCamp, alignPlannedDate, CampDateError } = require('../services/campDates');
+const { planCamp, unplanCamp, alignPlannedDate, assertMovable, CampDateError } = require('../services/campDates');
 require('./jest-conditional-helpers');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -93,5 +93,41 @@ describe.skipIf(!DATABASE_URL)('camp dates and the year plan', () => {
     await planCamp(db, unit, camp.id);
     await unplanCamp(db, unit, camp.id);
     expect((await plannedFor(camp.id))[0].meeting_kind).toBe('weekend');
+  });
+
+  describe('what a camp move must not leave behind', () => {
+    const refusal = (promise) => promise.then(() => null, (err) => err.code);
+
+    test('volunteer shifts on days the new dates drop hold the camp in place', async () => {
+      const camp = await activity('Shifted camp', '2031-05-01', '2031-05-03');
+      await db.query(`INSERT INTO volunteer_shifts (organization_id, activity_id, volunteer_type, title, shift_date, start_time, end_time, slots)
+        VALUES ($1, $2, 'cook', '', '2031-05-03', '17:00', '19:00', 2)`, [unit, camp.id]);
+      expect(await refusal(assertMovable(db, unit, camp.id, { start: '2031-05-01', end: '2031-05-03' }, { start: '2031-05-01', end: '2031-05-02' })))
+        .toBe('volunteer_shifts_outside_dates');
+      expect(await refusal(assertMovable(db, unit, camp.id, { start: '2031-05-01', end: '2031-05-03' }, { start: '2031-04-30', end: '2031-05-03' })))
+        .toBeNull();
+    });
+
+    test('equipment reserved for the camp, or its planned date, must be moved first', async () => {
+      const camp = await activity('Reserved camp', '2031-05-08', '2031-05-10');
+      const plannedId = await planCamp(db, unit, camp.id);
+      const item = await one(`INSERT INTO equipment_items (organization_id, name, category, quantity_total, quantity_available)
+        VALUES ($1, 'Tente', 'camping', 4, 4) RETURNING id`, [unit]);
+      await db.query(`INSERT INTO equipment_reservations (organization_id, equipment_id, meeting_id, meeting_date, reserved_quantity, reserved_for, status, date_from, date_to)
+        VALUES ($1, $2, $3, '2031-05-08', 2, 'Reserved camp', 'reserved', '2031-05-08', '2031-05-10')`, [unit, item, plannedId]);
+      expect(await refusal(assertMovable(db, unit, camp.id, { start: '2031-05-08', end: '2031-05-10' }, { start: '2031-05-15', end: '2031-05-17' })))
+        .toBe('camp_reservations_need_moving');
+      expect(await refusal(assertMovable(db, unit, camp.id, { start: '2031-05-08', end: '2031-05-10' }, { start: '2031-05-08', end: '2031-05-10' })))
+        .toBeNull();
+    });
+
+    test('a planned camp whose days already have attendance keeps its dates', async () => {
+      const camp = await activity('Attended camp', '2031-05-22', '2031-05-24');
+      await planCamp(db, unit, camp.id);
+      const youth = await one("INSERT INTO participants (first_name, last_name) VALUES ('Fictional', 'Camper') RETURNING id");
+      await db.query(`INSERT INTO attendance (participant_id, date, status, organization_id) VALUES ($1, '2031-05-23', 'present', $2)`, [youth, unit]);
+      expect(await refusal(assertMovable(db, unit, camp.id, { start: '2031-05-22', end: '2031-05-24' }, { start: '2031-05-29', end: '2031-05-31' })))
+        .toBe('camp_attendance_recorded');
+    });
   });
 });

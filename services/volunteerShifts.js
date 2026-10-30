@@ -62,6 +62,18 @@ async function requirementsByUser(db, organizationId, userIds) {
 }
 
 /**
+ * Serialize what changes one person's places: taking a place and recording their requirements.
+ * Each statement after it reads a fresh snapshot, so a place being created and a requirement being
+ * withdrawn at the same moment cannot both commit on stale reads (a confirmed place without its check).
+ * @param {Object} db - Transaction client
+ * @param {number} organizationId
+ * @param {string} userId
+ */
+async function lockMember(db, organizationId, userId) {
+  await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`volunteer:${organizationId}:${userId}`]);
+}
+
+/**
  * @param {Object} pool - pg pool
  * @param {Function} work - Callback receiving a transaction client
  * @returns {Promise<*>} What `work` returns, once committed
@@ -185,13 +197,16 @@ function saveShift(pool, organizationId, userId, shift, shiftId = null) {
         [...values, userId]
       )).rows[0];
     }
-    const current = (await db.query(
-      `SELECT s.id, (SELECT COUNT(*)::int FROM volunteer_signups v WHERE v.shift_id = s.id AND v.organization_id = s.organization_id) AS taken
-         FROM volunteer_shifts s WHERE s.organization_id = $1 AND s.id = $2 FOR UPDATE`,
+    const locked = await db.query(
+      'SELECT id FROM volunteer_shifts WHERE organization_id = $1 AND id = $2 FOR UPDATE', [organizationId, shiftId]);
+    if (!locked.rows.length) { throw new VolunteerError('volunteer_shift_not_found', HTTP_NOT_FOUND); }
+    // Counted in its own statement, once the lock is held, so a sign-up that committed while this
+    // waited is seen (a statement's snapshot is taken before it waits for a lock).
+    const { taken } = (await db.query(
+      'SELECT COUNT(*)::int AS taken FROM volunteer_signups WHERE organization_id = $1 AND shift_id = $2',
       [organizationId, shiftId]
     )).rows[0];
-    if (!current) { throw new VolunteerError('volunteer_shift_not_found', HTTP_NOT_FOUND); }
-    if (shift.slots < current.taken) { throw new VolunteerError('volunteer_slots_below_signups', HTTP_CONFLICT); }
+    if (shift.slots < taken) { throw new VolunteerError('volunteer_slots_below_signups', HTTP_CONFLICT); }
     const saved = (await db.query(
       `UPDATE volunteer_shifts SET activity_id = $2, title = $3, shift_date = $4, start_time = $5, end_time = $6,
               slots = $7, notes = $8, volunteer_type = $9, updated_at = NOW()
@@ -228,12 +243,17 @@ async function deleteShift(pool, organizationId, shiftId) {
  */
 function signUp(pool, organizationId, shiftId, userId) {
   return transaction(pool, async (db) => {
+    // A shift of a removed activity takes no place, even from a screen loaded before it was removed.
     const shift = (await db.query(
-      `SELECT id, slots, volunteer_type, shift_date::text AS shift_date FROM volunteer_shifts
-        WHERE organization_id = $1 AND id = $2 AND shift_date >= CURRENT_DATE FOR UPDATE`,
+      `SELECT s.id, s.slots, s.volunteer_type, s.shift_date::text AS shift_date
+         FROM volunteer_shifts s
+         JOIN activities a ON a.id = s.activity_id AND a.organization_id = s.organization_id AND a.is_active = TRUE
+        WHERE s.organization_id = $1 AND s.id = $2 AND s.shift_date >= CURRENT_DATE
+        FOR UPDATE OF s`,
       [organizationId, shiftId]
     )).rows[0];
     if (!shift) { throw new VolunteerError('volunteer_shift_not_found', HTTP_NOT_FOUND); }
+    await lockMember(db, organizationId, userId);
     const places = (await db.query(
       `SELECT COUNT(*)::int AS taken, MAX(status) FILTER (WHERE user_id = $3) AS mine
          FROM volunteer_signups WHERE organization_id = $1 AND shift_id = $2`,
@@ -325,6 +345,7 @@ async function getRequirements(db, organizationId, userId) {
  */
 function recordRequirements(pool, organizationId, managerId, userId, verified) {
   return transaction(pool, async (db) => {
+    await lockMember(db, organizationId, userId);
     const member = await db.query(
       "SELECT 1 FROM user_organizations WHERE organization_id = $1 AND user_id = $2 AND status = 'active' FOR SHARE",
       [organizationId, userId]

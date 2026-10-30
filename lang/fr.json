@@ -5255,5 +5255,8 @@
   "volunteers_checked_on": "Date de la vérification",
   "volunteers_check_lasts": "Valide {years} ans à partir de la date de la vérification.",
   "volunteers_check_valid_until": "Valide jusqu’au {date}.",
-  "volunteer_checked_on_required": "Entrez la date à laquelle la vérification a été faite, aujourd’hui ou avant."
+  "volunteer_checked_on_required": "Entrez la date à laquelle la vérification a été faite, aujourd’hui ou avant.",
+  "volunteer_shifts_outside_dates": "Des créneaux de bénévolat sont prévus à des jours que ces dates n’incluent plus. Déplacez-les ou retirez-les d’abord dans l’écran du bénévolat.",
+  "camp_reservations_need_moving": "Du matériel est réservé pour les dates actuelles de ce camp. Annulez ou modifiez d’abord ces réservations, puis déplacez le camp.",
+  "camp_attendance_recorded": "Les présences ont déjà été prises pendant ce camp : ses dates ne peuvent plus changer."
 }

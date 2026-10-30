@@ -14,7 +14,7 @@ const {
 const { carpoolRosterRestriction } = require('../services/carpoolAccess');
 const { mayReadInviteeList, readInvitation, saveInvitation } = require('../services/activityInvitations');
 const { readRichTextField } = require('../utils/richText');
-const { CampDateError, isTooLong, alignPlannedDate, planCamp, unplanCamp } = require('../services/campDates');
+const { CampDateError, isTooLong, alignPlannedDate, assertMovable, planCamp, unplanCamp } = require('../services/campDates');
 const { buildActivitiesCalendar, buildICalFilename } = require('../utils/activityCalendar');
 
 module.exports = (pool) => {
@@ -762,6 +762,9 @@ module.exports = (pool) => {
 
       // A camp planned in the year plan keeps one set of dates: its planned date follows.
       try {
+        await assertMovable(client, organizationId, activityId,
+          { start: existing.activity_start_date, end: existing.activity_end_date },
+          { start: activity.activity_start_date, end: activity.activity_end_date });
         await alignPlannedDate(client, organizationId, activityId, activity.activity_start_date, activity.activity_end_date);
         if (activity.is_camp && activity.is_active !== false) {
           await planCamp(client, organizationId, activityId);
