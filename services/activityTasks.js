@@ -108,6 +108,8 @@ function saveTask(pool, organizationId, actorId, task, taskId = null, { expected
   return transaction(pool, async (db) => {
     if (taskId) {await assertStandaloneTask(db, organizationId, taskId);}
     if (taskId && Number.isInteger(expectedReminderRevision)) {
+      // Task before reminder, the order taskEquipmentReminders.js locks them in, so the two never deadlock.
+      await db.query('SELECT id FROM activity_tasks WHERE organization_id = $1 AND id = $2 FOR UPDATE', [organizationId, taskId]);
       const current = (await db.query('SELECT revision FROM task_equipment_reminders WHERE organization_id = $1 AND task_id = $2 FOR UPDATE',
         [organizationId, taskId])).rows[0];
       if (Number(current?.revision || 0) !== expectedReminderRevision) {throw new TaskError('equipment_reminder_stale', HTTP_CONFLICT);}
