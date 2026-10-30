@@ -93,7 +93,9 @@ const DERIVED_RESOURCES = {
   'program-progress': ['program-progress', 'badges', 'reports'],
   meetings: ['meetings', 'attendance', 'activities', 'yearly-planner', 'dashboards'],
   'activity-authorizations': ['activity-authorizations', 'activities', 'resources', 'action-roster'],
-  activities: ['activity-authorizations', 'activities', 'attendance', 'points', 'honors', 'action-roster', 'carpools', 'meetings', 'dashboards', 'resources'],
+  // A camp activity is also a year-plan date: marking it a camp, or moving it, changes the plan.
+  activities: ['activity-authorizations', 'activities', 'attendance', 'points', 'honors', 'action-roster', 'carpools', 'meetings',
+    'yearly-planner', 'dashboards', 'resources'],
   carpools: ['carpools', 'activities'],
   forms: ['forms', 'participants', 'medication', 'reports'],
   medication: ['medication', 'reports'],

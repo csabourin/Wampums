@@ -213,6 +213,12 @@ describe('writes that do not change the roster', () => {
     expect(loan.matchesPath('/api/v1/participants')).toBe(false);
   });
 
+  test('moving or marking a camp from the activities refreshes the year plan', () => {
+    const plan = planInvalidation('v1/activities/12');
+    expect(plan.matchesPath('/api/v1/yearly-planner/plans/3')).toBe(true);
+    expect(plan.matchesPath('/api/v1/participants')).toBe(false);
+  });
+
   test("changing one's own profile does not flush the roster", () => {
     const plan = planInvalidation('v1/users/me/language');
 
