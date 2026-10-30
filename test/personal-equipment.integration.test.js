@@ -94,22 +94,57 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
     generateText.mockResolvedValueOnce({ data: { notes: '', items: [{ key: 'new', label: 'Invented' }] } });
     await expect(translateList(pool, context(manager), meetingId, 'de')).rejects.toMatchObject({ code: 'AI_INVALID_RESPONSE' });
   });
-  test('a new version cannot reuse a stale common translation', async () => {
-    generateText.mockResolvedValue({ data: { notes: '', items: [{ key: 'bag', label: 'Saco' }, { key: 'socks', label: 'Calcetines' }] } });
+  // The AI answers exactly what it was asked, as a well-behaved provider would.
+  const echo = (prefix) => generateText.mockImplementation((_mode, payload) => Promise.resolve({
+    data: { notes: payload.notes ? `${prefix} ${payload.notes}` : '', items: payload.items.map((item) => ({ key: item.key, label: `${prefix} ${item.label}` })) } }));
+  test('changed instructions are translated again while unchanged items keep their translation', async () => {
+    echo('ES');
     await translateList(pool, context(manager), meetingId, 'es');
     await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1, notes_fr: 'Consigne modifiée.' }));
-    await translateList(pool, context(manager), meetingId, 'es'); expect(generateText).toHaveBeenCalledTimes(2);
+    const translated = await translateList(pool, context(manager), meetingId, 'es');
+    expect(generateText).toHaveBeenCalledTimes(2);
+    expect(generateText.mock.calls[1][1]).toEqual({ targetLocale: 'es', notes: 'Consigne modifiée.', items: [] });
+    expect(translated).toEqual({ notes: 'ES Consigne modifiée.', items: [{ key: 'bag', label: 'ES Sac de couchage' }, { key: 'socks', label: 'ES Bas' }] });
+  });
+  test('fixing one item keeps every other translated item, and only that item is translated again', async () => {
+    echo('ES'); await translateList(pool, context(manager), meetingId, 'es');
+    echo('DE'); await translateList(pool, context(manager), meetingId, 'de');
+    const items = input().items.map((item) => (item.key === 'socks' ? { ...item, label_fr: 'Bas de laine' } : item));
+    await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1, published: false, reviewed: false, items }));
+    const prepared = (await request(app).get(`/api/v1/personal-equipment/${meetingId}/manage`).set(auth(manager))).body.data.translations;
+    expect(Object.keys(prepared).sort()).toEqual(['de', 'es']);
+    expect(prepared.es).toEqual({ notes: 'ES Identifier les effets.', items: [{ key: 'bag', label: 'ES Sac de couchage' }], partial: true });
+    generateText.mockClear(); echo('ES');
+    const translated = await translateList(pool, context(manager), meetingId, 'es');
+    expect(generateText).toHaveBeenCalledTimes(1);
+    expect(generateText.mock.calls[0][1]).toEqual({ targetLocale: 'es', notes: '', items: [{ key: 'socks', label: 'Bas de laine' }] });
+    expect(translated.items).toEqual([{ key: 'bag', label: 'ES Sac de couchage' }, { key: 'socks', label: 'ES Bas de laine' }]);
+  });
+  test('families never receive a translation that still lacks an item', async () => {
+    echo('ES'); await translateList(pool, context(manager), meetingId, 'es');
+    await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1 }));
+    expect((await readFamilyList(pool, context(), meetingId)).translations.es).toBeDefined();
+    const items = [...input().items, { key: 'hat', label_fr: 'Tuque', label_en: '', quantity: 1 }];
+    await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 2, items }));
+    expect((await readFamilyList(pool, context(), meetingId)).translations.es).toBeUndefined();
+  });
+  test('staff see when families last received the list', async () => {
+    const before = (await request(app).get(`/api/v1/personal-equipment/${meetingId}/manage`).set(auth(manager))).body.data;
+    expect(before.publication).toMatchObject({ version: 1 }); expect(Date.parse(before.publication.published_at)).not.toBeNaN();
+    await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1, published: false, reviewed: false }));
+    const after = (await request(app).get(`/api/v1/personal-equipment/${meetingId}/manage`).set(auth(manager))).body.data;
+    expect(after.list.published).toBe(false); expect(after.publication.version).toBe(1);
   });
   test.each(['fr', 'en'])('missing %s instructions are translated even when every item already has that label', async (language) => {
     const source = language === 'en' ? 'fr' : 'en';
     const notes = source === 'fr' ? 'Identifier les effets.' : 'Label personal items.';
     const items = input().items.map((item) => ({ ...item, label_en: item.key === 'bag' ? 'Sleeping bag' : 'Socks' }));
     await saveList(pool, organizationId, manager, meetingId, input({ expected_version: 1, items, notes_fr: '', notes_en: '', [`notes_${source}`]: notes }));
-    const translated = { notes: 'Translated instructions', items: items.map((item) => ({ key: item.key, label: item[`label_${language}`] })) };
-    generateText.mockResolvedValue({ data: translated });
-    expect(await translateList(pool, context(manager), meetingId, language)).toEqual(translated);
+    generateText.mockResolvedValue({ data: { notes: 'Translated instructions', items: [] } });
+    expect(await translateList(pool, context(manager), meetingId, language))
+      .toEqual({ notes: 'Translated instructions', items: items.map((item) => ({ key: item.key, label: item[`label_${language}`] })) });
     expect(generateText).toHaveBeenCalledTimes(1);
-    expect(generateText.mock.calls[0][1]).toMatchObject({ targetLocale: language, notes });
+    expect(generateText.mock.calls[0][1]).toEqual({ targetLocale: language, notes, items: [] });
   });
   test.each(['Label personal items.', ''])('complete authored text bypasses AI when target notes are %p', async (notes) => {
     const items = input().items.map((item) => ({ ...item, label_en: item.key === 'bag' ? 'Sleeping bag' : 'Socks' }));

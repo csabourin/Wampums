@@ -1,7 +1,7 @@
 /** Activity entry point; planner camps retain their existing list and local check keys. */
 const legacy = require('./personalEquipment');
 const transaction = require('../utils/transaction');
-const { readPublication, publish, sameText } = require('./packingPublications');
+const { readPublication, readPublicationInfo, publish, carryTranslation, isComplete } = require('./packingPublications');
 const RULES = require('../config/personal_equipment.json');
 const HTTP_NOT_FOUND = 404;
 const HTTP_BAD_REQUEST = 400;
@@ -28,11 +28,17 @@ async function read(db, context, id, manage = false) {
   const { activity, meetingId } = await activityFor(db, context, id);
   if (meetingId) {
     if (!manage) { return { ...await legacy.readFamilyList(db, context, meetingId), packing_id: meetingId }; }
-    return { camp: await legacy.campFor(db, context.organizationId, meetingId), list: await legacy.listFor(db, context.organizationId, meetingId), translations: await legacy.translationsFor(db, context.organizationId, meetingId, (await legacy.listFor(db, context.organizationId, meetingId))?.version || 0), packing_id: meetingId };
+    const list = await legacy.listFor(db, context.organizationId, meetingId);
+    return { camp: await legacy.campFor(db, context.organizationId, meetingId), list, packing_id: meetingId,
+      translations: await legacy.translationsFor(db, context.organizationId, meetingId, list?.version || 0),
+      publication: await readPublicationInfo(db, context.organizationId, meetingId) };
   }
   const list = await listFor(db, context, id);
   const result = { camp: activity, list, packing_id: `activity-${id}` };
-  if (manage) { return { ...result, translations: await translationsFor(db, context, id, list?.version || 0) }; }
+  if (manage) {
+    return { ...result, translations: await translationsFor(db, context, id, list?.version || 0),
+      publication: await readPublicationInfo(db, context.organizationId, `activity-${id}`) };
+  }
   const publication = await readPublication(db, context.organizationId, `activity-${id}`);
   result.list = publication?.list;
   result.translations = publication?.translations || {};
@@ -60,11 +66,12 @@ function save(pool, context, id, value) {
     await db.query(`INSERT INTO activity_personal_equipment_lists (organization_id,activity_id,content) VALUES ($1,$2,$3)
       ON CONFLICT (organization_id,activity_id) DO UPDATE SET content=$3,version=activity_personal_equipment_lists.version+1`, [context.organizationId, id, JSON.stringify(content)]);
     const saved = await listFor(db, context, id);
-    if (sameText(previous, saved)) {
-      await db.query(`INSERT INTO activity_personal_equipment_translations (organization_id,activity_id,version,language,content)
-        SELECT organization_id,activity_id,$3,language,content FROM activity_personal_equipment_translations
-        WHERE organization_id=$1 AND activity_id=$2 AND version=$4 ON CONFLICT DO NOTHING`, [context.organizationId, id, saved.version, previous.version]);
-    }
+    const before = previous ? await translationsFor(db, context, id, previous.version) : {};
+    await Promise.all(Object.entries(before).map(([language, translation]) => {
+      const carried = carryTranslation(previous, saved, translation);
+      return carried && db.query(`INSERT INTO activity_personal_equipment_translations (organization_id,activity_id,version,language,content)
+        VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`, [context.organizationId, id, saved.version, language, JSON.stringify(carried)]);
+    }));
     if (saved.published) { await publish(db, context.organizationId, `activity-${id}`, saved, await translationsFor(db, context, id, saved.version)); }
     return saved;
   });
@@ -99,7 +106,7 @@ function editTranslation(pool, context, id, language, value) {
     if (!list || activity.is_cancelled) { fail('personal_equipment_not_found'); }
     if (value.expected_version !== list.version) { fail('personal_equipment_conflict', HTTP_CONFLICT); }
     const existing = (await db.query('SELECT content FROM activity_personal_equipment_translations WHERE organization_id=$1 AND activity_id=$2 AND version=$3 AND language=$4', [context.organizationId, id, list.version, language])).rows[0];
-    if (!existing || JSON.stringify(legacy.readTranslation(existing.content, list.items)) !== JSON.stringify(legacy.readTranslation(value.expected_content, list.items))) { fail('personal_equipment_conflict', HTTP_CONFLICT); }
+    if (!existing || !isComplete(existing.content) || JSON.stringify(legacy.readTranslation(existing.content, list.items)) !== JSON.stringify(legacy.readTranslation(value.expected_content, list.items))) { fail('personal_equipment_conflict', HTTP_CONFLICT); }
     const content = legacy.readTranslation(value.content, list.items);
     if (!content) { fail('personal_equipment_invalid', HTTP_BAD_REQUEST); }
     await db.query(`INSERT INTO activity_personal_equipment_translations (organization_id,activity_id,version,language,content) VALUES ($1,$2,$3,$4,$5)
@@ -118,9 +125,10 @@ async function translate(pool, context, id, language) {
     if (!list || camp.is_cancelled) { fail('personal_equipment_not_found'); }
     await db.query("SELECT pg_advisory_xact_lock(hashtext('activity-equipment'),hashtext($1))", [`${context.organizationId}:${id}:${language}`]);
     const cached = (await db.query('SELECT content FROM activity_personal_equipment_translations WHERE organization_id=$1 AND activity_id=$2 AND version=$3 AND language=$4', [context.organizationId, id, list.version, language])).rows[0];
-    if (cached) { return cached.content; }
-    const translated = await legacy.translateContent(list, language, context);
-    await db.query('INSERT INTO activity_personal_equipment_translations (organization_id,activity_id,version,language,content) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING', [context.organizationId, id, list.version, language, JSON.stringify(translated)]);
+    if (isComplete(cached?.content)) { return cached.content; }
+    const translated = await legacy.translateContent(list, language, context, cached?.content);
+    await db.query(`INSERT INTO activity_personal_equipment_translations (organization_id,activity_id,version,language,content) VALUES ($1,$2,$3,$4,$5)
+      ON CONFLICT (organization_id,activity_id,version,language) DO UPDATE SET content=$5`, [context.organizationId, id, list.version, language, JSON.stringify(translated)]);
     await db.query("UPDATE activity_personal_equipment_lists SET content=jsonb_set(content,'{published}','false'::jsonb) WHERE organization_id=$1 AND activity_id=$2", [context.organizationId, id]);
     return translated;
   });

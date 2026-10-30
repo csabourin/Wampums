@@ -187,3 +187,58 @@ test('declining the discard prompt keeps unsaved translation corrections open', 
   overlay.querySelector('[data-modal-close]').click(); await settle();
   expect(overlay.isConnected).toBe(false); screen.destroy();
 });
+
+describe('translations and publication status in the editor', () => {
+  const prepared = () => {
+    const data = fixture();
+    data.translations = { es: { notes: '', items: [{ key: 'bag', label: 'Mochila' }, { key: 'socks', label: 'Calcetines' }] },
+      de: { notes: '', items: [{ key: 'bag', label: 'Rucksack' }], partial: true } };
+    data.publication = { published_at: '2026-10-20T14:00:00Z', version: 1 };
+    return data;
+  };
+  test('fixing an item label keeps the prepared translations on screen', async () => {
+    api.getPersonalEquipment.mockResolvedValue({ data: prepared() });
+    await new PersonalEquipment(app, { meetingId: 7, manage: true }).init();
+    const label = document.querySelector('[data-item-key="socks"] textarea');
+    label.value = 'Bas de laine'; label.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(document.getElementById('packing-translation-preview').textContent).toContain('Calcetines');
+    expect(document.getElementById('packing-translation-status').textContent).toBe('packing_translations_stale');
+  });
+  test('a partly translated language says what is left and cannot be edited by hand', async () => {
+    api.getPersonalEquipment.mockResolvedValue({ data: prepared() });
+    await new PersonalEquipment(app, { meetingId: 7, manage: true }).init();
+    expect(document.getElementById('packing-translation-preview').textContent).toContain('packing_translation_partial');
+    expect(document.querySelector('[data-edit-translation="de"]')).toBeNull();
+    expect(document.querySelector('[data-edit-translation="es"]')).not.toBeNull();
+  });
+  test('translating again requests only languages that are missing something', async () => {
+    jest.spyOn(require('../../spa/utils/AIUtils.js'), 'canUseAI').mockReturnValue(true);
+    api.getPersonalEquipment.mockResolvedValue({ data: prepared() });
+    api.translatePersonalEquipment.mockResolvedValue({ data: { notes: '', items: [{ key: 'bag', label: 'Rucksack' }, { key: 'socks', label: 'Socken' }] } });
+    await new PersonalEquipment(app, { meetingId: 7, manage: true }).init();
+    document.querySelectorAll('[data-language]').forEach((box) => { box.checked = ['es', 'de'].includes(box.dataset.language); });
+    document.getElementById('packing-translate-all').click(); await settle(); await settle();
+    expect(api.translatePersonalEquipment.mock.calls).toEqual([[7, 'de']]);
+  });
+  test('staff see whether families have the current version', async () => {
+    const published = prepared();
+    api.getPersonalEquipment.mockResolvedValue({ data: published });
+    await new PersonalEquipment(app, { meetingId: 7, manage: true }).init();
+    expect(document.getElementById('packing-publication-status').textContent).toBe('packing_status_published');
+    const pending = prepared(); pending.list.published = false;
+    api.getPersonalEquipment.mockResolvedValue({ data: pending });
+    await new PersonalEquipment(app, { meetingId: 7, manage: true }).init();
+    expect(document.getElementById('packing-publication-status').textContent).toBe('packing_status_changes_pending');
+    expect(document.querySelector('button[value="publish"]').textContent).toBe('packing_publish_changes');
+    const never = fixture(); never.list.published = false;
+    api.getPersonalEquipment.mockResolvedValue({ data: never });
+    await new PersonalEquipment(app, { meetingId: 7, manage: true }).init();
+    expect(document.getElementById('packing-publication-status').textContent).toBe('packing_status_never_published');
+  });
+  test('families are offered only complete translations', async () => {
+    api.getPersonalEquipment.mockResolvedValue({ data: prepared() });
+    await new PersonalEquipment(app, { meetingId: 7 }).init();
+    const offered = [...document.querySelectorAll('#personal-language option')].map((option) => option.value);
+    expect(offered).toContain('es'); expect(offered).not.toContain('de');
+  });
+});

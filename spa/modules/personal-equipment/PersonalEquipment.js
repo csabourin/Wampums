@@ -12,7 +12,7 @@ import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { confirm } from '../../utils/DialogUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { openPrintWindow, setPrintContent, REPORT_PRINT_STYLES } from '../../utils/PrintUtils.js';
-import { formatDate } from '../../utils/DateUtils.js';
+import { formatDate, formatTimestamp } from '../../utils/DateUtils.js';
 import { getPersonalEquipmentTasks, getPersonalEquipment, savePersonalEquipment, translatePersonalEquipment, editPersonalEquipmentTranslation } from '../../api/api-personal-equipment.js';
 import { personalEquipmentTemplate, PERSONAL_EQUIPMENT } from './templates.js';
 import { packingKey, readPacking, writePacking, bulkPackingLines, bulkPackingItems } from './packingStorage.js';
@@ -21,6 +21,8 @@ export const PERSONAL_LABELS = {
   summer: 'personal_equipment_summer', winter: 'personal_equipment_winter', shoulder: 'personal_equipment_shoulder',
   day: 'personal_equipment_day', cabin: 'personal_equipment_cabin', tent: 'personal_equipment_tent',
 };
+/** A translation still missing an item or the instructions is retranslated, never shown to families. */
+const isComplete = (content) => Boolean(content) && content.partial !== true;
 export class PersonalEquipment {
   constructor(app, { meetingId, manage = false }) {
     this.app = app; this.meetingId = meetingId; this.manage = manage; this.destroyed = false; this.request = 0;
@@ -100,7 +102,8 @@ export class PersonalEquipment {
     const list = this.manage ? this.draft : this.data?.list;
     const authored = ['fr', 'en'].filter((lang) => list?.items?.every((item) => item[`label_${lang}`]?.trim())
       && (list[`notes_${lang}`]?.trim() || ![list.notes_fr, list.notes_en].some((value) => value?.trim())));
-    return [...new Set([...(authored.length ? authored : [this.sourceLocale || 'fr']), ...this.translations.keys()])];
+    const prepared = [...this.translations].filter(([, content]) => isComplete(content)).map(([code]) => code);
+    return [...new Set([...(authored.length ? authored : [this.sourceLocale || 'fr']), ...prepared])];
   }
   quantityText(item) { return Number(item.quantity) > 1 ? `${new Intl.NumberFormat(this.targetLanguage).format(Number(item.quantity))} × ` : ''; }
   languageName(code) {
@@ -131,11 +134,27 @@ export class PersonalEquipment {
   updateItemCount() {
     this.root().querySelector('#packing-count').textContent = String(this.root().querySelectorAll('[data-item-key]').length);
   }
+  /** Prepared translations stay: saving keeps every unchanged item and leaves only edited text to translate again. */
   markDirty(textChanged = false) {
     this.dirty = true;
-    if (textChanged) { this.translations.clear(); setContent(this.root().querySelector('#packing-translation-preview'), ''); }
     this.root().querySelector('#packing-save-status').textContent = translate('packing_unsaved_status');
-    if (textChanged) { this.root().querySelector('#packing-translation-status').textContent = translate('packing_translations_stale'); }
+    if (textChanged && this.translations.size) { this.root().querySelector('#packing-translation-status').textContent = translate('packing_translations_stale'); }
+  }
+  /** What families have now, and whether this draft differs from it. */
+  publicationStatus() {
+    const publication = this.data.publication;
+    if (!publication) { return translate('packing_status_never_published'); }
+    const date = formatTimestamp(publication.published_at, this.app.lang);
+    const current = this.draft.published && publication.version === this.draft.version;
+    return translate(current ? 'packing_status_published' : 'packing_status_changes_pending').replace('{date}', date);
+  }
+  /** One prepared language: reviewable when complete, otherwise what is left to translate. */
+  translationSummary(code, content) {
+    if (!isComplete(content)) {
+      const left = this.draft.items.filter((item) => !content.items.some((entry) => entry.key === item.key)).length + (typeof content.notes === 'string' ? 0 : 1);
+      return `<p>${escapeHTML(translate('packing_translation_partial').replace('{language}', this.languageName(code)).replace('{count}', String(left)))}</p>`;
+    }
+    return `<details><summary>${escapeHTML(this.languageName(code))}</summary><p dir="auto">${escapeHTML(content.notes)}</p><ul>${content.items.map((item) => `<li dir="auto">${escapeHTML(item.label)}</li>`).join('')}</ul><button type="button" class="button button--secondary" data-edit-translation="${code}">${escapeHTML(translate('packing_edit_translation'))}</button></details>`;
   }
   pendingBulk() {
     const input = this.root().querySelector('#personal-bulk');
@@ -148,7 +167,7 @@ export class PersonalEquipment {
     const context = translate('packing_context').replace('{season}', translate(PERSONAL_LABELS[list.season])).replace('{nights}', String(list.nights)).replace('{unit}', translate(list.nights === 1 ? 'packing_night' : 'packing_nights'));
     const options = (values, current) => values.map((value) => `<option value="${value}" ${value === current ? 'selected' : ''}>${escapeHTML(translate(PERSONAL_LABELS[value]))}</option>`).join('');
     setContent(this.root(), `<section class="page personal-equipment personal-equipment--editor">${this.header()}
-      <p role="status">${escapeHTML(translate(list.published ? 'packing_published_status' : 'packing_draft_status'))}</p>
+      <p role="status" id="packing-publication-status">${escapeHTML(this.publicationStatus())}</p>
       <form id="personal-equipment-form" novalidate><fieldset ${this.readOnly || this.data.camp.is_cancelled ? 'disabled' : ''}><legend class="sr-only">${escapeHTML(this.title())}</legend>
       <details class="packing-context"><summary>${escapeHTML(context)}</summary><div class="packing-settings">
         <label>${escapeHTML(translate('personal_equipment_season'))}<select name="personal_season">${options(PERSONAL_EQUIPMENT.SEASONS, list.season)}</select></label>
@@ -169,13 +188,13 @@ export class PersonalEquipment {
         <h2>${escapeHTML(translate('packing_translations'))}</h2><p>${escapeHTML(translate('packing_staff_translation_help'))}</p>
         <fieldset class="packing-languages"><legend>${escapeHTML(translate('packing_languages_to_prepare'))}</legend>${PERSONAL_EQUIPMENT.TRANSLATION_LANGUAGES.map((code) => `<label><input type="checkbox" data-language="${code}" ${['fr','en'].includes(code) ? 'checked' : ''}> ${escapeHTML(this.languageName(code))}</label>`).join('')}</fieldset>
         ${canUseAI() ? `<button type="button" id="packing-translate-all" class="button button--secondary">${aiActionLabel('packing_translate_all')}</button>` : ''}
-        <p id="packing-translation-status" role="status">${escapeHTML(this.translations.size ? translate('packing_translations_ready').replace('{count}', String(this.translations.size)) : translate('packing_no_translations'))}</p>
-        <div id="packing-translation-preview">${[...this.translations].map(([code, content]) => `<details><summary>${escapeHTML(this.languageName(code))}</summary><p dir="auto">${escapeHTML(content.notes)}</p><ul>${content.items.map((item) => `<li dir="auto">${escapeHTML(item.label)}</li>`).join('')}</ul><button type="button" class="button button--secondary" data-edit-translation="${code}">${escapeHTML(translate('packing_edit_translation'))}</button></details>`).join('')}</div>
+        <p id="packing-translation-status" role="status">${escapeHTML(this.translations.size ? translate('packing_translations_ready').replace('{count}', String([...this.translations.values()].filter(isComplete).length)) : translate('packing_no_translations'))}</p>
+        <div id="packing-translation-preview">${[...this.translations].map(([code, content]) => this.translationSummary(code, content)).join('')}</div>
       </aside></div>
       <div class="packing-actions"><span id="packing-save-status" role="status">${escapeHTML(translate(this.dirty || !list.version ? 'packing_unsaved_status' : 'packing_saved_status'))}</span><p id="personal-equipment-validation" role="alert"></p>
         <button type="submit" class="button button--secondary" value="draft">${escapeHTML(translate('packing_save_draft'))}</button>
         <button type="button" class="button button--secondary" id="packing-preview">${escapeHTML(translate('packing_preview'))}</button>
-        <button type="submit" class="button button--primary" value="publish">${escapeHTML(translate('packing_publish'))}</button>
+        <button type="submit" class="button button--primary" value="publish">${escapeHTML(translate(this.data.publication ? 'packing_publish_changes' : 'packing_publish'))}</button>
       </div></fieldset></form></section>`);
     const form = this.root().querySelector('form');
     form.addEventListener('input', (event) => {
@@ -295,7 +314,7 @@ export class PersonalEquipment {
     await withFormBusy(form, async () => {
       await languages.reduce(async (previous, language) => {
         await previous;
-        if (!this.active() || this.translations.has(language)) { return; }
+        if (!this.active() || isComplete(this.translations.get(language))) { return; }
         this.root().querySelector('#packing-translation-status').textContent = translate('packing_translating_language').replace('{language}', this.languageName(language));
         try { const result = await translatePersonalEquipment(this.meetingId, language); if (this.active()) { this.translations.set(language, result.data); } }
         catch (err) { this.translationFailures.push(language); if (this.active()) { this.app.showMessage(apiErrorMessage(err, 'personal_equipment_translation_failed'), 'error'); } }
@@ -310,7 +329,7 @@ export class PersonalEquipment {
   async editTranslation(language) {
     if (this.dirty && !await this.save(false)) { return; }
     const content = this.translations.get(language);
-    if (!content || this.busy || this.dirty) { return; }
+    if (!isComplete(content) || this.busy || this.dirty) { return; }
     const expectedVersion = this.draft.version;
     let saving = false; let changed = false; let confirming = false;
     const modal = openModal({ title: `${translate('packing_edit_translation')} — ${this.languageName(language)}`,

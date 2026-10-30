@@ -17,7 +17,7 @@
   "packing_published_status": "List published to families",
   "packing_draft_status": "Draft — families keep the last published list.",
   "packing_options": "Options",
-  "packing_translations_stale": "The source text changed. Prepare translations again before publishing.",
+  "packing_translations_stale": "The text changed. When you save, only the changed items need translating again; every other translation is kept.",
   "packing_bulk_pending": "Text is still waiting in bulk entry. Add these items or clear that field before continuing.",
   "packing_add_suggestions": "Add missing suggestions",
   "packing_replace_suggestions": "Replace the entire list…",
@@ -5053,5 +5053,10 @@
   "equipment_reminder_stale": "This assignment or reminder changed. Reload it before trying again.",
   "equipment_reminder_email_subject": "Material to bring — confirmation requested",
   "equipment_reminder_email_intro": "For your upcoming activity, please bring the following material by the date shown:",
-  "equipment_reminder_email_confirm": "Open your task and confirm. This link does not confirm anything until you press the confirmation button."
+  "equipment_reminder_email_confirm": "Open your task and confirm. This link does not confirm anything until you press the confirmation button.",
+  "packing_status_never_published": "Not published yet: families do not see this list.",
+  "packing_status_published": "Published to families on {date}.",
+  "packing_status_changes_pending": "Families see the version published on {date}. Your changes are not published to them yet.",
+  "packing_publish_changes": "Publish changes",
+  "packing_translation_partial": "{language}: {count} item(s) to translate again"
 }

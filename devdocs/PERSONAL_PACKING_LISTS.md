@@ -25,6 +25,9 @@ stores the last common content and translations explicitly published; it contain
 no child identity or packing progress. Saving a new draft leaves that publication
 unchanged. Cancellation/eligibility checks still apply before any family read.
 Migration 065 backfills publications for existing published camp/activity lists.
+Migration 066 records `published_at`. The editor's status line says whether families
+have never received the list, have the current version, or still see the version
+published on a given date while changes wait ("Publish changes").
 
 ## AI is staff-only throughout the application
 
@@ -50,8 +53,13 @@ PUT requiring management rights (no AI permission or provider call needed).
 Generating or correcting a translation marks the source list as a draft. Families
 do not see these changes until staff explicitly publish again.
 
-Text changes invalidate prepared translations; unchanged text can retain them
-across quantity and publication changes. Stable keys and local checks survive
+Text changes invalidate only what they touch (`carryTranslation` in
+`services/packingPublications.js`): an item whose labels did not change keeps its
+translated or hand-corrected label in the next version, and changed or new items and
+changed instructions are left to translate. Such a translation is stored with
+`partial: true`; translating it again sends the AI only the missing text, and
+French or English take what the team wrote. A partial translation is never
+published to families nor offered for hand correction. Stable keys and local checks survive
 translation, publication and ordinary edits. Families choose only authored or
 prepared languages included in their publication. No generation request and no
 old device-side translation cache can provide unpublished text.
