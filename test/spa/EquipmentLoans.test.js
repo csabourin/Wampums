@@ -537,3 +537,16 @@ test('the screen, with a handout under way and a picker open, has no WCAG A/AA v
   const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
   expect(results.violations).toEqual([]);
 });
+
+test('after narrowing the list by name, its return and delete buttons still work', async () => {
+  await openScreen();
+  const filter = document.getElementById('equipment-loans-filter');
+  filter.value = 'ada'; filter.dispatchEvent(new Event('input', { bubbles: true }));
+  document.querySelector('[data-return="22"]').click();
+  await flush();
+  expect(api.updateEquipmentLoan).toHaveBeenCalledWith(22, { returned_quantity: 1 });
+  filter.value = ''; filter.dispatchEvent(new Event('input', { bubbles: true }));
+  document.querySelector('[data-delete="21"]').click();
+  await flush();
+  expect(confirmDestructive).toHaveBeenCalled();
+});

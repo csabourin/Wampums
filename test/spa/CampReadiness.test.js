@@ -114,3 +114,13 @@ describe('what is left, first', () => {
     expect(document.querySelector('#app a').getAttribute('href')).toBe('/yearly-planner/4');
   });
 });
+
+test('an article outside the inventory is still left to find, never "everything is reserved"', async () => {
+  const payload = data();
+  payload.sections.material.items = [{ name: 'Reserved tent', quantity: 1, inventory: { status: 'reserved' } }, { name: 'Pot', quantity: 1, inventory: { status: 'not_in_inventory' } }];
+  getCampReadiness.mockResolvedValue({ data: payload });
+  await screen.init();
+  const line = [...document.querySelectorAll('.camp-readiness__left li')].find((item) => item.querySelector('a').getAttribute('href') === '#camp-readiness-material');
+  expect(line.querySelector('span').textContent).toBe('camp_readiness_left_material');
+  expect(line.classList.contains('is-attention')).toBe(true);
+});

@@ -1086,36 +1086,30 @@ export class EquipmentLoans {
         translate('equipment_loans_search_count').replace('{count}', String(count));
     });
 
-    root.querySelectorAll('[data-return]').forEach((button) => button.addEventListener('click', () => {
-      const loan = this.loanById(Number(button.dataset.return));
-      if (loan) {
-        this.returnLoans([loan]);
+    // One listener on the list, so the buttons work after the name filter redraws them.
+    root.querySelector('.equipment-loans__out')?.addEventListener('click', (event) => {
+      const button = event.target.closest('button');
+      if (!button) {
+        return;
       }
-    }));
-    root.querySelectorAll('[data-return-all]').forEach((button) => button.addEventListener('click', () => {
-      const group = this.groupedLoans().find((candidate) => candidate.key === button.dataset.returnAll);
-      if (group) {
-        this.returnLoans(group.loans.filter((loan) => !loan.returned_at));
+      const loan = (key) => this.loanById(Number(button.dataset[key]));
+      if (button.dataset.return) {
+        const found = loan('return');
+        if (found) { this.returnLoans([found]); }
+      } else if (button.dataset.returnAll) {
+        const group = this.groupedLoans().find((candidate) => candidate.key === button.dataset.returnAll);
+        if (group) { this.returnLoans(group.loans.filter((entry) => !entry.returned_at)); }
+      } else if (button.dataset.partial) {
+        const found = loan('partial');
+        if (found) { this.openPartialReturn(found); }
+      } else if (button.dataset.reopen) {
+        const found = loan('reopen');
+        if (found) { this.reopenLoan(found); }
+      } else if (button.dataset.delete) {
+        const found = loan('delete');
+        if (found) { this.deleteLoan(found); }
       }
-    }));
-    root.querySelectorAll('[data-partial]').forEach((button) => button.addEventListener('click', () => {
-      const loan = this.loanById(Number(button.dataset.partial));
-      if (loan) {
-        this.openPartialReturn(loan);
-      }
-    }));
-    root.querySelectorAll('[data-reopen]').forEach((button) => button.addEventListener('click', () => {
-      const loan = this.loanById(Number(button.dataset.reopen));
-      if (loan) {
-        this.reopenLoan(loan);
-      }
-    }));
-    root.querySelectorAll('[data-delete]').forEach((button) => button.addEventListener('click', () => {
-      const loan = this.loanById(Number(button.dataset.delete));
-      if (loan) {
-        this.deleteLoan(loan);
-      }
-    }));
+    });
 
     const form = root.querySelector('#equipment-loans-handout-form');
     if (!form) {

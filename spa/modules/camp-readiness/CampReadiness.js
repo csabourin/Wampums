@@ -30,8 +30,8 @@ export const READINESS_LABELS = {
   unavailable: 'camp_material_status_unavailable', not_in_inventory: 'camp_material_status_not_in_inventory',
 };
 
-/** Inventory standings that still call for reserving, borrowing or buying. */
-const MATERIAL_TO_DO = ['available', 'missing', 'unavailable'];
+/** Standings that still call for reserving, borrowing or buying; an article outside the inventory has neither. */
+const MATERIAL_TO_DO = ['available', 'missing', 'unavailable', 'not_in_inventory'];
 const SECTION_ORDER = ['permissions', 'material', 'lots', 'tasks'];
 /** A consent deadline is an instant; its calendar date is its first YYYY-MM-DD characters. */
 const ISO_DATE_LENGTH = 10;
