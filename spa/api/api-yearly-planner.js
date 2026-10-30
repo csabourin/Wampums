@@ -128,7 +128,8 @@ export async function getYearPlanMeeting(meetingId, options = {}) {
 
 export async function updateYearPlanMeeting(meetingId, data) {
   const response = await API.patch(`v1/yearly-planner/meetings/${meetingId}`, data);
-  await invalidatePlanner({ includeMeetingPrep: true });
+  // A date's kind is also its activity's camp mark: a changed kind makes cached activities stale.
+  await invalidatePlanner({ includeMeetingPrep: true, includeActivities: Object.hasOwn(data || {}, 'meeting_kind') });
   return response;
 }
 

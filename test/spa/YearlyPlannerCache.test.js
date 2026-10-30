@@ -71,6 +71,8 @@ const MUTATIONS = [
   ['updateObjective', [1, { title: 'O' }], {}],
   ['deleteObjective', [1], {}],
   ['updateYearPlanMeeting', [1, { theme: 'T' }], { includeMeetingPrep: true }],
+  // A date's kind is its activity's camp mark: changing it refreshes cached activities too.
+  ['updateYearPlanMeeting', [1, { meeting_kind: 'camp' }], { includeMeetingPrep: true, includeActivities: true }],
   ['createPlanMeeting', [1, { meeting_date: '2025-10-17' }], { includeMeetingPrep: true, includeActivities: true }],
   ['deletePlanMeeting', [1], { includeMeetingPrep: true, includeActivities: true }],
   ['unlinkActivityEvent', [1], { includeMeetingPrep: true, includeActivities: true }],
