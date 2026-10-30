@@ -362,6 +362,22 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
       expect(await one('SELECT status FROM volunteer_signups WHERE shift_id = $1 AND user_id = $2', [shift.id, person])).toBe('pending');
     });
 
+    test('a shift turned into a camp aide shift while a cook is verified is judged on its new type', async () => {
+      const person = await member('Edith Clarke', 'volunteer');
+      const values = async (type) => ({
+        activity_id: ids.camp, volunteer_type: type, title: '', shift_date: await day(4),
+        start_time: '11:00', end_time: '12:00', slots: 3, notes: '',
+      });
+      const shift = await saveShift(pool, ids.unit, ids.manager, await values('cook'));
+      await signUp(pool, ids.unit, shift.id, person);
+      await Promise.all([
+        saveShift(pool, ids.unit, ids.manager, await values('camp_aide'), shift.id),
+        recordRequirements(pool, ids.unit, ids.manager, person, { background_check: { checked_on: await day(0) } }),
+      ]);
+      // A camp aide also needs safety training, which was never recorded.
+      expect(await one('SELECT status FROM volunteer_signups WHERE shift_id = $1 AND user_id = $2', [shift.id, person])).toBe('pending');
+    });
+
     test('lowering places while someone signs up never leaves more people than places', async () => {
       const people = await Promise.all(['Alan Kay', 'Barbara Liskov'].map((name) => member(name, 'volunteer')));
       const values = async (slots) => ({

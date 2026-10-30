@@ -282,14 +282,24 @@ function signUp(pool, organizationId, shiftId, userId) {
  * @returns {Promise<number>} Places now confirmed that were pending
  */
 async function refreshStatuses(db, organizationId, { userId = null, shiftId = null }) {
-  const places = (await db.query(
-    `SELECT v.id, v.user_id, v.status, s.volunteer_type, s.shift_date::text AS shift_date
-       FROM volunteer_signups v
+  // Lock the places first, then read them, their shifts and their holders' requirements in fresh
+  // statements: a statement's snapshot is taken before it waits for a lock, so a shift edit or a
+  // verification that committed while this waited would otherwise be judged on what it replaced.
+  const locked = (await db.query(
+    `SELECT v.id FROM volunteer_signups v
        JOIN volunteer_shifts s ON s.id = v.shift_id AND s.organization_id = v.organization_id
       WHERE v.organization_id = $1 AND s.shift_date >= CURRENT_DATE
         AND ($2::uuid IS NULL OR v.user_id = $2) AND ($3::int IS NULL OR v.shift_id = $3)
       FOR UPDATE OF v`,
     [organizationId, userId, shiftId]
+  )).rows.map((row) => row.id);
+  if (!locked.length) { return 0; }
+  const places = (await db.query(
+    `SELECT v.id, v.user_id, v.status, s.volunteer_type, s.shift_date::text AS shift_date
+       FROM volunteer_signups v
+       JOIN volunteer_shifts s ON s.id = v.shift_id AND s.organization_id = v.organization_id
+      WHERE v.organization_id = $1 AND v.id = ANY($2::int[])`,
+    [organizationId, locked]
   )).rows;
   const records = await requirementsByUser(db, organizationId, [...new Set(places.map((place) => place.user_id))]);
   const changes = places.map((place) => ({
