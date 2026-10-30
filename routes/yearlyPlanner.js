@@ -83,6 +83,8 @@ const materialItemsCheck = () => check('material_items').optional()
 /** Status for a starter selection the person must correct. */
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
+/** PATCH /meetings/:id binds the meeting id and its unit before the updated fields. */
+const FIXED_MEETING_PARAMS = 2;
 
 /** Upper bound on a single batch placement: a school year holds far fewer dates. */
 const MAX_BATCH_MEETINGS = 60;
@@ -1097,7 +1099,8 @@ module.exports = (pool, logger) => {
       // The linked activity says whether it is a camp. One statement updates the date and, when its
       // kind changes, that mark: the date's row lock orders concurrent changes, so the planner's kind
       // and the activity's mark cannot end up from different requests.
-      const kindParam = `$${values.length + 3}::boolean`;
+      // After $1 (id), $2 (unit) and one parameter per updated field.
+      const kindParam = `$${values.length + FIXED_MEETING_PARAMS + 1}::boolean`;
       const updateSql = `WITH updated AS (
            UPDATE year_plan_meetings SET ${updates.join(', ')}, updated_at = NOW()
             WHERE id = $1 AND organization_id = $2
