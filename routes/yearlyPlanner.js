@@ -1403,6 +1403,13 @@ module.exports = (pool, logger) => {
           meeting.activity_id = activity.id;
           meeting.activity = activity;
         }
+        // An adopted date may already carry an activity: its camp mark follows the date's kind.
+        if (meeting.activity_id) {
+          await client.query(
+            'UPDATE activities SET is_camp = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3',
+            [meeting.meeting_kind === 'camp', meeting.activity_id, organizationId]
+          );
+        }
 
         await client.query('COMMIT');
 

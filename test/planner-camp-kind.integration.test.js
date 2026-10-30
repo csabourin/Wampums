@@ -91,4 +91,14 @@ describe.skipIf(!DATABASE_URL)('a date\'s kind and its activity\'s camp mark', (
       expect(isCamp).toBe(kind === 'camp');
     }
   });
+
+  test('adding a date of another kind on a camp\'s day updates the activity\'s camp mark too', async () => {
+    const plan = await one('SELECT year_plan_id FROM year_plan_meetings WHERE id = $1', [ids.meeting]);
+    await setKind('camp');
+    const response = await request(app).post(`/api/v1/yearly-planner/plans/${plan}/meetings`)
+      .send({ meeting_date: '2030-10-30', kind: 'weekend' });
+    expect(response.status).toBe(200);
+    expect(response.body.data.activity_event_skipped).toBe('already_linked');
+    expect(await state()).toEqual({ meeting_kind: 'weekend', is_camp: false });
+  });
 });
