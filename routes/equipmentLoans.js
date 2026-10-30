@@ -385,7 +385,9 @@ module.exports = (pool) => {
         items = allResult.rows;
       }
 
-      const [participantsResult, leaders] = await Promise.all([
+      // Who came to the activity is attendance: offered first only to someone who may read attendance.
+      const mayReadAttendance = (req.userPermissions || []).includes('attendance.view');
+      const [participantsResult, leaders, presentResult] = await Promise.all([
         pool.query(
           `SELECT DISTINCT p.id, p.first_name, p.last_name
              FROM participant_organizations po
@@ -395,6 +397,15 @@ module.exports = (pool) => {
           [organizationId],
         ),
         listUnitLeaders(pool, organizationId),
+        activity && mayReadAttendance
+          ? pool.query(
+            `SELECT DISTINCT participant_id FROM attendance
+              WHERE organization_id = $1 AND status IN ('present', 'late')
+                AND date BETWEEN $2::date AND COALESCE($3::date, $2::date)
+              ORDER BY participant_id`,
+            [organizationId, activity.start_date, activity.end_date],
+          )
+          : null,
       ]);
 
       return success(res, {
@@ -404,6 +415,8 @@ module.exports = (pool) => {
         holders: {
           participants: participantsResult.rows,
           adults: leaders.map((leader) => ({ id: leader.id, full_name: leader.full_name })),
+          // null: not known (no activity, or no right to read attendance), never "nobody came".
+          present_participant_ids: presentResult ? presentResult.rows.map((row) => Number(row.participant_id)) : null,
         },
         reasons: LOAN_REASONS,
       });

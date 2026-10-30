@@ -463,6 +463,29 @@ test.describe('the leaders\' programme bar', () => {
   });
 });
 
+test.describe('who has the equipment', () => {
+  signedInAs('admin');
+
+  test('the person picker is accessible, searchable from the keyboard and returns focus on Escape', async ({ page }, testInfo) => {
+    await openScreen(page, '/equipment-loans');
+    const opener = page.locator('[data-add-holder]').first();
+    await opener.click();
+    const search = page.locator('[data-search]').first();
+    await expect(search).toBeFocused();
+    await expect(opener).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Space');
+    await expect(page.locator('#equipment-loans-submit')).toContainText('1');
+    expect(await axeViolations(page)).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+    await page.screenshot({ path: testInfo.outputPath('material-loans-picker.png'), fullPage: true });
+    await search.focus();
+    await page.keyboard.press('Escape');
+    await expect(opener).toBeFocused();
+    await expect(opener).toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
 test.describe('task assignment', () => {
   signedInAs('admin');
 

@@ -131,13 +131,21 @@ async function openScreen() {
   return screen;
 }
 
-function addPerson(equipmentId) {
+function openPicker(equipmentId) {
   document.querySelector(`[data-add-holder="${equipmentId}"]`).click();
 }
 
-function choose(select, value) {
-  select.value = value;
-  select.dispatchEvent(new Event('change', { bubbles: true }));
+/** Tick a person in an item's open picker, as a tap would. */
+function pick(equipmentId, holder, checked = true) {
+  const box = document.querySelector(`[data-pick="${equipmentId}"][value="${holder}"]`);
+  box.checked = checked;
+  box.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function search(equipmentId, text) {
+  const input = document.getElementById(`equipment-loans-search-${equipmentId}`);
+  input.value = text;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function submitHandout() {
@@ -180,13 +188,12 @@ test('after a camp, the handout opens on the camp just over with its reserved eq
 test('a youth and a leader each take equipment home in a few taps', async () => {
   await openScreen();
 
-  addPerson(3);
-  choose(document.getElementById('equipment-loans-holder-3-0'), 'p:11');
+  openPicker(3);
+  pick(3, 'p:11');
   document.querySelector('[data-step="1"][data-equipment="3"][data-index="0"]').click();
-  addPerson(4);
-  // The person chosen last is offered first for the next item.
-  expect(document.getElementById('equipment-loans-holder-4-0').value).toBe('p:11');
-  choose(document.getElementById('equipment-loans-holder-4-0'), `u:${LEADER_ID}`);
+  openPicker(4);
+  pick(4, `u:${LEADER_ID}`);
+  expect(document.getElementById('equipment-loans-submit').textContent).toBe('equipment_loans_submit_count');
   submitHandout();
   await flush();
 
@@ -204,27 +211,82 @@ test('a youth and a leader each take equipment home in a few taps', async () => 
   expect(api.getEquipmentLoans).toHaveBeenLastCalledWith({ status: 'open' }, { forceRefresh: true });
 });
 
-test('a line without a person is pointed out next to its field and nothing is sent', async () => {
+test('typing part of a name, without accents, narrows the people offered and says how many', async () => {
+  api.getEquipmentHandout.mockResolvedValue(handout({ holders: { ...handout().data.holders,
+    participants: [...handout().data.holders.participants, { id: 13, first_name: 'Élodie', last_name: 'Gagnon' }] } }));
   await openScreen();
-  addPerson(3);
+  openPicker(3);
+  expect(document.activeElement.id).toBe('equipment-loans-search-3');
+  search(3, 'elo');
+  const offered = [...document.querySelectorAll('[data-pick="3"]')].map((box) => box.value);
+  expect(offered).toEqual(['p:13']);
+  expect(document.getElementById('equipment-loans-search-count-3').textContent).toBe('equipment_loans_search_count');
+  expect(document.activeElement.id).toBe('equipment-loans-search-3');
+  search(3, 'zzz');
+  expect(document.querySelector('[data-people="3"]').textContent).toContain('equipment_loans_search_none');
+});
+
+test('ticking several youths gives each one of the item, and unticking removes their line', async () => {
+  await openScreen();
+  openPicker(3);
+  pick(3, 'p:11');
+  pick(3, 'p:12');
+  expect(document.querySelectorAll('#equipment-loans-rows-3 .equipment-loans__row')).toHaveLength(2);
+  pick(3, 'p:11', false);
+  expect(document.querySelectorAll('#equipment-loans-rows-3 .equipment-loans__row')).toHaveLength(1);
   submitHandout();
   await flush();
+  expect(api.createEquipmentLoans.mock.calls[0][0].loans).toEqual([{ equipment_id: 3, quantity: 1, participant_id: 12 }]);
+});
 
-  const select = document.getElementById('equipment-loans-holder-3-0');
-  expect(api.createEquipmentLoans).not.toHaveBeenCalled();
-  expect(select.getAttribute('aria-invalid')).toBe('true');
-  const error = document.getElementById(select.getAttribute('aria-describedby'));
-  expect(error.textContent).toBe('equipment_loans_person_required');
-  expect(document.activeElement).toBe(select);
+test('youths present at the activity are offered first', async () => {
+  api.getEquipmentHandout.mockResolvedValue(handout({ holders: { ...handout().data.holders, present_participant_ids: [12] } }));
+  await openScreen();
+  openPicker(3);
+  const legends = [...document.querySelectorAll('[data-people="3"] legend')].map((legend) => legend.textContent);
+  expect(legends).toEqual(['equipment_loans_present_group', 'equipment_loans_other_youths', 'equipment_loans_adults']);
+  expect(document.querySelector('[data-people="3"] fieldset [data-pick]').value).toBe('p:12');
+});
 
-  choose(select, 'p:11');
-  expect(error.textContent).toBe('');
+test('the picker reports whether it is open, and Escape or Done close it with focus back on its button', async () => {
+  await openScreen();
+  const button = document.querySelector('[data-add-holder="3"]');
+  openPicker(3);
+  expect(button.getAttribute('aria-expanded')).toBe('true');
+  document.getElementById('equipment-loans-search-3').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  expect(button.getAttribute('aria-expanded')).toBe('false');
+  expect(document.getElementById('equipment-loans-picker-3').hidden).toBe(true);
+  expect(document.activeElement).toBe(button);
+  openPicker(3);
+  document.querySelector('[data-picker-done="3"]').click();
+  expect(document.activeElement).toBe(button);
+});
+
+test('the settings fold into one line naming the activity, reason and return date', async () => {
+  await openScreen();
+  const settings = document.querySelector('.equipment-loans__settings-box');
+  expect(settings.open).toBe(false);
+  expect(document.getElementById('equipment-loans-settings-summary').textContent).toContain('Camp des Érables');
+  const reason = document.getElementById('equipment-loans-reason');
+  reason.value = 'repair'; reason.dispatchEvent(new Event('change', { bubbles: true }));
+  expect(document.getElementById('equipment-loans-settings-summary').textContent).toContain('equipment_loan_reason_repair');
+});
+
+test('the loans still out can be narrowed to one person by name', async () => {
+  api.getEquipmentLoans.mockImplementation(() => Promise.resolve({ data: { loans: [...JSON.parse(JSON.stringify(OPEN_LOANS)),
+    { ...OPEN_LOANS[1], id: 24, holder_participant_id: 12, holder_name: 'Léon Gagnon' }] } }));
+  await openScreen();
+  const filter = document.getElementById('equipment-loans-filter');
+  filter.value = 'leon'; filter.dispatchEvent(new Event('input', { bubbles: true }));
+  const names = [...document.querySelectorAll('.equipment-loans__group h3')].map((heading) => heading.textContent);
+  expect(names).toEqual(['Léon Gagnon']);
+  expect(document.getElementById('equipment-loans-filter-count').textContent).toBe('equipment_loans_search_count');
 });
 
 test('more than storage holds is refused before sending', async () => {
   await openScreen();
-  addPerson(3);
-  choose(document.getElementById('equipment-loans-holder-3-0'), 'p:11');
+  openPicker(3);
+  pick(3, 'p:11');
   const quantity = document.getElementById('equipment-loans-quantity-3-0');
   quantity.value = '6';
   quantity.dispatchEvent(new Event('input', { bubbles: true }));
@@ -248,8 +310,8 @@ test('submitting with no one chosen says what to do instead of sending an empty 
 test('offline, the handout is said to be waiting, not recorded', async () => {
   api.createEquipmentLoans.mockResolvedValue({ queued: true, mutationId: 'm-1' });
   await openScreen();
-  addPerson(4);
-  choose(document.getElementById('equipment-loans-holder-4-0'), 'p:11');
+  openPicker(4);
+  pick(4, 'p:11');
   submitHandout();
   await flush();
 
@@ -264,8 +326,8 @@ test('a refused handout is explained in the form', async () => {
   refusal.data = { message: 'equipment_loan_exceeds_stock' };
   api.createEquipmentLoans.mockRejectedValue(refusal);
   await openScreen();
-  addPerson(4);
-  choose(document.getElementById('equipment-loans-holder-4-0'), 'p:11');
+  openPicker(4);
+  pick(4, 'p:11');
   submitHandout();
   await flush();
 
@@ -287,10 +349,13 @@ test('names and items coming from people show as text', async () => {
 
   expect(document.querySelector('#app img')).toBeNull();
   expect(document.getElementById('app').textContent).toContain(HOSTILE);
-  addPerson(3);
+  openPicker(3);
   expect(document.querySelector('#app img')).toBeNull();
-  const youthOption = [...document.querySelectorAll('option')].find((option) => option.value === 'p:12');
-  expect(youthOption.textContent).toContain(HOSTILE);
+  const youth = document.querySelector('[data-pick="3"][value="p:12"]').closest('label');
+  expect(youth.textContent).toContain(HOSTILE);
+  pick(3, 'p:12');
+  expect(document.querySelector('#app img')).toBeNull();
+  expect(document.getElementById('equipment-loans-holder-3-0').textContent).toContain(HOSTILE);
 });
 
 test('one tap records a full return, and "All returned" returns everything a person has', async () => {
@@ -387,21 +452,23 @@ test('deleting a loan asks first, and declining changes nothing', async () => {
 
 test('a handout under way survives recording a return below it', async () => {
   await openScreen();
-  addPerson(3);
-  choose(document.getElementById('equipment-loans-holder-3-0'), 'p:11');
+  openPicker(3);
+  pick(3, 'p:11');
   document.querySelector('[data-step="1"][data-equipment="3"][data-index="0"]').click();
 
   document.querySelector('[data-return="22"]').click();
   await flush();
 
   expect(api.getEquipmentLoans).toHaveBeenLastCalledWith({ status: 'open' }, { forceRefresh: true });
-  expect(document.getElementById('equipment-loans-holder-3-0').value).toBe('p:11');
+  expect(document.getElementById('equipment-loans-holder-3-0').textContent).toBe('Ada Lovelace');
   expect(document.getElementById('equipment-loans-quantity-3-0').value).toBe('2');
 });
 
 test('a reload keeps "No activity" when the leader chose it', async () => {
   await openScreen();
-  choose(document.getElementById('equipment-loans-activity'), '');
+  const activity = document.getElementById('equipment-loans-activity');
+  activity.value = '';
+  activity.dispatchEvent(new Event('change', { bubbles: true }));
   await flush();
   expect(api.getEquipmentHandout).toHaveBeenLastCalledWith(null, {});
 
@@ -463,9 +530,10 @@ test('a response arriving after leaving the screen does not draw over the next o
   expect(document.getElementById('app').textContent).toBe('next screen');
 });
 
-test('the screen, with a handout under way, has no WCAG A/AA violation', async () => {
+test('the screen, with a handout under way and a picker open, has no WCAG A/AA violation', async () => {
   await openScreen();
-  addPerson(3);
+  openPicker(3);
+  pick(3, 'p:11');
   const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
   expect(results.violations).toEqual([]);
 });

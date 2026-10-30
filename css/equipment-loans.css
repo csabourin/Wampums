@@ -27,7 +27,7 @@
   min-inline-size: 0;
 }
 
-:is(.equipment-loans, #equipment-loans-partial-modal) :is(input, select) {
+:is(.equipment-loans, #equipment-loans-partial-modal) :is(input:not([type="checkbox"]), select) {
   min-block-size: var(--touch-target-min);
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--color-border);
@@ -213,4 +213,160 @@
 
 .equipment-loans__empty {
   color: var(--color-text-muted);
+}
+
+/* Headings read from the start of the line, like the rest of the form. */
+.equipment-loans :is(h2, h3) {
+  text-align: start;
+}
+
+/* Activity, reason, return date and note fold into one line once chosen. */
+.equipment-loans__settings-box {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.25rem 0.75rem;
+  margin-block-end: var(--equipment-loans-gap);
+}
+
+.equipment-loans__settings-box > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  min-block-size: var(--touch-target-min);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.equipment-loans__settings-edit {
+  color: var(--color-primary);
+  text-decoration: underline;
+  font-weight: 400;
+}
+
+.equipment-loans__settings-box[open] > .equipment-loans__settings {
+  padding-block-start: 0.5rem;
+}
+
+/* One person who takes the item: name, then count and remove. */
+.equipment-loans__holder {
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Search and tick people. */
+.equipment-loans__picker {
+  display: grid;
+  gap: 0.5rem;
+  margin-block-start: 0.5rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt, var(--color-surface));
+  border: 1px solid var(--color-border);
+}
+
+.equipment-loans__picker[hidden] {
+  display: none;
+}
+
+.equipment-loans__search-count {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.equipment-loans__people {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.equipment-loans__people-group {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-inline-size: 0;
+}
+
+.equipment-loans__people-group legend {
+  font-weight: 600;
+  padding: 0;
+  margin-block-end: 0.25rem;
+}
+
+.equipment-loans__person {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-block-size: var(--touch-target-min);
+  border-block-end: 1px solid var(--color-border);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.equipment-loans__person input {
+  flex: 0 0 auto;
+  inline-size: 24px;
+  block-size: 24px;
+  min-block-size: 24px;
+  padding: 0;
+}
+
+/* The save button stays in reach while the items scroll by. */
+.equipment-loans__submit-bar {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 1;
+  padding-block: 0.6rem max(0.6rem, env(safe-area-inset-bottom));
+  background: var(--color-surface);
+  border-block-start: 1px solid var(--color-border);
+}
+
+.equipment-loans__submit-bar .button {
+  inline-size: 100%;
+}
+
+@media (min-width: 40rem) {
+  .equipment-loans__settings {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+
+  .equipment-loans__settings .form-group:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .equipment-loans__submit-bar .button {
+    inline-size: auto;
+  }
+}
+
+/* A chosen person is one line: name, then the count; removing sits below at the end. */
+.equipment-loans__row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.equipment-loans__row .equipment-loans__holder {
+  margin: 0;
+}
+
+.equipment-loans__row .equipment-loans__quantity-field {
+  margin: 0;
+}
+
+.equipment-loans__row > .button {
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+
+@media (min-width: 40rem) {
+  .equipment-loans__row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .equipment-loans__row > .button {
+    grid-column: auto;
+    margin: 0;
+  }
 }

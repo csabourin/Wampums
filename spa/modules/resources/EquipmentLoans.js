@@ -40,6 +40,15 @@ const YOUTH_PREFIX = 'p:';
 const ADULT_PREFIX = 'u:';
 
 /**
+ * Text as a search compares it: lower case, without accents, so "lea" finds "Léa".
+ * @param {string} text
+ * @returns {string}
+ */
+function searchable(text) {
+  return String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+/**
  * The date a number of days after today, as YYYY-MM-DD in local time.
  * @param {number} days
  * @returns {string}
@@ -70,7 +79,13 @@ export class EquipmentLoans {
     this.notes = '';
     /** @type {Map<number, Array<{holder: string, quantity: number}>>} */
     this.assignments = new Map();
-    this.lastHolder = '';
+    /** Youths marked present at the chosen activity; null when not known. */
+    this.presentIds = null;
+    /** The item whose person picker is open, and what was typed in its search. */
+    this.openPicker = null;
+    this.pickerQuery = '';
+    /** Name typed to filter the loans still out. */
+    this.loanFilter = '';
   }
 
   /** Called by the router when the person leaves this screen. */
@@ -152,6 +167,8 @@ export class EquipmentLoans {
       adults: Array.isArray(data.holders?.adults) ? data.holders.adults : [],
       reasons: Array.isArray(data.reasons) && data.reasons.length ? data.reasons : ['drying'],
     };
+    const present = data.holders?.present_participant_ids;
+    this.presentIds = Array.isArray(present) ? new Set(present.map(Number)) : null;
     // A reload (after a return, or once the outbox sends something) keeps the
     // handout under way; only items no longer offered lose their people.
     const offered = new Set(this.handout.items.map((item) => Number(item.equipment_id)));
@@ -262,40 +279,73 @@ export class EquipmentLoans {
       <section class="card equipment-loans__handout" aria-labelledby="equipment-loans-handout-title">
         <h2 id="equipment-loans-handout-title">${escapeHTML(translate('equipment_loans_handout_title'))}</h2>
         <form id="equipment-loans-handout-form" novalidate>
-          <div class="equipment-loans__settings">
-            <div class="form-group">
-              <label for="equipment-loans-activity">${escapeHTML(translate('equipment_loans_activity_label'))}</label>
-              <select id="equipment-loans-activity">
-                <option value="" ${this.activityId ? '' : 'selected'}>${escapeHTML(translate('equipment_loans_no_activity'))}</option>
-                ${activityOptions}
-              </select>
+          <details class="equipment-loans__settings-box" ${this.activityId ? '' : 'open'}>
+            <summary><span id="equipment-loans-settings-summary">${escapeHTML(this.settingsSummary())}</span>
+              <span class="equipment-loans__settings-edit">${escapeHTML(translate('equipment_loans_settings_edit'))}</span></summary>
+            <div class="equipment-loans__settings">
+              <div class="form-group">
+                <label for="equipment-loans-activity">${escapeHTML(translate('equipment_loans_activity_label'))}</label>
+                <select id="equipment-loans-activity">
+                  <option value="" ${this.activityId ? '' : 'selected'}>${escapeHTML(translate('equipment_loans_no_activity'))}</option>
+                  ${activityOptions}
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="equipment-loans-reason">${escapeHTML(translate('equipment_loans_reason_label'))}</label>
+                <select id="equipment-loans-reason">${reasonOptions}</select>
+              </div>
+              <div class="form-group">
+                <label for="equipment-loans-due">${escapeHTML(translate('equipment_loans_due_label'))}</label>
+                <input type="date" id="equipment-loans-due" min="${escapeAttribute(getTodayISO())}"
+                  value="${escapeAttribute(this.dueDate)}" aria-describedby="equipment-loans-due-error" />
+                <p class="field-error" id="equipment-loans-due-error" role="alert"></p>
+              </div>
+              <div class="form-group">
+                <label for="equipment-loans-notes">${escapeHTML(translate('equipment_loans_notes_label'))}</label>
+                <input type="text" id="equipment-loans-notes" maxlength="${CONFIG.EQUIPMENT_LOANS.MAX_NOTE_LENGTH}"
+                  value="${escapeAttribute(this.notes)}" />
+              </div>
             </div>
-            <div class="form-group">
-              <label for="equipment-loans-reason">${escapeHTML(translate('equipment_loans_reason_label'))}</label>
-              <select id="equipment-loans-reason">${reasonOptions}</select>
-            </div>
-            <div class="form-group">
-              <label for="equipment-loans-due">${escapeHTML(translate('equipment_loans_due_label'))}</label>
-              <input type="date" id="equipment-loans-due" min="${escapeAttribute(getTodayISO())}"
-                value="${escapeAttribute(this.dueDate)}" aria-describedby="equipment-loans-due-error" />
-              <p class="field-error" id="equipment-loans-due-error" role="alert"></p>
-            </div>
-          </div>
+          </details>
           ${items.length
     ? `<div class="equipment-loans__items">${items.map((item) => this.itemMarkup(item)).join('')}</div>`
     : `<p class="equipment-loans__empty">${escapeHTML(translate(emptyMessage))}</p>`}
-          <div class="form-group">
-            <label for="equipment-loans-notes">${escapeHTML(translate('equipment_loans_notes_label'))}</label>
-            <input type="text" id="equipment-loans-notes" maxlength="${CONFIG.EQUIPMENT_LOANS.MAX_NOTE_LENGTH}"
-              value="${escapeAttribute(this.notes)}" />
-          </div>
           <p class="field-error" id="equipment-loans-form-error" role="alert"></p>
           ${items.length ? `
-            <button type="submit" class="button button--primary">
-              ${escapeHTML(translate('equipment_loans_submit'))}
-            </button>` : ''}
+            <div class="equipment-loans__submit-bar">
+              <button type="submit" class="button button--primary" id="equipment-loans-submit">${escapeHTML(this.submitLabel())}</button>
+            </div>` : ''}
         </form>
       </section>`;
+  }
+
+  /** @returns {string} The activity, reason and return date on one line, for the folded settings */
+  settingsSummary() {
+    const activity = this.handout.activities.find((entry) => Number(entry.id) === this.activityId);
+    const parts = [
+      activity ? activity.name : translate('equipment_loans_no_activity'),
+      translate(`equipment_loan_reason_${this.reason}`),
+      this.dueDate ? translate('equipment_loans_due_on').replace('{date}', this.formatDay(this.dueDate)) : translate('equipment_loans_no_due'),
+    ];
+    return parts.join(' · ');
+  }
+
+  /** @returns {number} Loans the handout would record */
+  pendingCount() {
+    return [...this.assignments.values()].reduce((total, rows) => total + rows.filter((row) => row.holder).length, 0);
+  }
+
+  /** @returns {string} The submit button's text, naming how many loans it records */
+  submitLabel() {
+    const count = this.pendingCount();
+    return count ? translate('equipment_loans_submit_count').replace('{count}', String(count)) : translate('equipment_loans_submit');
+  }
+
+  updateSubmit() {
+    const button = document.getElementById('equipment-loans-submit');
+    if (button) {
+      button.textContent = this.submitLabel();
+    }
   }
 
   /**
@@ -346,30 +396,27 @@ export class EquipmentLoans {
         </div>
         <p class="equipment-loans__remaining ${over ? 'is-over' : ''}" id="equipment-loans-remaining-${id}"
           role="status">${over ? '<span aria-hidden="true">⚠ </span>' : ''}${escapeHTML(this.remainingText(item))}</p>
-        <button type="button" class="button button--secondary button--small" data-add-holder="${id}">
+        <button type="button" class="button button--secondary button--small" data-add-holder="${id}"
+          aria-expanded="${this.openPicker === id}" aria-controls="equipment-loans-picker-${id}">
           ${escapeHTML(translate('equipment_loans_add_person'))}
           <span class="visually-hidden">${escapeHTML(translate('equipment_loans_for_item').replace('{item}', item.name))}</span>
         </button>
+        <div class="equipment-loans__picker" id="equipment-loans-picker-${id}" ${this.openPicker === id ? '' : 'hidden'}>
+          ${this.openPicker === id ? this.pickerMarkup(item) : ''}
+        </div>
       </fieldset>`;
   }
 
   rowsMarkup(item) {
     const id = Number(item.equipment_id);
     return (this.assignments.get(id) || []).map((row, index) => {
-      const selectId = `equipment-loans-holder-${id}-${index}`;
       const quantityId = `equipment-loans-quantity-${id}-${index}`;
-      const errorId = `equipment-loans-holder-error-${id}-${index}`;
+      const name = this.holderName(row.holder);
       return `
         <div class="equipment-loans__row" data-row="${index}">
-          <div class="form-group equipment-loans__holder-field">
-            <label for="${selectId}">${escapeHTML(translate('equipment_loans_person_label'))}</label>
-            <select id="${selectId}" data-holder="${id}" data-index="${index}" aria-describedby="${errorId}">
-              ${this.holderOptions(row.holder)}
-            </select>
-            <p class="field-error" id="${errorId}" role="alert"></p>
-          </div>
+          <p class="equipment-loans__holder" id="equipment-loans-holder-${id}-${index}">${escapeHTML(name)}</p>
           <div class="form-group equipment-loans__quantity-field">
-            <label for="${quantityId}">${escapeHTML(translate('equipment_loans_quantity_label'))}</label>
+            <label class="visually-hidden" for="${quantityId}">${escapeHTML(translate('equipment_loans_quantity_for').replace('{person}', name))}</label>
             <div class="equipment-loans__stepper">
               <button type="button" class="button button--secondary" data-step="-1" data-equipment="${id}" data-index="${index}"
                 aria-label="${escapeAttribute(translate('equipment_loans_decrease').replace('{item}', item.name))}">−</button>
@@ -381,24 +428,139 @@ export class EquipmentLoans {
             </div>
           </div>
           <button type="button" class="button button--ghost button--small" data-remove-row="${id}" data-index="${index}">
-            ${escapeHTML(translate('equipment_loans_remove_person'))}
+            ${escapeHTML(translate('equipment_loans_remove_person'))}<span class="visually-hidden"> ${escapeHTML(name)}</span>
           </button>
         </div>`;
     }).join('');
   }
 
-  holderOptions(selected) {
+  /** @returns {Array<{key: string, name: string, group: string}>} Everyone who may take equipment, present youths first */
+  people() {
     const { participants, adults } = this.handout;
-    const option = (value, label) =>
-      `<option value="${escapeAttribute(value)}" ${value === selected ? 'selected' : ''}>${escapeHTML(label)}</option>`;
+    const presentKnown = this.presentIds && this.presentIds.size > 0;
+    const youths = participants.map((youth) => ({
+      key: `${YOUTH_PREFIX}${Number(youth.id)}`,
+      name: `${youth.first_name} ${youth.last_name}`,
+      group: presentKnown && this.presentIds.has(Number(youth.id)) ? 'present' : 'youths',
+    }));
+    return [
+      ...youths.filter((person) => person.group === 'present'),
+      ...youths.filter((person) => person.group === 'youths'),
+      ...adults.map((adult) => ({ key: `${ADULT_PREFIX}${adult.id}`, name: adult.full_name || '', group: 'adults' })),
+    ];
+  }
+
+  /** @param {string} key @returns {string} The name of a youth or leader chosen on the handout */
+  holderName(key) {
+    return this.people().find((person) => person.key === key)?.name || translate('equipment_loans_former_member');
+  }
+
+  /** @param {string} query @returns {Array<Object>} People whose name contains every typed word */
+  matchingPeople(query) {
+    const words = searchable(query).split(/\s+/).filter(Boolean);
+    return this.people().filter((person) => words.every((word) => searchable(person.name).includes(word)));
+  }
+
+  /**
+   * Search and tick: each ticked person takes one of this item, so handing a tent to
+   * each of six youths is six taps. Present youths come first when attendance says who came.
+   * @param {Object} item
+   * @returns {string} HTML
+   */
+  pickerMarkup(item) {
+    const id = Number(item.equipment_id);
     return `
-      ${option('', translate('equipment_loans_choose_person'))}
-      ${participants.length ? `<optgroup label="${escapeAttribute(translate('equipment_loans_youths'))}">
-        ${participants.map((youth) => option(`${YOUTH_PREFIX}${Number(youth.id)}`, `${youth.first_name} ${youth.last_name}`)).join('')}
-      </optgroup>` : ''}
-      ${adults.length ? `<optgroup label="${escapeAttribute(translate('equipment_loans_adults'))}">
-        ${adults.map((adult) => option(`${ADULT_PREFIX}${adult.id}`, adult.full_name || '')).join('')}
-      </optgroup>` : ''}`;
+      <label for="equipment-loans-search-${id}">${escapeHTML(translate('equipment_loans_search_label'))}</label>
+      <input type="search" id="equipment-loans-search-${id}" data-search="${id}" autocomplete="off"
+        value="${escapeAttribute(this.pickerQuery)}" aria-describedby="equipment-loans-search-count-${id}" />
+      <p class="equipment-loans__search-count" id="equipment-loans-search-count-${id}" role="status"></p>
+      <div class="equipment-loans__people" data-people="${id}">${this.peopleMarkup(item)}</div>
+      <button type="button" class="button button--secondary button--small" data-picker-done="${id}">
+        ${escapeHTML(translate('equipment_loans_picker_done'))}
+      </button>`;
+  }
+
+  /** @param {Object} item @returns {string} HTML: the matching people, grouped, each with a checkbox */
+  peopleMarkup(item) {
+    const id = Number(item.equipment_id);
+    const chosen = new Set((this.assignments.get(id) || []).map((row) => row.holder));
+    const matches = this.matchingPeople(this.pickerQuery);
+    if (!matches.length) {
+      return `<p class="equipment-loans__empty">${escapeHTML(translate('equipment_loans_search_none'))}</p>`;
+    }
+    const titles = {
+      present: translate('equipment_loans_present_group'),
+      youths: translate(this.presentIds?.size ? 'equipment_loans_other_youths' : 'equipment_loans_youths'),
+      adults: translate('equipment_loans_adults'),
+    };
+    return ['present', 'youths', 'adults'].map((group) => {
+      const members = matches.filter((person) => person.group === group);
+      if (!members.length) {
+        return '';
+      }
+      return `<fieldset class="equipment-loans__people-group"><legend>${escapeHTML(titles[group])}</legend>
+        ${members.map((person, index) => {
+    const inputId = `equipment-loans-pick-${id}-${group}-${index}`;
+    return `<label class="equipment-loans__person" for="${inputId}">
+          <input type="checkbox" id="${inputId}" data-pick="${id}" value="${escapeAttribute(person.key)}" ${chosen.has(person.key) ? 'checked' : ''} />
+          <span>${escapeHTML(person.name)}</span></label>`;
+  }).join('')}</fieldset>`;
+    }).join('');
+  }
+
+  /** Redraw the people list of an open picker, leaving focus in its search field. */
+  filterPeople(equipmentId) {
+    const item = this.itemById(equipmentId);
+    const list = document.querySelector(`[data-people="${equipmentId}"]`);
+    if (!item || !list) {
+      return;
+    }
+    setContent(list, this.peopleMarkup(item));
+    const count = this.matchingPeople(this.pickerQuery).length;
+    document.getElementById(`equipment-loans-search-count-${equipmentId}`).textContent =
+      translate('equipment_loans_search_count').replace('{count}', String(count));
+  }
+
+  /** @param {number} equipmentId */
+  togglePicker(equipmentId) {
+    const opening = this.openPicker !== equipmentId;
+    const previous = this.openPicker;
+    this.openPicker = opening ? equipmentId : null;
+    this.pickerQuery = '';
+    [previous, equipmentId].filter((id) => id !== null).forEach((id) => {
+      const item = this.itemById(id);
+      const picker = document.getElementById(`equipment-loans-picker-${id}`);
+      const button = document.querySelector(`[data-add-holder="${id}"]`);
+      if (!item || !picker || !button) {
+        return;
+      }
+      const open = this.openPicker === id;
+      picker.hidden = !open;
+      button.setAttribute('aria-expanded', String(open));
+      setContent(picker, open ? this.pickerMarkup(item) : '');
+    });
+    if (opening) {
+      document.getElementById(`equipment-loans-search-${equipmentId}`)?.focus();
+    } else {
+      document.querySelector(`[data-add-holder="${equipmentId}"]`)?.focus();
+    }
+  }
+
+  /**
+   * A ticked person takes one of the item; untick removes their line.
+   * @param {number} equipmentId
+   * @param {string} holder
+   * @param {boolean} checked
+   */
+  pick(equipmentId, holder, checked) {
+    const rows = (this.assignments.get(equipmentId) || []).filter((row) => row.holder !== holder);
+    if (checked) {
+      rows.push({ holder, quantity: 1 });
+    }
+    this.assignments.set(equipmentId, rows);
+    document.getElementById('equipment-loans-form-error').textContent = '';
+    this.redrawItem(equipmentId);
+    this.updateSubmit();
   }
 
   /** @param {number} equipmentId @returns {Object|undefined} */
@@ -445,22 +607,17 @@ export class EquipmentLoans {
     setContent(remaining, `${over ? '<span aria-hidden="true">⚠ </span>' : ''}${escapeHTML(this.remainingText(item))}`);
   }
 
-  /** @param {number} equipmentId */
-  addRow(equipmentId) {
-    const rows = this.assignments.get(equipmentId) || [];
-    // The person chosen last is the likeliest next one: Ada takes a tent,
-    // then the tarp that goes with it.
-    rows.push({ holder: this.lastHolder, quantity: 1 });
-    this.assignments.set(equipmentId, rows);
-    this.redrawItem(equipmentId, `#equipment-loans-holder-${equipmentId}-${rows.length - 1}`);
-  }
-
   /** @param {number} equipmentId @param {number} index */
   removeRow(equipmentId, index) {
     const rows = this.assignments.get(equipmentId) || [];
-    rows.splice(index, 1);
+    const [removed] = rows.splice(index, 1);
     this.assignments.set(equipmentId, rows);
+    const ticked = document.querySelector(`[data-pick="${equipmentId}"][value="${removed?.holder}"]`);
+    if (ticked) {
+      ticked.checked = false;
+    }
     this.redrawItem(equipmentId, `[data-add-holder="${equipmentId}"]`);
+    this.updateSubmit();
   }
 
   /** @param {number} equipmentId @param {number} index @param {number} delta */
@@ -500,6 +657,7 @@ export class EquipmentLoans {
     this.activityId = value ? Number(value) : null;
     const abandoned = this.assignments;
     this.assignments = new Map();
+    this.openPicker = null;
     try {
       await this.loadHandout();
     } catch (error) {
@@ -539,10 +697,8 @@ export class EquipmentLoans {
     const loans = [];
     this.handout.items.forEach((item) => {
       const id = Number(item.equipment_id);
-      (this.assignments.get(id) || []).forEach((row, index) => {
+      (this.assignments.get(id) || []).forEach((row) => {
         if (!row.holder) {
-          flag(document.getElementById(`equipment-loans-holder-${id}-${index}`),
-            `equipment-loans-holder-error-${id}-${index}`, 'equipment_loans_person_required');
           return;
         }
         const loan = { equipment_id: id, quantity: Math.max(1, Number(row.quantity) || 1) };
@@ -599,6 +755,7 @@ export class EquipmentLoans {
         return;
       }
       this.assignments = new Map();
+      this.openPicker = null;
       this.notes = '';
       if (result?.queued) {
         // Not sent yet: say so, and draw the cleared form; the list fills
@@ -653,10 +810,24 @@ export class EquipmentLoans {
             <option value="returned" ${this.status === 'returned' ? 'selected' : ''}>${escapeHTML(translate('equipment_loans_status_returned'))}</option>
           </select>
         </div>
+        ${groups.length > 1 ? `<div class="form-group equipment-loans__filter">
+          <label for="equipment-loans-filter">${escapeHTML(translate('equipment_loans_filter_label'))}</label>
+          <input type="search" id="equipment-loans-filter" autocomplete="off" data-archive-safe value="${escapeAttribute(this.loanFilter)}"
+            aria-describedby="equipment-loans-filter-count" />
+          <p class="equipment-loans__search-count" id="equipment-loans-filter-count" role="status"></p>
+        </div>` : ''}
         ${groups.length
-    ? `<div class="equipment-loans__groups">${groups.map((group) => this.groupMarkup(group)).join('')}</div>`
+    ? `<div class="equipment-loans__groups" id="equipment-loans-groups">${this.groupsMarkup(groups)}</div>`
     : `<p class="equipment-loans__empty">${escapeHTML(translate(emptyKey))}</p>`}
       </section>`;
+  }
+
+  /** @param {Array<Object>} groups @returns {string} HTML: the people whose name matches the filter */
+  groupsMarkup(groups) {
+    const words = searchable(this.loanFilter).split(/\s+/).filter(Boolean);
+    const shown = groups.filter((group) => words.every((word) => searchable(group.name).includes(word)));
+    return shown.length ? shown.map((group) => this.groupMarkup(group)).join('')
+      : `<p class="equipment-loans__empty">${escapeHTML(translate('equipment_loans_search_none'))}</p>`;
   }
 
   groupMarkup(group) {
@@ -708,7 +879,7 @@ export class EquipmentLoans {
           aria-label="${escapeAttribute(translate('equipment_loans_partial_for').replace('{item}', label))}">
           ${escapeHTML(translate('equipment_loans_partial'))}
         </button>` : ''}
-        <button type="button" class="button button--ghost button--small" data-delete="${Number(loan.id)}"
+        <button type="button" class="button button--danger button--small" data-delete="${Number(loan.id)}"
           aria-label="${escapeAttribute(translate('equipment_loans_delete_for').replace('{item}', label))}">
           ${escapeHTML(translate('delete'))}
         </button>`;
@@ -881,6 +1052,13 @@ export class EquipmentLoans {
   // Events
   // ---------------------------------------------------------------------------
 
+  updateSettingsSummary() {
+    const summary = document.getElementById('equipment-loans-settings-summary');
+    if (summary) {
+      summary.textContent = this.settingsSummary();
+    }
+  }
+
   attachEvents() {
     const root = this.root();
     // The markup was just replaced, so these listeners never stack.
@@ -896,6 +1074,16 @@ export class EquipmentLoans {
       }
       this.render();
       document.getElementById('equipment-loans-status')?.focus();
+    });
+
+    root.querySelector('#equipment-loans-filter')?.addEventListener('input', (event) => {
+      this.loanFilter = event.target.value;
+      const groups = this.groupedLoans();
+      setContent(document.getElementById('equipment-loans-groups'), this.groupsMarkup(groups));
+      const words = searchable(this.loanFilter).split(/\s+/).filter(Boolean);
+      const count = groups.filter((group) => words.every((word) => searchable(group.name).includes(word))).length;
+      document.getElementById('equipment-loans-filter-count').textContent =
+        translate('equipment_loans_search_count').replace('{count}', String(count));
     });
 
     root.querySelectorAll('[data-return]').forEach((button) => button.addEventListener('click', () => {
@@ -942,9 +1130,11 @@ export class EquipmentLoans {
     });
     form.querySelector('#equipment-loans-reason')?.addEventListener('change', (event) => {
       this.reason = event.target.value;
+      this.updateSettingsSummary();
     });
     form.querySelector('#equipment-loans-due')?.addEventListener('change', (event) => {
       this.dueDate = event.target.value;
+      this.updateSettingsSummary();
       document.getElementById('equipment-loans-due-error').textContent = '';
       event.target.removeAttribute('aria-invalid');
     });
@@ -960,7 +1150,9 @@ export class EquipmentLoans {
       }
       if (button.dataset.addHolder) {
         document.getElementById('equipment-loans-form-error').textContent = '';
-        this.addRow(Number(button.dataset.addHolder));
+        this.togglePicker(Number(button.dataset.addHolder));
+      } else if (button.dataset.pickerDone) {
+        this.togglePicker(Number(button.dataset.pickerDone));
       } else if (button.dataset.removeRow) {
         this.removeRow(Number(button.dataset.removeRow), Number(button.dataset.index));
       } else if (button.dataset.step) {
@@ -969,21 +1161,24 @@ export class EquipmentLoans {
     });
     form.addEventListener('change', (event) => {
       const { target } = event;
-      if (target.dataset.holder) {
-        const row = (this.assignments.get(Number(target.dataset.holder)) || [])[Number(target.dataset.index)];
-        if (row) {
-          row.holder = target.value;
-          this.lastHolder = target.value || this.lastHolder;
-        }
-        const error = document.getElementById(target.getAttribute('aria-describedby'));
-        if (error) {
-          error.textContent = '';
-        }
-        target.removeAttribute('aria-invalid');
+      if (target.dataset.pick) {
+        this.pick(Number(target.dataset.pick), target.value, target.checked);
+      }
+    });
+    form.addEventListener('keydown', (event) => {
+      // Escape in the search closes the picker and returns to its button.
+      if (event.key === 'Escape' && event.target.dataset?.search) {
+        event.preventDefault();
+        this.togglePicker(Number(event.target.dataset.search));
       }
     });
     form.addEventListener('input', (event) => {
       const { target } = event;
+      if (target.dataset.search) {
+        this.pickerQuery = target.value;
+        this.filterPeople(Number(target.dataset.search));
+        return;
+      }
       if (target.dataset.quantity) {
         const equipmentId = Number(target.dataset.quantity);
         const row = (this.assignments.get(equipmentId) || [])[Number(target.dataset.index)];
