@@ -175,3 +175,22 @@ test('volunteer places held for verification are still part of what is left', as
   expect(line.textContent).toContain('volunteers_pending_count');
   expect(document.querySelector('#camp-readiness-volunteers a[href="/volunteers"]').textContent).toBe('volunteer_type_camp_aide');
 });
+test('the site comes first: a camp with no site says so, and a site lists what its emergency information lacks', async () => {
+  const payload = data();
+  payload.sections.site = { site: null, gaps: ['site'] };
+  getCampReadiness.mockResolvedValue({ data: payload });
+  await screen.init();
+  const first = document.querySelector('.camp-readiness__left li');
+  expect(first.textContent).toContain('camp_readiness_left_site_none');
+  expect(first.classList.contains('is-attention')).toBe(true);
+  expect(document.querySelector('#camp-readiness-site a[href="/camp-site/3"]')).not.toBeNull();
+
+  payload.sections.site = { site: { id: 4, name: '<b>Fictional lake</b>', archived: false }, gaps: ['hospital_phone'] };
+  getCampReadiness.mockResolvedValue({ data: payload });
+  await screen.init();
+  const row = document.querySelector('#camp-readiness-site .camp-readiness__row');
+  expect(row.querySelector('b')).toBeNull();
+  expect(row.textContent).toContain('<b>Fictional lake</b>');
+  expect(row.textContent).toContain('camp_site_hospital_phone');
+  expect(document.querySelector('.camp-readiness__left li').textContent).toContain('camp_readiness_left_site_gaps');
+});

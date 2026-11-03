@@ -8696,7 +8696,8 @@ details p {
 }
 
 .status-badge.active {
-  background-color: var(--color-success-light);
+  /* White on --color-success-light is under 3:1; --color-success keeps 5.3:1. */
+  background-color: var(--color-success);
   color: white;
 }
 

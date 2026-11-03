@@ -36,7 +36,11 @@ function readList(value) {
 }
 /** Lock the camp before its list, consistently for edits and family checks. */
 async function campFor(db, organizationId, meetingId, lock = '') {
-  const camp = (await db.query(`SELECT m.id, m.theme, m.activity_id, m.meeting_date::text, (SELECT GREATEST(COALESCE(a.activity_end_date,a.activity_start_date,a.activity_date)-COALESCE(a.activity_start_date,a.activity_date),0) FROM activities a WHERE a.organization_id=m.organization_id AND a.id=m.activity_id) AS nights, m.is_cancelled
+  const camp = (await db.query(`SELECT m.id, m.theme, m.activity_id, m.meeting_date::text, (SELECT GREATEST(COALESCE(a.activity_end_date,a.activity_start_date,a.activity_date)-COALESCE(a.activity_start_date,a.activity_date),0) FROM activities a WHERE a.organization_id=m.organization_id AND a.id=m.activity_id) AS nights, m.is_cancelled,
+      (SELECT d.season FROM camp_details d WHERE d.organization_id=m.organization_id AND d.meeting_id=m.id) AS camp_season,
+      (SELECT COALESCE(d.accommodation, s.accommodation) FROM camp_details d
+        LEFT JOIN camp_sites s ON s.id=d.camp_site_id AND s.organization_id=d.organization_id
+        WHERE d.organization_id=m.organization_id AND d.meeting_id=m.id) AS camp_accommodation
     FROM year_plan_meetings m WHERE m.organization_id=$1 AND m.id=$2 AND m.meeting_kind='camp'${lock}`,
   [organizationId, meetingId])).rows[0];
   if (!camp) { refuse('personal_equipment_not_found', HTTP_NOT_FOUND); }

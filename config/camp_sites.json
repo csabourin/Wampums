@@ -1,0 +1,18 @@
+{
+  "NAME_MAX": 150,
+  "TEXT_MAX": 255,
+  "LONG_TEXT_MAX": 4000,
+  "PHONE_MAX": 40,
+  "URL_MAX": 2000,
+  "TRAVEL_MINUTES_MAX": 1440,
+  "DISTANCE_KM_MAX": 9999,
+  "ACCOMMODATIONS": ["tent", "cabin", "shelter", "other"],
+  "HEATING": ["none", "electricity", "gas", "wood", "other"],
+  "SEASONS": ["summer", "autumn", "winter", "spring"],
+  "PROVINCES": ["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"],
+  "PACKING_SEASON": { "summer": "summer", "autumn": "shoulder", "winter": "winter", "spring": "shoulder" },
+  "PACKING_STAY": { "tent": "tent", "cabin": "cabin" },
+  "POISON_CENTRE_NATIONAL": "1-844-764-7669",
+  "POISON_CENTRES": { "QC": "1-800-463-5060", "NU": null },
+  "POISON_CENTRE_SOURCE": "Health Canada, 2023-03-20: 1-844-POISON-X reaches the local poison centre everywhere but Quebec (Centre antipoison du Québec, 1-800-463-5060) and Nunavut (local health centre)."
+}

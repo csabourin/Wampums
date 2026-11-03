@@ -81,7 +81,7 @@ const MUTATIONS = [
   ['updateMeetingActivity', [1, { name: 'A' }], { includeMeetingPrep: true }],
   ['deleteMeetingActivity', [1], { includeMeetingPrep: true }],
   ['updateMeetingDay', [1, 0, { title: 'Day' }], { includeMeetingPrep: true }],
-  ['copyMeetingSchedule', [1, 2], { includeMeetingPrep: true }],
+  ['duplicateCamp', [1, { source_meeting_id: 2, parts: ['schedule'] }], { includeMeetingPrep: true }],
   ['batchPlaceActivity', [1, { meeting_ids: [1], activity: { name: 'A' } }], { includeMeetingPrep: true }],
   ['deleteSeries', ['ser-1'], { includeMeetingPrep: true }],
   ['updateSeries', ['ser-1', { name: 'Updated' }], { includeMeetingPrep: true }],
@@ -118,7 +118,7 @@ describe('yearly planner cache invalidation', () => {
     const readOnly = [
       'getYearPlans', 'getYearPlan', 'getPeriods', 'getObjectives',
       'getYearPlanMeeting', 'getMeetingSchedule', 'getActivityLibrary', 'getStarterActivities', 'getAchievements',
-      'getDistributionRules', 'getReminders', 'getMeetingReminders'
+      'getDistributionRules', 'getReminders', 'getMeetingReminders', 'getCampDuplication'
     ];
     const covered = new Set([...readOnly, ...MUTATIONS.map(([name]) => name)]);
     const uncovered = Object.keys(planner).filter((name) => !covered.has(name));

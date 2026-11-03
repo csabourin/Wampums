@@ -70,6 +70,8 @@ export const CONFIG = {
     'organizations/domains', 'organizations/settings/branch',
     // A place on a shift is confirmed or refused now, never later from a queue.
     'volunteer-shifts',
+    // An emergency number must be the current one, never a later replay.
+    'camp-sites',
   ],
   /**
      * Cache Duration Settings

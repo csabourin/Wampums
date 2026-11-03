@@ -217,11 +217,32 @@ export async function updateMeetingDay(meetingId, dayOffset, data) {
   return response;
 }
 
-/** Copy a prior camp's later-day schedule into an empty target camp. */
-export async function copyMeetingSchedule(meetingId, sourceMeetingId) {
+/**
+ * The camp being prepared, what it already holds, and the earlier camps it
+ * could take something from. Always fresh: another leader may have filled it.
+ *
+ * @param {number} meetingId - The camp being prepared
+ * @returns {Promise<Object>} API response with { target, sources }
+ */
+export function getCampDuplication(meetingId) {
+  return API.getNoCache(`v1/yearly-planner/meetings/${encodeURIComponent(meetingId)}/duplication`);
+}
+
+/**
+ * Copy the chosen parts of an earlier camp into this one, dates shifted.
+ * Requires a connection: the copy creates tasks and lots that must exist, or
+ * not, before the person moves on; it is never queued.
+ *
+ * @param {number} meetingId - The camp being prepared
+ * @param {{source_meeting_id: number, parts: string[]}} data - What to copy, and from where
+ * @returns {Promise<Object>} API response with what was copied
+ */
+export async function duplicateCamp(meetingId, data) {
   const response = await API.post(
-    `v1/yearly-planner/meetings/${meetingId}/schedule/copy-from/${sourceMeetingId}`,
-    {}
+    `v1/yearly-planner/meetings/${encodeURIComponent(meetingId)}/duplicate`,
+    data,
+    {},
+    { queueOffline: false }
   );
   await invalidatePlanner({ includeMeetingPrep: true });
   return response;

@@ -355,6 +355,20 @@ try {
       { key: 'socks', label_fr: 'Paires de bas', label_en: 'Pairs of socks', quantity: 3 }],
   });
 
+  // The autumn camp is held at a fictional site whose emergency information lacks the
+  // hospital's phone, so the site screens show both what is known and what is missing.
+  const { createSite, saveCampSite } = require(path.join(ROOT, 'services/campSites.js'));
+  const campSite = await createSite(pool, organizationId, adminId, {
+    name: 'Camp du Lac Fictif', owner_name: 'Fiducie scoute fictive', address: '1, chemin Fictif', province: 'QC',
+    phone: '555-0100', site_type: 'Terrain scout', accommodation: 'tent', heating: 'wood', has_own_insurance: true,
+    insurance_note: 'Les assurances du propriétaire couvrent nos activités.',
+    hospital_name: 'Hôpital fictif', hospital_address: '2, rue de l’Hôpital', hospital_travel_minutes: 45, hospital_distance_km: 42,
+    poison_centre_phone: '1-800-463-5060', directions_url: 'https://maps.example.test/camp',
+  });
+  await saveCampSite(pool, organizationId, adminId, campMeetingId, {
+    camp_site_id: campSite.id, season: 'autumn', accommodation: 'tent', on_site_lead_id: adminId, expected_version: 0,
+  });
+
   // A camp in ten days, recorded as an activity marked as a camp, with volunteer shifts:
   // cooks (one place still open), a driver (filled), and camp aides, whose place stays to
   // verify until a background check and training are recorded.
@@ -412,6 +426,7 @@ try {
     winterCampId,
     campLotId: campLot.id,
     campLotArticleId: tentArticle.id,
+    campSiteId: campSite.id,
     adminId,
     messageId,
     incidentId,

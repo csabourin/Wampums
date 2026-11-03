@@ -20,6 +20,7 @@ import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { CAMP_LOTS } from '../../config/camp-lots.js';
 import { getCampReadiness, getActivityCampReadiness } from '../../api/api-camp-readiness.js';
 import { shiftName } from '../../utils/VolunteerTypeUtils.js';
+import { emergencyGapLabels } from '../camp-sites/siteLabels.js';
 import styles from '../../../css/camp-readiness.css?url';
 
 export const READINESS_LABELS = {
@@ -33,7 +34,7 @@ export const READINESS_LABELS = {
 
 /** Standings that still call for reserving, borrowing or buying; an article outside the inventory has neither. */
 const MATERIAL_TO_DO = ['available', 'missing', 'unavailable', 'not_in_inventory'];
-const SECTION_ORDER = ['permissions', 'material', 'lots', 'volunteers', 'tasks'];
+const SECTION_ORDER = ['site', 'permissions', 'material', 'lots', 'volunteers', 'tasks'];
 /** A consent deadline is an instant; its calendar date is its first YYYY-MM-DD characters. */
 const ISO_DATE_LENGTH = 10;
 
@@ -107,6 +108,12 @@ export class CampReadiness {
   leftIn(key) {
     const section = this.data.sections[key];
     const recorded = (rows) => rows.length > 0;
+    if (key === 'site') {
+      if (!section.site) { return { text: translate('camp_readiness_left_site_none'), attention: true }; }
+      return section.gaps.length
+        ? { attention: true, text: translate('camp_readiness_left_site_gaps').replace('{count}', this.count(section.gaps.length)) }
+        : { attention: false, text: translate('camp_readiness_left_site_done') };
+    }
     if (key === 'permissions') {
       if (!recorded(section)) { return { text: translate('camp_readiness_left_none'), attention: true }; }
       const total = (status) => section.filter((row) => row.status === status).reduce((sum, row) => sum + Number(row.count), 0);
@@ -198,6 +205,15 @@ export class CampReadiness {
     const meetingId = Number(camp.id);
     const slipsHref = `/permission-slips/${Number(camp.activity_id)}`;
     let body = '';
+    if (sections.site) {
+      const siteHref = `/camp-site/${meetingId}`;
+      const gaps = emergencyGapLabels(sections.site.gaps);
+      body += this.section('site', sections.site.site ? this.row({
+        title: sections.site.site.name, href: siteHref,
+        chip: translate(gaps.length ? 'camp_site_emergency_incomplete' : 'camp_site_emergency_complete'),
+        detail: gaps.length ? `${translate('camp_site_emergency_missing')} ${gaps.join(', ')}` : '',
+      }) : '', siteHref);
+    }
     if (sections.permissions) {
       body += this.section('permissions', sections.permissions.map((row) => this.row({
         title: this.status(row.status), href: slipsHref, detail: this.count(row.count), due: row.deadline,

@@ -17,9 +17,9 @@ import {
   updateMeetingDay,
   addMeetingActivity,
   updateMeetingActivity,
-  deleteMeetingActivity,
-  copyMeetingSchedule
+  deleteMeetingActivity
 } from '../../api/api-yearly-planner.js';
+import { CampDuplication } from './CampDuplication.js';
 
 /** Add minutes to an HH:MM time without crossing beyond one day. */
 function addMinutes(time, duration) {
@@ -61,6 +61,7 @@ export class CampSchedule extends BaseModule {
       body: `<div class="loading-spinner" role="status"><span class="sr-only">${escapeHTML(translate('loading'))}</span></div>`,
       footer: `
         ${hasOrganizationScope() && hasPermission('meetings.view') ? `<a class="button button--secondary" href="/camp-readiness/${Number(this.chip.meetingId)}">${escapeHTML(translate('camp_readiness_title'))}</a>` : ''}
+        ${hasPermission('meetings.view') ? `<a class="button button--secondary" href="/camp-site/${Number(this.chip.meetingId)}">${escapeHTML(translate('camp_site_open'))}</a>` : ''}
         ${hasPermission('camp_lots.view') ? `<a class="button button--secondary" href="/camp-lots/${Number(this.chip.meetingId)}">${translate('camp_lots_open')}</a>` : ''}
         ${hasPermission('personal_equipment.manage') ? `<a class="button button--secondary" href="/personal-equipment/${Number(this.chip.meetingId)}/manage">${escapeHTML(translate('personal_equipment_manage'))}</a>` : ''}
         <a class="button button--secondary" href="/camp-material/${Number(this.chip.meetingId)}">${escapeHTML(translate('camp_material_open'))}</a>
@@ -148,21 +149,10 @@ export class CampSchedule extends BaseModule {
           `).join('')}
         </div>
 
-        ${isEmpty && this.canManage && this.schedule.copy_sources?.length ? `
+        ${this.canManage && this.schedule.meeting_kind === 'camp' ? `
           <div class="yp-schedule__copy">
-            <label class="form-group">
-              <span>${escapeHTML(translate('yearly_planner_copy_previous_camp'))}</span>
-              <select id="yp-schedule-source">
-                ${this.schedule.copy_sources.map(source => `
-                  <option value="${source.id}">
-                    ${escapeHTML(source.theme || translate('yearly_planner_camp'))} —
-                    ${escapeHTML(formatDate(source.meeting_date, this.lang))} (${Number(source.span_days)} ${escapeHTML(translate('days'))})
-                  </option>
-                `).join('')}
-              </select>
-            </label>
-            <button type="button" class="button button--secondary" id="yp-schedule-copy">
-              ${escapeHTML(translate('copy'))}
+            <button type="button" class="button button--secondary" id="yp-schedule-duplicate">
+              ${escapeHTML(translate(isEmpty ? 'camp_duplicate_open' : 'camp_duplicate_open_more'))}
             </button>
           </div>
         ` : ''}
@@ -308,7 +298,7 @@ export class CampSchedule extends BaseModule {
     root.querySelectorAll('[data-delete-activity]').forEach(button => {
       button.addEventListener('click', () => this.removeActivity(parseInt(button.dataset.deleteActivity, 10)));
     });
-    root.querySelector('#yp-schedule-copy')?.addEventListener('click', () => this.copySchedule());
+    root.querySelector('#yp-schedule-duplicate')?.addEventListener('click', () => this.openDuplication());
   }
 
   async saveDay() {
@@ -461,19 +451,15 @@ export class CampSchedule extends BaseModule {
     }
   }
 
-  async copySchedule() {
-    const sourceId = parseInt(this.modal.overlay.querySelector('#yp-schedule-source')?.value, 10);
-    if (!sourceId) {
-      return;
-    }
-    try {
-      await copyMeetingSchedule(this.chip.meetingId, sourceId);
-      this.changed = true;
-      this.app.showMessage(translate('yearly_planner_schedule_copied'), 'success');
-      await this.reload();
-    } catch (err) {
-      debugError('Error copying camp schedule:', err);
-      this.app.showMessage(apiErrorMessage(err, 'yearly_planner_schedule_copy_error'), 'error');
-    }
+  /** Reuse an earlier camp's schedule, packing list, lots or tasks, then show the result here. */
+  openDuplication() {
+    new CampDuplication(this.app, {
+      meetingId: this.chip.meetingId,
+      lang: this.lang,
+      onDone: () => {
+        this.changed = true;
+        this.reload();
+      }
+    }).open();
   }
 }

@@ -142,6 +142,8 @@ const lazyModules = {
   CampReadiness: () => import('./modules/camp-readiness/CampReadiness.js').then(m => m.CampReadiness),
   Volunteers: () => import('./modules/volunteers/Volunteers.js').then(m => m.Volunteers),
   CampMaterialList: () => import('./modules/camp-material/CampMaterialList.js').then(m => m.CampMaterialList),
+  CampSites: () => import('./modules/camp-sites/CampSites.js').then(m => m.CampSites),
+  CampSite: () => import('./modules/camp-sites/CampSite.js').then(m => m.CampSite),
   ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
   AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink),
   ReactivationLink: () => import('./modules/reactivation/ReactivationLink.js').then(m => m.ReactivationLink),
@@ -266,6 +268,8 @@ const routes = {
   '/camp-readiness/:id': 'campReadiness',
   '/volunteers': 'volunteers',
   '/camp-material/:id': 'campMaterial',
+  '/camp-sites': 'campSites',
+  '/camp-site/:id': 'campSite',
   '/unit-settings': 'unitSettings',
   '/scout-year': 'scoutYear'
 
@@ -830,6 +834,22 @@ export class Router {
           if (!guard(canViewMeetings())) {break;}
           const CampMaterialList = await this.loadModule('CampMaterialList');
           this.currentModuleInstance = new CampMaterialList(this.app, { meetingId: Number(param) });
+          await this.currentModuleInstance.init();
+          break;
+        }
+        case 'campSites': {
+          // Listing sites takes meetings.view; editing them, camp_sites.manage.
+          if (!guard(hasPermission('meetings.view'))) {break;}
+          const CampSites = await this.loadModule('CampSites');
+          this.currentModuleInstance = new CampSites(this.app);
+          await this.currentModuleInstance.init();
+          break;
+        }
+        case 'campSite': {
+          // A camp's site is read with meetings.view, as its schedule is.
+          if (!guard(hasPermission('meetings.view'))) {break;}
+          const CampSite = await this.loadModule('CampSite');
+          this.currentModuleInstance = new CampSite(this.app, { meetingId: Number(param) });
           await this.currentModuleInstance.init();
           break;
         }
