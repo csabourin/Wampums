@@ -1,0 +1,901 @@
+{
+  "version": 1,
+  "about": "Reviewed bilingual starter menus. Generic food only: no people, contacts, brands or allergen claims. Allergens are declared by each unit from the products it buys (#1260).",
+  "MEALS": [
+    "breakfast",
+    "lunch",
+    "supper",
+    "snack"
+  ],
+  "CONTEXTS": [
+    "afternoon",
+    "hike"
+  ],
+  "COOK_SHIFT_TIMES": {
+    "breakfast": [
+      "07:00",
+      "09:30"
+    ],
+    "lunch": [
+      "11:00",
+      "13:30"
+    ],
+    "supper": [
+      "16:00",
+      "18:30"
+    ]
+  },
+  "templates": [
+    {
+      "key": "summer_week_7_nights",
+      "label_fr": "Camp d’été d’une semaine (7 nuits), arrivée en après-midi",
+      "label_en": "One-week summer camp (7 nights), afternoon arrival",
+      "season": "summer",
+      "nights": 7,
+      "meals": [
+        {
+          "day_offset": 0,
+          "meal": "supper",
+          "items": [
+            {
+              "key": "spaghetti_meat_sauce",
+              "label_fr": "Spaghetti sauce à la viande",
+              "label_en": "Spaghetti with meat sauce"
+            },
+            {
+              "key": "garlic_bread",
+              "label_fr": "Pain et beurre à l’ail",
+              "label_en": "Garlic bread"
+            },
+            {
+              "key": "romaine_salad",
+              "label_fr": "Salade romaine et vinaigrette",
+              "label_en": "Romaine salad with dressing"
+            },
+            {
+              "key": "juice_milk_water",
+              "label_fr": "Jus, lait et eau",
+              "label_en": "Juice, milk and water"
+            },
+            {
+              "key": "brownies",
+              "label_fr": "Brownies",
+              "label_en": "Brownies"
+            }
+          ]
+        },
+        {
+          "day_offset": 0,
+          "meal": "snack",
+          "items": [
+            {
+              "key": "cookies",
+              "label_fr": "Biscuits",
+              "label_en": "Cookies"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 1,
+          "meal": "breakfast",
+          "items": [
+            {
+              "key": "oatmeal",
+              "label_fr": "Gruau",
+              "label_en": "Oatmeal",
+              "note_fr": "Pour le groupe : 28 tasses de gruau, 30 tasses de lait et 12 tasses d’eau",
+              "note_en": "For the group: 28 cups of oats, 30 cups of milk and 12 cups of water"
+            },
+            {
+              "key": "toast",
+              "label_fr": "Rôties",
+              "label_en": "Toast",
+              "note_fr": "Environ 4 pains",
+              "note_en": "About 4 loaves"
+            },
+            {
+              "key": "cereal",
+              "label_fr": "Céréales",
+              "label_en": "Cereal"
+            },
+            {
+              "key": "syrup_chocolate_chips",
+              "label_fr": "Sirop et pépites de chocolat",
+              "label_en": "Syrup and chocolate chips"
+            },
+            {
+              "key": "jam_caramel",
+              "label_fr": "Confiture et caramel",
+              "label_en": "Jam and caramel spread"
+            },
+            {
+              "key": "milk_juice_water",
+              "label_fr": "Lait, jus et eau",
+              "label_en": "Milk, juice and water"
+            },
+            {
+              "key": "fruit",
+              "label_fr": "Fruits",
+              "label_en": "Fruit"
+            }
+          ]
+        },
+        {
+          "day_offset": 1,
+          "meal": "lunch",
+          "items": [
+            {
+              "key": "grilled_cheese",
+              "label_fr": "Grilled cheese",
+              "label_en": "Grilled cheese sandwiches"
+            },
+            {
+              "key": "gazpacho",
+              "label_fr": "Soupe froide style gaspacho",
+              "label_en": "Cold gazpacho-style soup"
+            },
+            {
+              "key": "caramel_pudding_cookies",
+              "label_fr": "Pouding au caramel et biscuits secs",
+              "label_en": "Caramel pudding with plain biscuits"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 1,
+          "meal": "snack",
+          "items": [
+            {
+              "key": "fruit",
+              "label_fr": "Fruits",
+              "label_en": "Fruit"
+            }
+          ],
+          "context": "afternoon"
+        },
+        {
+          "day_offset": 1,
+          "meal": "supper",
+          "items": [
+            {
+              "key": "chicken_fajitas",
+              "label_fr": "Fajitas au poulet",
+              "label_en": "Chicken fajitas"
+            },
+            {
+              "key": "nachos_salsa",
+              "label_fr": "Nachos et salsa",
+              "label_en": "Nachos and salsa"
+            },
+            {
+              "key": "romaine_salad",
+              "label_fr": "Salade romaine et vinaigrette",
+              "label_en": "Romaine salad with dressing"
+            },
+            {
+              "key": "pouding_chomeur",
+              "label_fr": "Pouding chômeur",
+              "label_en": "Pouding chômeur (maple syrup cake)"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 1,
+          "meal": "snack",
+          "items": [
+            {
+              "key": "muffins",
+              "label_fr": "Muffins",
+              "label_en": "Muffins"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 2,
+          "meal": "breakfast",
+          "items": [
+            {
+              "key": "french_toast",
+              "label_fr": "Pain doré",
+              "label_en": "French toast"
+            },
+            {
+              "key": "bacon",
+              "label_fr": "Bacon",
+              "label_en": "Bacon"
+            },
+            {
+              "key": "cereal",
+              "label_fr": "Céréales",
+              "label_en": "Cereal"
+            },
+            {
+              "key": "maple_syrup",
+              "label_fr": "Sirop d’érable",
+              "label_en": "Maple syrup"
+            },
+            {
+              "key": "citrus_bananas",
+              "label_fr": "Oranges, pamplemousses et bananes",
+              "label_en": "Oranges, grapefruit and bananas"
+            },
+            {
+              "key": "juice_milk_water",
+              "label_fr": "Jus, lait et eau",
+              "label_en": "Juice, milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 2,
+          "meal": "lunch",
+          "items": [
+            {
+              "key": "hamburgers",
+              "label_fr": "Hamburgers",
+              "label_en": "Hamburgers"
+            },
+            {
+              "key": "condiments",
+              "label_fr": "Ketchup, relish et moutarde",
+              "label_en": "Ketchup, relish and mustard"
+            },
+            {
+              "key": "onions",
+              "label_fr": "Oignons crus et cuits",
+              "label_en": "Raw and cooked onions"
+            },
+            {
+              "key": "chips",
+              "label_fr": "Croustilles",
+              "label_en": "Chips"
+            },
+            {
+              "key": "cookies",
+              "label_fr": "Biscuits",
+              "label_en": "Cookies"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 2,
+          "meal": "snack",
+          "items": [
+            {
+              "key": "fruit",
+              "label_fr": "Fruits",
+              "label_en": "Fruit"
+            }
+          ],
+          "context": "afternoon"
+        },
+        {
+          "day_offset": 2,
+          "meal": "supper",
+          "items": [
+            {
+              "key": "pork_skewers",
+              "label_fr": "Brochettes de porc",
+              "label_en": "Pork skewers"
+            },
+            {
+              "key": "vegetable_rice",
+              "label_fr": "Riz aux légumes",
+              "label_en": "Vegetable rice"
+            },
+            {
+              "key": "greek_salad",
+              "label_fr": "Salade grecque (tomates, concombres, oignons) et vinaigrette grecque",
+              "label_en": "Greek salad (tomatoes, cucumbers, onions) with Greek dressing"
+            },
+            {
+              "key": "carrot_cake",
+              "label_fr": "Gâteau aux carottes avec glaçage",
+              "label_en": "Carrot cake with icing"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 2,
+          "meal": "snack",
+          "items": [
+            {
+              "key": "muffins",
+              "label_fr": "Muffins",
+              "label_en": "Muffins"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 3,
+          "meal": "breakfast",
+          "items": [
+            {
+              "key": "english_muffin_ham_cheese",
+              "label_fr": "Muffins anglais jambon et fromage",
+              "label_en": "English muffins with ham and cheese"
+            },
+            {
+              "key": "cereal",
+              "label_fr": "Céréales",
+              "label_en": "Cereal"
+            },
+            {
+              "key": "fruit_mix",
+              "label_fr": "Fruits (oranges, raisins, bananes)",
+              "label_en": "Fruit (oranges, grapes, bananas)"
+            },
+            {
+              "key": "milk_juice",
+              "label_fr": "Lait et jus",
+              "label_en": "Milk and juice"
+            }
+          ]
+        },
+        {
+          "day_offset": 3,
+          "meal": "lunch",
+          "items": [
+            {
+              "key": "hot_dogs",
+              "label_fr": "Hot-dogs",
+              "label_en": "Hot dogs"
+            },
+            {
+              "key": "cheese_sticks",
+              "label_fr": "Bâtonnets de fromage",
+              "label_en": "Cheese sticks"
+            },
+            {
+              "key": "crudites",
+              "label_fr": "Crudités (carottes, céleri)",
+              "label_en": "Raw vegetables (carrots, celery)"
+            },
+            {
+              "key": "juice_boxes",
+              "label_fr": "Jus individuels",
+              "label_en": "Juice boxes"
+            },
+            {
+              "key": "granola_apples",
+              "label_fr": "Barres granola et pommes",
+              "label_en": "Granola bars and apples"
+            }
+          ],
+          "context": "hike"
+        },
+        {
+          "day_offset": 3,
+          "meal": "snack",
+          "items": [
+            {
+              "key": "fruit",
+              "label_fr": "Fruits",
+              "label_en": "Fruit"
+            },
+            {
+              "key": "ice_pops",
+              "label_fr": "Glaces aux fruits",
+              "label_en": "Fruit ice pops",
+              "note_fr": "Coupées en deux : une demie par jeune",
+              "note_en": "Cut in half: one half per youth"
+            }
+          ],
+          "context": "afternoon"
+        },
+        {
+          "day_offset": 3,
+          "meal": "supper",
+          "items": [
+            {
+              "key": "lasagna",
+              "label_fr": "Lasagne",
+              "label_en": "Lasagna"
+            },
+            {
+              "key": "caesar_salad",
+              "label_fr": "Salade César",
+              "label_en": "Caesar salad"
+            },
+            {
+              "key": "garlic_rolls",
+              "label_fr": "Petits pains à l’ail",
+              "label_en": "Garlic rolls"
+            },
+            {
+              "key": "chocolate_cake",
+              "label_fr": "Gâteau au chocolat et glaçage",
+              "label_en": "Chocolate cake with icing"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 3,
+          "meal": "snack",
+          "items": [
+            {
+              "key": "muffins",
+              "label_fr": "Muffins",
+              "label_en": "Muffins"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 4,
+          "meal": "breakfast",
+          "items": [
+            {
+              "key": "oatmeal",
+              "label_fr": "Gruau",
+              "label_en": "Oatmeal"
+            },
+            {
+              "key": "cereal",
+              "label_fr": "Céréales",
+              "label_en": "Cereal"
+            },
+            {
+              "key": "toast",
+              "label_fr": "Rôties",
+              "label_en": "Toast"
+            },
+            {
+              "key": "jam_caramel",
+              "label_fr": "Confiture et caramel",
+              "label_en": "Jam and caramel spread"
+            },
+            {
+              "key": "citrus_bananas",
+              "label_fr": "Oranges, bananes et pamplemousses",
+              "label_en": "Oranges, bananas and grapefruit"
+            }
+          ]
+        },
+        {
+          "day_offset": 4,
+          "meal": "lunch",
+          "items": [
+            {
+              "key": "beef_tacos",
+              "label_fr": "Tacos au bœuf",
+              "label_en": "Beef tacos"
+            },
+            {
+              "key": "salsa_cheese",
+              "label_fr": "Salsa et fromage",
+              "label_en": "Salsa and cheese"
+            },
+            {
+              "key": "green_salad",
+              "label_fr": "Salade verte",
+              "label_en": "Green salad"
+            },
+            {
+              "key": "crudites",
+              "label_fr": "Crudités (carottes, céleri, tomates)",
+              "label_en": "Raw vegetables (carrots, celery, tomatoes)"
+            },
+            {
+              "key": "puffed_rice_squares",
+              "label_fr": "Carrés au riz soufflé",
+              "label_en": "Puffed rice squares"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 4,
+          "meal": "snack",
+          "items": [
+            {
+              "key": "fruit",
+              "label_fr": "Fruits",
+              "label_en": "Fruit"
+            }
+          ],
+          "context": "afternoon"
+        },
+        {
+          "day_offset": 4,
+          "meal": "supper",
+          "items": [
+            {
+              "key": "pulled_pork",
+              "label_fr": "Effiloché de porc sur pain à hamburger",
+              "label_en": "Pulled pork on buns"
+            },
+            {
+              "key": "coleslaw",
+              "label_fr": "Salade de chou",
+              "label_en": "Coleslaw"
+            },
+            {
+              "key": "fries",
+              "label_fr": "Frites",
+              "label_en": "Fries"
+            },
+            {
+              "key": "apple_crisp",
+              "label_fr": "Croustade aux pommes",
+              "label_en": "Apple crisp"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 4,
+          "meal": "snack",
+          "items": [
+            {
+              "key": "muffins",
+              "label_fr": "Muffins",
+              "label_en": "Muffins"
+            },
+            {
+              "key": "juice_water",
+              "label_fr": "Jus et eau",
+              "label_en": "Juice and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 5,
+          "meal": "breakfast",
+          "items": [
+            {
+              "key": "ham",
+              "label_fr": "Jambon",
+              "label_en": "Ham"
+            },
+            {
+              "key": "cretons",
+              "label_fr": "Cretons",
+              "label_en": "Cretons (pork spread)"
+            },
+            {
+              "key": "baked_beans",
+              "label_fr": "Fèves au lard",
+              "label_en": "Baked beans"
+            },
+            {
+              "key": "hash_browns",
+              "label_fr": "Patates rissolées",
+              "label_en": "Hash browns",
+              "note_fr": "Environ 20 lb pour le groupe",
+              "note_en": "About 20 lb for the group"
+            },
+            {
+              "key": "toast",
+              "label_fr": "Rôties",
+              "label_en": "Toast"
+            },
+            {
+              "key": "jam_caramel",
+              "label_fr": "Confiture et caramel",
+              "label_en": "Jam and caramel spread"
+            },
+            {
+              "key": "juice_water",
+              "label_fr": "Jus et eau",
+              "label_en": "Juice and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 5,
+          "meal": "lunch",
+          "items": [
+            {
+              "key": "pate_chinois",
+              "label_fr": "Pâté chinois",
+              "label_en": "Pâté chinois (shepherd’s pie)"
+            },
+            {
+              "key": "garden_salad",
+              "label_fr": "Salade jardinière",
+              "label_en": "Garden salad"
+            },
+            {
+              "key": "rolls",
+              "label_fr": "Petits pains",
+              "label_en": "Dinner rolls"
+            },
+            {
+              "key": "fruit_salad",
+              "label_fr": "Salade de fruits",
+              "label_en": "Fruit salad"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 5,
+          "meal": "supper",
+          "items": [
+            {
+              "key": "italian_sausages",
+              "label_fr": "Saucisses italiennes",
+              "label_en": "Italian sausages"
+            },
+            {
+              "key": "rice_pilaf",
+              "label_fr": "Riz pilaf",
+              "label_en": "Rice pilaf"
+            },
+            {
+              "key": "green_salad",
+              "label_fr": "Salade verte",
+              "label_en": "Green salad"
+            },
+            {
+              "key": "surprise_cake",
+              "label_fr": "Gâteau surprise",
+              "label_en": "Surprise cake"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 5,
+          "meal": "snack",
+          "items": [
+            {
+              "key": "cookies",
+              "label_fr": "Biscuits",
+              "label_en": "Cookies"
+            },
+            {
+              "key": "juice_water",
+              "label_fr": "Jus et eau",
+              "label_en": "Juice and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 6,
+          "meal": "breakfast",
+          "items": [
+            {
+              "key": "crepes",
+              "label_fr": "Crêpes",
+              "label_en": "Crêpes"
+            },
+            {
+              "key": "breakfast_sausages",
+              "label_fr": "Saucisses à déjeuner",
+              "label_en": "Breakfast sausages"
+            },
+            {
+              "key": "maple_syrup",
+              "label_fr": "Sirop d’érable",
+              "label_en": "Maple syrup"
+            },
+            {
+              "key": "chocolate_sauce",
+              "label_fr": "Coulis au chocolat",
+              "label_en": "Chocolate sauce"
+            },
+            {
+              "key": "cereal",
+              "label_fr": "Céréales",
+              "label_en": "Cereal"
+            },
+            {
+              "key": "fruit_mix",
+              "label_fr": "Fruits (bananes, oranges, raisins)",
+              "label_en": "Fruit (bananas, oranges, grapes)"
+            },
+            {
+              "key": "juice_milk_water",
+              "label_fr": "Jus, lait et eau",
+              "label_en": "Juice, milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 6,
+          "meal": "lunch",
+          "items": [
+            {
+              "key": "ground_beef_poutine",
+              "label_fr": "Poutine au bœuf haché",
+              "label_en": "Poutine with ground beef"
+            },
+            {
+              "key": "crudites",
+              "label_fr": "Crudités (carottes, céleri, poivrons)",
+              "label_en": "Raw vegetables (carrots, celery, peppers)"
+            },
+            {
+              "key": "pets_de_soeur",
+              "label_fr": "Pets de sœur",
+              "label_en": "Pets de sœur (cinnamon pastry rolls)"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 6,
+          "meal": "snack",
+          "items": [
+            {
+              "key": "fruit",
+              "label_fr": "Fruits",
+              "label_en": "Fruit"
+            }
+          ],
+          "context": "afternoon"
+        },
+        {
+          "day_offset": 6,
+          "meal": "supper",
+          "items": [
+            {
+              "key": "bbq_chicken",
+              "label_fr": "Poitrines de poulet sauce barbecue",
+              "label_en": "Barbecue chicken breasts"
+            },
+            {
+              "key": "baked_potatoes",
+              "label_fr": "Pommes de terre au four",
+              "label_en": "Baked potatoes"
+            },
+            {
+              "key": "rolls",
+              "label_fr": "Petits pains",
+              "label_en": "Dinner rolls"
+            },
+            {
+              "key": "mixed_vegetables",
+              "label_fr": "Macédoine",
+              "label_en": "Mixed vegetables"
+            },
+            {
+              "key": "date_squares",
+              "label_fr": "Carrés aux dattes",
+              "label_en": "Date squares"
+            },
+            {
+              "key": "milk_water",
+              "label_fr": "Lait et eau",
+              "label_en": "Milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 6,
+          "meal": "snack",
+          "items": [
+            {
+              "key": "cookies",
+              "label_fr": "Biscuits",
+              "label_en": "Cookies"
+            },
+            {
+              "key": "juice",
+              "label_fr": "Jus",
+              "label_en": "Juice"
+            }
+          ]
+        },
+        {
+          "day_offset": 7,
+          "meal": "breakfast",
+          "items": [
+            {
+              "key": "fruit_salad",
+              "label_fr": "Salade de fruits",
+              "label_en": "Fruit salad"
+            },
+            {
+              "key": "muffins",
+              "label_fr": "Muffins",
+              "label_en": "Muffins"
+            },
+            {
+              "key": "yogurt_cups",
+              "label_fr": "Yogourts individuels",
+              "label_en": "Individual yogurts"
+            },
+            {
+              "key": "juice_milk_water",
+              "label_fr": "Jus, lait et eau",
+              "label_en": "Juice, milk and water"
+            }
+          ]
+        },
+        {
+          "day_offset": 7,
+          "meal": "lunch",
+          "items": [
+            {
+              "key": "leftover_wraps",
+              "label_fr": "Wraps aux restes de viande (poulet, jambon, porc)",
+              "label_en": "Wraps with leftover meat (chicken, ham, pork)"
+            },
+            {
+              "key": "chips",
+              "label_fr": "Croustilles",
+              "label_en": "Chips"
+            },
+            {
+              "key": "leftover_desserts",
+              "label_fr": "Restes de desserts",
+              "label_en": "Leftover desserts"
+            },
+            {
+              "key": "milk_juice_water",
+              "label_fr": "Lait, jus et eau",
+              "label_en": "Milk, juice and water"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
