@@ -12,7 +12,7 @@ const { randomUUID } = require('crypto');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, userHasPermission } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { check } = require('express-validator');
-const { checkValidation, validateIdParam } = require('../middleware/validation');
+const { checkValidation, validateIdParam, validateIdBody } = require('../middleware/validation');
 const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 const {
@@ -25,11 +25,20 @@ const {
   isMaterialItems,
   readMaterialItems,
   replaceActivityMaterialItems,
-  withMaterialItems,
-  copyActivityMaterialItems
+  withMaterialItems
 } = require('../services/equipmentCatalog');
 const { buildCampMaterialList } = require('../services/campMaterialList');
 const { isTooLong } = require('../services/campDates');
+const {
+  CampDuplicationError,
+  readParts,
+  permissionsFor,
+  listDuplicationSources,
+  duplicateCamp,
+  scheduleItemCount,
+  copySchedule
+} = require('../services/campDuplication');
+const { TaskError } = require('../services/activityTasks');
 
 /**
  * Kinds of dated block on the planner calendar.
@@ -82,6 +91,8 @@ const materialItemsCheck = () => check('material_items').optional()
 
 /** Status for a starter selection the person must correct. */
 const HTTP_BAD_REQUEST = 400;
+const HTTP_CREATED = 201;
+const HTTP_CONFLICT = 409;
 const HTTP_NOT_FOUND = 404;
 /** PATCH /meetings/:id binds the meeting id and its unit before the updated fields. */
 const FIXED_MEETING_PARAMS = 2;
@@ -1698,14 +1709,14 @@ module.exports = (pool, logger) => {
         return error(res, 'Source or target meeting not found', HTTP_NOT_FOUND);
       }
       if (targetMeetingId === sourceMeetingId) {
-        return error(res, 'Source and target meetings must differ', 400);
+        return error(res, 'Source and target meetings must differ', HTTP_BAD_REQUEST);
       }
       if (Number(target.span_days) < Number(source.span_days)) {
         const droppedDays = Array.from(
           { length: Number(source.span_days) - Number(target.span_days) },
           (_, index) => Number(target.span_days) + index
         );
-        return error(res, 'Target schedule is shorter than the source', 409, [{
+        return error(res, 'Target schedule is shorter than the source', HTTP_CONFLICT, [{
           field: 'day_offset',
           dropped_days: droppedDays
         }]);
@@ -1714,72 +1725,80 @@ module.exports = (pool, logger) => {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
-        const occupied = await client.query(
-          `SELECT
-             (SELECT COUNT(*) FROM year_plan_meeting_days
-               WHERE meeting_id = $1 AND organization_id = $2)
-             +
-             (SELECT COUNT(*) FROM year_plan_meeting_activities
-               WHERE meeting_id = $1 AND organization_id = $2 AND day_offset > 0)
-             AS item_count`,
-          [targetMeetingId, organizationId]
-        );
-        if (Number(occupied.rows[0]?.item_count) > 0) {
+        if (await scheduleItemCount(client, organizationId, targetMeetingId) > 0) {
           await client.query('ROLLBACK');
-          return error(res, 'Target schedule is not empty', 409);
+          return error(res, 'Target schedule is not empty', HTTP_CONFLICT);
         }
-
-        const copiedDays = await client.query(
-          `INSERT INTO year_plan_meeting_days
-             (organization_id, meeting_id, day_offset, title, notes)
-           SELECT organization_id, $1, day_offset, title, notes
-             FROM year_plan_meeting_days
-            WHERE meeting_id = $2 AND organization_id = $3
-            ORDER BY day_offset
-           RETURNING *`,
-          [targetMeetingId, sourceMeetingId, organizationId]
-        );
-        // Ids are drawn first so each copy's catalogue articles follow it.
-        const pairs = await client.query(
-          `SELECT id AS source_id,
-                  nextval(pg_get_serial_sequence('public.year_plan_meeting_activities', 'id'))::integer AS target_id
-             FROM year_plan_meeting_activities
-            WHERE meeting_id = $1 AND organization_id = $2 AND day_offset > 0
-            ORDER BY day_offset, sort_order, id`,
-          [sourceMeetingId, organizationId]
-        );
-        const sourceIds = pairs.rows.map(pair => pair.source_id);
-        const targetIds = pairs.rows.map(pair => pair.target_id);
-        const copiedActivities = await client.query(
-          `INSERT INTO year_plan_meeting_activities
-             (id, organization_id, meeting_id, activity_library_id, name, description,
-              duration_minutes, sort_order, objective_ids, series_id, series_occurrence,
-              metadata, start_time, activity_type, responsable, material, is_default,
-              badge_template_id, processed, day_offset)
-           SELECT pair.target_id, a.organization_id, $1, a.activity_library_id, a.name, a.description,
-                  a.duration_minutes, a.sort_order, a.objective_ids, a.series_id, a.series_occurrence,
-                  a.metadata, a.start_time, a.activity_type, a.responsable, a.material, a.is_default,
-                  a.badge_template_id, a.processed, a.day_offset
-             FROM unnest($2::int[], $3::int[]) AS pair(source_id, target_id)
-             JOIN year_plan_meeting_activities a
-               ON a.id = pair.source_id AND a.organization_id = $4
-           RETURNING *`,
-          [targetMeetingId, sourceIds, targetIds, organizationId]
-        );
-        await copyActivityMaterialItems(client, organizationId, sourceIds, targetIds);
+        const copied = await copySchedule(client, organizationId, targetMeetingId, sourceMeetingId);
 
         await client.query('COMMIT');
         return success(res, {
           source_meeting_id: sourceMeetingId,
           target_meeting_id: targetMeetingId,
-          copied_days: copiedDays.rows.length,
-          copied_activities: copiedActivities.rows.length
-        }, 'Camp schedule copied', 201);
+          copied_days: copied.days,
+          copied_activities: copied.activities
+        }, 'Camp schedule copied', HTTP_CREATED);
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;
       } finally {
         client.release();
+      }
+    })
+  );
+
+  /**
+   * GET /v1/yearly-planner/meetings/:id/duplication
+   * The camp being prepared, what it already holds, and the earlier camps of
+   * the unit it could take its schedule, packing list, lots or tasks from.
+   */
+  router.get('/meetings/:id/duplication',
+    authenticate,
+    requirePermission('meetings.manage'),
+    validateIdParam('id'),
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      try {
+        return success(res, await listDuplicationSources(pool, organizationId, Number(req.params.id)));
+      } catch (err) {
+        if (err instanceof CampDuplicationError) {
+          return error(res, err.message, err.status, err.errors);
+        }
+        throw err;
+      }
+    })
+  );
+
+  /**
+   * POST /v1/yearly-planner/meetings/:id/duplicate
+   * Copy the chosen parts of an earlier camp, dates shifted, states reset.
+   * Each part takes the rights its own screen requires (campDuplication.PART_PERMISSIONS).
+   */
+  router.post('/meetings/:id/duplicate',
+    authenticate,
+    blockDemoRoles,
+    requirePermission((req) => permissionsFor(readParts(req.body?.parts) || [])),
+    validateIdParam('id'),
+    validateIdBody('source_meeting_id'),
+    check('parts').custom((value) => readParts(value) !== null),
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      try {
+        const result = await duplicateCamp(
+          pool,
+          { organizationId, actorId: req.user.id },
+          Number(req.params.id),
+          Number(req.body.source_meeting_id),
+          readParts(req.body.parts)
+        );
+        return success(res, result, 'Camp duplicated', HTTP_CREATED);
+      } catch (err) {
+        if (err instanceof CampDuplicationError || err instanceof TaskError) {
+          return error(res, err.message, err.status, err.errors);
+        }
+        throw err;
       }
     })
   );

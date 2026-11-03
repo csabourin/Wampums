@@ -55,7 +55,8 @@ jest.mock('../../spa/api/api-yearly-planner.js', () => ({
   addMeetingActivity: jest.fn(),
   updateMeetingActivity: jest.fn(),
   deleteMeetingActivity: jest.fn(),
-  copyMeetingSchedule: jest.fn(),
+  getCampDuplication: jest.fn(),
+  duplicateCamp: jest.fn(),
 }));
 
 const api = require('../../spa/api/api-yearly-planner.js');
@@ -100,6 +101,7 @@ function schedule() {
       },
       { day_offset: 1, date: '2026-11-07', title: '', notes: '', activities: [] },
     ],
+    meeting_kind: 'camp',
     copy_sources: [],
   };
 }
@@ -194,6 +196,33 @@ describe('reading the camp', () => {
     expect(dialog().querySelector('.yp-schedule-card img')).toBeNull();
     expect(dialog().querySelector('.yp-schedule-card b')).toBeNull();
     expect(dialog().querySelector('.yp-schedule-card strong').textContent).toBe('<img src=x onerror=alert(1)>');
+  });
+});
+
+describe('reusing an earlier camp', () => {
+  test('a manager opens the reuse dialog from the camp schedule; someone who may only look is not offered it', async () => {
+    api.getCampDuplication.mockResolvedValue({
+      success: true,
+      data: { target: { id: MEETING_ID, span_days: 2, counts: { schedule: 0, packing_list: 0, lots: 0, tasks: 0 } }, sources: [] },
+    });
+    await openSchedule();
+
+    dialog().querySelector('#yp-schedule-duplicate').click();
+    await flush();
+
+    expect(api.getCampDuplication).toHaveBeenCalledWith(MEETING_ID);
+    expect(document.querySelector('#yp-camp-duplicate .empty-state').textContent).toBe('camp_duplicate_empty');
+
+    closeAllModals();
+    await openSchedule(false);
+    expect(dialog().querySelector('#yp-schedule-duplicate')).toBeNull();
+  });
+
+  test('a weekend outing is not offered camp reuse', async () => {
+    api.getMeetingSchedule.mockResolvedValue({ success: true, data: { ...schedule(), meeting_kind: 'weekend' } });
+    await openSchedule();
+
+    expect(dialog().querySelector('#yp-schedule-duplicate')).toBeNull();
   });
 });
 

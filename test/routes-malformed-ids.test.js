@@ -69,6 +69,8 @@ const ROUTES = [
   ['get', '/api/v1/yearly-planner/plans/:id'],
   ['delete', '/api/v1/yearly-planner/meetings/:id'],
   ['post', '/api/v1/yearly-planner/meetings/:id/schedule/copy-from/1'],
+  ['get', '/api/v1/yearly-planner/meetings/:id/duplication'],
+  ['post', '/api/v1/yearly-planner/meetings/:id/duplicate'],
   ['get', '/api/v1/incidents/prefill/participant/:id'],
   ['get', '/api/v1/incidents/prefill/activity/:id'],
   ['patch', '/api/v1/incidents/escalation-contacts/:id'],

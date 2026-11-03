@@ -1,0 +1,10 @@
+{
+  "PARTS": ["schedule", "packing_list", "lots", "tasks"],
+  "PART_PERMISSIONS": {
+    "schedule": [],
+    "packing_list": ["personal_equipment.manage"],
+    "lots": ["camp_lots.view", "camp_lots.manage", "tasks.manage"],
+    "tasks": ["tasks.view", "tasks.manage"]
+  },
+  "BASE_PERMISSION": "meetings.manage"
+}

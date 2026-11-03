@@ -108,8 +108,9 @@ const DERIVED_RESOURCES = {
   // The handout lists what an activity reserved, and what is left to lend.
   resources: ['resources', 'activities', 'action-roster', 'equipment-loans', 'equipment-catalog'],
   'equipment-catalog': ['equipment-catalog', 'resources', 'meetings', 'yearly-planner'],
-  // A year-plan date's kind is its activity's camp mark (activities.is_camp).
-  'yearly-planner': ['yearly-planner', 'activities'],
+  // A year-plan date's kind is its activity's camp mark (activities.is_camp). Tasks name their
+  // date, and duplicating a camp creates its tasks.
+  'yearly-planner': ['yearly-planner', 'activities', 'tasks'],
   // What is out on loan is what the inventory shows as unavailable.
   'equipment-loans': ['equipment-loans', 'resources'],
   // The announcement composer lists the unit's roles.

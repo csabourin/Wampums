@@ -536,6 +536,18 @@ even with its screen closed; refusals clear only that camp's snapshots and annou
 `sync.rejected_kind_camp_lots`. See `devdocs/CAMP_EQUIPMENT_LOTS.md` and the real-PWA
 browser suite (`playwright.offline.config.mjs`).
 
+### Reusing an earlier camp
+
+The camp schedule offers "Reuse an earlier camp" (`services/campDuplication.js`,
+`POST /api/v1/yearly-planner/meetings/:id/duplicate`). It copies the parts chosen (schedule after
+day zero, personal packing list, equipment lots, the camp's own tasks) in one transaction, with the
+target camp locked; a part already filled in the target is refused, never merged. Dates shift by the
+gap between the two camps; lots return to `to_prepare`, tasks to `todo`, the packing list to an
+unpublished draft. Nothing personal is copied (registrations, authorizations, checks, progress,
+volunteer signups). Each part takes its own screen's rights (`config/camp_duplication.json`, shared
+with the SPA); a duty held by someone no longer active goes to the person copying. See
+`devdocs/CAMP_DUPLICATION.md`.
+
 ### Starter activities
 
 `config/activity_library_starter.json` is the reviewed bilingual catalogue; only
