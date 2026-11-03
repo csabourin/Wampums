@@ -82,7 +82,7 @@ async function campsWithContent(db, organizationId, ids = null) {
                 - m.meeting_date + 1
             )::integer AS span_days,
             ((SELECT COUNT(*) FROM year_plan_meeting_days d
-               WHERE d.meeting_id = m.id AND d.organization_id = m.organization_id)
+               WHERE d.meeting_id = m.id AND d.organization_id = m.organization_id AND d.day_offset > 0)
              + (SELECT COUNT(*) FROM year_plan_meeting_activities a
                WHERE a.meeting_id = m.id AND a.organization_id = m.organization_id AND a.day_offset > 0))::integer AS schedule,
             CASE WHEN EXISTS (SELECT 1 FROM personal_equipment_lists pl
@@ -154,14 +154,15 @@ function daysBetween(from, to) {
 }
 
 /**
- * How many headings and later-day lines a camp schedule holds. Day zero is
- * the meeting preparation's, and never copied.
+ * How many later-day headings and lines a camp schedule holds. The first day
+ * is not counted: its lines belong to meeting preparation, and a heading the
+ * team already gave it is kept (see copySchedule), so it never blocks a copy.
  */
 async function scheduleItemCount(db, organizationId, meetingId) {
   const occupied = await db.query(
     `SELECT
        (SELECT COUNT(*) FROM year_plan_meeting_days
-         WHERE meeting_id = $1 AND organization_id = $2)
+         WHERE meeting_id = $1 AND organization_id = $2 AND day_offset > 0)
        +
        (SELECT COUNT(*) FROM year_plan_meeting_activities
          WHERE meeting_id = $1 AND organization_id = $2 AND day_offset > 0)
@@ -173,7 +174,8 @@ async function scheduleItemCount(db, organizationId, meetingId) {
 
 /**
  * Copy a camp's day headings and later-day lines, with the catalogue articles
- * still active, inside the caller's transaction.
+ * still active, inside the caller's transaction. A heading the target already
+ * has (only possible on the first day) is kept rather than replaced.
  *
  * @returns {Promise<{days: number, activities: number}>}
  */
@@ -185,6 +187,7 @@ async function copySchedule(db, organizationId, targetMeetingId, sourceMeetingId
        FROM year_plan_meeting_days
       WHERE meeting_id = $2 AND organization_id = $3
       ORDER BY day_offset
+     ON CONFLICT (meeting_id, day_offset) DO NOTHING
      RETURNING *`,
     [targetMeetingId, sourceMeetingId, organizationId]
   );

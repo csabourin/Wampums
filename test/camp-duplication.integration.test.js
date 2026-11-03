@@ -212,6 +212,19 @@ describe.skipIf(!DATABASE_URL)('Reusing an earlier camp', () => {
     expect(await one('SELECT COUNT(*)::int FROM camp_equipment_lots WHERE meeting_id = $1', [target.meeting])).toBe(0);
   });
 
+  test('a first-day heading the team already wrote neither blocks the schedule nor is replaced', async () => {
+    await pool.query("INSERT INTO year_plan_meeting_days (organization_id, meeting_id, day_offset, title) VALUES ($1, $2, 0, 'Source arrival') ON CONFLICT DO NOTHING", [ids.unit, ids.source.meeting]);
+    const target = await camp(ids.unit, '2026-12-11', '2026-12-13');
+    await pool.query("INSERT INTO year_plan_meeting_days (organization_id, meeting_id, day_offset, title) VALUES ($1, $2, 0, 'Our arrival')", [ids.unit, target.meeting]);
+
+    const response = await duplicate(target.meeting, { source_meeting_id: ids.source.meeting, parts: ['schedule'] });
+
+    expect(response.status).toBe(201);
+    expect(await rows('SELECT day_offset, title FROM year_plan_meeting_days WHERE meeting_id = $1 ORDER BY day_offset', [target.meeting]))
+      .toEqual([{ day_offset: 0, title: 'Our arrival' }, { day_offset: 1, title: 'Hike day' }]);
+    await pool.query('DELETE FROM year_plan_meeting_days WHERE meeting_id = $1 AND day_offset = 0', [ids.source.meeting]);
+  });
+
   test('two leaders copying into the same camp at once produce one copy', async () => {
     const target = await camp(ids.unit, '2027-01-08', '2027-01-10');
     const body = { source_meeting_id: ids.source.meeting, parts: ['schedule', 'lots'] };
