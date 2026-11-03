@@ -381,11 +381,35 @@ try {
      RETURNING id`,
     [organizationId, adminId]
   );
-  const cookShiftId = await one(
-    `INSERT INTO volunteer_shifts (organization_id, activity_id, volunteer_type, title, shift_date, start_time, end_time, slots, notes, created_by)
-     VALUES ($1, $2, 'cook', 'Souper', CURRENT_DATE + 11, '16:30', '19:00', 2, 'Tablier fourni', $3) RETURNING id`,
-    [organizationId, winterCampId, adminId]
-  );
+  // One cook shift per meal, with that meal's menu in its notes: how a unit records its cooks'
+  // schedule and menu today (devdocs/CAMP_MENUS.md). The menus are the first days of the
+  // reviewed starter week (config/camp_menu_starter.json).
+  const menus = require(path.join(ROOT, 'config/camp_menu_starter.json'));
+  const week = menus.templates[0];
+  const MEAL_TITLES = { breakfast: 'Déjeuner', lunch: 'Dîner', supper: 'Souper' };
+  const menuLine = (meal) => meal.items.map((item) => (item.note_fr ? `${item.label_fr} — ${item.note_fr}` : item.label_fr)).join(' · ');
+  // The winter camp arrives for supper and leaves after lunch two days later.
+  const LAST_DAY = 2;
+  const cookShifts = {};
+  for (let day = 0; day <= LAST_DAY; day += 1) {
+    for (const meal of week.meals.filter((entry) => entry.day_offset === day && MEAL_TITLES[entry.meal]
+      && !(day === LAST_DAY && entry.meal === 'supper'))) {
+      // The snack after a meal is prepared by the same cooks: afternoon with lunch, evening with supper.
+      const snack = week.meals.find((entry) => entry.day_offset === day && entry.meal === 'snack'
+        && (entry.context === 'afternoon') === (meal.meal === 'lunch'));
+      const notes = [`Menu : ${menuLine(meal)}`, snack && meal.meal !== 'breakfast' ? `Collation : ${menuLine(snack)}` : '']
+        .filter(Boolean).join('\n');
+      const [start, end] = menus.COOK_SHIFT_TIMES[meal.meal];
+      // eslint-disable-next-line no-await-in-loop -- a handful of demo rows, inserted in meal order
+      cookShifts[`${day}:${meal.meal}`] = await one(
+        `INSERT INTO volunteer_shifts (organization_id, activity_id, volunteer_type, title, shift_date, start_time, end_time, slots, notes, created_by)
+         VALUES ($1, $2, 'cook', $3, CURRENT_DATE + 10 + $4::int, $5, $6, 2, $7, $8) RETURNING id`,
+        [organizationId, winterCampId, MEAL_TITLES[meal.meal], day, start, end, notes, adminId]
+      );
+    }
+  }
+  // The admin cooks the first full day's supper; its second place stays open.
+  const cookShiftId = cookShifts['1:supper'];
   const driverShiftId = await one(
     `INSERT INTO volunteer_shifts (organization_id, activity_id, volunteer_type, title, shift_date, start_time, end_time, slots, created_by)
      VALUES ($1, $2, 'driver', 'Aller', CURRENT_DATE + 10, '17:30', '18:30', 1, $3) RETURNING id`,
