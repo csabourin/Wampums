@@ -248,6 +248,41 @@ describe('choosing for this camp', () => {
     expect($('#camp-site-choice').value).toBe('7');
   });
 
+  test('adding a site keeps the camp choices not yet saved', async () => {
+    api.createCampSite.mockResolvedValue({ success: true, data: { id: 7, name: 'Fictional New Site' } });
+    await open();
+    api.getCampSites.mockResolvedValue({ success: true, data: [SITE, { id: 7, name: 'Fictional New Site', archived: false }] });
+    $('#camp-site-season').value = 'winter';
+    $('#camp-site-stay').value = 'cabin';
+    $('#camp-site-contact').value = '555-0188';
+    $('#camp-site-add').click();
+    document.querySelector('[name="site_name"]').value = 'Fictional New Site';
+    document.querySelector('button[form="camp-site-form"]').click();
+    await flush();
+    await flush();
+    expect($('#camp-site-choice').value).toBe('7');
+    expect($('#camp-site-season').value).toBe('winter');
+    expect($('#camp-site-stay').value).toBe('cabin');
+    expect($('#camp-site-contact').value).toBe('555-0188');
+    expect(api.saveCampSite).not.toHaveBeenCalled();
+  });
+
+  test('editing the site keeps the camp choices not yet saved', async () => {
+    api.updateCampSite.mockResolvedValue({ success: true, data: SITE });
+    await open();
+    $('#camp-site-season').value = 'spring';
+    $('#camp-site-edit').click();
+    // The fixture's unsafe link would be refused by the form; this test is about the reload.
+    document.querySelector('[name="site_hospital_directions_url"]').value = '';
+    document.querySelector('button[form="camp-site-form"]').click();
+    await flush();
+    await flush();
+    expect(api.updateCampSite).toHaveBeenCalledTimes(1);
+    expect(api.getCampSite).toHaveBeenCalledTimes(2);
+    expect($('#camp-site-season').value).toBe('spring');
+    expect($('#camp-site-choice').value).toBe('4');
+  });
+
   test('without site management, no site can be added or edited from here', async () => {
     hasPermission.mockImplementation((key) => key !== 'camp_sites.manage');
     await open();

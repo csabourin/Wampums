@@ -36,6 +36,7 @@ export class CampSite {
     this.app = app;
     this.meetingId = Number(meetingId);
     this.data = null;
+    this.draft = null;
     this.sites = [];
     this.canManage = hasPermission('meetings.manage') && !isDemoUser();
     this.canManageSites = hasPermission('camp_sites.manage') && !isDemoUser();
@@ -111,7 +112,9 @@ export class CampSite {
 
   /** @returns {string} The choices a manager makes for this camp */
   formMarkup(selectSiteId) {
-    const details = this.data.details || {};
+    // Choices not yet saved, kept while a site dialog saved and the screen reloaded.
+    const details = { ...(this.data.details || {}), ...(this.draft || {}) };
+    this.draft = null;
     const chosen = selectSiteId ?? details.camp_site_id ?? null;
     const sites = [...this.sites];
     if (this.data.site && !sites.some((site) => site.id === this.data.site.id)) {
@@ -260,10 +263,10 @@ export class CampSite {
   wire() {
     const root = this.root();
     root.querySelector('#camp-site-add')?.addEventListener('click', () => {
-      openSiteForm(this.app, { onSaved: (site) => this.init({ selectSiteId: site?.id ?? null }) });
+      openSiteForm(this.app, { onSaved: (site) => this.reloadKeepingDraft({ selectSiteId: site?.id ?? null }) });
     });
     root.querySelector('#camp-site-edit')?.addEventListener('click', () => {
-      openSiteForm(this.app, { site: this.data.site, onSaved: () => this.init() });
+      openSiteForm(this.app, { site: this.data.site, onSaved: () => this.reloadKeepingDraft() });
     });
     const form = root.querySelector(`#${FORM_ID}`);
     if (!form) {
@@ -275,6 +278,34 @@ export class CampSite {
       event.preventDefault();
       withFormBusy(form, () => this.save(form));
     });
+  }
+
+  /**
+   * What the camp form holds now, saved or not.
+   * @returns {Object|null} The form's choices, or null without a form
+   */
+  readDraft() {
+    const form = this.root().querySelector(`#${FORM_ID}`);
+    if (!form) {
+      return null;
+    }
+    const value = (id) => form.querySelector(`#${id}`)?.value.trim() || '';
+    return {
+      camp_site_id: value('camp-site-choice') ? Number(value('camp-site-choice')) : null,
+      season: value('camp-site-season') || null,
+      accommodation: value('camp-site-stay') || null,
+      on_site_lead_id: value('camp-site-lead') || null,
+      contact_phone: value('camp-site-contact') || null,
+    };
+  }
+
+  /**
+   * Reload after a site was saved in its dialog, keeping the camp choices not yet saved.
+   * @param {{selectSiteId?: number|null}} [options] - A site just added, to select
+   */
+  reloadKeepingDraft(options = {}) {
+    this.draft = this.readDraft();
+    return this.init(options);
   }
 
   /** Clear the message tied to a field as soon as it changes. */
