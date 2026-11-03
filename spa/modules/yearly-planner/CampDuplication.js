@@ -1,6 +1,6 @@
 /**
- * Reuse an earlier camp: pick it, tick what to bring over (schedule, personal
- * packing list, equipment lots, tasks), and see what was copied. Dates follow
+ * Reuse an earlier camp: pick it, tick what to bring over (site, schedule,
+ * personal packing list, equipment lots, tasks), and see what was copied. Dates follow
  * the new camp; nothing that belonged to the earlier stay or to a person comes
  * along (#1256). Each part is offered only when it can be copied, and says why
  * when it cannot.
@@ -276,6 +276,9 @@ export class CampDuplication {
     }
     const copied = result.copied || {};
     const lines = [];
+    if ('site' in copied) {
+      lines.push(translate(copied.site ? 'camp_duplicate_result_site' : 'camp_duplicate_result_site_none'));
+    }
     if ('schedule_activities' in copied) {
       lines.push(fill('camp_duplicate_result_schedule', {
         count: Number(copied.schedule_activities) || 0,
@@ -302,6 +305,7 @@ export class CampDuplication {
           <p>${escapeHTML(translate('camp_duplicate_lots_skipped'))}</p>
           <ul>${skipped.map((name) => `<li>${escapeHTML(name)}</li>`).join('')}</ul>
         </div>` : ''}
+      ${result.site_unavailable ? `<p class="status-message warning">${escapeHTML(translate('camp_duplicate_site_archived'))}</p>` : ''}
       ${reassigned ? `<p class="status-message warning">${escapeHTML(fill('camp_duplicate_reassigned', { count: reassigned }))}</p>` : ''}
     `);
     this.setFooter(`<button type="button" class="button button--primary" data-modal-close>${escapeHTML(translate('close'))}</button>`);

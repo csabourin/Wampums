@@ -313,6 +313,16 @@ export const DASHBOARD_TILES = [
     gate: { any: ['inventory.view', 'inventory.manage', 'inventory.reserve', 'inventory.value'] },
   },
   {
+    featureKey: 'camp_sites',
+    href: '/camp-sites',
+    icon: 'fa-map-location-dot',
+    label: 'tile_camp_sites',
+    aliases: 'tile_camp_sites_aliases',
+    moment: 'tools',
+    domain: 'logistics',
+    gate: { permission: 'meetings.view' },
+  },
+  {
     featureKey: 'equipment_loans',
     href: '/equipment-loans',
     icon: 'fa-people-carry-box',

@@ -24,6 +24,7 @@ import {
 } from '../../api/api-personal-equipment.js';
 import { personalEquipmentTemplate, itemCategory, groupByCategory, PERSONAL_EQUIPMENT } from './templates.js';
 import { packingKey, readPacking, writePacking, bulkPackingLines, bulkPackingItems } from './packingStorage.js';
+import siteRules from '../../../config/camp_sites.json';
 import styles from '../../../css/personal-equipment.css?url';
 
 export const PERSONAL_LABELS = {
@@ -146,10 +147,12 @@ export class PersonalEquipment {
   prepare() {
     this.translations = new Map(Object.entries(this.data.translations || {}));
     const nights = Math.max(0, Math.min(PERSONAL_EQUIPMENT.MAX_NIGHTS, this.data.camp.nights ?? PERSONAL_EQUIPMENT.DEFAULT_NIGHTS));
-    const stay = nights === 0 ? 'day' : 'tent';
+    // A new list starts from what the camp records about where it is held (#1317).
+    const stay = nights === 0 ? 'day' : (siteRules.PACKING_STAY[this.data.camp.camp_accommodation] || 'tent');
+    const season = siteRules.PACKING_SEASON[this.data.camp.camp_season] || 'shoulder';
     this.draft = this.data.list || {
-      season: 'shoulder', nights, stay_type: stay, notes_fr: '', notes_en: '', published: false, version: 0,
-      items: personalEquipmentTemplate('shoulder', nights, stay),
+      season, nights, stay_type: stay, notes_fr: '', notes_en: '', published: false, version: 0,
+      items: personalEquipmentTemplate(season, nights, stay),
     };
     this.sourceLocale ||= this.draft.items.some((item) => item.label_fr.trim()) ? 'fr' : 'en';
     this.dirty = false;

@@ -317,6 +317,15 @@ describe('editing items in compact rows', () => {
     expect(document.querySelector('.packing-context').open).toBe(true);
     screen.destroy();
   });
+  test('a new list starts from the season and accommodation the camp records', async () => {
+    const data = fixture(); data.list = null;
+    data.camp = { ...data.camp, nights: 3, camp_season: 'winter', camp_accommodation: 'cabin' };
+    api.getPersonalEquipment.mockResolvedValue({ data });
+    const screen = await editor();
+    expect(document.querySelector('[name="personal_season"]').value).toBe('winter');
+    expect(document.querySelector('[name="personal_stay"]').value).toBe('cabin');
+    screen.destroy();
+  });
 });
 
 describe('a family packing for several children', () => {

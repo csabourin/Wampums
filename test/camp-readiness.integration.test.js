@@ -28,7 +28,7 @@ describe.skipIf(!DATABASE_URL)('Camp preparation isolation', () => {
   });
   test('only enabled sections are returned and tasks include the planned camp and linked outing', async () => {
     const limited = await campReadiness(db, unit, camp, {});
-    expect(Object.keys(limited.sections)).toEqual(['material']);
+    expect(Object.keys(limited.sections).sort()).toEqual(['material', 'site']);
     const all = await campReadiness(db, unit, camp, { lots: true, tasks: true, permissions: true });
     expect(all.sections.tasks.map((task) => task.title).sort()).toEqual(['Check the route', 'Pack the tent']);
     expect(all.sections.permissions).toEqual([]); expect(all.sections.lots).toEqual([]);

@@ -61,6 +61,7 @@ export class CampSchedule extends BaseModule {
       body: `<div class="loading-spinner" role="status"><span class="sr-only">${escapeHTML(translate('loading'))}</span></div>`,
       footer: `
         ${hasOrganizationScope() && hasPermission('meetings.view') ? `<a class="button button--secondary" href="/camp-readiness/${Number(this.chip.meetingId)}">${escapeHTML(translate('camp_readiness_title'))}</a>` : ''}
+        ${hasPermission('meetings.view') ? `<a class="button button--secondary" href="/camp-site/${Number(this.chip.meetingId)}">${escapeHTML(translate('camp_site_open'))}</a>` : ''}
         ${hasPermission('camp_lots.view') ? `<a class="button button--secondary" href="/camp-lots/${Number(this.chip.meetingId)}">${translate('camp_lots_open')}</a>` : ''}
         ${hasPermission('personal_equipment.manage') ? `<a class="button button--secondary" href="/personal-equipment/${Number(this.chip.meetingId)}/manage">${escapeHTML(translate('personal_equipment_manage'))}</a>` : ''}
         <a class="button button--secondary" href="/camp-material/${Number(this.chip.meetingId)}">${escapeHTML(translate('camp_material_open'))}</a>

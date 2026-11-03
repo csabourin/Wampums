@@ -86,6 +86,8 @@ const STABLE_PATHS = [
  */
 const DERIVED_RESOURCES = {
   'camp-equipment-lots': ['camp-equipment-lots', 'tasks'],
+  // A camp's site and season appear in its overview and start its packing list.
+  'camp-sites': ['camp-sites', 'camp-readiness', 'personal-equipment'],
   points: ['points', 'groups', 'participants', 'honors', 'reports', 'dashboards'],
   attendance: ['attendance', 'points', 'honors', 'action-roster', 'participants', 'meetings', 'reports', 'dashboards'],
   honors: ['honors', 'points', 'participants', 'reports', 'dashboards'],

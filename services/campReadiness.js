@@ -2,6 +2,7 @@
 const { buildCampMaterialList } = require('./campMaterialList');
 const { listLots } = require('./campEquipmentLots');
 const { shiftsForActivity } = require('./volunteerShifts');
+const { emergencyGaps } = require('./campSites');
 
 /**
  * Tasks, consent and volunteer shifts: what a planned camp and a camp recorded only as an activity share.
@@ -54,6 +55,14 @@ async function campReadiness(db, organizationId, meetingId, allowed) {
   if (allowed.lots) {
     reads.push(listLots(db, organizationId, meetingId).then((data) => { sections.lots = data; }));
   }
+  // Where the camp is held, and what the permit's emergency section still lacks.
+  reads.push(db.query(`SELECT s.id, s.name, s.archived_at IS NOT NULL AS archived, s.phone, s.address, s.hospital_name,
+      s.hospital_phone, s.hospital_travel_minutes, s.poison_centre_phone, s.directions_url
+    FROM camp_details d JOIN camp_sites s ON s.id = d.camp_site_id AND s.organization_id = d.organization_id
+    WHERE d.organization_id = $1 AND d.meeting_id = $2`, [organizationId, meetingId]).then((data) => {
+    const site = data.rows[0] || null;
+    sections.site = { site: site && { id: site.id, name: site.name, archived: site.archived }, gaps: emergencyGaps(site) };
+  }));
   reads.push(...eventReads(db, organizationId, camp, allowed, sections));
   await Promise.all(reads);
   return { camp, sections };

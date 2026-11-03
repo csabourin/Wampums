@@ -1,7 +1,7 @@
 'use strict';
 /**
- * Duplicating an earlier camp (#1256): its schedule, personal packing list,
- * equipment lots and shared tasks, with dates shifted to the new camp.
+ * Duplicating an earlier camp (#1256): its site (#1317), schedule, personal
+ * packing list, equipment lots and shared tasks, with dates shifted to the new camp.
  *
  * Only what the team prepared is copied. Nothing that belongs to the earlier
  * stay or to a person is: no lot or task progress, history, reminder delivery,
@@ -81,6 +81,9 @@ async function campsWithContent(db, organizationId, ids = null) {
               COALESCE(act.activity_end_date, act.activity_start_date, act.activity_date, m.meeting_date)
                 - m.meeting_date + 1
             )::integer AS span_days,
+            (SELECT COUNT(*) FROM camp_details cd
+              WHERE cd.organization_id = m.organization_id AND cd.meeting_id = m.id
+                AND cd.camp_site_id IS NOT NULL)::integer AS site,
             ((SELECT COUNT(*) FROM year_plan_meeting_days d
                WHERE d.meeting_id = m.id AND d.organization_id = m.organization_id AND d.day_offset > 0)
              + (SELECT COUNT(*) FROM year_plan_meeting_activities a
@@ -266,6 +269,38 @@ async function copyPackingList(db, organizationId, actorId, targetMeetingId, sou
     [organizationId, sourceMeetingId, targetMeetingId, list.rows[0].version]
   );
   return items.rows.length;
+}
+
+/**
+ * Hold the new camp at the same site, with the same season, accommodation and
+ * contact number. Who leads on site is chosen again for each camp. An archived
+ * site is not chosen again; what else the camp recorded still is.
+ *
+ * @returns {Promise<{copied: boolean, unavailable: boolean}>}
+ */
+async function copySite(db, organizationId, actorId, targetMeetingId, sourceMeetingId) {
+  const source = (await db.query(
+    `SELECT d.camp_site_id, d.season, d.accommodation, d.contact_phone, s.archived_at IS NOT NULL AS archived
+       FROM camp_details d LEFT JOIN camp_sites s ON s.id = d.camp_site_id AND s.organization_id = d.organization_id
+      WHERE d.organization_id = $1 AND d.meeting_id = $2`,
+    [organizationId, sourceMeetingId]
+  )).rows[0];
+  if (!source) {
+    return { copied: false, unavailable: false };
+  }
+  const siteId = source.archived ? null : source.camp_site_id;
+  await db.query(
+    `INSERT INTO camp_details (organization_id, meeting_id, camp_site_id, season, accommodation, contact_phone, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (organization_id, meeting_id) DO UPDATE SET
+       camp_site_id = EXCLUDED.camp_site_id,
+       season = COALESCE(camp_details.season, EXCLUDED.season),
+       accommodation = COALESCE(camp_details.accommodation, EXCLUDED.accommodation),
+       contact_phone = COALESCE(camp_details.contact_phone, EXCLUDED.contact_phone),
+       updated_by = EXCLUDED.updated_by, version = camp_details.version + 1, updated_at = NOW()`,
+    [organizationId, targetMeetingId, siteId, source.season, source.accommodation, source.contact_phone, actorId]
+  );
+  return { copied: siteId !== null, unavailable: Boolean(source.archived) };
 }
 
 /** The member a copied duty goes to: its holder while still active here, else the person duplicating. */
@@ -471,6 +506,11 @@ function duplicateCamp(pool, { organizationId, actorId }, targetId, sourceId, pa
       skipped_lots: [],
       reassigned_tasks: 0,
     };
+    if (parts.includes('site')) {
+      const copied = await copySite(db, organizationId, actorId, targetId, sourceId);
+      result.copied.site = copied.copied ? 1 : 0;
+      result.site_unavailable = copied.unavailable;
+    }
     if (parts.includes('schedule')) {
       const copied = await copySchedule(db, organizationId, targetId, sourceId);
       result.copied.schedule_days = copied.days;

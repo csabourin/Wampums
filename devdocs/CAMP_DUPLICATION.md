@@ -8,6 +8,7 @@ and copies it into the camp being prepared.
 
 | Part | Copied | Reset or left out |
 |---|---|---|
+| `site` | The site chosen (#1317), season, accommodation, contact number | The unit lead on site, chosen again for each camp. An archived site is not chosen again (`site_unavailable`). |
 | `schedule` | Day headings and lines after the first day, with catalogue articles still active (as the older "copy schedule" did) | Day zero, which belongs to meeting preparation |
 | `packing_list` | The personal packing list's settings, notes, active items and translations | Copied **unpublished and unreviewed**; families see nothing until the team publishes it. An item's link to an archived article is dropped, its text kept. |
 | `lots` | Each equipment lot, its articles and duties | State `to_prepare`, version 1, one `created` history entry. An article missing from the new camp's material list is left out; no lot takes more than the list holds; a lot left with nothing is reported in `skipped_lots`. Duties fall on the new camp's first day (return: last day). |
@@ -27,7 +28,7 @@ answer counts them in `reassigned_tasks` and the dialog asks to reassign them.
   with `fits_schedule`.
 - `POST /api/v1/yearly-planner/meetings/:id/duplicate` with `{ source_meeting_id, parts }`
   (`blockDemoRoles`). Each part takes the rights its own screen requires
-  (`config/camp_duplication.json`, read by the server and the SPA): `meetings.manage` always, plus
+  (`config/camp_duplication.json`, read by the server and the SPA): `meetings.manage` always (enough for the site and the schedule), plus
   `personal_equipment.manage` for the packing list, `camp_lots.view` + `camp_lots.manage` +
   `tasks.manage` for lots, `tasks.view` + `tasks.manage` for tasks. A missing right answers 403 with
   `required` and `missing`.

@@ -1,10 +1,26 @@
 {
-  "PARTS": ["schedule", "packing_list", "lots", "tasks"],
+  "PARTS": [
+    "site",
+    "schedule",
+    "packing_list",
+    "lots",
+    "tasks"
+  ],
   "PART_PERMISSIONS": {
+    "site": [],
     "schedule": [],
-    "packing_list": ["personal_equipment.manage"],
-    "lots": ["camp_lots.view", "camp_lots.manage", "tasks.manage"],
-    "tasks": ["tasks.view", "tasks.manage"]
+    "packing_list": [
+      "personal_equipment.manage"
+    ],
+    "lots": [
+      "camp_lots.view",
+      "camp_lots.manage",
+      "tasks.manage"
+    ],
+    "tasks": [
+      "tasks.view",
+      "tasks.manage"
+    ]
   },
   "BASE_PERMISSION": "meetings.manage"
 }

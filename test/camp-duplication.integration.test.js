@@ -133,7 +133,7 @@ describe.skipIf(!DATABASE_URL)('Reusing an earlier camp', () => {
     const response = await request(app).get(`/api/v1/yearly-planner/meetings/${target.meeting}/duplication`).set(auth());
 
     expect(response.status).toBe(200);
-    expect(response.body.data.target.counts).toEqual({ schedule: 0, packing_list: 0, lots: 0, tasks: 0 });
+    expect(response.body.data.target.counts).toEqual({ site: 0, schedule: 0, packing_list: 0, lots: 0, tasks: 0 });
     const source = response.body.data.sources.find((item) => item.id === ids.source.meeting);
     expect(source).toMatchObject({ span_days: 3, fits_schedule: true, counts: { schedule: 2, packing_list: 2, lots: 2, tasks: 2 } });
     expect(response.body.data.sources.some((item) => item.id === ids.foreign.meeting)).toBe(false);

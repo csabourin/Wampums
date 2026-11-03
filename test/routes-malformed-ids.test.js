@@ -37,7 +37,7 @@ const PERMISSIONS = [
   'fundraisers.view', 'fundraisers.edit', 'fundraisers.delete', 'groups.view', 'groups.edit', 'groups.delete',
   'participants.delete', 'participants.transfer', 'participants.create_own', 'participants.walk_in',
   'users.invite', 'scout_year.manage', 'communications.send', 'activities.edit', 'roles.manage', 'roles.view',
-  'org.edit'
+  'org.edit', 'camp_sites.manage'
 ];
 const MALFORMED_IDS = ['abc', '12abc', '0', '-3', '3000000000'];
 
@@ -71,6 +71,10 @@ const ROUTES = [
   ['post', '/api/v1/yearly-planner/meetings/:id/schedule/copy-from/1'],
   ['get', '/api/v1/yearly-planner/meetings/:id/duplication'],
   ['post', '/api/v1/yearly-planner/meetings/:id/duplicate'],
+  ['put', '/api/v1/camp-sites/:id'],
+  ['patch', '/api/v1/camp-sites/:id/archive'],
+  ['get', '/api/v1/camp-sites/camps/:id'],
+  ['put', '/api/v1/camp-sites/camps/:id'],
   ['get', '/api/v1/incidents/prefill/participant/:id'],
   ['get', '/api/v1/incidents/prefill/activity/:id'],
   ['patch', '/api/v1/incidents/escalation-contacts/:id'],

@@ -539,14 +539,26 @@ browser suite (`playwright.offline.config.mjs`).
 ### Reusing an earlier camp
 
 The camp schedule offers "Reuse an earlier camp" (`services/campDuplication.js`,
-`POST /api/v1/yearly-planner/meetings/:id/duplicate`). It copies the parts chosen (schedule after
-day zero, personal packing list, equipment lots, the camp's own tasks) in one transaction, with the
+`POST /api/v1/yearly-planner/meetings/:id/duplicate`). It copies the parts chosen (site, schedule
+after day zero, personal packing list, equipment lots, the camp's own tasks) in one transaction, with the
 target camp locked; a part already filled in the target is refused, never merged. Dates shift by the
 gap between the two camps; lots return to `to_prepare`, tasks to `todo`, the packing list to an
 unpublished draft. Nothing personal is copied (registrations, authorizations, checks, progress,
 volunteer signups). Each part takes its own screen's rights (`config/camp_duplication.json`, shared
 with the SPA); a duty held by someone no longer active goes to the person copying. See
 `devdocs/CAMP_DUPLICATION.md`.
+
+### Camp sites
+
+`/camp-sites` (`meetings.view`; editing takes `camp_sites.manage`, migration 070) lists the places a
+unit camps at, with what the camp permit asks: owner, accommodation, heating, the site's insurance,
+nearest hospital, poison centre, directions. Sites are archived, never deleted, and hold no personal
+data. `/camp-site/:id` chooses a planned camp's site, season, accommodation, unit lead on site (an
+active member) and the number families call (`camp_details`, `meetings.manage`, version-checked,
+camp row locked). Writes go through `services/campSites.js`; allowed values are
+`config/camp_sites.json`, shared with the SPA. `/camp-readiness` lists the emergency information
+still missing; a new packing list starts from the camp's season and accommodation; reusing a camp
+copies its site but not its lead. See `devdocs/CAMP_SITES.md`.
 
 ### Starter activities
 
