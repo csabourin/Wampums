@@ -37,6 +37,7 @@ export class CampSite {
     this.meetingId = Number(meetingId);
     this.data = null;
     this.draft = null;
+    this.draftVersion = null;
     this.sites = [];
     this.canManage = hasPermission('meetings.manage') && !isDemoUser();
     this.canManageSites = hasPermission('camp_sites.manage') && !isDemoUser();
@@ -113,7 +114,9 @@ export class CampSite {
   /** @returns {string} The choices a manager makes for this camp */
   formMarkup(selectSiteId) {
     // Choices not yet saved, kept while a site dialog saved and the screen reloaded.
-    const details = { ...(this.data.details || {}), ...(this.draft || {}) };
+    const { version, ...draft } = this.draft || {};
+    const details = { ...(this.data.details || {}), ...draft };
+    this.draftVersion = this.draft ? version : null;
     this.draft = null;
     const chosen = selectSiteId ?? details.camp_site_id ?? null;
     const sites = [...this.sites];
@@ -291,6 +294,8 @@ export class CampSite {
     }
     const value = (id) => form.querySelector(`#${id}`)?.value.trim() || '';
     return {
+      // The version these choices were made against: saving them later must still detect another manager's change.
+      version: this.draftVersion ?? Number(this.data?.details?.version || 0),
       camp_site_id: value('camp-site-choice') ? Number(value('camp-site-choice')) : null,
       season: value('camp-site-season') || null,
       accommodation: value('camp-site-stay') || null,
@@ -331,10 +336,11 @@ export class CampSite {
       accommodation: value('camp-site-stay') || null,
       on_site_lead_id: value('camp-site-lead') || null,
       contact_phone: value('camp-site-contact') || null,
-      expected_version: Number(this.data.details?.version || 0),
+      expected_version: this.draftVersion ?? Number(this.data.details?.version || 0),
     };
     try {
       const response = await saveCampSite(this.meetingId, payload);
+      this.draftVersion = null;
       this.app.showMessage(translate('camp_site_saved'), 'success');
       if (response?.data?.camp) {
         this.data = response.data;

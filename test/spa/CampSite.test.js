@@ -283,6 +283,26 @@ describe('choosing for this camp', () => {
     expect($('#camp-site-choice').value).toBe('4');
   });
 
+  test('choices kept across a site save still detect another manager’s change to the camp', async () => {
+    api.updateCampSite.mockResolvedValue({ success: true, data: SITE });
+    api.saveCampSite.mockRejectedValue(Object.assign(new Error('camp_site_version_conflict'), { status: 409 }));
+    await open();
+    $('#camp-site-contact').value = '555-0199';
+    // Meanwhile, another manager saved the camp: the reload brings version 4.
+    api.getCampSite.mockResolvedValue({ success: true, data: campSite({ details: { ...campSite().details, contact_phone: '555-0101', version: 4 } }) });
+    $('#camp-site-edit').click();
+    document.querySelector('[name="site_hospital_directions_url"]').value = '';
+    document.querySelector('button[form="camp-site-form"]').click();
+    await flush();
+    await flush();
+    expect($('#camp-site-contact').value).toBe('555-0199');
+
+    $('#camp-site-camp-form button[type="submit"]').click();
+    await flush();
+    expect(api.saveCampSite).toHaveBeenCalledWith(12, expect.objectContaining({ contact_phone: '555-0199', expected_version: 3 }));
+    expect($('#camp-site-camp-error').hidden).toBe(false);
+  });
+
   test('without site management, no site can be added or edited from here', async () => {
     hasPermission.mockImplementation((key) => key !== 'camp_sites.manage');
     await open();
