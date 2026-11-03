@@ -233,6 +233,14 @@ describe.skipIf(!DATABASE_URL)('Camp sites', () => {
     expect(editor.body.data.camp).toMatchObject({ camp_season: 'winter', camp_accommodation: 'cabin' });
   });
 
+  test('a camp left “same as the site” packs for the site’s accommodation', async () => {
+    const site = await addSite({ name: 'Fictional Cabin Site', accommodation: 'cabin' });
+    const meeting = await camp(ids.unit, '2028-03-03', '2028-03-05');
+    await call('put', `/camps/${meeting}`).send({ camp_site_id: site.id, season: 'spring', accommodation: null, expected_version: 0 });
+    const editor = await request(app).get(`/api/v1/personal-equipment/${meeting}/manage`).set(auth());
+    expect(editor.body.data.camp).toMatchObject({ camp_season: 'spring', camp_accommodation: 'cabin' });
+  });
+
   test('reusing an earlier camp brings its site, season and accommodation, but not its lead', async () => {
     const site = await addSite({ ...LAKE, name: 'Fictional Yearly Site' });
     const source = await camp(ids.unit, '2026-07-11', '2026-07-18');
