@@ -183,10 +183,13 @@ export class CampSite {
           <ul>${gaps.map((gap) => `<li>${escapeHTML(gap)}</li>`).join('')}</ul></div>`
       : `<p class="camp-site__complete">${escapeHTML(translate('camp_site_emergency_complete'))}</p>`;
     if (!site) {
+      // What the camp records for itself (the lead, the number families call) holds without a site.
+      const contact = this.fact('camp_site_contact_phone', details?.contact_phone) + this.fact('camp_site_lead', details?.on_site_lead_name);
       return `<section class="camp-site__site" aria-labelledby="camp-site-site-title">
           <h2 id="camp-site-site-title">${escapeHTML(translate('camp_site_where'))}</h2>
           <p class="empty-state">${escapeHTML(translate(this.canManage ? 'camp_site_empty_manage' : 'camp_site_empty'))}</p>
           ${gapNotice}
+          ${contact ? `<h3>${escapeHTML(translate('camp_site_section_emergency'))}</h3><dl class="camp-site__facts">${contact}</dl>` : ''}
         </section>`;
     }
     const number = new Intl.NumberFormat(localeForLanguage(this.lang()));

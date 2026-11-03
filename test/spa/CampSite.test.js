@@ -131,6 +131,18 @@ describe('reading where the camp is held', () => {
     expect($('#camp-site-choice').value).toBe('');
   });
 
+  test('without a site, the lead and the number families call are still shown to whoever reads', async () => {
+    hasPermission.mockImplementation((key) => key === 'meetings.view');
+    api.getCampSite.mockResolvedValue({ success: true, data: campSite({
+      site: null, gaps: ['site'], details: { ...campSite().details, camp_site_id: null, contact_phone: '555-0177' },
+    }) });
+    await open();
+    const text = $('.camp-site__site').textContent;
+    expect(text).toContain('camp_site_empty');
+    expect(text).toContain('555-0177');
+    expect(text).toContain('Ada Fiction');
+  });
+
   test('a failed load is explained and can be retried', async () => {
     api.getCampSite.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 500 }));
     await open();

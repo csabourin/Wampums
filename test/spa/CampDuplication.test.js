@@ -38,6 +38,7 @@ jest.mock('../../spa/config.js', () => ({
 
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   hasAllPermissions: jest.fn(() => true),
+  hasOrganizationScope: jest.fn(() => true),
 }));
 
 jest.mock('../../spa/utils/DialogUtils.js', () => ({
@@ -50,7 +51,7 @@ jest.mock('../../spa/api/api-yearly-planner.js', () => ({
 }));
 
 const api = require('../../spa/api/api-yearly-planner.js');
-const { hasAllPermissions } = require('../../spa/utils/PermissionUtils.js');
+const { hasAllPermissions, hasOrganizationScope } = require('../../spa/utils/PermissionUtils.js');
 const { closeAllModals } = require('../../spa/utils/ModalUtils.js');
 const { CampDuplication } = require('../../spa/modules/yearly-planner/CampDuplication.js');
 
@@ -125,6 +126,8 @@ beforeEach(() => {
   api.getCampDuplication.mockResolvedValue({ success: true, data: duplication() });
   hasAllPermissions.mockReset();
   hasAllPermissions.mockImplementation(() => true);
+  hasOrganizationScope.mockReset();
+  hasOrganizationScope.mockImplementation(() => true);
 });
 
 afterEach(() => {
@@ -181,6 +184,15 @@ describe('choosing what to reuse', () => {
     expect(part('lots').disabled).toBe(true);
     expect(reason('lots')).toBe('camp_duplicate_reason_permission');
     expect(part('tasks').disabled).toBe(false);
+  });
+
+  test('a role scoped to its own children is not offered the packing list, as on its own screen', async () => {
+    hasOrganizationScope.mockImplementation(() => false);
+    await openDialog();
+
+    expect(part('packing_list').disabled).toBe(true);
+    expect(reason('packing_list')).toBe('camp_duplicate_reason_permission');
+    expect(part('schedule').disabled).toBe(false);
   });
 
   test('with no earlier camp to reuse, says what would fill the list', async () => {

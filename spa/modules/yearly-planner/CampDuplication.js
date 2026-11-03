@@ -15,14 +15,15 @@ import { formatDate } from '../../utils/DateUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
-import { hasAllPermissions } from '../../utils/PermissionUtils.js';
+import { hasAllPermissions, hasOrganizationScope } from '../../utils/PermissionUtils.js';
 import { getCampDuplication, duplicateCamp } from '../../api/api-yearly-planner.js';
 
 const FORM_ID = 'yp-camp-duplicate-form';
 
 /** @returns {boolean} Whether the signed-in person holds the rights a part takes */
 function canCopy(part) {
-  return hasAllPermissions(rules.BASE_PERMISSION, ...(rules.PART_PERMISSIONS[part] || []));
+  return hasAllPermissions(rules.BASE_PERMISSION, ...(rules.PART_PERMISSIONS[part] || []))
+    && (!rules.ORGANIZATION_SCOPE_PARTS.includes(part) || hasOrganizationScope());
 }
 
 /** @returns {string} A translated text with its {placeholders} filled */

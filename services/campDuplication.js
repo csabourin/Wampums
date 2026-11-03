@@ -65,6 +65,21 @@ function permissionsFor(parts) {
 }
 
 /**
+ * The authorization policy for copying these parts: their permissions, and a
+ * unit-wide role where the part's own screen requires one (the packing list's
+ * writes do, so a linked-scope role cannot write one by copying it either).
+ *
+ * @param {string[]} parts - Parts already read by readParts
+ * @returns {{permissions: string[], organizationScope: boolean}}
+ */
+function policyFor(parts) {
+  return {
+    permissions: permissionsFor(parts),
+    organizationScope: parts.some((part) => RULES.ORGANIZATION_SCOPE_PARTS.includes(part)),
+  };
+}
+
+/**
  * The unit's camps with what each one holds. One query serves the source
  * list and the target's check, so both count the same things.
  *
@@ -540,6 +555,7 @@ module.exports = {
   PART_PERMISSIONS,
   readParts,
   permissionsFor,
+  policyFor,
   listDuplicationSources,
   duplicateCamp,
   scheduleItemCount,

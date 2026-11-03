@@ -32,7 +32,7 @@ const { isTooLong } = require('../services/campDates');
 const {
   CampDuplicationError,
   readParts,
-  permissionsFor,
+  policyFor,
   listDuplicationSources,
   duplicateCamp,
   scheduleItemCount,
@@ -1778,7 +1778,7 @@ module.exports = (pool, logger) => {
   router.post('/meetings/:id/duplicate',
     authenticate,
     blockDemoRoles,
-    requirePermission((req) => permissionsFor(readParts(req.body?.parts) || [])),
+    requirePermission((req) => policyFor(readParts(req.body?.parts) || [])),
     validateIdParam('id'),
     validateIdBody('source_meeting_id'),
     check('parts').custom((value) => readParts(value) !== null),

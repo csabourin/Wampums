@@ -22,5 +22,8 @@
       "tasks.manage"
     ]
   },
-  "BASE_PERMISSION": "meetings.manage"
+  "BASE_PERMISSION": "meetings.manage",
+  "ORGANIZATION_SCOPE_PARTS": [
+    "packing_list"
+  ]
 }

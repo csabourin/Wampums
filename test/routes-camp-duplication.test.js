@@ -71,6 +71,17 @@ test('each part asks for the rights its own screen requires, and a refusal says 
   expect((await copy({ source_meeting_id: 3, parts: ['tasks'] })).status).toBe(201);
 });
 
+test('a role scoped to its own children cannot write a packing list by copying one', async () => {
+  roles = [{ role_name: 'family_helper', display_name: 'Family helper', data_scope: 'linked' }];
+
+  const refused = await copy({ source_meeting_id: 3, parts: ['packing_list'] });
+  expect(refused.status).toBe(403);
+  expect(service.duplicateCamp).not.toHaveBeenCalled();
+
+  // Parts whose own screens take no unit-wide role are still allowed.
+  expect((await copy({ source_meeting_id: 3, parts: ['schedule'] })).status).toBe(201);
+});
+
 test('someone who may not plan meetings can neither list earlier camps nor copy one', async () => {
   permissions = ['meetings.view', 'tasks.manage', 'tasks.view'];
 
