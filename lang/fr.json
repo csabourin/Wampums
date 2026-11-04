@@ -5522,5 +5522,6 @@
   "camp_plans_coming": "En cours ou à venir",
   "camp_plans_past": "Camps passés",
   "camp_plans_empty": "Aucun camp n’est encore planifié. Ajoutez-en un dans le planificateur annuel pour commencer son plan.",
-  "camp_plans_open_plan": "Ouvrir le plan"
+  "camp_plans_open_plan": "Ouvrir le plan",
+  "camp_plans_load_failed": "Les plans de camp n’ont pas pu être chargés."
 }

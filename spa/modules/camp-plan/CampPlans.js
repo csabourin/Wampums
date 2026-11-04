@@ -68,7 +68,7 @@ export class CampPlans {
         return;
       }
       debugError('Failed to load the camp plans:', err);
-      setContent(this.root(), pageErrorMarkup({ ...options, message: apiErrorMessage(err, 'camp_plan_load_failed'), retryId: 'camp-plans-retry' }));
+      setContent(this.root(), pageErrorMarkup({ ...options, message: apiErrorMessage(err, 'camp_plans_load_failed'), retryId: 'camp-plans-retry' }));
       this.root().querySelector('#camp-plans-retry')?.addEventListener('click', () => this.init());
     }
   }
@@ -105,13 +105,18 @@ export class CampPlans {
       </li>`;
   }
 
-  /** @returns {string} A group of camps, or nothing when it has none */
-  groupMarkup(key, camps) {
+  /**
+   * @param {string} key - The group's id suffix
+   * @param {string} title - Its heading, already translated
+   * @param {Object[]} camps
+   * @returns {string} A group of camps, or nothing when it has none
+   */
+  groupMarkup(key, title, camps) {
     if (!camps.length) {
       return '';
     }
     return `<section class="camp-plans__group" aria-labelledby="camp-plans-${key}">
-        <h2 id="camp-plans-${key}">${escapeHTML(translate(`camp_plans_${key}`))}</h2>
+        <h2 id="camp-plans-${key}">${escapeHTML(title)}</h2>
         <ul class="camp-plans__list">${camps.map((camp) => this.campMarkup(camp)).join('')}</ul>
       </section>`;
   }
@@ -126,7 +131,7 @@ export class CampPlans {
     const templates = hasPermission('camp_plan_templates.manage')
       ? `<a class="button button--secondary" href="/camp-plan-templates">${escapeHTML(translate('camp_plan_templates_open'))}</a>` : '';
     const body = coming.length || past.length
-      ? `${this.groupMarkup('coming', coming)}${this.groupMarkup('past', past)}`
+      ? `${this.groupMarkup('coming', translate('camp_plans_coming'), coming)}${this.groupMarkup('past', translate('camp_plans_past'), past)}`
       : `<p class="camp-plan__empty">${escapeHTML(translate('camp_plans_empty'))}</p>`;
     setContent(this.root(), `<section class="page camp-plan camp-plans">
         ${renderBackLink()}

@@ -435,12 +435,34 @@ async function listCampPlans(db, organizationId) {
   )).rows;
   const coming = camps.filter((camp) => camp.coming);
   const past = camps.filter((camp) => !camp.coming).reverse().slice(0, PAST_CAMPS_SHOWN);
-  const withGaps = (camp) => campPlanGaps(db, organizationId, camp.id).then((gaps) => ({
-    id: camp.id, theme: camp.theme, date_from: camp.date_from, date_to: camp.date_to,
-    to_write: gaps.to_write.length, to_review: gaps.to_review.length,
-  }));
-  const [comingRows, pastRows] = await Promise.all([Promise.all(coming.map(withGaps)), Promise.all(past.map(withGaps))]);
-  return { coming: comingRows, past: pastRows };
+  const shown = [...coming, ...past].map((camp) => camp.id);
+  if (!shown.length) {
+    return { coming: [], past: [] };
+  }
+  // Two reads for the whole list: every listed camp's sections and games, and the unit's templates once.
+  const [sections, templates] = await Promise.all([
+    db.query(
+      `SELECT m.id AS meeting_id,
+              COALESCE((SELECT json_agg(json_build_object('section_key', s.section_key, 'needs_review', s.needs_review,
+                                                          'body_html', s.body_html IS NOT NULL))
+                          FROM camp_plan_sections s WHERE s.organization_id = m.organization_id AND s.meeting_id = m.id), '[]'::json) AS rows,
+              (SELECT COUNT(*) FROM camp_plan_rain_games g WHERE g.organization_id = m.organization_id AND g.meeting_id = m.id)::int AS games
+         FROM year_plan_meetings m
+        WHERE m.organization_id = $1 AND m.id = ANY($2::int[])`,
+      [organizationId, shown]
+    ).then((result) => new Map(result.rows.map((row) => [row.meeting_id, row]))),
+    db.query('SELECT section_key AS key, body_html FROM camp_plan_templates WHERE organization_id = $1', [organizationId])
+      .then((result) => result.rows),
+  ]);
+  const withGaps = (camp) => {
+    const read = sections.get(camp.id) || { rows: [], games: 0 };
+    const gaps = planGaps(resolveSections(read.rows || [], templates), Number(read.games) || 0);
+    return {
+      id: camp.id, theme: camp.theme, date_from: camp.date_from, date_to: camp.date_to,
+      to_write: gaps.to_write.length, to_review: gaps.to_review.length,
+    };
+  };
+  return { coming: coming.map(withGaps), past: past.map(withGaps) };
 }
 
 module.exports = {
