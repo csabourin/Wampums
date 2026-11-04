@@ -19,7 +19,8 @@
  *             synonyms for the command palette. Only set it when the key
  *             really exists in both lang files — `translate()` echoes back
  *             unknown keys, which would pollute search results.
- *   moment    "now" | "week" | "tools" — which slot on the dashboard
+ *   moment    "now" | "week" | "plan" | "tools" — which slot on the dashboard
+ *             ("plan": planning the year and the camps, after "This week")
  *   domain    grouping + color; must be one of DOMAINS
  *   priority  optional ordering inside a moment bucket (lower wins)
  *   gate      optional visibility rule, resolved by dashboard.js:
@@ -55,7 +56,8 @@ export const DASHBOARD_TILES = [
     href: '/volunteers',
     icon: 'fa-handshake-angle',
     label: 'tile_volunteers',
-    moment: 'week',
+    moment: 'plan',
+    priority: 70,
     domain: 'logistics',
     gate: { permission: 'volunteers.view' },
   },
@@ -140,7 +142,8 @@ export const DASHBOARD_TILES = [
     icon: 'fa-car',
     label: 'tile_carpool',
     aliases: 'tile_carpool_aliases',
-    moment: 'week',
+    moment: 'plan',
+    priority: 60,
     domain: 'logistics',
     id: 'carpool-quick-access',
     gate: { check: 'carpool' },
@@ -151,7 +154,8 @@ export const DASHBOARD_TILES = [
     icon: 'fa-calendar-days',
     label: 'tile_activities',
     aliases: 'tile_activities_aliases',
-    moment: 'week',
+    moment: 'plan',
+    priority: 20,
     domain: 'logistics',
     gate: { any: ['activities.view', 'activities.create', 'activities.edit', 'activities.delete'] },
   },
@@ -161,7 +165,8 @@ export const DASHBOARD_TILES = [
     icon: 'fa-calendar-alt',
     label: 'tile_yearly_planner',
     aliases: 'tile_yearly_planner_aliases',
-    moment: 'week',
+    moment: 'plan',
+    priority: 10,
     domain: 'logistics',
     gate: { permission: 'meetings.view' },
   },
@@ -308,7 +313,8 @@ export const DASHBOARD_TILES = [
     icon: 'fa-calendar-check',
     label: 'tile_material_management',
     aliases: 'tile_material_management_aliases',
-    moment: 'tools',
+    moment: 'plan',
+    priority: 50,
     domain: 'logistics',
     gate: { any: ['inventory.view', 'inventory.manage', 'inventory.reserve', 'inventory.value'] },
   },
@@ -318,7 +324,19 @@ export const DASHBOARD_TILES = [
     icon: 'fa-map-location-dot',
     label: 'tile_camp_sites',
     aliases: 'tile_camp_sites_aliases',
-    moment: 'tools',
+    moment: 'plan',
+    priority: 40,
+    domain: 'logistics',
+    gate: { permission: 'meetings.view' },
+  },
+  {
+    featureKey: 'camp_plans',
+    href: '/camp-plans',
+    icon: 'fa-clipboard-list',
+    label: 'tile_camp_plans',
+    aliases: 'tile_camp_plans_aliases',
+    moment: 'plan',
+    priority: 30,
     domain: 'logistics',
     gate: { permission: 'meetings.view' },
   },
@@ -328,7 +346,8 @@ export const DASHBOARD_TILES = [
     icon: 'fa-file-signature',
     label: 'tile_camp_plan_templates',
     aliases: 'tile_camp_plan_templates_aliases',
-    moment: 'tools',
+    moment: 'plan',
+    priority: 80,
     domain: 'logistics',
     gate: { permission: 'camp_plan_templates.manage' },
   },

@@ -429,7 +429,7 @@ export class Dashboard extends BaseModule {
     const stats = this._computeTileStats();
 
     // Bucket tiles by moment. Apply user-hidden filter.
-    const buckets = { now: [], week: [], tools: [] };
+    const buckets = { now: [], week: [], plan: [], tools: [] };
     this._allTiles.forEach((tile) => {
       const ctx = this._getTileContext(tile);
       const enriched = { ...tile, ...ctx, stat: stats[tile.href] };
@@ -451,6 +451,7 @@ export class Dashboard extends BaseModule {
       });
     sortBucket(buckets.now);
     sortBucket(buckets.week);
+    sortBucket(buckets.plan);
     sortBucket(buckets.tools);
 
     const content = `
@@ -459,6 +460,7 @@ export class Dashboard extends BaseModule {
       <div id="dashboard-camp-readiness">${renderCampReadinessSummary(this.app.lang || this.app.currentLanguage)}</div>
       <div id="dashboard-team-camps">${upcomingCampsMarkup(this.upcomingCamps, this.app.lang || this.app.currentLanguage)}</div>
       ${this._renderWeek(buckets.week)}
+      ${this._renderPlan(buckets.plan)}
       ${this._renderTools(buckets.tools)}
       ${this._renderFab()}
       <p><a href="/logout" id="logout-link">${translate('logout')}</a></p>
@@ -1044,6 +1046,18 @@ export class Dashboard extends BaseModule {
     return `
       <section class="dashboard-v2__section" aria-labelledby="moment-week">
         <h2 id="moment-week" class="dashboard-v2__section-title">${escapeHTML(translate('dashboard_this_week_section'))}</h2>
+        <div class="dashboard-v2__grid">${gridHtml}</div>
+      </section>
+    `;
+  }
+
+  /** Planning the year and the camps: the long-range work, after this week's. */
+  _renderPlan(planTiles) {
+    if (!planTiles.length) {return '';}
+    const gridHtml = planTiles.map((t) => this._renderTile(t)).join('');
+    return `
+      <section class="dashboard-v2__section" aria-labelledby="moment-plan">
+        <h2 id="moment-plan" class="dashboard-v2__section-title">${escapeHTML(translate('dashboard_plan_section'))}</h2>
         <div class="dashboard-v2__grid">${gridHtml}</div>
       </section>
     `;

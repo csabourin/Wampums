@@ -380,3 +380,60 @@ describe('tool groups stay accessible', () => {
     expect(results.violations).toEqual([]);
   });
 });
+
+describe('planning the year and the camps has its own section, after this week', () => {
+  const renderPlanner = () => {
+    ['meetings.view', 'meetings.manage', 'activities.view', 'volunteers.view', 'inventory.view', 'tasks.view',
+      'camp_plan_templates.manage'].forEach((permission) => mockPermissions.add(permission));
+    mockIsParent = false;
+    const dashboard = new Dashboard({ userRoles: ['leader'] });
+    dashboard.isLoading = false;
+    dashboard.organizationSettings = {};
+    dashboard.render();
+    return dashboard;
+  };
+  const sectionOf = (href) => document.querySelector(`a[href="${href}"]`)?.closest('section')?.querySelector('h2')?.id;
+
+  test('the section follows "This week" and comes before everything else', () => {
+    renderPlanner();
+    const ids = Array.from(document.querySelectorAll('.dashboard-v2__section-title')).map((heading) => heading.id);
+    expect(ids.indexOf('moment-plan')).toBe(ids.indexOf('moment-week') + 1);
+    expect(ids.indexOf('moment-plan')).toBeLessThan(ids.indexOf('moment-tools'));
+    expect(document.querySelector('#moment-plan').textContent).toBe('dashboard_plan_section');
+  });
+
+  test('it holds the year planner, activities, camp plans and sites, equipment reservations, carpooling and volunteering, in that order', () => {
+    renderPlanner();
+    const hrefs = Array.from(document.querySelectorAll('#moment-plan + .dashboard-v2__grid a')).map((tile) => tile.getAttribute('href'));
+    expect(hrefs).toEqual(['/yearly-planner', '/activities', '/camp-plans', '/camp-sites', '/material-management', '/volunteers',
+      '/camp-plan-templates']);
+    // This week keeps what is done this week.
+    expect(sectionOf('/tasks')).toBe('moment-week');
+    expect(sectionOf('/equipment-loans')).toBe('moment-tools');
+  });
+
+  test('every planning tile is gated, and the camp plans open with the permission each plan needs', () => {
+    const planning = DASHBOARD_TILES.filter((tile) => tile.moment === 'plan');
+    expect(planning.map((tile) => tile.href)).toEqual(expect.arrayContaining(['/carpool', '/camp-plans']));
+    expect(planning.every((tile) => tile.gate)).toBe(true);
+    expect(DASHBOARD_TILES.find((tile) => tile.href === '/camp-plans').gate).toEqual({ permission: 'meetings.view' });
+  });
+
+  test('someone with no planning right sees no empty planning section', () => {
+    mockIsParent = false;
+    const dashboard = new Dashboard({ userRoles: ['leader'] });
+    dashboard.isLoading = false;
+    dashboard.organizationSettings = {};
+    dashboard.render();
+    expect(document.querySelector('#moment-plan')).toBeNull();
+  });
+
+  test('the planning section has no WCAG A/AA violations', async () => {
+    renderPlanner();
+    const results = await axe.run(document.querySelector('#moment-plan').closest('section'), {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
+  });
+});

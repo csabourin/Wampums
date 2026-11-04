@@ -410,6 +410,39 @@ async function copyCampPlan(db, organizationId, actorId, targetMeetingId, source
   return { sections: sections.rowCount, rain_games: games.rowCount };
 }
 
+/** How many past camps the list of plans shows after the coming ones. */
+const PAST_CAMPS_SHOWN = 10;
+
+/**
+ * The unit's planned camps, each with what its plan still lacks: camps under
+ * way or to come first (soonest first), then the latest past ones. A cancelled
+ * camp is left out.
+ *
+ * @param {Object} db
+ * @param {number} organizationId
+ * @returns {Promise<{coming: Object[], past: Object[]}>}
+ */
+async function listCampPlans(db, organizationId) {
+  const camps = (await db.query(
+    `SELECT m.id, m.theme, m.meeting_date::text AS date_from,
+            COALESCE(a.activity_end_date, m.meeting_date)::text AS date_to,
+            COALESCE(a.activity_end_date, m.meeting_date) >= CURRENT_DATE AS coming
+       FROM year_plan_meetings m
+       LEFT JOIN activities a ON a.id = m.activity_id AND a.organization_id = m.organization_id
+      WHERE m.organization_id = $1 AND m.meeting_kind = 'camp' AND NOT m.is_cancelled
+      ORDER BY m.meeting_date, m.id`,
+    [organizationId]
+  )).rows;
+  const coming = camps.filter((camp) => camp.coming);
+  const past = camps.filter((camp) => !camp.coming).reverse().slice(0, PAST_CAMPS_SHOWN);
+  const withGaps = (camp) => campPlanGaps(db, organizationId, camp.id).then((gaps) => ({
+    id: camp.id, theme: camp.theme, date_from: camp.date_from, date_to: camp.date_to,
+    to_write: gaps.to_write.length, to_review: gaps.to_review.length,
+  }));
+  const [comingRows, pastRows] = await Promise.all([Promise.all(coming.map(withGaps)), Promise.all(past.map(withGaps))]);
+  return { coming: comingRows, past: pastRows };
+}
+
 module.exports = {
   CampPlanError,
   RULES,
@@ -424,6 +457,7 @@ module.exports = {
   saveTemplate,
   readCampPlan,
   campPlanGaps,
+  listCampPlans,
   saveCampSection,
   saveRainGames,
   copyCampPlan,

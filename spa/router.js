@@ -146,6 +146,7 @@ const lazyModules = {
   CampSite: () => import('./modules/camp-sites/CampSite.js').then(m => m.CampSite),
   CampPlan: () => import('./modules/camp-plan/CampPlan.js').then(m => m.CampPlan),
   CampPlanTemplates: () => import('./modules/camp-plan/CampPlanTemplates.js').then(m => m.CampPlanTemplates),
+  CampPlans: () => import('./modules/camp-plan/CampPlans.js').then(m => m.CampPlans),
   ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
   AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink),
   ReactivationLink: () => import('./modules/reactivation/ReactivationLink.js').then(m => m.ReactivationLink),
@@ -274,6 +275,7 @@ const routes = {
   '/camp-site/:id': 'campSite',
   '/camp-plan/:id': 'campPlan',
   '/camp-plan-templates': 'campPlanTemplates',
+  '/camp-plans': 'campPlans',
   '/unit-settings': 'unitSettings',
   '/scout-year': 'scoutYear'
 
@@ -862,6 +864,14 @@ export class Router {
           if (!guard(hasPermission('meetings.view'))) {break;}
           const CampPlan = await this.loadModule('CampPlan');
           this.currentModuleInstance = new CampPlan(this.app, { meetingId: Number(param) });
+          await this.currentModuleInstance.init();
+          break;
+        }
+        case 'campPlans': {
+          // The list reads every camp's plan, which takes meetings.view.
+          if (!guard(hasPermission('meetings.view'))) {break;}
+          const CampPlans = await this.loadModule('CampPlans');
+          this.currentModuleInstance = new CampPlans(this.app);
           await this.currentModuleInstance.init();
           break;
         }

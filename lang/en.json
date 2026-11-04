@@ -5513,5 +5513,14 @@
   "camp_plan_part_done": "Complete",
   "camp_plan_left": "Still to do:",
   "camp_plan_previous_part": "Previous: {name}",
-  "camp_plan_next_part": "Next: {name}"
+  "camp_plan_next_part": "Next: {name}",
+  "dashboard_plan_section": "Plan the year and the camps",
+  "tile_camp_plans": "Camp plans",
+  "tile_camp_plans_aliases": "camp plan, permit, V.C.P.R.E.F., theme, rules, emergency, rain games",
+  "camp_plans_title": "Camp plans",
+  "camp_plans_intro": "Every camp the unit has planned, with what its plan still lacks. Camps are added in the year planner.",
+  "camp_plans_coming": "Under way or to come",
+  "camp_plans_past": "Past camps",
+  "camp_plans_empty": "No camp is planned yet. Add one in the year planner to start its plan.",
+  "camp_plans_open_plan": "Open the plan"
 }

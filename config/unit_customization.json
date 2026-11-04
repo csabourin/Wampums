@@ -131,6 +131,7 @@
     "material_management",
     "camp_sites",
     "camp_plan_templates",
+    "camp_plans",
     "equipment_loans",
     "finance",
     "expenses",

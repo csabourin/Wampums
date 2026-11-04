@@ -28,6 +28,10 @@ list the same values.
   does not make it "modified". Games are added from a list, moved up or down and removed with
   buttons (no drag). Under the motivation system, the unit's point rules are recalled (attendance,
   honours in the unit's vocabulary, badges), read from `point_system_rules`, never copied.
+- **`/camp-plans`** (`meetings.view`; `GET /api/v1/camp-plans/camps`): every planned camp of the
+  unit, coming ones soonest first, then the ten latest past ones (a cancelled camp is left out), each
+  saying in words what its plan still lacks and leading to its plan, site and overview. Its tile,
+  "Camp plans", sits in the dashboard's "Plan the year and the camps" section.
 - **`/camp-plan-templates`** (`camp_plan_templates.manage`, migration 071, given to every unit-wide
   role holding `meetings.manage`; the district role through its trigger): the four templates, with a
   dashboard tile gated the same way.

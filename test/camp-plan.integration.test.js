@@ -237,6 +237,25 @@ describe.skipIf(!DATABASE_URL)('Camp plan written sections', () => {
     }
   });
 
+  test('the unit’s camp plans list coming camps soonest first, then past ones, never another unit’s or a cancelled one', async () => {
+    const listUnit = await unit();
+    const lister = await member(listUnit, ['meetings.view'], 'Lister Fiction');
+    const later = await camp(listUnit, '2099-08-01', '2099-08-03');
+    const sooner = await camp(listUnit, '2099-07-01', '2099-07-03');
+    const past = await camp(listUnit, '2001-07-01', '2001-07-03');
+    await camp(listUnit, '2099-09-01', '2099-09-03', true);
+    await camp(ids.otherUnit, '2099-07-05', '2099-07-06');
+    await pool.query(`INSERT INTO camp_plan_sections (organization_id, meeting_id, section_key, body_html, body_text)
+      VALUES ($1, $2, 'theme', '<p>Pirates</p>', 'Pirates')`, [listUnit, sooner]);
+
+    const response = await call('get', '/camps', lister, listUnit);
+    expect(response.status).toBe(200);
+    expect(response.body.data.coming.map((row) => row.id)).toEqual([sooner, later]);
+    expect(response.body.data.past.map((row) => row.id)).toEqual([past]);
+    expect(response.body.data.coming[0]).toMatchObject({ to_write: 12, to_review: 0 });
+    expect(response.body.data.coming[1].to_write).toBe(13);
+  });
+
   test('a cancelled camp’s plan can be read but not changed', async () => {
     const meeting = await camp(ids.unit, '2027-12-03', '2027-12-05', true);
     expect((await call('get', `/camps/${meeting}`)).status).toBe(200);
