@@ -57,6 +57,13 @@ const {
  * Postgres accepts dates well past it, so it is a bound, not a sentinel value
  * anything is compared against for equality.
  */
+/**
+ * Every report but one lists the whole unit (health, allergies, contacts…), so it is the team's:
+ * a role that sees only its own children is refused, whatever keys a unit gave it (#1338).
+ */
+const UNIT_REPORT = { permissions: ['reports.view'], organizationScope: true };
+/** The progress report filters itself to the account's linked children for such a role. */
+const PROGRESS_REPORT = 'reports.view';
 const OPEN_ENDED_DATE = '9999-12-31';
 
 /**
@@ -127,7 +134,7 @@ module.exports = (pool, _logger) => {
    * GET /api/v1/reports/mailing-list
    * Get mailing list
    */
-  router.get('/mailing-list', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/mailing-list', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Email list by role, for the people who staff the unit.
@@ -284,7 +291,7 @@ module.exports = (pool, _logger) => {
    * GET /api/v1/reports/health
    * Get health report
    */
-  router.get('/health', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/health', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const groupId = req.query.group_id;
@@ -430,7 +437,7 @@ module.exports = (pool, _logger) => {
    * GET /api/v1/reports/attendance
    * Get attendance report
    */
-  router.get('/attendance', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/attendance', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { start_date, end_date, group_id, format } = req.query;
@@ -537,7 +544,7 @@ module.exports = (pool, _logger) => {
    * GET /api/v1/reports/missing-documents
    * Get missing documents report
    */
-  router.get('/missing-documents', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/missing-documents', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Get required form types from organization settings
@@ -629,7 +636,7 @@ module.exports = (pool, _logger) => {
    * GET /api/v1/reports/health-contacts
    * Get health contact report
    */
-  router.get('/health-contacts', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/health-contacts', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -668,7 +675,7 @@ module.exports = (pool, _logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/allergies', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/allergies', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Everything a leader needs to act on an allergy, and nothing else: general
@@ -750,7 +757,7 @@ module.exports = (pool, _logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/medication', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/medication', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Same reading as the allergy report, for the same reason: a medication a
@@ -803,7 +810,7 @@ module.exports = (pool, _logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/vaccines', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/vaccines', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -848,7 +855,7 @@ module.exports = (pool, _logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/leave-alone', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/leave-alone', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -886,7 +893,7 @@ module.exports = (pool, _logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/media-authorization', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/media-authorization', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -924,7 +931,7 @@ module.exports = (pool, _logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/honors', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/honors', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -963,7 +970,7 @@ module.exports = (pool, _logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/points', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/points', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -1000,7 +1007,7 @@ module.exports = (pool, _logger) => {
    * GET /api/time-since-registration-report
    * Get time since registration report for all participants
    */
-  router.get('/time-since-registration', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/time-since-registration', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -1056,7 +1063,7 @@ module.exports = (pool, _logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/participant-progress', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/participant-progress', authenticate, requirePermission(PROGRESS_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // A unit-wide role sees every participant; a 'linked' one (parents) only
@@ -1198,7 +1205,7 @@ module.exports = (pool, _logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/parent-contact-list', authenticate, requirePermission('reports.view'), withScoutYear(pool), asyncHandler(async (req, res) => {
+  router.get('/parent-contact-list', authenticate, requirePermission(UNIT_REPORT), withScoutYear(pool), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Get all participants with their guardians
