@@ -469,6 +469,51 @@ test.describe('the leaders\' programme bar', () => {
   });
 });
 
+test.describe('the leaders\' dashboard at camp and on an outing', () => {
+  test.use({ storageState: storageStateFor(ACCOUNTS.leader) });
+
+  /**
+   * @param {string} date - YYYY-MM-DD
+   * @param {number} hours
+   * @param {number} minutes
+   * @returns {Date} That moment, in the page's local time
+   */
+  const at = (date, hours, minutes) => {
+    const [year, month, day] = date.split('-').map(Number);
+    return new Date(year, month - 1, day, hours, minutes);
+  };
+  const sidewaysScroll = (page) => page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  );
+
+  test('on a camp day, giving points leads and the card names the day and what is on', async ({ page }) => {
+    // seed.mjs plans the autumn camp's first evening from 18:30; the page's clock is set inside it.
+    await page.clock.install({ time: at(seededRecord('campStartDate'), 18, 40) });
+    await openScreen(page, '/dashboard');
+
+    const now = page.locator('section[aria-labelledby="moment-now"]');
+    await expect(now.locator('.dashboard-v2__hero-card-link')).toHaveAttribute('href', '/managePoints');
+    await expect(now).toContainText('jour 1 sur 3');
+    await expect(now).toContainText('Montage du camp');
+    await expect(page.getByRole('heading', { name: 'Au camp' })).toBeVisible();
+    expect(await axeViolations(page)).toEqual([]);
+    expect(await sidewaysScroll(page)).toBe(false);
+  });
+
+  test('on the day an outing replaces the meeting, the dashboard follows the outing', async ({ page }) => {
+    await page.clock.install({ time: at(seededRecord('replacedMeetingDate'), 10, 0) });
+    await openScreen(page, '/dashboard');
+
+    const now = page.locator('section[aria-labelledby="moment-now"]');
+    await expect(now.locator('.dashboard-v2__hero-card-link')).toHaveAttribute('href', '/managePoints');
+    await expect(now).toContainText('Sortie au musée');
+    await expect(now).toContainText('08:45');
+    await expect(now.locator('a[href="/walk-in-children"]')).toHaveCount(0);
+    expect(await axeViolations(page)).toEqual([]);
+    expect(await sidewaysScroll(page)).toBe(false);
+  });
+});
+
 test.describe('who has the equipment', () => {
   signedInAs('admin');
 

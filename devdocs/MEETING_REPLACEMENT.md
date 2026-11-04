@@ -37,4 +37,4 @@ everyone, replaces that meeting (`services/meetingReplacement.js`).
 
 Tests: `test/meeting-replacement.integration.test.js`, `test/spa/DashboardCampDay.test.js`,
 `test/spa/ActivityDeleteDialog.test.js`, `test/spa/MeetingSheet.test.js`,
-`test/spa/YearlyPlannerReplacedMeeting.test.js`.
+`test/spa/YearlyPlannerReplacedMeeting.test.js`, and in a real browser `e2e/accessibility.spec.mjs` (the seeded museum outing replacing the meeting on `replacedMeetingDate`, also shown in the seeded year plan).
