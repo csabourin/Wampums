@@ -935,12 +935,17 @@ export class Dashboard extends BaseModule {
    */
   _shouldPromoteMedicationAction(distributions = [], activities = []) {
     const now = new Date();
-    const activeActivity = this._getActiveMedicationActivity(activities, now)
-      // The camp's own name, never a day's title: unknown, every dose near counts.
-      || (this.campDay ? { name: this.campDay.campName } : null)
-      || this._getActivePreparedCampActivity();
+    // Everything the unit is away at now: each activity under way, the camp
+    // day (its own name, never a day's title: unknown, every near dose counts)
+    // and the camp prepared on this device. A dose matching any of them counts,
+    // so an unrelated activity under way never hides the camp's doses.
+    const awayAt = [
+      ...this._getActiveMedicationActivities(activities, now),
+      this.campDay ? { name: this.campDay.campName } : null,
+      this._getActivePreparedCampActivity(),
+    ].filter(Boolean);
 
-    if (!activeActivity) {return false;}
+    if (!awayAt.length) {return false;}
 
     const beforeMs = (CONFIG.DASHBOARD?.MEDICATION_DUE_WINDOW_BEFORE_MINUTES ?? 90) * 60 * 1000;
     const afterMs = (CONFIG.DASHBOARD?.MEDICATION_DUE_WINDOW_AFTER_MINUTES ?? 15) * 60 * 1000;
@@ -956,12 +961,17 @@ export class Dashboard extends BaseModule {
       const delta = scheduledAt.getTime() - now.getTime();
       if (delta < -afterMs || delta > beforeMs) {return false;}
 
-      return this._distributionMatchesActivity(distribution, activeActivity);
+      return awayAt.some((activity) => this._distributionMatchesActivity(distribution, activity));
     });
   }
 
-  _getActiveMedicationActivity(activities = [], now = new Date()) {
-    return activities.find((activity) => {
+  /**
+   * @param {Array<Object>} activities
+   * @param {Date} now
+   * @returns {Array<Object>} The activities under way now, by their dates and times
+   */
+  _getActiveMedicationActivities(activities = [], now = new Date()) {
+    return activities.filter((activity) => {
       const startDate = activity.activity_start_date || activity.start_date || activity.activity_date || activity.date;
       const endDate = activity.activity_end_date || activity.end_date || startDate;
       const startTime = activity.activity_start_time || activity.meeting_time_going || '00:00';
@@ -971,7 +981,7 @@ export class Dashboard extends BaseModule {
 
       if (!start || !end) {return false;}
       return start.getTime() <= now.getTime() && now.getTime() <= end.getTime();
-    }) || null;
+    });
   }
 
   _getActivePreparedCampActivity() {

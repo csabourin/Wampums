@@ -526,3 +526,25 @@ test('a dose named after the camp is promoted on a day whose schedule has its ow
   expect(primaryAction().getAttribute('href')).toBe('/medication-dispensing');
   dashboard.destroy();
 });
+
+test('an unrelated activity under way does not hide a dose due for the camp', async () => {
+  atTime(9, 30);
+  getActivities.mockResolvedValue({
+    data: [
+      { id: 5, name: 'Vente de biscuits', activity_start_date: TODAY, activity_end_date: TODAY,
+        activity_start_time: '09:00', activity_end_time: '12:00' },
+      { id: 7, name: 'Camp du lac', is_camp: true, linked_year_plan_meeting_id: 41,
+        activity_start_date: '2026-07-13', activity_end_date: '2026-07-15',
+        activity_start_time: '08:00', activity_end_time: '16:00' },
+    ],
+  });
+  getMedicationDistributions.mockResolvedValue({
+    data: { distributions: [{
+      scheduled_for: new Date(2026, 6, 14, 10, 0).toISOString(), status: 'scheduled', activity_name: 'Camp du lac',
+    }] },
+  });
+  const dashboard = await openDashboard();
+
+  expect(primaryAction().getAttribute('href')).toBe('/medication-dispensing');
+  dashboard.destroy();
+});
