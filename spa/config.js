@@ -74,6 +74,8 @@ export const CONFIG = {
     'camp-sites',
     // Each plan section names the version it replaces; a later replay could undo a colleague's text.
     'camp-plans',
+    // A camp's team is named now, against the unit's members as they are; never replayed later.
+    'camp-rosters',
   ],
   /**
      * Cache Duration Settings

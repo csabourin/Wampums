@@ -147,6 +147,7 @@ const lazyModules = {
   CampPlan: () => import('./modules/camp-plan/CampPlan.js').then(m => m.CampPlan),
   CampPlanTemplates: () => import('./modules/camp-plan/CampPlanTemplates.js').then(m => m.CampPlanTemplates),
   CampPlans: () => import('./modules/camp-plan/CampPlans.js').then(m => m.CampPlans),
+  CampRoster: () => import('./modules/camp-plan/CampRoster.js').then(m => m.CampRoster),
   ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
   AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink),
   ReactivationLink: () => import('./modules/reactivation/ReactivationLink.js').then(m => m.ReactivationLink),
@@ -276,6 +277,7 @@ const routes = {
   '/camp-plan/:id': 'campPlan',
   '/camp-plan-templates': 'campPlanTemplates',
   '/camp-plans': 'campPlans',
+  '/camp-roster/:id': 'campRoster',
   '/unit-settings': 'unitSettings',
   '/scout-year': 'scoutYear'
 
@@ -872,6 +874,14 @@ export class Router {
           if (!guard(hasPermission('meetings.view'))) {break;}
           const CampPlans = await this.loadModule('CampPlans');
           this.currentModuleInstance = new CampPlans(this.app);
+          await this.currentModuleInstance.init();
+          break;
+        }
+        case 'campRoster': {
+          // The lists name the camp's youth: meetings.view and participants.view, unit-wide; naming the team takes meetings.manage.
+          if (!guard(hasPermission('meetings.view') && hasPermission('participants.view') && hasOrganizationScope())) {break;}
+          const CampRoster = await this.loadModule('CampRoster');
+          this.currentModuleInstance = new CampRoster(this.app, { meetingId: Number(param) });
           await this.currentModuleInstance.init();
           break;
         }

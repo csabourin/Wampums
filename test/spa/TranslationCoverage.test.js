@@ -297,3 +297,15 @@ test('every camp plan section, group and duplication part has its labels in both
   expect(sections).toHaveLength(13);
   expect(missing(uses)).toEqual([]);
 });
+
+test('every camp team role, age status and list gap has its label in both languages', () => {
+  const team = require('../../config/camp_team.json');
+  const gaps = ['no_scout_year', 'no_youth', 'no_lead', 'aide_age_unknown', 'member_left_unit', 'sisc_not_compared'];
+  const uses = [
+    ...team.team_roles.map((role) => [`camp_roster_role_${role}`, 'CampRoster']),
+    ...['minor', 'adult', 'unknown'].map((state) => [`camp_roster_age_status_${state}`, 'CampRoster']),
+    ...gaps.map((gap) => [`camp_roster_gap_${gap}`, 'CampRoster']),
+  ];
+  expect(team.team_roles).toEqual(['lead', 'leader', 'camp_aide']);
+  expect(missing(uses)).toEqual([]);
+});

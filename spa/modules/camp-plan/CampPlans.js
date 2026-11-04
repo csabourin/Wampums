@@ -28,6 +28,8 @@ export class CampPlans {
     this.data = { coming: [], past: [] };
     // The team overview is offered as its route guard allows: meetings.view with a unit-wide scope.
     this.canSeeReadiness = hasPermission('meetings.view') && hasOrganizationScope();
+    // The camp lists name its youth, as their route guard says.
+    this.canSeeRoster = this.canSeeReadiness && hasPermission('participants.view');
     this.destroyed = false;
     this.request = 0;
   }
@@ -100,6 +102,7 @@ export class CampPlans {
         <div class="camp-plan__actions">
           <a class="button button--primary button--small" href="/camp-plan/${id}">${escapeHTML(translate('camp_plans_open_plan'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a>
           <a class="button button--secondary button--small" href="/camp-site/${id}">${escapeHTML(translate('camp_site_title'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a>
+          ${this.canSeeRoster ? `<a class="button button--secondary button--small" href="/camp-roster/${id}">${escapeHTML(translate('camp_plans_open_roster'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a>` : ''}
           ${this.canSeeReadiness ? `<a class="button button--secondary button--small" href="/camp-readiness/${id}">${escapeHTML(translate('camp_readiness_title'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a>` : ''}
         </div>
       </li>`;

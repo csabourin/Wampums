@@ -62,8 +62,16 @@ test('coming camps come first, each saying what its plan still lacks and leading
   expect(first.textContent).toContain('camp_readiness_left_plan_review');
   expect(first.classList.contains('is-attention')).toBe(true);
   expect(Array.from(first.querySelectorAll('a')).map((link) => link.getAttribute('href')))
-    .toEqual(['/camp-plan/12', '/camp-site/12', '/camp-readiness/12']);
+    .toEqual(['/camp-plan/12', '/camp-site/12', '/camp-roster/12', '/camp-readiness/12']);
   expect(document.querySelectorAll('.camp-plans__camp')[1].textContent).toContain('camp_plan_all_written');
+});
+
+test('the camp lists name youth, so they are offered only with participants.view', async () => {
+  hasPermission.mockImplementation((key) => key !== 'participants.view');
+  await open();
+  const links = Array.from(document.querySelector('.camp-plans__camp').querySelectorAll('a')).map((link) => link.getAttribute('href'));
+  expect(links).not.toContain('/camp-roster/12');
+  expect(links).toContain('/camp-readiness/12');
 });
 
 test('someone who sees only their own children is not offered the team overview, which would refuse them', async () => {
