@@ -33,7 +33,8 @@ opened from each camp of `/camp-plans`. It shows, in this order:
 ## Rules (`services/campRoster.js`, migration 072)
 
 - **Youth** are the enrollments of the scout year covering the camp's first day, still enrolled then
-  (`status = 'active'`, or ended on or after that day). When the camp's activity has issued permission
+  (`status = 'active'`, or ended on or after that day) and registered by its last day
+  (`inscription_date`, when known): a youth registered after a camp never changes that camp's list. When the camp's activity has issued permission
   requests, only youth with a **signed** request are listed: a declined or revoked request is a
   withdrawal. Without requests, every enrolled youth is listed, as the action rosters do
   (`devdocs/ACTION_ROSTERS.md`). Every read is filtered by the camp's unit, so a youth enrolled in several

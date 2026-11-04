@@ -4,7 +4,7 @@
  * its team, as the camp permit asks for them.
  *
  * - **Youth** are the roster of the scout year covering the camp's first day,
- *   still enrolled then. When the camp's activity has issued permission
+ *   still enrolled then and registered by its last day. When the camp's activity has issued permission
  *   requests, only those whose request is signed take part (the action roster
  *   rule, devdocs/ACTION_ROSTERS.md); a declined or revoked request is a
  *   withdrawal. A youth enrolled in several units appears only for the units
@@ -113,11 +113,13 @@ async function campYouth(db, organizationId, camp) {
        JOIN participants p ON p.id = pe.participant_id
       WHERE pe.organization_id = $1 AND pe.scout_year_id = $2
         AND (pe.status = 'active' OR pe.ended_on >= $3::date)
+        -- Registered after the camp ended, they were not there: a later walk-in never changes a past camp.
+        AND (pe.inscription_date IS NULL OR pe.inscription_date <= $6::date)
         AND (NOT $5::boolean OR EXISTS (
           SELECT 1 FROM permission_slips ps
            WHERE ps.organization_id = $1 AND ps.activity_id = $4 AND ps.participant_id = p.id AND ps.status = 'signed'))
       ORDER BY p.last_name, p.first_name, p.id`,
-    [organizationId, scoutYear.id, camp.date_from, camp.activity_id, requested]
+    [organizationId, scoutYear.id, camp.date_from, camp.activity_id, requested, camp.date_to]
   )).rows;
   return { scout_year: scoutYear, consent, youth };
 }

@@ -47,10 +47,10 @@ describe.skipIf(!DATABASE_URL)('Camp lists', () => {
   async function youth(first, birth, enrollments) {
     const id = await one('INSERT INTO participants (first_name, last_name, date_naissance) VALUES ($1, $2, $3) RETURNING id', [first, 'Fiction', birth]);
     participants.push(id);
-    for (const [unitId, year, status = 'active', endedOn = null] of enrollments) {
+    for (const [unitId, year, status = 'active', endedOn = null, registeredOn = null] of enrollments) {
       // eslint-disable-next-line no-await-in-loop -- a handful of fixture rows
-      await pool.query('INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, status, ended_on) VALUES ($1, $2, $3, $4, $5)',
-        [id, unitId, year, status, endedOn]);
+      await pool.query(`INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, status, ended_on, inscription_date)
+        VALUES ($1, $2, $3, $4, $5, $6)`, [id, unitId, year, status, endedOn, registeredOn]);
     }
     return id;
   }
@@ -106,6 +106,15 @@ describe.skipIf(!DATABASE_URL)('Camp lists', () => {
     expect(names(roster.youth)).toEqual(['Rosalind']);
     expect(roster.youth[0].age_at_camp).toBe(11);
     expect(roster.gaps).toEqual(['no_lead']);
+  });
+
+  test('a youth registered after a camp ended never joins that camp’s list; one registered during it does', async () => {
+    const { meeting } = await camp(ids.unit, '2030-10-10', '2030-10-12', ids.manager);
+    await youth('Ida', '2020-01-01', [[ids.unit, ids.year, 'active', null, '2030-10-11']]);
+    await youth('Sophie', '2020-01-01', [[ids.unit, ids.year, 'active', null, '2030-11-02']]);
+    const listed = names((await call('get', `/${meeting}`, ids.reader)).body.data.youth);
+    expect(listed).toContain('Ida');
+    expect(listed).not.toContain('Sophie');
   });
 
   test('with permission requests, only youth whose request is signed take part; a withdrawal leaves the list', async () => {
