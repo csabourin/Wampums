@@ -631,7 +631,7 @@ export const CAMP_DAY_SHORTCUTS = [
     label: 'dashboard_camp_shortcut_site',
     domain: 'safety',
     gate: { permission: 'meetings.view' },
-    requiresNetwork: true,
+    // Kept on the device by camp preparation and each online visit (CampSiteOffline.js).
     kinds: ['camp'],
   },
   {

@@ -33,6 +33,12 @@ jest.mock('../../spa/api/api-camp-sites.js', () => ({
   createCampSite: jest.fn(), updateCampSite: jest.fn(), setCampSiteArchived: jest.fn(),
 }));
 
+jest.mock('../../spa/modules/camp-sites/CampSiteOffline.js', () => ({
+  storeCampSiteSnapshot: jest.fn(() => Promise.resolve('camp_site_snapshot_12')),
+  getCampSiteSnapshot: jest.fn(() => Promise.resolve(null)),
+}));
+
+const offline = require('../../spa/modules/camp-sites/CampSiteOffline.js');
 const api = require('../../spa/api/api-camp-sites.js');
 const { hasPermission } = require('../../spa/utils/PermissionUtils.js');
 const { closeAllModals } = require('../../spa/utils/ModalUtils.js');
@@ -83,6 +89,10 @@ beforeEach(() => {
   api.getCampSites.mockResolvedValue({ success: true, data: [SITE, { id: 5, name: 'Fictional Hill', archived: false }] });
   hasPermission.mockReset();
   hasPermission.mockImplementation(() => true);
+  offline.storeCampSiteSnapshot.mockClear();
+  offline.getCampSiteSnapshot.mockReset();
+  offline.getCampSiteSnapshot.mockResolvedValue(null);
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
 });
 
 afterEach(() => {
@@ -309,5 +319,77 @@ describe('choosing for this camp', () => {
     expect($('#camp-site-add')).toBeNull();
     expect($('#camp-site-edit')).toBeNull();
     expect($('#camp-site-camp-form')).not.toBeNull();
+  });
+});
+
+describe('without a network, at camp', () => {
+  const unreachable = () => Object.assign(new Error('Failed to fetch'), { isNetworkError: true });
+
+  test('opened online, the camp\'s site is kept on this device', async () => {
+    await open();
+    expect(offline.storeCampSiteSnapshot).toHaveBeenCalledWith(12, expect.objectContaining({ site: SITE }));
+  });
+
+  test('the copy kept on this device shows the emergency numbers, read-only, and says from when', async () => {
+    api.getCampSite.mockRejectedValue(unreachable());
+    api.getCampSites.mockRejectedValue(unreachable());
+    offline.getCampSiteSnapshot.mockResolvedValue({ preparedAt: Date.UTC(2026, 10, 1, 18, 0), data: campSite({ members: undefined }) });
+
+    await open();
+
+    const notice = $('.camp-site__offline');
+    expect(notice.getAttribute('role')).toBe('status');
+    expect(notice.textContent).toContain('camp_site_offline_copy');
+    const text = $('.camp-site__site').textContent;
+    expect(text).toContain('Fictional Memorial Hospital');
+    expect(text).toContain('555-0199');
+    expect(text).toContain('1-800-463-5060');
+    // Changing it needs a connection: neither the camp's choices nor the site can be edited.
+    expect($('#camp-site-camp-form')).toBeNull();
+    expect($('#camp-site-edit')).toBeNull();
+    expect(offline.storeCampSiteSnapshot).not.toHaveBeenCalled();
+    const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('known to be offline, the page shows the copy kept on this device without asking the network', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    offline.getCampSiteSnapshot.mockResolvedValue({ preparedAt: Date.now(), data: campSite({ members: undefined }) });
+
+    await open();
+
+    expect(api.getCampSite).not.toHaveBeenCalled();
+    expect($('.camp-site__offline')).toBeTruthy();
+    expect($('#camp-site-camp-form')).toBeNull();
+  });
+
+  test('known to be offline with no copy on this device, the page says so', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+
+    await open();
+
+    expect(api.getCampSite).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain('camp_site_not_on_device');
+  });
+
+  test('with no copy on this device, the page says so and offers to try again', async () => {
+    api.getCampSite.mockRejectedValue(unreachable());
+    api.getCampSites.mockRejectedValue(unreachable());
+
+    await open();
+
+    expect(document.body.textContent).toContain('camp_site_not_on_device');
+    expect($('#camp-site-retry')).toBeTruthy();
+  });
+
+  test('a refusal from the server is never covered by the copy kept on this device', async () => {
+    api.getCampSite.mockRejectedValue(Object.assign(new Error('forbidden'), { status: 403 }));
+    offline.getCampSiteSnapshot.mockResolvedValue({ preparedAt: Date.now(), data: campSite() });
+
+    await open();
+
+    expect(offline.getCampSiteSnapshot).not.toHaveBeenCalled();
+    expect($('.camp-site__offline')).toBeNull();
+    expect($('#camp-site-retry')).toBeTruthy();
   });
 });

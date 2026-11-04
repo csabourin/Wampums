@@ -5549,5 +5549,7 @@
   "dashboard_outing_departure": "Departure:",
   "dashboard_outing_return": "Return:",
   "dashboard_outing_section": "On the outing",
-  "meeting_already_processed": "This meeting's honors were already processed: it cannot be cancelled. Restore it instead."
+  "meeting_already_processed": "This meeting's honors were already processed: it cannot be cancelled. Restore it instead.",
+  "camp_site_offline_copy": "No connection: this is the copy kept on this device on {when}. Changing it needs a connection.",
+  "camp_site_not_on_device": "No connection, and this camp's site is not kept on this device. Open it once with a connection, or prepare the camp for offline use."
 }

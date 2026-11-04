@@ -19,6 +19,7 @@ import {
 import { CONFIG } from '../config.js';
 import { isoToDateString } from '../utils/DateUtils.js';
 import { assertPreparedLotMutation, applyReplayedLot, storeLotSnapshot, lotSnapshotKey } from './camp-lots/CampLotOffline.js';
+import { storeCampSiteSnapshot } from './camp-sites/CampSiteOffline.js';
 import { OFFLINE_CAMPS } from '../config/offline-camps.js';
 import {
   buildApiCacheKey,
@@ -1179,6 +1180,15 @@ export class OfflineManager {
         cacheKeys.push(lotSnapshotKey(pack.meeting_id, pack.own_only));
       }
 
+      // Where each camp is held and how to reach help from there, read-only, for the days
+      // without a network (the server sends it to those who may read it).
+      for (const pack of bulkData.campSites || []) {
+        assertScope();
+        // eslint-disable-next-line no-await-in-loop -- required camp snapshots must finish before readiness is recorded
+        cacheKeys.push(await storeCampSiteSnapshot(pack.meeting_id, pack.data, duration));
+        assertScope();
+      }
+
       // Step 8: Pre-load JavaScript modules for offline use
       this.updatePreparationProgress(8, this.getTranslation('offline.cachingModules'));
       await this.preloadCampModules();
@@ -1255,6 +1265,7 @@ export class OfflineManager {
   async preloadCampModules() {
     const campModules = [
       () => import('./camp-lots/CampEquipmentLots.js'),
+      () => import('./camp-sites/CampSite.js'),
       () => import('./tasks/Tasks.js'),
       () => import('./attendance/Attendance.js'),
       () => import('./points/ManagePoints.js'),
