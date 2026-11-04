@@ -38,8 +38,13 @@ locally. The `fix-issue` project skill (`.claude/skills/fix-issue/`) walks throu
   `npm run build` when imports, `vite.config.mjs` or the service worker changed; the browser
   (run-wampums skill) when the issue is about what a screen looks like.
 - ❌ Do not run `npm run test:quality`, `npm run lint:all` or `npm run test:a11y` locally by default.
-- ✅ **Let CI decide.** CI runs on pull requests: push, then open the issue's pull request as a draft
-  (or update it). When CI fails, read the failing job's log and fix only what it reports.
+- ✅ **Let CI decide, and watch it.** CI runs once on every pushed commit, on any branch (not again on
+  a pull request). Push, then watch that run without being asked: schedule a check for when it should
+  be done (`send_later`, about 12 minutes), read its result with the GitHub MCP `actions_*` tools, and
+  when a job fails, read that job's log and fix only what it reports. Push the fix and watch again,
+  until CI is green or three attempts have failed (then report what still fails). Do not open a pull
+  request for CI; open one only when asked. When a pull request already exists for the branch, also
+  `subscribe_pr_activity` for its reviews.
 
 ---
 
@@ -769,7 +774,7 @@ The project enforces ESLint 9 rules. **Errors block CI; warnings must be resolve
 
 ### 11) Automated Lint Scripts
 
-`npm run lint:all` runs every check below; it is exactly what CI runs on a pull request. Locally, run
+`npm run lint:all` runs every check below; it is exactly what CI runs on every pushed commit. Locally, run
 only the checks your change concerns ("Working on an issue").
 
 | Script | What it checks |
@@ -835,7 +840,7 @@ before changing it.
   (`run-wampums` skill: `db.sh`, `seed.mjs`, `start.sh`).
 - ✅ CI runs `npm run lint:all`, `npm run build`, `npm run test:quality` (every Jest suite; the
   integration ones skip without `TEST_DATABASE_URL`), the integration job and the accessibility job,
-  on every pull request. Locally, run the targeted checks of "Working on an issue"; CI runs the rest.
+  once on every pushed commit, any branch (`.github/workflows/ci-integrity.yml`). Locally, run the targeted checks of "Working on an issue"; CI runs the rest.
 - ✅ To see a change in a real browser (phone or desktop size, as admin, leader or parent), use the
   `run-wampums` project skill (`.claude/skills/run-wampums/`).
 
@@ -1077,7 +1082,7 @@ Before submitting code, verify:
 - [ ] `debugLog`/`debugError` instead of `console.*`; `spa/config.js` constants, no hardcoded values
 
 **Linting and CI:**
-- [ ] Targeted local checks pass ("Working on an issue"); CI on the pull request passes `lint:all`, the build, every suite
+- [ ] Targeted local checks pass ("Working on an issue"); CI on the pushed commit passes `lint:all`, the build, every suite (watched, §"Working on an issue")
 - [ ] Out-of-scope gaps listed under "Follow-ups" in the PR description rather than fixed
 - [ ] Baselines lowered when violations were removed; no new `policy-allow` without a CLAUDE.md-permitted reason
 

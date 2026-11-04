@@ -56,8 +56,16 @@ test wins and the document gets fixed.
 - Every behaviour change comes with a test named as a plain statement of behaviour. SPA tests live in
   `test/spa/` (jsdom, with an `axe-core` check for new screens and dialogs). Integration tests
   (`*.integration.test.js`) need `TEST_DATABASE_URL`.
-- Before a PR: `npm run lint:all`, `npm run build`, `npm run test:quality`, the integration suites
-  when you touch access, roles, families or scout years, and `npm run test:a11y` (real-browser WCAG 2.2
-  AA, against the app started by the `run-wampums` skill) when you touch the UI.
+- **CI is the full gate**, once per pushed commit on any branch (`.github/workflows/ci-integrity.yml`:
+  `lint:all`, build, every Jest suite, integration suites on a real database, real-browser WCAG 2.2 AA).
+  Do not repeat it locally. Run only what concerns the change: `npx jest --findRelatedTests <changed
+  files>`, `npx eslint <changed files>`, and `lint:i18n-parity` / `lint:policy` / `lint:api-contracts`
+  when `lang/`, server or SPA code, or an API contract changed. Run the integration suites locally only
+  for migrations, access, roles, families or scout years; `npm run build` only when imports or the build
+  changed.
+- After pushing, **watch the CI run of that commit** and fix what it reports until it is green; do not
+  open a pull request just to run CI. (CLAUDE.md › "Working on an issue"; the `fix-issue` skill.)
+- **Stay in the issue's scope**: fix what it asks, bring only the code you edit up to CLAUDE.md §7, and
+  list other gaps as follow-ups. Feature rules are in `devdocs/` (CLAUDE.md › "Feature areas").
 - To see a change in a browser, use the `run-wampums` skill (`.claude/skills/run-wampums/`).
 - Required env vars: `DATABASE_URL`, `JWT_SECRET_KEY`; see `.env.example` for the rest.
