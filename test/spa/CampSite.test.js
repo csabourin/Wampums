@@ -399,6 +399,23 @@ describe('without a network, at camp', () => {
     expect(offline.storeCampSiteSnapshot).not.toHaveBeenCalled();
   });
 
+  test('leaving the screen while the copy on this device is read draws nothing over the next one', async () => {
+    api.getCampSite.mockRejectedValue(unreachable());
+    api.getCampSites.mockRejectedValue(unreachable());
+    let release;
+    offline.getCampSiteSnapshot.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+    screen = new CampSite(app, { meetingId: 12 });
+    const loading = screen.init();
+    await flush();
+    screen.destroy();
+    document.getElementById('app').textContent = 'next screen';
+    release(null);
+    await loading;
+    await flush();
+
+    expect(document.getElementById('app').textContent).toBe('next screen');
+  });
+
   test('the copy is kept under the scope the page was read in', async () => {
     await open();
     expect(offline.storeCampSiteSnapshot).toHaveBeenCalledWith(12, expect.any(Object), undefined, 'scope:unit-1');

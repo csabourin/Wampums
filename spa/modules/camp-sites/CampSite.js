@@ -119,7 +119,7 @@ export class CampSite {
       if (this.isStale(request, scope)) {
         return;
       }
-      if (CampSite.isUnreachable(err) && await this.showOfflineCopy(request, scope)) {
+      if (CampSite.isUnreachable(err) && (await this.showOfflineCopy(request, scope) || this.isStale(request, scope))) {
         return;
       }
       debugError('Failed to load the camp site:', err);
