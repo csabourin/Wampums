@@ -482,6 +482,7 @@ only then. The rules there are as binding as this file; update the devdoc in the
 | Reusing an earlier camp | `services/campDuplication.js` | `devdocs/CAMP_DUPLICATION.md` |
 | Camp sites | `/camp-sites`, `/camp-site/:id`, `services/campSites.js` | `devdocs/CAMP_SITES.md` |
 | Camp plan written sections | `/camp-plan`, `/camp-plans`, `services/campPlan.js` | `devdocs/CAMP_PLAN_SECTIONS.md` |
+| Camp lists (youth, team, camp aides) | `/camp-roster/:id`, `services/campRoster.js`, `camp_team_members` | `devdocs/CAMP_ROSTERS.md` |
 | Team camp readiness, camp dates | `/camp-readiness`, `services/campDates.js` | `devdocs/CAMP_READINESS.md` |
 | Dashboard during a camp | `spa/utils/CampDayUtils.js`, `CAMP_DAY_SHORTCUTS` | `devdocs/CAMP_DAY_DASHBOARD.md` |
 | An outing that replaces a meeting | `services/meetingReplacement.js`, `replaces_meeting_*`, deleting an outing | `devdocs/MEETING_REPLACEMENT.md` |

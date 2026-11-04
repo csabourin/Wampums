@@ -8,6 +8,8 @@ const {
   familyMedicationAccess,
   MEDICATION_LIST_READ_POLICY,
   MEDICATION_REQUIREMENT_WRITE_POLICY,
+  MEDICATION_STAFF_POLICY,
+  validId,
   listParticipantFilter
 } = require('../middleware/medicationAuthorizationPolicy');
 const { areUnitLeaders } = require('../services/unitLeaders');
@@ -36,20 +38,17 @@ function parseMedicationInstant(value) {
   return Number.isNaN(instant.getTime()) ? null : instant;
 }
 
+/**
+ * Participant ids named by a request, read strictly ('999abc' is not 999).
+ * @param {*} participantIds - Request field
+ * @returns {number[]|null} Distinct ids, or null when the field is not an array of valid ids
+ */
 const parseParticipantIds = (participantIds) => {
   if (!Array.isArray(participantIds)) {
-    return [];
+    return null;
   }
-
-  const unique = new Set();
-  participantIds.forEach((id) => {
-    const numeric = Number.parseInt(id, 10);
-    if (Number.isInteger(numeric) && numeric > 0) {
-      unique.add(numeric);
-    }
-  });
-
-  return Array.from(unique);
+  const ids = participantIds.map((id) => validId(typeof id === 'string' && id.trim() === '' ? NaN : id));
+  return ids.includes(null) ? null : Array.from(new Set(ids));
 };
 
 const normalizeText = (value, maxLength = 1000) => {
@@ -186,7 +185,7 @@ module.exports = (pool, logger) => {
       return error(res, 'Medication name and a participant are required', 400);
     }
 
-    if (participants.length !== 1) {
+    if (!participants || participants.length !== 1) {
       return error(res, 'Medication requirements must target exactly one participant', 400);
     }
 
@@ -305,7 +304,7 @@ module.exports = (pool, logger) => {
       return error(res, 'Medication name and a participant are required', 400);
     }
 
-    if (participants.length !== 1) {
+    if (!participants || participants.length !== 1) {
       return error(res, 'Medication requirements must target exactly one participant', 400);
     }
 
@@ -433,7 +432,7 @@ module.exports = (pool, logger) => {
    * List scheduled and historical medication distributions
    * Permission: participants.edit
    */
-  router.get('/v1/medication/distributions', authenticate, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
+  router.get('/v1/medication/distributions', authenticate, requirePermission(MEDICATION_STAFF_POLICY), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const filters = ['organization_id = $1'];
@@ -462,7 +461,7 @@ module.exports = (pool, logger) => {
    * Schedule or update medication distributions for a single participant per entry
    * Permission: participants.edit
    */
-  router.post('/v1/medication/distributions', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
+  router.post('/v1/medication/distributions', authenticate, blockDemoRoles, requirePermission(MEDICATION_STAFF_POLICY), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const {
@@ -477,15 +476,15 @@ module.exports = (pool, logger) => {
       witness_name
     } = req.body || {};
 
-    const requirementId = Number.parseInt(medication_requirement_id, 10);
+    const requirementId = validId(medication_requirement_id);
     const participants = parseParticipantIds(participant_ids);
     const scheduledDate = parseMedicationInstant(scheduled_for);
 
-    if (!Number.isInteger(requirementId) || requirementId <= 0) {
+    if (!requirementId) {
       return error(res, 'A valid medication requirement is required', 400);
     }
 
-    if (participants.length !== 1) {
+    if (!participants || participants.length !== 1) {
       return error(res, 'Exactly one participant must be scheduled per distribution', 400);
     }
 
@@ -498,11 +497,15 @@ module.exports = (pool, logger) => {
       return error(res, 'Dose amount must be a valid number', 400);
     }
 
+    // The medication names its youth, who must be enrolled in this unit (#1340): ids are global,
+    // so a dose could otherwise be scheduled for another unit's child or the wrong child.
     const requirementResult = await pool.query(
-      `SELECT id, default_dose_amount, default_dose_unit
-       FROM medication_requirements
-       WHERE id = $1 AND organization_id = $2`,
-      [requirementId, organizationId]
+      `SELECT r.id, r.default_dose_amount, r.default_dose_unit
+       FROM medication_requirements r
+       WHERE r.id = $1 AND r.organization_id = $2 AND r.participant_id = $3
+         AND EXISTS (SELECT 1 FROM participant_enrollments pe
+                      WHERE pe.participant_id = r.participant_id AND pe.organization_id = r.organization_id)`,
+      [requirementId, organizationId, participants[0]]
     );
 
     if (requirementResult.rows.length === 0) {
@@ -611,7 +614,7 @@ module.exports = (pool, logger) => {
    * Update the status of a medication distribution entry
    * Permission: participants.edit
    */
-  router.patch('/v1/medication/distributions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
+  router.patch('/v1/medication/distributions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_STAFF_POLICY), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const distributionId = Number(req.params.id);
@@ -629,22 +632,9 @@ module.exports = (pool, logger) => {
       return error(res, 'administered_at must be a valid ISO date/time with Z or an explicit UTC offset', 400);
     }
 
-    // Prevent duplicate dose: if this distribution is already marked as given, reject the update
-    if (normalizedStatus === 'given') {
-      const existing = await pool.query(
-        'SELECT id, status FROM medication_distributions WHERE id = $1 AND organization_id = $2',
-        [distributionId, organizationId]
-      );
-
-      if (existing.rows.length === 0) {
-        return error(res, 'Distribution not found', 404);
-      }
-
-      if (existing.rows[0].status === 'given') {
-        return error(res, 'This dose has already been given and cannot be given again', 409);
-      }
-    }
-
+    // One conditional write (#1341): a dose already given never changes again, so of two devices
+    // confirming it at once one succeeds and the other is told it was given, and nothing can put a
+    // given dose back to "to give" or erase who gave it.
     const result = await pool.query(
       `UPDATE medication_distributions
        SET status = $1,
@@ -652,7 +642,7 @@ module.exports = (pool, logger) => {
            administered_by = $3,
            witness_name = COALESCE($4, witness_name),
            updated_at = NOW()
-       WHERE id = $5 AND organization_id = $6
+       WHERE id = $5 AND organization_id = $6 AND status <> 'given'
        RETURNING *`,
       [
         normalizedStatus,
@@ -665,7 +655,13 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Distribution not found', 404);
+      const existing = await pool.query(
+        'SELECT 1 FROM medication_distributions WHERE id = $1 AND organization_id = $2',
+        [distributionId, organizationId]
+      );
+      return existing.rows.length
+        ? error(res, 'This dose has already been given and cannot be given again', 409)
+        : error(res, 'Distribution not found', 404);
     }
 
     return success(res, result.rows[0], 'Distribution updated');
@@ -729,7 +725,7 @@ module.exports = (pool, logger) => {
    * Create or update medication reception record
    * Permission: participants.edit
    */
-  router.post('/v1/medication/receptions', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), asyncHandler(async (req, res) => {
+  router.post('/v1/medication/receptions', authenticate, blockDemoRoles, requirePermission(MEDICATION_STAFF_POLICY), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const {
@@ -834,7 +830,7 @@ module.exports = (pool, logger) => {
    * Update medication reception record
    * Permission: participants.edit
    */
-  router.patch('/v1/medication/receptions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
+  router.patch('/v1/medication/receptions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_STAFF_POLICY), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const receptionId = Number(req.params.id);
@@ -886,7 +882,7 @@ module.exports = (pool, logger) => {
    * Delete medication reception record
    * Permission: participants.edit
    */
-  router.delete('/v1/medication/receptions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_MANAGE_PERMISSIONS), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
+  router.delete('/v1/medication/receptions/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_STAFF_POLICY), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const receptionId = Number(req.params.id);

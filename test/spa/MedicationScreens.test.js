@@ -214,6 +214,95 @@ describe('medication planning and dispensing', () => {
   });
 });
 
+describe('giving several doses at once', () => {
+  const dose = (id) => ({
+    id, organization_id: 1, medication_requirement_id: 11, participant_id: 5, participant_medication_id: 1,
+    scheduled_for: '2026-11-15T13:00:00Z', status: 'scheduled', administered_at: null, witness_name: null,
+  });
+
+  afterEach(() => {
+    api.markMedicationDistributionAsGiven.mockReset();
+    api.getMedicationDistributions.mockReset();
+  });
+
+  async function openDispensing(app) {
+    loadAll();
+    api.getMedicationDistributions.mockResolvedValue({ success: true, data: { distributions: [dose(21), dose(22)] } });
+    const screen = new MedicationManagement(app, { view: 'dispensing' });
+    await screen.init();
+    return screen;
+  }
+
+  test('a dose the server recorded stays given when another of the same batch fails', async () => {
+    const app = makeApp();
+    const screen = await openDispensing(app);
+    api.markMedicationDistributionAsGiven
+      .mockResolvedValueOnce({ success: true, data: { id: 21, status: 'given' } })
+      .mockRejectedValueOnce(Object.assign(new Error('Server error'), { status: 500 }));
+    // The reload after the batch cannot reach the server: what is shown must still be right.
+    api.getMedicationDistributions.mockRejectedValue(new Error('offline'));
+
+    await screen.handleMarkGiven([21, 22], 'slot');
+    await flush();
+
+    const status = (id) => screen.distributions.find((dist) => dist.id === id).status;
+    expect(status(21)).toBe('given');
+    expect(status(22)).toBe('scheduled');
+    const messages = app.showMessage.mock.calls.map(([message]) => message);
+    expect(messages).toContain('medication_mark_given_partial');
+    expect(messages).not.toContain('medication_mark_given_success');
+    screen.destroy();
+  });
+
+  test('offline, the copy kept on the device shows a refused dose still to give', async () => {
+    const app = makeApp();
+    const screen = await openDispensing(app);
+    const { setCachedData } = require('../../spa/indexedDB.js');
+    setCachedData.mockClear();
+    api.markMedicationDistributionAsGiven
+      .mockResolvedValueOnce({ success: true, queued: true })
+      .mockRejectedValueOnce(Object.assign(new Error('Refused'), { status: 403 }));
+
+    await screen.handleMarkGiven([21, 22], 'slot');
+    await flush();
+
+    const saved = setCachedData.mock.calls.filter(([key]) => key === 'medication_distributions').pop();
+    const statuses = Object.fromEntries(saved[1].data.distributions.map((dist) => [dist.id, dist.status]));
+    expect(statuses).toEqual({ 21: 'given', 22: 'scheduled' });
+    screen.destroy();
+  });
+
+  test('a dose already given from another device counts as given, not as a failure', async () => {
+    const app = makeApp();
+    const screen = await openDispensing(app);
+    api.markMedicationDistributionAsGiven
+      .mockResolvedValueOnce({ success: true, data: { id: 21, status: 'given' } })
+      .mockRejectedValueOnce(Object.assign(new Error('This dose has already been given and cannot be given again'), { status: 409 }));
+
+    await screen.handleMarkGiven([21, 22], 'slot');
+    await flush();
+
+    const messages = app.showMessage.mock.calls.map(([message]) => message);
+    expect(messages).toContain('medication_mark_given_success');
+    expect(messages).not.toContain('medication_mark_given_partial');
+    expect(messages).not.toContain('error_saving');
+    screen.destroy();
+  });
+
+  test('when no dose of the batch could be recorded, every one goes back to "to give"', async () => {
+    const app = makeApp();
+    const screen = await openDispensing(app);
+    api.markMedicationDistributionAsGiven.mockRejectedValue(Object.assign(new Error('Server error'), { status: 500 }));
+
+    await screen.handleMarkGiven([21, 22], 'slot');
+    await flush();
+
+    expect(screen.distributions.map((dist) => dist.status)).toEqual(['scheduled', 'scheduled']);
+    expect(app.showMessage.mock.calls.map(([message]) => message)).toContain('error_saving');
+    screen.destroy();
+  });
+});
+
 describe('medication reception', () => {
   test('passes axe, shows names as text and keeps the way back first', async () => {
     loadAll();

@@ -69,3 +69,13 @@
 @media (min-width: 48rem) {
   .camp-plans__list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Camp lists (#1319): youth, team and volunteers of one camp. */
+.camp-roster__section { margin-block: 1.25rem; }
+.camp-roster__gaps { margin: 0; padding-inline-start: 1.25rem; }
+.camp-roster__list { list-style: none; margin: 0 0 .75rem; padding: 0; display: grid; gap: .5rem; }
+.camp-roster__member { padding: .5rem .75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md, .5rem);
+  background: var(--color-surface); overflow-wrap: anywhere; }
+.camp-roster__member p { margin: .25rem 0; }
+.camp-roster__warning { font-weight: 600; }
+.camp-roster__table { width: 100%; }
