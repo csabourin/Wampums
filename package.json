@@ -64,7 +64,7 @@
     "express": "^5.3.0",
     "express-rate-limit": "^8.7.1",
     "express-validator": "^7.2.1",
-    "glob": "^13.0.5",
+    "glob": "^14.0.2",
     "google-auth-library": "^11.1.0",
     "gray-matter": "^4.0.3",
     "heic-convert": "^2.1.0",
