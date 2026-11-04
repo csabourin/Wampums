@@ -1,5 +1,6 @@
 'use strict';
 const { isCalendarDate } = require('../utils/calendar-date');
+const { findReplacedMeetings } = require('./meetingReplacement');
 
 /** Roster snapshots shared by attendance, points, honors and offline preparation. */
 async function getActionRoster(db, organizationId, startDate, endDate = startDate) {
@@ -29,7 +30,17 @@ async function getActionRoster(db, organizationId, startDate, endDate = startDat
       WHERE organization_id = $1 AND meeting_date BETWEEN $2::date AND $3::date AND activity_id IS NULL`,
     [organizationId, startDate, endDate]
   );
-  return { activities: activities.rows, attendance: attendance.rows, meeting_dates: meetings.rows.map((row) => row.date) };
+  // A date an outing replaces is the outing's day: its roster defaults to the outing.
+  // Only meeting days can be replaced, so days without one need no lookup.
+  const replacements = meetings.rows.length ? await findReplacedMeetings(db, organizationId, startDate, endDate) : [];
+  const replaced = new Set(replacements.map((row) => row.meeting_date));
+  return {
+    activities: activities.rows,
+    attendance: attendance.rows,
+    meeting_dates: meetings.rows.map((row) => row.date).filter((date) => !replaced.has(date)),
+    // The outing each replaced date follows, so the roster defaults to it even beside other activities.
+    replacing_activities: Object.fromEntries(replacements.map((row) => [row.meeting_date, row.activity_id])),
+  };
 }
 
 /**

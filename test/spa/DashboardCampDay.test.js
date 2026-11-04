@@ -18,6 +18,7 @@ const mockAdminPanel = false;
 const mockTemplates = {
   dashboard_camp_day_label: '{camp} — day {day} of {count}',
   dashboard_camp_led_by: 'led by {leader}',
+  dashboard_outing_day_label: '{outing} — today’s outing',
 };
 jest.mock('../../spa/app.js', () => ({
   translate: (key) => mockTemplates[key] || key,
@@ -547,4 +548,85 @@ test('an unrelated activity under way does not hide a dose due for the camp', as
 
   expect(primaryAction().getAttribute('href')).toBe('/medication-dispensing');
   dashboard.destroy();
+});
+
+describe('an outing that replaces today\'s meeting', () => {
+  const museum = (overrides = {}) => ({
+    id: 9, name: 'Sortie au musée', is_camp: false,
+    activity_start_date: TODAY, activity_end_date: TODAY,
+    activity_start_time: '09:00', activity_end_time: '16:00',
+    meeting_time_going: '08:45:00', meeting_location_going: 'Local scout',
+    meeting_time_return: '16:30:00', meeting_location_return: 'Local scout',
+    replaces_meeting_id: 41, replaces_meeting_date: TODAY,
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    // The server no longer answers the replaced meeting as today's programme.
+    getDayProgramme.mockResolvedValue({ data: null });
+    getNextMeetingInfo.mockResolvedValue({ data: null });
+  });
+
+  test('the day follows the outing: points lead, the roll call is offered at any hour, the meeting leaves "now"', async () => {
+    atTime(18, 0);
+    getActivities.mockResolvedValue({ data: [museum()] });
+    const dashboard = await openDashboard();
+
+    expect(primaryAction().getAttribute('href')).toBe('/managePoints');
+    expect(document.querySelector('.dashboard-v2__hero-eyebrow').textContent).toContain('Sortie au musée — today’s outing');
+    const now = [primaryAction().getAttribute('href'), ...nowActions()];
+    expect(now).toContain('/attendance');
+    expect(now).not.toContain('/walk-in-children');
+    expect(now).not.toContain('/reunions');
+    dashboard.destroy();
+  });
+
+  test('the card says when and where the outing leaves and comes back', async () => {
+    atTime(8, 0);
+    getActivities.mockResolvedValue({ data: [museum()] });
+    const dashboard = await openDashboard();
+
+    const schedule = document.querySelector('.dashboard-v2__camp-schedule').textContent.replace(/\s+/g, ' ');
+    expect(schedule).toContain('dashboard_outing_departure 08:45 · Local scout');
+    expect(schedule).toContain('dashboard_outing_return 16:30 · Local scout');
+    dashboard.destroy();
+  });
+
+  test('once the roll call is taken, departures are offered, and none of the camp\'s pages', async () => {
+    atTime(10, 0);
+    getActivities.mockResolvedValue({ data: [museum()] });
+    getAttendance.mockResolvedValue({ data: [{ participant_id: 1, status: 'present' }] });
+    const dashboard = await openDashboard();
+
+    expect(nowActions()).not.toContain('/attendance');
+    expect(document.getElementById('moment-camp').textContent).toBe('dashboard_outing_section');
+    expect(campShortcuts()).toEqual(['/attendance']);
+    const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+    dashboard.destroy();
+  });
+
+  test('an outing that replaces no meeting leaves the meeting day as it was', async () => {
+    atTime(18, 45);
+    getActivities.mockResolvedValue({ data: [museum({ replaces_meeting_id: null, replaces_meeting_date: null })] });
+    getNextMeetingInfo.mockResolvedValue({ data: { date: TODAY, start_time: '18:30', end_time: '20:00', activities: [] } });
+    const dashboard = await openDashboard();
+
+    expect(campSection()).toBeNull();
+    expect(primaryAction().getAttribute('href')).toBe('/attendance');
+    expect(nowActions()).toEqual(expect.arrayContaining(['/walk-in-children', '/reunions']));
+    dashboard.destroy();
+  });
+
+  test('the outing\'s name and places are shown as text', async () => {
+    atTime(8, 0);
+    getActivities.mockResolvedValue({ data: [museum({ name: '<img src=x onerror=alert(1)>', meeting_location_going: '<b>Parc</b>' })] });
+    const dashboard = await openDashboard();
+
+    const hero = document.querySelector('.dashboard-v2__hero-card');
+    expect(hero.querySelector('img, b')).toBeNull();
+    expect(hero.textContent).toContain('<b>Parc</b>');
+    expect(hero.textContent).toContain('<img src=x onerror=alert(1)> — today’s outing');
+    dashboard.destroy();
+  });
 });

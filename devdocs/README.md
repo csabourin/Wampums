@@ -17,7 +17,7 @@ This directory contains durable material that is not better expressed by code, t
 - [`GESTION_ANNEE_SCOUTE.md`](./GESTION_ANNEE_SCOUTE.md) — scout-year rules: transition, archives, rollback, alumni, transfers, erasure (French)
 - [`AI_PROMPT_SECURITY.md`](./AI_PROMPT_SECURITY.md) — trust boundary for data sent to the AI endpoints
 - [`TEMPLATES.md`](./TEMPLATES.md) — backend route and SPA screen templates
-- Feature rules moved out of CLAUDE.md, each listed in its "Feature areas" table: [`OFFLINE_CAMP_POINTS.md`](./OFFLINE_CAMP_POINTS.md) (French), [`ACTIVITY_TASKS.md`](./ACTIVITY_TASKS.md), [`UNIT_CREATION.md`](./UNIT_CREATION.md), [`EQUIPMENT_CATALOG.md`](./EQUIPMENT_CATALOG.md), [`ACTION_ROSTERS.md`](./ACTION_ROSTERS.md), [`SISC_IMPORT.md`](./SISC_IMPORT.md), [`CAMP_DAY_DASHBOARD.md`](./CAMP_DAY_DASHBOARD.md); the camp, volunteer and activity-library devdocs end with a "Rules summary"
+- Feature rules moved out of CLAUDE.md, each listed in its "Feature areas" table: [`OFFLINE_CAMP_POINTS.md`](./OFFLINE_CAMP_POINTS.md) (French), [`ACTIVITY_TASKS.md`](./ACTIVITY_TASKS.md), [`UNIT_CREATION.md`](./UNIT_CREATION.md), [`EQUIPMENT_CATALOG.md`](./EQUIPMENT_CATALOG.md), [`ACTION_ROSTERS.md`](./ACTION_ROSTERS.md), [`SISC_IMPORT.md`](./SISC_IMPORT.md), [`CAMP_DAY_DASHBOARD.md`](./CAMP_DAY_DASHBOARD.md), [`MEETING_REPLACEMENT.md`](./MEETING_REPLACEMENT.md); the camp, volunteer and activity-library devdocs end with a "Rules summary"
 - [`go-to-market/pilot-playbook.md`](./go-to-market/pilot-playbook.md) — pilot operating guide
 - [`go-to-market/positioning-en.md`](./go-to-market/positioning-en.md) — English positioning
 - [`go-to-market/positioning-fr.md`](./go-to-market/positioning-fr.md) — French positioning

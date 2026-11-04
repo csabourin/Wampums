@@ -606,7 +606,8 @@ export const TOOL_GROUP_ORDER = [
  * names the camp identifier each address needs, first match wins: a shortcut
  * whose camp has none of them is not offered. `requiresNetwork` pages are not
  * offered offline; `afterRollCall` waits until the morning roll call, which
- * already leads to the same screen, is no longer offered.
+ * already leads to the same screen, is no longer offered. `kinds` limits a
+ * shortcut to camp days (`camp`) or to an outing that replaces the meeting (`outing`).
  */
 export const CAMP_DAY_SHORTCUTS = [
   {
@@ -620,6 +621,7 @@ export const CAMP_DAY_SHORTCUTS = [
     domain: 'logistics',
     gate: { check: 'teamReadiness' },
     requiresNetwork: true,
+    kinds: ['camp'],
   },
   {
     key: 'site',
@@ -630,6 +632,7 @@ export const CAMP_DAY_SHORTCUTS = [
     domain: 'safety',
     gate: { permission: 'meetings.view' },
     requiresNetwork: true,
+    kinds: ['camp'],
   },
   {
     key: 'lots',
@@ -638,6 +641,7 @@ export const CAMP_DAY_SHORTCUTS = [
     label: 'dashboard_camp_shortcut_lots',
     domain: 'logistics',
     gate: { permission: 'tasks.view' },
+    kinds: ['camp'],
   },
   {
     // Departures are marked on the attendance screen.
@@ -649,6 +653,7 @@ export const CAMP_DAY_SHORTCUTS = [
     domain: 'attendance',
     gate: { permission: 'attendance.manage' },
     afterRollCall: true,
+    kinds: ['camp', 'outing'],
   },
 ];
 

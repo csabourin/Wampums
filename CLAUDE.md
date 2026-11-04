@@ -484,6 +484,7 @@ only then. The rules there are as binding as this file; update the devdoc in the
 | Camp plan written sections | `/camp-plan`, `/camp-plans`, `services/campPlan.js` | `devdocs/CAMP_PLAN_SECTIONS.md` |
 | Team camp readiness, camp dates | `/camp-readiness`, `services/campDates.js` | `devdocs/CAMP_READINESS.md` |
 | Dashboard during a camp | `spa/utils/CampDayUtils.js`, `CAMP_DAY_SHORTCUTS` | `devdocs/CAMP_DAY_DASHBOARD.md` |
+| An outing that replaces a meeting | `services/meetingReplacement.js`, `replaces_meeting_*`, deleting an outing | `devdocs/MEETING_REPLACEMENT.md` |
 | Starter activities, activity library | `services/activityLibraryStarter.js`, `config/activity_library_starter.json` | `devdocs/ACTIVITY_LIBRARY.md` |
 | Creating a unit, branch, addresses | `POST /api/v1/organizations`, `/units`, `middleware/unit-host.js`, `organization_domains` | `devdocs/UNIT_CREATION.md` |
 | Equipment catalogue, camp material list | `/equipment-catalog`, `/camp-material`, `services/equipmentCatalog.js`, `services/campMaterialList.js` | `devdocs/EQUIPMENT_CATALOG.md` |

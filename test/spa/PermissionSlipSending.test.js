@@ -59,7 +59,7 @@ jest.mock('../../spa/api/api-activity-authorizations.js', () => ({ getActivityAu
 jest.mock('../../spa/modules/activities/ActivityFormModal.js', () => ({ openActivityFormModal: jest.fn() }));
 
 const endpoints = require('../../spa/api/api-endpoints.js');
-const { getActivity } = require('../../spa/api/api-activities.js');
+const { getActivity, deleteActivity } = require('../../spa/api/api-activities.js');
 const { fetchParticipants } = require('../../spa/ajax-functions.js');
 const { confirm } = require('../../spa/utils/DialogUtils.js');
 const { hasPermission } = require('../../spa/utils/PermissionUtils.js');
@@ -492,4 +492,20 @@ describe('a load that fails', () => {
     const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
     expect(results.violations).toEqual([]);
   });
+});
+
+test('deleting the outing reads it again first: requests sent since it opened can make it replace a meeting', async () => {
+  await openCreateForm();
+  // Since the page opened, the remaining requests went out: the outing now replaces a meeting.
+  getActivity.mockResolvedValue({ ...ACTIVITY, replaces_meeting_id: 41, replaces_meeting_date: '2026-11-07' });
+  confirm.mockResolvedValueOnce(false);
+  deleteActivity.mockResolvedValue({ success: true, data: { replaced_meeting: { id: 41, date: '2026-11-07', restored: false } } });
+
+  document.getElementById('deleteActivityBtn').click();
+  await flush();
+  await flush();
+
+  expect(getActivity).toHaveBeenLastCalledWith(12, { forceRefresh: true });
+  expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'activity_delete_restore_meeting_title' }));
+  expect(deleteActivity).toHaveBeenCalledWith(12, { restoreMeeting: false });
 });

@@ -183,7 +183,10 @@ describe('GET /api/v1/meetings/programme', () => {
       .expect(200);
 
     const [, params] = poolCalls().find(([sql]) => sql.includes('WITH spans'));
-    expect(params).toEqual([ORG_ID, '2026-10-16']);
+    // The third is the meetings an outing replaces that day: none here.
+    expect(params).toEqual([ORG_ID, '2026-10-16', []]);
+    const [, replacementParams] = poolCalls().find(([sql]) => sql.includes('year_plan_meetings own'));
+    expect(replacementParams.slice(0, 3)).toEqual([ORG_ID, '2026-10-16', '2026-10-16']);
   });
 
   test('a database failure is a 500 that says nothing about the database', async () => {

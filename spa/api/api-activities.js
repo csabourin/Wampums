@@ -67,10 +67,17 @@ export async function updateActivity(activityId, activityData) {
  * @param {Object} [options]
  * @param {boolean} [options.notify=false] - Email everyone it concerns, and the
  *   unit's leaders, that it is cancelled
+ * @param {boolean} [options.restoreMeeting=true] - When the outing replaced a meeting,
+ *   whether that meeting comes back; false leaves it cancelled
  * @returns {Promise<Object>} API response; `queued` when sent later
  */
-export async function deleteActivity(activityId, { notify = false } = {}) {
-  const response = await API.delete(`v1/activities/${activityId}`, notify ? { notify_participants: 'true' } : {});
+export async function deleteActivity(activityId, { notify = false, restoreMeeting = true } = {}) {
+  // An outing that replaced a meeting brings it back unless asked not to.
+  const params = {
+    ...(notify ? { notify_participants: 'true' } : {}),
+    ...(restoreMeeting === false ? { restore_meeting: 'false' } : {}),
+  };
+  const response = await API.delete(`v1/activities/${activityId}`, params);
   // Invalidate activity caches to ensure fresh data
   await clearActivityRelatedCaches();
   return response;

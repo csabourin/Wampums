@@ -15,6 +15,7 @@ const MS_PER_DAY = 86400000;
 
 /**
  * @typedef {Object} CampDay
+ * @property {'camp'|'outing'} kind - A camp day, or an outing that replaces today's meeting
  * @property {string} title - The day's title, else the camp's theme or name ('' when none)
  * @property {string} campName - The camp activity's own name, '' when unknown (a day title is not one)
  * @property {number} dayNumber - 1 on the first day
@@ -61,6 +62,7 @@ export function campDayFromProgramme(programme, today) {
   }
   const dayNumber = Number(programme.day_number) || 1;
   return {
+    kind: 'camp',
     title: String(programme.title || ''),
     campName: '',
     dayNumber,
@@ -91,6 +93,7 @@ export function campDayFromActivities(activities, today) {
   }
   const meetingId = Number(found.activity.linked_year_plan_meeting_id);
   return {
+    kind: 'camp',
     title: String(found.activity.name || ''),
     campName: String(found.activity.name || ''),
     dayNumber: daysBetween(found.start, today) + 1,
@@ -118,4 +121,42 @@ export function mergeCampDays(fromProgramme, fromActivities) {
   return sameCamp
     ? { ...fromProgramme, activityId: fromActivities.activityId, campName: fromActivities.campName }
     : fromProgramme;
+}
+
+/** @param {*} value - "HH:MM" or "HH:MM:SS" @returns {string} "HH:MM", '' when none */
+function clockTime(value) {
+  const match = String(value || '').match(/^(\d{2}):(\d{2})/);
+  return match ? `${match[1]}:${match[2]}` : '';
+}
+
+/**
+ * Today's outing, when it replaces today's meeting (the server says so with
+ * `replaces_meeting_date`): the day follows the outing, as a camp day follows the camp.
+ *
+ * @param {Array<Object>} activities - The unit's activities (GET /v1/activities)
+ * @param {string} today - The phone's day, YYYY-MM-DD
+ * @returns {?CampDay} With `outing`: where and when it leaves and comes back
+ */
+export function outingDayFromActivities(activities, today) {
+  const found = (Array.isArray(activities) ? activities : [])
+    .find((activity) => dateOnly(activity?.replaces_meeting_date) === today && activity.is_camp !== true);
+  if (!found) {
+    return null;
+  }
+  const name = String(found.name || '');
+  return {
+    kind: 'outing',
+    title: name,
+    campName: name,
+    dayNumber: 1,
+    dayCount: 1,
+    meetingId: null,
+    activityId: Number(found.id) > 0 ? Number(found.id) : null,
+    outing: {
+      departureTime: clockTime(found.meeting_time_going || found.departure_time_going),
+      departurePlace: String(found.meeting_location_going || ''),
+      returnTime: clockTime(found.meeting_time_return || found.departure_time_return),
+      returnPlace: String(found.meeting_location_return || ''),
+    },
+  };
 }

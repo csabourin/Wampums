@@ -5535,5 +5535,19 @@
   "dashboard_camp_shortcut_readiness": "Camp readiness",
   "dashboard_camp_shortcut_site": "Site and emergencies",
   "dashboard_camp_shortcut_lots": "My equipment lots",
-  "dashboard_camp_shortcut_departure": "A youth is leaving"
+  "dashboard_camp_shortcut_departure": "A youth is leaving",
+  "activity_delete_restore_meeting_title": "Restore the meeting?",
+  "activity_delete_restore_meeting_message": "This outing replaced the meeting of {date}. Put that meeting back on the calendar, with what was prepared for it?",
+  "activity_delete_restore_meeting_yes": "Restore the meeting",
+  "activity_delete_restore_meeting_no": "Keep it cancelled",
+  "activity_deleted_meeting_restored": "Activity deleted. The meeting it replaced is back on the calendar.",
+  "activity_deleted_meeting_cancelled": "Activity deleted. The meeting it replaced stays cancelled.",
+  "yearly_planner_replaced_by": "Replaced by {outing}.",
+  "yearly_planner_replaced_short": "Replaced",
+  "yearly_planner_replaced_kept": "Its schedule and tasks are kept.",
+  "dashboard_outing_day_label": "{outing} — today's outing",
+  "dashboard_outing_departure": "Departure:",
+  "dashboard_outing_return": "Return:",
+  "dashboard_outing_section": "On the outing",
+  "meeting_already_processed": "This meeting's honors were already processed: it cannot be cancelled. Restore it instead."
 }

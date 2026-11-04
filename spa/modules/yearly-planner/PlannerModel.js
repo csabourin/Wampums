@@ -147,6 +147,10 @@ function buildChip(meeting, event, today) {
     theme: meeting.theme || null,
     periodId: meeting.period_id || null,
     isCancelled: meeting.is_cancelled === true,
+    // An outing with every youth on this date replaces the meeting (#1327); the meeting is kept.
+    replacedBy: meeting.replaced_by_activity_id
+      ? { activityId: Number(meeting.replaced_by_activity_id), name: meeting.replaced_by_activity_name || '' }
+      : null,
     isPrepared: meeting.is_prepared === true,
     activityCount: Number(meeting.activity_count) || 0,
     objectiveIds: Array.isArray(meeting.objective_ids)
@@ -189,6 +193,7 @@ function buildEventOnlyChip(event, today) {
     theme: event.name || null,
     periodId: null,
     isCancelled: false,
+    replacedBy: null,
     isPrepared: false,
     activityCount: 0,
     objectiveIds: [],

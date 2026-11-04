@@ -64,7 +64,12 @@ import {
   upcomingCampsMarkup,
   canSeeTeamReadiness,
 } from '../camp-readiness/UpcomingCamps.js';
-import { campDayFromActivities, campDayFromProgramme, mergeCampDays } from '../../utils/CampDayUtils.js';
+import {
+  campDayFromActivities,
+  campDayFromProgramme,
+  mergeCampDays,
+  outingDayFromActivities,
+} from '../../utils/CampDayUtils.js';
 import { programmeMoment } from '../../utils/ProgrammeTimeline.js';
 import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { offlineManager } from '../OfflineManager.js';
@@ -616,8 +621,11 @@ export class Dashboard extends BaseModule {
 
   /** @returns {boolean} Whether the camp's morning roll call is still to be taken */
   _isCampRollCallDue() {
+    if (this.campRollCallTaken) {return false;}
+    // An outing's roll call is taken when it leaves, at whatever hour; a camp's, each morning.
+    if (this.campDay?.kind === 'outing') {return true;}
     const untilHour = CONFIG.DASHBOARD?.CAMP_ROLL_CALL_UNTIL_HOUR ?? DEFAULT_CAMP_ROLL_CALL_UNTIL_HOUR;
-    return !this.campRollCallTaken && new Date().getHours() < untilHour;
+    return new Date().getHours() < untilHour;
   }
 
   _computeTileStats() {
@@ -802,8 +810,10 @@ export class Dashboard extends BaseModule {
   _applyCampDay(programme, programmeRead, activities) {
     const today = getTodayISO();
     const fromProgramme = campDayFromProgramme(programme, today);
+    // An outing that replaces today's meeting is followed like a camp day (#1327).
     const campDay = mergeCampDays(fromProgramme, campDayFromActivities(activities || [], today))
-      || this._preparedCampDay(today);
+      || this._preparedCampDay(today)
+      || outingDayFromActivities(activities || [], today);
     const before = JSON.stringify([this.campDay, this.campProgramme, this.campScheduleState]);
     this.campDay = campDay;
     this.campProgramme = fromProgramme ? programme : null;
@@ -1150,9 +1160,12 @@ export class Dashboard extends BaseModule {
     `;
   }
 
-  /** @returns {string} "{camp} — day 2 of 3" */
+  /** @returns {string} "{camp} — day 2 of 3", or "{outing} — today's outing" */
   _campDayLabel() {
-    const { title, dayNumber, dayCount } = this.campDay;
+    const { title, dayNumber, dayCount, kind } = this.campDay;
+    if (kind === 'outing') {
+      return translate('dashboard_outing_day_label').replace('{outing}', () => title || translate('activity'));
+    }
     return translate('dashboard_camp_day_label')
       .replace('{camp}', () => title || translate('camp_readiness_camp'))
       .replace('{day}', String(dayNumber))
@@ -1160,19 +1173,14 @@ export class Dashboard extends BaseModule {
   }
 
   /**
-   * What is on in the camp now and what comes next, with who leads it: the
-   * same day programme and the same calculation as the "now / next" bar.
-   * A schedule this device could not read is said so, never shown as empty.
-   *
-   * @returns {string} HTML
-   */
-  /**
-   * The schedule comes from the day programme, which takes meetings.view: without it
-   * the card shows the camp day but no schedule, rather than one it could never read.
+   * A camp's schedule comes from the day programme, which takes meetings.view:
+   * without it the card shows the camp day but no schedule, rather than one it
+   * could never read. An outing's departure and return come with the activity.
    *
    * @returns {boolean}
    */
   _canSeeCampSchedule() {
+    if (this.campDay?.kind === 'outing') {return true;}
     return Boolean(this.campDay) && hasPermission('meetings.view');
   }
 
@@ -1222,7 +1230,18 @@ export class Dashboard extends BaseModule {
     document.querySelectorAll('.dashboard-v2__camp-schedule-slot').forEach((slot) => setContent(slot, markup));
   }
 
+  /**
+   * What is on in the camp now and what comes next, with who leads it: the
+   * same day programme and the same calculation as the "now / next" bar.
+   * A schedule this device could not read is said so, never shown as empty.
+   * An outing says when and where it leaves and comes back.
+   *
+   * @returns {string} HTML
+   */
   _renderCampSchedule() {
+    if (this.campDay?.kind === 'outing') {
+      return this._renderOutingTimes();
+    }
     if (this.campScheduleState !== 'loaded') {
       const key = this.campScheduleState === 'none' ? 'dashboard_camp_schedule_none' : 'dashboard_camp_schedule_unavailable';
       return `<p class="dashboard-v2__camp-schedule">${escapeHTML(translate(key))}</p>`;
@@ -1249,6 +1268,20 @@ export class Dashboard extends BaseModule {
       : `<p class="dashboard-v2__camp-schedule">${escapeHTML(translate('dashboard_camp_schedule_done'))}</p>`;
   }
 
+  /** @returns {string} The outing's departure and return, HTML ('' when neither is known) */
+  _renderOutingTimes() {
+    const { departureTime, departurePlace, returnTime, returnPlace } = this.campDay.outing || {};
+    const line = (labelKey, time, place) => {
+      const parts = [time, place].filter(Boolean).map((part) => escapeHTML(part)).join(' · ');
+      return parts
+        ? `<li><span class="dashboard-v2__camp-schedule-label">${escapeHTML(translate(labelKey))}</span> ${parts}</li>`
+        : '';
+    };
+    const items = line('dashboard_outing_departure', departureTime, departurePlace)
+      + line('dashboard_outing_return', returnTime, returnPlace);
+    return items ? `<ul class="dashboard-v2__camp-schedule">${items}</ul>` : '';
+  }
+
   /**
    * During a camp: its team overview, its site and emergency numbers, the
    * caller's equipment lots and a youth's departure, each behind the gate of
@@ -1262,6 +1295,7 @@ export class Dashboard extends BaseModule {
     const hiddenSet = new Set(this._prefs?.hiddenTiles || []);
     const shortcuts = CAMP_DAY_SHORTCUTS
       .filter((shortcut) => this._passesGate(shortcut.gate) && this._isFeatureEnabled(shortcut.featureKey))
+      .filter((shortcut) => !shortcut.kinds || shortcut.kinds.includes(this.campDay.kind))
       .filter((shortcut) => !(isOffline && shortcut.requiresNetwork))
       .filter((shortcut) => !(shortcut.afterRollCall && this._isCampRollCallDue()))
       .map((shortcut) => ({ ...shortcut, href: this._campShortcutHref(shortcut) }))
@@ -1269,7 +1303,7 @@ export class Dashboard extends BaseModule {
     if (!shortcuts.length) {return '';}
     return `
       <section class="dashboard-v2__section" aria-labelledby="moment-camp">
-        <h2 id="moment-camp" class="dashboard-v2__section-title">${escapeHTML(translate('dashboard_camp_section'))}</h2>
+        <h2 id="moment-camp" class="dashboard-v2__section-title">${escapeHTML(translate(this.campDay.kind === 'outing' ? 'dashboard_outing_section' : 'dashboard_camp_section'))}</h2>
         <div class="dashboard-v2__grid">${shortcuts.map((shortcut) => this._renderTile(shortcut)).join('')}</div>
       </section>
     `;

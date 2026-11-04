@@ -63,7 +63,10 @@ export class ActionRoster {
     const saved = sessionStorage.getItem(buildScopedCacheKey(`action_activity_${date}`));
     const preparedId = offlineManager.campMode ? Number(offlineManager.activeActivityId) : null;
     const preparedActivity = this.activities.find((activity) => Number(activity.id) === preparedId);
-    const defaultId = preparedActivity?.id || ((snapshot.meeting_dates || []).includes(date)
+    // An outing that replaces the day's meeting is the day's activity, even beside others.
+    const replacingId = Number(snapshot.replacing_activities?.[date]) || null;
+    const replacingActivity = this.activities.find((activity) => Number(activity.id) === replacingId);
+    const defaultId = preparedActivity?.id || replacingActivity?.id || ((snapshot.meeting_dates || []).includes(date)
       ? null : this.activities.length === 1 ? this.activities[0].id : null);
     const selected = saved === null ? defaultId : Number(saved) || null;
     this.activityId = this.activities.some((activity) => Number(activity.id) === Number(selected)) ? Number(selected) : null;

@@ -24,7 +24,8 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 }));
 
 jest.mock('../../spa/app.js', () => ({
-  translate: (key) => key,
+  // Keys stand for their text, except the one whose placeholder a test reads.
+  translate: (key) => (key === 'yearly_planner_replaced_by' ? 'Replaced by {outing}.' : key),
 }));
 
 jest.mock('../../spa/config.js', () => ({
@@ -251,4 +252,23 @@ describe('a camp\'s dates', () => {
     expect(callbacks.onSave).not.toHaveBeenCalled();
     expect(sheet('#yp-sheet-dates-error').textContent).toBe('activity_form_end_before_start');
   });
+});
+
+test('a meeting an outing replaces says so, keeps its fields, and shows the outing\'s name as text', async () => {
+  open({ replacedBy: { activityId: 77, name: '<img src=x onerror=alert(1)>Musée' } });
+
+  const notice = sheet('.yp-sheet__replaced');
+  expect(notice.textContent).toContain('Replaced by <img src=x onerror=alert(1)>Musée.');
+  expect(notice.textContent).toContain('yearly_planner_replaced_kept');
+  expect(notice.querySelector('img')).toBeNull();
+  // Replaced is not cancelled: the meeting is kept as it was.
+  expect(sheet('#yp-sheet-cancelled').checked).toBe(false);
+  expect(sheet('#yp-sheet-theme').value).toBe('La jungle');
+  const results = await axe.run(document.body, AXE_OPTIONS);
+  expect(results.violations).toEqual([]);
+});
+
+test('a meeting nothing replaces shows no notice', () => {
+  open();
+  expect(sheet('.yp-sheet__replaced')).toBeNull();
 });

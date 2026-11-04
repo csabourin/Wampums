@@ -15,7 +15,12 @@ const { carpoolRosterRestriction } = require('../services/carpoolAccess');
 const { mayReadInviteeList, readInvitation, saveInvitation } = require('../services/activityInvitations');
 const { readRichTextField } = require('../utils/richText');
 const { CampDateError, isTooLong, alignPlannedDate, assertMovable, planCamp, unplanCamp } = require('../services/campDates');
+const { findMeetingReplacedBy, findReplacedMeetings, cancelReplacedMeeting } = require('../services/meetingReplacement');
 const { buildActivitiesCalendar, buildICalFilename } = require('../utils/activityCalendar');
+const { formatLocalDate } = require('../utils/meeting-defaults');
+
+/** Length of the date part of an ISO 8601 value (YYYY-MM-DD). */
+const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
 
 module.exports = (pool) => {
   /** Creation retry metadata stays on the server. */
@@ -94,7 +99,30 @@ module.exports = (pool) => {
       [organizationId]
     );
 
-    return success(res, result.rows.map(publicActivity));
+    // Each outing that replaces a meeting says so, for the calendar and the day's screens.
+    // Limit the replacement scan to the date span covered by the activities we just loaded;
+    // a unit with many meetings should not trigger a full-range lookup for every screen read.
+    // pg reads a DATE as a local-midnight Date: its local calendar day is the stored one.
+    const activityDates = result.rows.flatMap((row) => [row.activity_start_date, row.activity_end_date, row.activity_date])
+      .filter((value) => value !== null && value !== undefined)
+      .map((value) => (value instanceof Date ? formatLocalDate(value) : String(value).slice(0, ISO_DATE_LENGTH)));
+    const replacements = activityDates.length
+      ? await findReplacedMeetings(
+        pool,
+        organizationId,
+        activityDates.reduce((min, value) => (value < min ? value : min)),
+        activityDates.reduce((max, value) => (value > max ? value : max))
+      )
+      : [];
+    const replacedBy = new Map(replacements.map((replacement) => [replacement.activity_id, replacement]));
+    return success(res, result.rows.map((row) => {
+      const replacement = replacedBy.get(Number(row.id));
+      return {
+        ...publicActivity(row),
+        replaces_meeting_id: replacement ? replacement.meeting_id : null,
+        replaces_meeting_date: replacement ? replacement.meeting_date : null,
+      };
+    }));
   }));
 
   /**
@@ -219,6 +247,9 @@ module.exports = (pool) => {
     if (!mayReadInviteeList(req)) {
       delete activity.invited_participant_ids;
     }
+    const replacement = await findMeetingReplacedBy(pool, organizationId, Number(id));
+    activity.replaces_meeting_id = replacement ? replacement.meeting_id : null;
+    activity.replaces_meeting_date = replacement ? replacement.meeting_date : null;
 
     return success(res, activity);
   }));
@@ -843,7 +874,10 @@ module.exports = (pool) => {
    * leaders are emailed that it is cancelled.
    * Accessible by: animation, admin only
    */
-  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('activities.delete'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
+  // Keeping a replaced meeting cancelled cancels a meeting: it takes the planner's own right to.
+  const keepsMeetingCancelled = (req) => String(req.query.restore_meeting ?? '').toLowerCase() === 'false';
+  const deletePermissions = (req) => (keepsMeetingCancelled(req) ? ['activities.delete', 'meetings.edit'] : ['activities.delete']);
+  router.delete('/:id', authenticate, blockDemoRoles, requirePermission(deletePermissions), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 
@@ -872,27 +906,51 @@ module.exports = (pool) => {
       }
     }
 
-    // Cancel all active carpool offers for this activity
-    await pool.query(
-      'UPDATE carpool_offers SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE activity_id = $1 AND is_active = TRUE',
-      [id]
-    );
+    // An outing that replaced a meeting brings it back unless the person said not
+    // to (`restore_meeting=false`). Worked out before the pending slips are archived,
+    // since they are part of what made it replace the meeting.
+    const restoreMeeting = !keepsMeetingCancelled(req);
+    const client = await pool.connect();
+    let result;
+    let replaced;
+    try {
+      await client.query('BEGIN');
+      replaced = await findMeetingReplacedBy(client, organizationId, Number(id));
 
-    await pool.query(
-      `UPDATE permission_slips
-          SET status = 'archived', updated_at = CURRENT_TIMESTAMP
-        WHERE activity_id = $1 AND organization_id = $2 AND status = 'pending'`,
-      [id, organizationId]
-    );
+      // Cancel all active carpool offers for this activity
+      await client.query(
+        'UPDATE carpool_offers SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE activity_id = $1 AND is_active = TRUE',
+        [id]
+      );
 
-    // Soft delete activity
-    const result = await pool.query(
-      `UPDATE activities
-       SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND organization_id = $2
-       RETURNING *`,
-      [id, organizationId]
-    );
+      await client.query(
+        `UPDATE permission_slips
+            SET status = 'archived', updated_at = CURRENT_TIMESTAMP
+          WHERE activity_id = $1 AND organization_id = $2 AND status = 'pending'`,
+        [id, organizationId]
+      );
+
+      // Soft delete activity
+      result = await client.query(
+        `UPDATE activities
+         SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND organization_id = $2
+         RETURNING *`,
+        [id, organizationId]
+      );
+
+      // A meeting whose honors were processed is never cancelled: nothing is deleted then.
+      if (replaced && !restoreMeeting && !(await cancelReplacedMeeting(client, organizationId, replaced.meeting_id))) {
+        await client.query('ROLLBACK');
+        return error(res, 'meeting_already_processed', HTTP_CONFLICT);
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
 
     if (cancellationNotice) {
       try {
@@ -906,7 +964,13 @@ module.exports = (pool) => {
       }
     }
 
-    return success(res, result.rows[0], 'Activity deleted successfully');
+    return success(res, {
+      ...result.rows[0],
+      // The meeting this outing had replaced, and whether it is back on the calendar.
+      replaced_meeting: replaced
+        ? { id: replaced.meeting_id, date: replaced.meeting_date, restored: restoreMeeting }
+        : null,
+    }, 'Activity deleted successfully');
   }));
 
   return router;

@@ -96,7 +96,9 @@ const DERIVED_RESOURCES = {
   badges: ['badges', 'program-progress', 'participants', 'reports', 'dashboards'],
   'program-progress': ['program-progress', 'badges', 'reports'],
   meetings: ['meetings', 'attendance', 'activities', 'yearly-planner', 'dashboards'],
-  'activity-authorizations': ['activity-authorizations', 'activities', 'resources', 'action-roster'],
+  // Who received a permission request decides whether an outing replaces a meeting (#1327).
+  'activity-authorizations': ['activity-authorizations', 'activities', 'resources', 'action-roster',
+    'meetings', 'yearly-planner', 'dashboards'],
   // A camp activity is also a year-plan date: marking it a camp, or moving it, changes the plan.
   activities: ['activity-authorizations', 'activities', 'attendance', 'points', 'honors', 'action-roster', 'carpools', 'meetings',
     'yearly-planner', 'dashboards', 'resources'],
@@ -149,6 +151,15 @@ const SNAPSHOT_SOURCES = [
   ['fiche-sante-', ['forms', 'participants']],
   ['acceptation-risque-', ['forms', 'participants']]
 ].map(([name, resources]) => [name, resources.map(toResourcePath)]);
+
+/**
+ * What a write to one sub-resource also makes stale, beyond its resource's own list.
+ * Permission requests decide whether an outing replaces a meeting (#1327), so the
+ * day programme, the next meeting and the year plan follow them.
+ */
+const DERIVED_SUB_RESOURCES = {
+  'resources/permission-slips': ['meetings', 'yearly-planner', 'dashboards'],
+};
 
 /**
  * @param {string} resource - Resource name, e.g. "points"
@@ -251,6 +262,7 @@ export function planInvalidation(endpoint) {
 
   const prefixes = [
     ...(DERIVED_RESOURCES[resource] || [resource]).map(toResourcePath),
+    ...(DERIVED_SUB_RESOURCES[`${resource}/${subResource}`] || []).map(toResourcePath),
     ...cachePathsForMutation(path)
   ];
   return {

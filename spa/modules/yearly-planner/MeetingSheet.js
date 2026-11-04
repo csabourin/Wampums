@@ -105,6 +105,12 @@ function renderSheetBody(chip, plan, lang, canManage, canEditDates) {
         </label>
       ` : ''}
 
+      ${chip.replacedBy ? `<p class="yp-sheet__replaced">
+        <i class="fas fa-route" aria-hidden="true"></i>
+        ${escapeHTML(translate('yearly_planner_replaced_by').replace('{outing}', () => chip.replacedBy.name))}
+        ${escapeHTML(translate('yearly_planner_replaced_kept'))}
+      </p>` : ''}
+
       <label class="yp-sheet__toggle">
         <input type="checkbox" id="yp-sheet-cancelled" ${chip.isCancelled ? 'checked' : ''} ${disabled}>
         <span>${escapeHTML(translate('yearly_planner_cancelled'))}</span>

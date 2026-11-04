@@ -18,6 +18,7 @@ const { validateDate, validateDateOptional, checkValidation } = require('../midd
 const { getMeetingSectionConfig } = require('../utils/meeting-sections');
 const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');
 const { durationToMinutes, getProgrammeForDate } = require('../services/meetingProgramme');
+const { findReplacedMeetings } = require('../services/meetingReplacement');
 const {
   CatalogError,
   readMaterialItems,
@@ -30,6 +31,10 @@ const UNPROCESSED_MEETINGS_LIMIT = 10;
 const HTTP_BAD_REQUEST = 400;
 /** Length of the date part of an ISO 8601 value (YYYY-MM-DD). */
 const ISO_DATE_LENGTH = 10;
+// Upcoming dates read when looking for the next meeting an outing does not replace.
+const NEXT_MEETING_CANDIDATES = 8;
+// Windows of candidates read at most before giving up on finding one nothing replaces.
+const MAX_NEXT_MEETING_LOOKAHEAD = 1000;
 
 // Reading a meeting's plan: whoever prepares meetings, and the leaders who run
 // them (the same people the SPA shows the upcoming-meeting screen to).
@@ -465,19 +470,38 @@ module.exports = (pool, logger) => {
       const organizationId = await getOrganizationId(req, pool);
       const today = formatLocalDate(new Date());
 
-      const result = await pool.query(
-        `${MEETING_SELECT}
-         WHERE m.organization_id = $1 AND m.meeting_date >= $2 AND NOT m.is_cancelled
-         ORDER BY m.meeting_date ASC
-         LIMIT 1`,
-        [organizationId, today]
-      );
+      // A meeting an outing replaces is not the next meeting. Consecutive
+      // replacements may exceed one window of candidates, so the following
+      // windows are read until a meeting nothing replaces appears.
+      const lookAhead = async (startDate, remaining) => {
+        const result = await pool.query(
+          `${MEETING_SELECT}
+           WHERE m.organization_id = $1 AND m.meeting_date >= $2::date AND NOT m.is_cancelled
+           ORDER BY m.meeting_date ASC
+           LIMIT $3`,
+          [organizationId, startDate, NEXT_MEETING_CANDIDATES]
+        );
+        if (result.rows.length === 0) {
+          return null;
+        }
+        const dates = result.rows.map((row) => String(row.meeting_date).slice(0, ISO_DATE_LENGTH));
+        const replaced = new Set((await findReplacedMeetings(pool, organizationId, dates[0], dates[dates.length - 1]))
+          .map((row) => row.meeting_date));
+        const candidate = dates.find((date) => !replaced.has(date));
+        if (candidate || remaining <= 1) {
+          return candidate || null;
+        }
+        const nextDay = new Date(`${dates[dates.length - 1]}T00:00:00Z`);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+        return lookAhead(nextDay.toISOString().slice(0, ISO_DATE_LENGTH), remaining - 1);
+      };
 
-      if (result.rows.length === 0) {
+      const nextDate = await lookAhead(today, MAX_NEXT_MEETING_LOOKAHEAD);
+      if (!nextDate) {
         return success(res, null, 'No upcoming meetings found');
       }
 
-      const meeting = await loadMeetingByDate(organizationId, result.rows[0].meeting_date);
+      const meeting = await loadMeetingByDate(organizationId, nextDate);
       return success(res, meeting);
     })
   );

@@ -33,7 +33,8 @@ import { setContent } from '../../utils/DOMUtils.js';
 import { withButtonLoading } from '../../utils/PerformanceUtils.js';
 import { QuickCreateActivityModal } from '../../modules/modals/QuickCreateActivityModal.js';
 import { openActivityFormModal } from '../../modules/activities/ActivityFormModal.js';
-import { deleteActivity } from '../../api/api-activities.js';
+import { deleteActivity, getActivity } from '../../api/api-activities.js';
+import { askRestoreReplacedMeeting, deletedMessageKey } from '../activities/ActivityDeleteDialog.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
@@ -126,6 +127,21 @@ export class PermissionSlipDashboard {
     } catch (error) {
       debugError('Error loading activity:', error);
       throw error;
+    }
+  }
+
+  /**
+   * The activity as the server sees it now, for a decision that depends on its
+   * permission requests; the copy already loaded when it cannot be read.
+   *
+   * @returns {Promise<Object>}
+   */
+  async freshActivity() {
+    try {
+      return await getActivity(this.activityId, { forceRefresh: true });
+    } catch (error) {
+      debugError('Activity could not be read again before deleting it', error);
+      return this.activity;
     }
   }
 
@@ -672,11 +688,20 @@ export class PermissionSlipDashboard {
       if (!(await confirmDestructive(translate('confirm_delete_activity')))) {
         return;
       }
+      // An outing that replaced a meeting asks whether the meeting comes back. Requests sent
+      // since the page opened may have made it replace one: read it again first.
+      const restoreMeeting = await askRestoreReplacedMeeting(
+        await this.freshActivity(),
+        this.app.lang || this.app.currentLanguage,
+      );
       withButtonLoading(trigger, async () => {
         try {
-          await deleteActivity(this.activityId);
+          const result = await deleteActivity(this.activityId, { restoreMeeting });
           await this.clearPermissionSlipCaches();
-          this.app.showMessage(translate('activity_deleted_success'), 'success');
+          this.app.showMessage(
+            translate(result?.queued ? 'activity_delete_queued' : deletedMessageKey(result?.data?.replaced_meeting)),
+            result?.queued ? 'info' : 'success'
+          );
           this.app.router.navigate('/permission-slips');
         } catch (error) {
           debugError('Error deleting activity', error);

@@ -8,6 +8,8 @@
  * @module services/meetingProgramme
  */
 
+const { findReplacedMeetings } = require('./meetingReplacement');
+
 const MINUTES_PER_HOUR = 60;
 const HOURS_PER_DAY = 24;
 const TIME_PATTERN = /^(\d{1,2}):(\d{2})/;
@@ -84,7 +86,8 @@ function toProgrammeActivity(row) {
  * A camp covers every day from its meeting date to its activity's end date;
  * the day's own activities are those at that day offset. When a regular
  * meeting falls on a day a longer event also covers, the one that started
- * last (the more specific) is shown.
+ * last (the more specific) is shown. A meeting an outing replaces is not the
+ * day's programme: the day follows the outing.
  *
  * @param {import('pg').Pool} pool - Database pool
  * @param {number} organizationId - Unit
@@ -92,6 +95,7 @@ function toProgrammeActivity(row) {
  * @returns {Promise<?Object>} Programme, activities in time order (untimed last)
  */
 async function getProgrammeForDate(pool, organizationId, date) {
+  const replaced = (await findReplacedMeetings(pool, organizationId, date, date)).map((row) => row.meeting_id);
   const meetingResult = await pool.query(
     `WITH spans AS (
        SELECT m.id, m.meeting_kind, m.theme, m.meeting_date,
@@ -109,6 +113,7 @@ async function getProgrammeForDate(pool, organizationId, date) {
         WHERE m.organization_id = $1
           AND m.is_cancelled = FALSE
           AND m.meeting_date <= $2::date
+          AND NOT (m.id = ANY($3::int[]))
      )
      SELECT id, meeting_kind, theme, activity_name, span_days,
             meeting_date::text AS meeting_date,
@@ -117,7 +122,7 @@ async function getProgrammeForDate(pool, organizationId, date) {
       WHERE $2::date < meeting_date + span_days
       ORDER BY meeting_date DESC, id DESC
       LIMIT 1`,
-    [organizationId, date]
+    [organizationId, date, replaced]
   );
   const meeting = meetingResult.rows[0];
   if (!meeting) {

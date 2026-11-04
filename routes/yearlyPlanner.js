@@ -29,6 +29,7 @@ const {
 } = require('../services/equipmentCatalog');
 const { buildCampMaterialList } = require('../services/campMaterialList');
 const { isTooLong } = require('../services/campDates');
+const { findReplacedMeetings } = require('../services/meetingReplacement');
 const {
   CampDuplicationError,
   readParts,
@@ -418,6 +419,18 @@ module.exports = (pool, logger) => {
         [organizationId, plan.start_date, plan.end_date]
       );
       plan.activity_events = eventsResult.rows;
+
+      // A meeting an outing replaces stays on the calendar, marked with that outing.
+      const replacedBy = new Map((await findReplacedMeetings(pool, organizationId, plan.start_date, plan.end_date))
+        .map((row) => [row.meeting_id, row]));
+      plan.meetings = plan.meetings.map((meeting) => {
+        const replacement = replacedBy.get(Number(meeting.id));
+        return {
+          ...meeting,
+          replaced_by_activity_id: replacement ? replacement.activity_id : null,
+          replaced_by_activity_name: replacement ? replacement.activity_name : null,
+        };
+      });
 
       return success(res, plan);
     })
