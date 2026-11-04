@@ -151,6 +151,38 @@ describe.skipIf(!DATABASE_URL)('Camp plan written sections', () => {
     expect(reverted.body.data.section).toMatchObject({ source: 'template', modified_for_camp: false, body_text: 'Respect everyone, always.' });
   });
 
+  test('clearing and rewriting a section never lets an editor working on the old text overwrite the new one', async () => {
+    const meeting = await camp(ids.unit, '2027-08-08', '2027-08-10');
+    // A and B both load the section once it reads "First" (version 1).
+    await call('put', `/camps/${meeting}/sections/motivation`, ids.planner).send({ body_html: '<p>First</p>', expected_version: 0 });
+    const cleared = await call('put', `/camps/${meeting}/sections/motivation`).send({ body_html: '', expected_version: 1 });
+    expect(cleared.body.data.section).toMatchObject({ source: 'empty', version: 2 });
+    const rewritten = await call('put', `/camps/${meeting}/sections/motivation`).send({ body_html: '<p>Replacement</p>', expected_version: 2 });
+    expect(rewritten.body.data.section.version).toBe(3);
+
+    const stale = await call('put', `/camps/${meeting}/sections/motivation`, ids.planner).send({ body_html: '<p>Old edit</p>', expected_version: 1 });
+    expect(stale.status).toBe(409);
+    expect(await one('SELECT body_text FROM camp_plan_sections WHERE meeting_id = $1 AND section_key = $2', [meeting, 'motivation'])).toBe('Replacement');
+
+    // The same holds for a unit template.
+    await call('put', '/templates/camp_rules').send({ body_html: '<p>First rules</p>', expected_version: 0 });
+    await call('put', '/templates/camp_rules').send({ body_html: '', expected_version: 1 });
+    expect((await call('put', '/templates/camp_rules').send({ body_html: '<p>Old edit</p>', expected_version: 0 })).status).toBe(409);
+    const emptied = (await call('get', '/templates')).body.data.find((template) => template.key === 'camp_rules');
+    expect(emptied).toMatchObject({ body_html: null, version: 2 });
+    expect((await call('put', '/templates/camp_rules').send({ body_html: '<p>New rules</p>', expected_version: 2 })).status).toBe(200);
+  });
+
+  test('someone allowed to write the templates can read them without meetings.view', async () => {
+    const editor = await member(ids.unit, ['camp_plan_templates.manage'], 'Template Fiction');
+    const response = await call('get', '/templates', editor);
+    expect(response.status).toBe(200);
+    expect(response.body.data.map((template) => template.key)).toEqual(['rules_of_life', 'camp_rules', 'code_of_ethics', 'emergency_procedures']);
+    // A camp's plan is still read with meetings.view only.
+    const meeting = await camp(ids.unit, '2027-08-15', '2027-08-17');
+    expect((await call('get', `/camps/${meeting}`, editor)).status).toBe(403);
+  });
+
   test('two editors writing a template for the first time do not both succeed', async () => {
     const first = call('put', '/templates/code_of_ethics').send({ body_html: '<p>First</p>', expected_version: 0 });
     const second = call('put', '/templates/code_of_ethics').send({ body_html: '<p>Second</p>', expected_version: 0 });
@@ -220,6 +252,10 @@ describe.skipIf(!DATABASE_URL)('Camp plan written sections', () => {
     await call('put', `/camps/${source}/sections/theme`).send({ body_html: '<p>The pirates</p>', expected_version: 0 });
     await call('put', `/camps/${source}/sections/vcpref_wanted`).send({ body_html: '<p>Voted in May</p>', expected_version: 0 });
     await call('put', `/camps/${source}/sections/camp_rules`).send({ body_html: '<p>Old camp rules</p>', expected_version: 0 });
+    await call('put', `/camps/${source}/sections/motivation`).send({ body_html: '<p>Dropped</p>', expected_version: 0 });
+    await call('put', `/camps/${source}/sections/motivation`).send({ body_html: '', expected_version: 1 });
+    await call('put', `/camps/${target}/sections/theme`).send({ body_html: '<p>Started</p>', expected_version: 0 });
+    await call('put', `/camps/${target}/sections/theme`).send({ body_html: '', expected_version: 1 });
     await call('put', `/camps/${source}/rain-games`).send({ activity_library_ids: [withdrawn, kept] });
     await pool.query('UPDATE activity_library SET is_active = FALSE WHERE id = $1', [withdrawn]);
 
@@ -232,13 +268,14 @@ describe.skipIf(!DATABASE_URL)('Camp plan written sections', () => {
     expect(copied.body.data.copied).toEqual({ plan_sections: 2, rain_games: 1 });
 
     const plan = (await call('get', `/camps/${target}`)).body.data;
-    expect(sectionOf(plan, 'theme')).toMatchObject({ source: 'camp', needs_review: true, body_text: 'The pirates' });
+    expect(sectionOf(plan, 'theme')).toMatchObject({ source: 'camp', needs_review: true, body_text: 'The pirates', version: 3 });
+    expect(sectionOf(plan, 'motivation').source).toBe('empty');
     expect(sectionOf(plan, 'camp_rules').source).not.toBe('camp');
     expect(plan.rain_games.map((row) => row.name)).toEqual(['Fictional kept game']);
     expect(plan.gaps.to_review).toEqual(['vcpref_wanted', 'theme']);
 
     // Saving a copied section clears "to reread".
-    const reread = await call('put', `/camps/${target}/sections/theme`).send({ body_html: '<p>The pirates, again</p>', expected_version: 1 });
+    const reread = await call('put', `/camps/${target}/sections/theme`).send({ body_html: '<p>The pirates, again</p>', expected_version: 3 });
     expect(reread.body.data.section.needs_review).toBe(false);
 
     const again = await request(app).post(`/api/v1/yearly-planner/meetings/${target}/duplicate`).set(auth())

@@ -8,7 +8,8 @@
  * rules, code of ethics, emergency procedures) are written once as the unit's
  * templates: a camp follows the template unless it writes its own text, and the
  * difference is visible. Writing nothing for a stable section returns the camp
- * to its template.
+ * to its template. An emptied section keeps its row with no text, so its
+ * version only ever grows: clearing and rewriting cannot let a stale editor in.
  *
  * Every text is rich text rebuilt by utils/richText.js, stored with its plain
  * version for exports. A section left empty is reported as still to write,
@@ -132,28 +133,20 @@ function saveTemplate(pool, organizationId, actorId, sectionKey, input) {
   }
   const { html, text, expectedVersion } = readSectionInput(input);
   return transaction(pool, async (db) => {
-    // Each write names the version it replaces, so two editors (even two first writes) never both succeed.
-    let written;
-    if (html === null) {
-      written = expectedVersion === 0
-        ? !(await db.query('SELECT 1 FROM camp_plan_templates WHERE organization_id = $1 AND section_key = $2',
-          [organizationId, sectionKey])).rows.length
-        : (await db.query('DELETE FROM camp_plan_templates WHERE organization_id = $1 AND section_key = $2 AND version = $3',
-          [organizationId, sectionKey, expectedVersion])).rowCount > 0;
-    } else if (expectedVersion === 0) {
-      written = (await db.query(
+    // Each write names the version it replaces, so two editors (even two first writes) never both
+    // succeed. Emptying keeps the row with no text: its version only grows.
+    const written = expectedVersion === 0
+      ? (await db.query(
         `INSERT INTO camp_plan_templates (organization_id, section_key, body_html, body_text, updated_by)
          VALUES ($1, $2, $3, $4, $5) ON CONFLICT (organization_id, section_key) DO NOTHING`,
         [organizationId, sectionKey, html, text, actorId]
-      )).rowCount > 0;
-    } else {
-      written = (await db.query(
+      )).rowCount > 0
+      : (await db.query(
         `UPDATE camp_plan_templates
             SET body_html = $4, body_text = $5, updated_by = $6, version = version + 1, updated_at = NOW()
           WHERE organization_id = $1 AND section_key = $2 AND version = $3`,
         [organizationId, sectionKey, expectedVersion, html, text, actorId]
       )).rowCount > 0;
-    }
     if (!written) {
       refuse('camp_plan_version_conflict', HTTP_CONFLICT);
     }
@@ -171,7 +164,9 @@ function saveTemplate(pool, organizationId, actorId, sectionKey, input) {
  */
 function resolveSections(rows, templates) {
   return ALL_SECTIONS.map((key) => {
-    const own = rows.find((row) => row.section_key === key);
+    // A row with no text is an emptied section: it holds the version, not a text to show.
+    const row = rows.find((candidate) => candidate.section_key === key);
+    const own = row?.body_html ? row : null;
     const template = templates.find((candidate) => candidate.key === key);
     const unit = isUnitSection(key);
     let source = 'empty';
@@ -190,8 +185,8 @@ function resolveSections(rows, templates) {
       body_html: shown?.body_html ?? null,
       body_text: shown?.body_text ?? null,
       needs_review: Boolean(own?.needs_review),
-      // The version of the camp's own text; 0 when it has none.
-      version: own?.version ?? 0,
+      // The version of the camp's own text, emptied or not; 0 when it never had one.
+      version: row?.version ?? 0,
       template_version: unit ? template?.version ?? 0 : null,
       template_html: unit ? template?.body_html ?? null : null,
       updated_at: own?.updated_at ?? null,
@@ -279,7 +274,8 @@ async function readCampPlan(db, organizationId, meetingId) {
 async function campPlanGaps(db, organizationId, meetingId) {
   const result = (await db.query(
     `SELECT
-       COALESCE((SELECT json_agg(json_build_object('section_key', s.section_key, 'needs_review', s.needs_review))
+       COALESCE((SELECT json_agg(json_build_object('section_key', s.section_key, 'needs_review', s.needs_review,
+                                                     'body_html', s.body_html IS NOT NULL))
                    FROM camp_plan_sections s WHERE s.organization_id = $1 AND s.meeting_id = $2), '[]'::json) AS sections,
        COALESCE((SELECT json_agg(json_build_object('key', t.section_key, 'body_html', t.body_html))
                    FROM camp_plan_templates t WHERE t.organization_id = $1), '[]'::json) AS templates,
@@ -292,7 +288,7 @@ async function campPlanGaps(db, organizationId, meetingId) {
 
 /**
  * Write one section of a camp's plan. The camp is locked, its editor names the
- * version of the camp's text it loaded, and writing nothing removes the camp's
+ * version of the camp's text it loaded, and writing nothing empties the camp's
  * text: a camp section is then to write again, a stable section follows its
  * unit's template again. Saving clears "copied, to reread".
  *
@@ -312,19 +308,15 @@ function saveCampSection(pool, organizationId, actorId, meetingId, sectionKey, i
     if ((current?.version || 0) !== expectedVersion) {
       refuse('camp_plan_version_conflict', HTTP_CONFLICT);
     }
-    if (html === null) {
-      await db.query('DELETE FROM camp_plan_sections WHERE organization_id = $1 AND meeting_id = $2 AND section_key = $3',
-        [organizationId, meetingId, sectionKey]);
-    } else {
-      await db.query(
-        `INSERT INTO camp_plan_sections (organization_id, meeting_id, section_key, body_html, body_text, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (organization_id, meeting_id, section_key) DO UPDATE SET
-           body_html = EXCLUDED.body_html, body_text = EXCLUDED.body_text, updated_by = EXCLUDED.updated_by,
-           needs_review = FALSE, version = camp_plan_sections.version + 1, updated_at = NOW()`,
-        [organizationId, meetingId, sectionKey, html, text, actorId]
-      );
-    }
+    // Emptying keeps the row with no text, so the version never goes back.
+    await db.query(
+      `INSERT INTO camp_plan_sections (organization_id, meeting_id, section_key, body_html, body_text, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (organization_id, meeting_id, section_key) DO UPDATE SET
+         body_html = EXCLUDED.body_html, body_text = EXCLUDED.body_text, updated_by = EXCLUDED.updated_by,
+         needs_review = FALSE, version = camp_plan_sections.version + 1, updated_at = NOW()`,
+      [organizationId, meetingId, sectionKey, html, text, actorId]
+    );
     const plan = await readCampPlan(db, organizationId, meetingId);
     return { section: plan.sections.find((section) => section.key === sectionKey), gaps: plan.gaps };
   });
@@ -400,7 +392,10 @@ async function copyCampPlan(db, organizationId, actorId, targetMeetingId, source
     `INSERT INTO camp_plan_sections (organization_id, meeting_id, section_key, body_html, body_text, needs_review, updated_by)
      SELECT organization_id, $2, section_key, body_html, body_text, TRUE, $4
        FROM camp_plan_sections
-      WHERE organization_id = $1 AND meeting_id = $3 AND section_key = ANY($5::text[])`,
+      WHERE organization_id = $1 AND meeting_id = $3 AND section_key = ANY($5::text[]) AND body_html IS NOT NULL
+     ON CONFLICT (organization_id, meeting_id, section_key) DO UPDATE SET
+       body_html = EXCLUDED.body_html, body_text = EXCLUDED.body_text, needs_review = TRUE,
+       updated_by = EXCLUDED.updated_by, version = camp_plan_sections.version + 1, updated_at = NOW()`,
     [organizationId, targetMeetingId, sourceMeetingId, actorId, CAMP_SECTIONS]
   );
   const games = await db.query(

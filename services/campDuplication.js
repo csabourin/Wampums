@@ -119,7 +119,8 @@ async function campsWithContent(db, organizationId, ids = null) {
                                  WHERE r.organization_id = t.organization_id AND r.task_id = t.id))::integer AS tasks,
             -- The camp's own plan sections and bad-weather games; stable sections follow the unit's templates.
             ((SELECT COUNT(*) FROM camp_plan_sections ps
-               WHERE ps.organization_id = m.organization_id AND ps.meeting_id = m.id AND ps.section_key = ANY($3::text[]))
+               WHERE ps.organization_id = m.organization_id AND ps.meeting_id = m.id AND ps.section_key = ANY($3::text[])
+                 AND ps.body_html IS NOT NULL)
              + (SELECT COUNT(*) FROM camp_plan_rain_games pg
                WHERE pg.organization_id = m.organization_id AND pg.meeting_id = m.id))::integer AS plan
        FROM year_plan_meetings m

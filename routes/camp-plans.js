@@ -1,8 +1,9 @@
 /**
  * Written sections of the camp plan (#1318).
  *
- * Mounted at /api/v1/camp-plans. Reading the unit's templates and a camp's
- * sections takes `meetings.view`; writing a camp's sections and choosing its
+ * Mounted at /api/v1/camp-plans. Reading a camp's sections takes
+ * `meetings.view`, and reading the unit's templates `meetings.view` or
+ * `camp_plan_templates.manage`; writing a camp's sections and choosing its
  * bad-weather games takes `meetings.manage`, as planning the camp does;
  * writing the unit's templates takes `camp_plan_templates.manage`.
  *
@@ -10,7 +11,7 @@
  */
 const express = require('express');
 const { param } = require('express-validator');
-const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const { authenticate, requirePermission, requireAnyPermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 const {
@@ -35,8 +36,9 @@ module.exports = (pool) => {
   const router = express.Router();
   router.use(authenticate);
 
+  // Read by every camp's plan (meetings.view) and by the template editor, who may hold only its own right.
   router.get('/templates',
-    requirePermission('meetings.view'),
+    requireAnyPermission('meetings.view', 'camp_plan_templates.manage'),
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       return success(res, await listTemplates(pool, organizationId));

@@ -65,6 +65,15 @@ test('a leader reads the authenticated unit’s camp plan, whatever unit the req
   expect(service.listTemplates).toHaveBeenCalledWith(pool, UNIT_ID);
 });
 
+test('the templates are read by whoever may write them, even without meetings.view', async () => {
+  permissions = ['camp_plan_templates.manage'];
+  expect((await call('get', '/templates')).status).toBe(200);
+  permissions = [];
+  const refused = await call('get', '/templates');
+  expect(refused.status).toBe(403);
+  expect(refused.body.required).toEqual(['meetings.view', 'camp_plan_templates.manage']);
+});
+
 test('reading takes meetings.view, and the refusal says so', async () => {
   permissions = [];
   const response = await call('get', '/camps/12');
