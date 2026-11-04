@@ -75,3 +75,16 @@ yet", never as done.
 medication and form reads, unit isolation), `test/routes-volunteer-shifts.test.js`,
 `test/spa/Volunteers.test.js` (axe, keyboard, escaping), and `/volunteers` in
 `e2e/accessibility.spec.mjs` on the seeded "Camp d'hiver".
+
+## Rules summary
+
+The binding rules for this area, formerly in CLAUDE.md.
+
+`/volunteers` (`volunteers.view`; managing shifts takes `volunteers.manage`, migration 069) lists
+each activity's or camp's needs by time slot. Writes go through `services/volunteerShifts.js`, which
+locks the shift so its last place goes to one person (409 `volunteer_shift_full` for the other). The
+built-in `volunteer` role holds only `volunteers.view` and `tasks.view`: no youth, family or health
+record. Other volunteers' names go to managers only. Each shift has a type (`config/volunteer_shifts.json`); a type's
+requirements keep a place pending until a manager records them. Every adult of the team and every
+volunteer needs a background check, valid three years from the day it was done (the server sets the
+expiry); managers follow them on `/volunteers`. See `devdocs/VOLUNTEERS.md`.

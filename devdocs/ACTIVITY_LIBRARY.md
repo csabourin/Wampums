@@ -163,3 +163,16 @@ The import is covered by `test/activity-library-starter-service.test.js`,
 `test/routes-starter-activities.test.js`,
 `test/activity-library-starter.integration.test.js` (needs
 `TEST_DATABASE_URL`) and `test/spa/StarterActivities.test.js`.
+
+## Rules summary
+
+The binding rules for this area, formerly in CLAUDE.md.
+
+`config/activity_library_starter.json` is the reviewed bilingual catalogue; only
+`services/activityLibraryStarter.js` copies it into a unit's `activity_library`
+(planner import, unit creation, `seed.mjs`). A copy records `metadata.starter_key`,
+unique per unit with hidden copies included (migration 053); never write that key
+elsewhere. Withdrawn entries are never offered, copied or matched. Older copies are
+adopted by exact legacy name, without changing their text; ambiguous matches are
+reported, never guessed. New units get their branch's standard-supervision entries.
+Rules and the meeting-template links are in `devdocs/ACTIVITY_LIBRARY.md`.

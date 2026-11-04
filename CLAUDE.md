@@ -1,13 +1,50 @@
 # CLAUDE.md - Development Guidelines for Wampums Scout Management System
 
-**Last Updated:** 2026-10-23
+**Last Updated:** 2026-11-04
 **Project:** Wampums Scout Management System
 **Tech Stack:** Node.js + Express, PostgreSQL, Vite (SPA), Vanilla JavaScript (ES modules), Expo/React Native (mobile)
 
 **Scope.** Work is on the API and the web SPA (`spa/`). **`mobile/` is frozen**: it will be ported
 from the SPA in one piece once the SPA is stable, so do not change it unless a task explicitly asks. **The tests are the most current specification** (§12): read
-those of the area you touch before you change it. §7 says how to build an SPA screen, and the templates
-at the end show one.
+those of the area you touch before you change it. §7 says how to build an SPA screen, and
+`devdocs/TEMPLATES.md` shows one. Rules for a single feature live in `devdocs/` (Feature areas, after §6).
+
+---
+
+## Working on an issue
+
+An issue is fixed with the smallest change that resolves it, verified locally by the checks that
+concern that change. **CI is the full gate**: it runs every lint, the build, every Jest suite, the
+integration suite against a real database and the browser accessibility suite. Do not repeat it
+locally. The `fix-issue` project skill (`.claude/skills/fix-issue/`) walks through these steps.
+
+- ✅ **Read narrowly.** Read the issue, the code it names, and the tests of the files you change
+  (`grep` for the function or route name in `test/` rather than reading whole suites). Open a devdoc
+  from Feature areas only when the change is in that area.
+- ✅ **Stay in scope.** Fix what the issue asks. A convention gap noticed nearby is listed under
+  "Follow-ups" in the PR description, not fixed in the same change, unless the issue asks or the
+  change cannot be tested without it (§7 "Touching an older screen").
+- ✅ **Every behaviour change still comes with a test** (§12), including its escaping and axe check for
+  a new or changed screen, dialog or form.
+- ✅ **Verify locally with targeted checks only:**
+  - `npx jest --findRelatedTests <changed source files>`, plus any test file you added or edited
+    (`npx jest <test file>`);
+  - `npx eslint <changed files>`;
+  - `npm run lint:i18n-parity` when `lang/` changed; `npm run lint:policy` when `routes/`,
+    `middleware/`, `services/` or `spa/` changed; `npm run lint:api-contracts` when a route or an
+    `spa/api/` client changed.
+- ⚠️ **Run more locally only when the change calls for it:** the integration suite (run-wampums skill)
+  for a migration or anything about roles, access to children, family links or scout years;
+  `npm run build` when imports, `vite.config.mjs` or the service worker changed; the browser
+  (run-wampums skill) when the issue is about what a screen looks like.
+- ❌ Do not run `npm run test:quality`, `npm run lint:all` or `npm run test:a11y` locally by default.
+- ✅ **Let CI decide, and watch it.** CI runs once on every pushed commit, on any branch (not again on
+  a pull request). Push, then watch that run without being asked: schedule a check for when it should
+  be done (`send_later`, about 12 minutes), read its result with the GitHub MCP `actions_*` tools, and
+  when a job fails, read that job's log and fix only what it reports. Push the fix and watch again,
+  until CI is green or three attempts have failed (then report what still fails). Do not open a pull
+  request for CI; open one only when asked. When a pull request already exists for the branch, also
+  `subscribe_pr_activity` for its reviews.
 
 ---
 
@@ -431,258 +468,30 @@ const result = await pool.query(
 
 **All validation failures return 400 with `{ success: false, message: '...', errors: [...] }`**
 
-### Points hors ligne en camp
+### Feature areas
 
-Les ajouts et retraits de points sont conservés dans la file IndexedDB de la SPA,
-associés au compte et à l’unité. Chaque lot porte un `Idempotency-Key` dès le premier
-envoi : `point_mutation_receipts` et les points sont validés dans la même transaction.
-Une réponse perdue peut donc être retransmise sans doubler les points. Déployer la
-migration `044_point_mutation_receipts.sql` avant le nouveau client.
-Les totaux mis en cache par la préparation sont ceux de l'année scoute active, comme
-`GET /api/v1/points` ; en ligne, l'écran des points recharge toujours les totaux du serveur.
-Une présence verrouille l'inscription du jeune avant de comparer son statut : deux appareils
-qui marquent le même jeune au même moment ne donnent les points de présence qu'une fois.
-Les onglets ouverts partagent une seule file : un seul à la fois la rejoue (Web Lock
-`wampums-offline-outbox-replay`), les autres n'envoient rien et réessaient plus tard.
-L'onglet qui rejoue relaie `offlineMutationReplayed` / `offlineMutationRejected` aux autres
-(BroadcastChannel `wampums-offline-outbox`) : l'écran qui a mis un changement en file
-l'apprend même si un autre onglet l'a envoyé.
-`attendance.points_awarded` (migration 047) retient les points qu'une présence a donnés :
-un changement de statut ou une journée supprimée reprend exactement ceux-là (une journée
-reprise de la veille n'en donne aucun). Un niveau de badge donne ses points une seule fois
-(`badge_progress.points_awarded`, migration 048), même approuvé de nouveau.
+Each area's binding rules live in its devdoc. Read it **before changing code in that area**, and
+only then. The rules there are as binding as this file; update the devdoc in the same change.
 
-Les camps des sept prochains jours se préparent automatiquement lorsque la SPA
-est ouverte avec du réseau, pour les comptes ayant `activities.view` et une portée
-unité. `CampPreparation` vérifie les données IndexedDB, les écrans, les traductions
-et le document HTML en cache avant d'annoncer « Prêt hors ligne sur cet appareil ».
-Les préparations et le mode camp sont isolés par compte, unité et année scoute ;
-un ancien indicateur sans preuve ne suffit pas. Les données sont actualisées chaque
-heure et après synchronisation, avec une nouvelle tentative chaque minute en cas
-d'échec. Une file locale non vide reporte le téléchargement pour préserver les
-modifications. Les camps futurs n'activent le mode camp qu'à leur début.
-Le tableau de bord n'affiche la disponibilité hors ligne d'un camp que de 24 heures avant son début
-jusqu'à sa fin (`isCampReadinessDue`) ; la préparation, elle, commence plus tôt en arrière-plan.
-« Vérifier la disponibilité hors ligne » permet une actualisation manuelle depuis
-les activités ou la préparation hors ligne ; vérifier chaque appareil avant de partir.
-Les totaux locaux restent
-consultables après expiration du cache tant que l’appareil est hors ligne ou qu’un
-lot attend son envoi. La SPA ouverte synchronise au retour du réseau, à son retour
-au premier plan et réessaie toutes les 30 secondes. Garder les présences avant les
-points dans la file ; une erreur temporaire suspend les opérations suivantes.
-Les refus définitifs sont annoncés et les totaux sont rechargés après synchronisation.
-
-### Shared activity tasks
-
-`/tasks` lists the signed-in member's assignments (`tasks.view`); managers
-(`tasks.manage` plus `tasks.view`) can switch to unit tasks and create or edit
-assignments. These permissions grant no access to youth or health records. Units
-explicitly grant them through the role matrix; the district role receives new
-permissions through its existing trigger. Task-only helpers can use an ordinary
-unit-scoped custom role with only `tasks.view`.
-
-Migration `052_activity_tasks.sql` creates tasks linked to exactly one outing/camp
-or planned meeting. Use `services/activityTasks.js` for writes: it locks and checks
-active membership in the same unit, verifies the event's unit, and commits task
-creation/status history atomically. Status changes require `expected_status` and
-return 409 for stale edits. A reassigned task disappears from the previous member's
-list. The personal status endpoint always filters by the authenticated assignee;
-management endpoints require `tasks.manage`. History records who changed the
-status and when. Extend `config/tasks.js` and `CONFIG.TASKS.STATUS_KEYS` together
-when adding states, with English and French labels and a migration extending the
-status constraint.
-
-Regenerating a year plan preserves meetings with assigned tasks. Deleting a plan
-detaches those meetings, preserving assignments and their history.
-
-Ordinary task writes require a connection and cannot be queued. Equipment-lot duties
-are edited through their lot and use its preparation and receipt rules below. Confirmed writes invalidate
-task reads through the shared API client. The task screen uses minimal event/member
-choices rather than requesting participants, families, contacts or health forms.
-
-### Volunteering
-
-`/volunteers` (`volunteers.view`; managing shifts takes `volunteers.manage`, migration 069) lists
-each activity's or camp's needs by time slot. Writes go through `services/volunteerShifts.js`, which
-locks the shift so its last place goes to one person (409 `volunteer_shift_full` for the other). The
-built-in `volunteer` role holds only `volunteers.view` and `tasks.view`: no youth, family or health
-record. Other volunteers' names go to managers only. Each shift has a type (`config/volunteer_shifts.json`); a type's
-requirements keep a place pending until a manager records them. Every adult of the team and every
-volunteer needs a background check, valid three years from the day it was done (the server sets the
-expiry); managers follow them on `/volunteers`. See `devdocs/VOLUNTEERS.md`.
-
-### Camp equipment lots
-
-`/camp-lots/:id` requires `camp_lots.view`; editing additionally requires
-`camp_lots.manage` and `tasks.manage`. `/my-camp-lots/:id` requires only `tasks.view`
-and filters to the caller's assigned duties. The camp schedule and material list
-open the unit page; shared tasks link to the matching lot page instead of editing
-lot-owned tasks independently. Responsibilities, quantities and state history use
-`services/campEquipmentLots.js` and shared rules in `config/camp_equipment_lots.json`.
-
-Opening the page online prepares its minimal lot snapshot, scoped by account,
-unit and selected scout year. Readiness requires the real worker's assets and shell,
-not just a flag. A full camp preparation also carries permission-filtered lot packs.
-Creating/editing lots requires a connection; only state changes may enter the shared
-outbox, and only with a valid prepared snapshot. `CampLotOffline.js` owns those
-checks and pending overlays. Pending states never enter confirmed history.
-
-The receipt id in the body and `Idempotency-Key` are identical from the first
-attempt. A subsequent pending change names `previous_mutation_id`; the server
-requires that receipt's committed lot/version before accepting it, so a refused
-load cannot be bypassed by a later return. Expected versions, membership and duty
-ownership are rechecked on replay. A successful replay updates the retained snapshot
-even with its screen closed; refusals clear only that camp's snapshots and announce
-`sync.rejected_kind_camp_lots`. See `devdocs/CAMP_EQUIPMENT_LOTS.md` and the real-PWA
-browser suite (`playwright.offline.config.mjs`).
-
-### Reusing an earlier camp
-
-The camp schedule offers "Reuse an earlier camp" (`services/campDuplication.js`,
-`POST /api/v1/yearly-planner/meetings/:id/duplicate`). It copies the parts chosen (site, schedule
-after day zero, personal packing list, equipment lots, the camp's own tasks) in one transaction, with the
-target camp locked; a part already filled in the target is refused, never merged. Dates shift by the
-gap between the two camps; lots return to `to_prepare`, tasks to `todo`, the packing list to an
-unpublished draft. Nothing personal is copied (registrations, authorizations, checks, progress,
-volunteer signups). Each part takes its own screen's rights (`config/camp_duplication.json`, shared
-with the SPA); a duty held by someone no longer active goes to the person copying. See
-`devdocs/CAMP_DUPLICATION.md`.
-
-### Camp sites
-
-`/camp-sites` (`meetings.view`; editing takes `camp_sites.manage`, migration 070) lists the places a
-unit camps at, with what the camp permit asks: owner, accommodation, heating, the site's insurance,
-nearest hospital, poison centre, directions. Sites are archived, never deleted, and hold no personal
-data. `/camp-site/:id` chooses a planned camp's site, season, accommodation, unit lead on site (an
-active member) and the number families call (`camp_details`, `meetings.manage`, version-checked,
-camp row locked). Writes go through `services/campSites.js`; allowed values are
-`config/camp_sites.json`, shared with the SPA. `/camp-readiness` lists the emergency information
-still missing; a new packing list starts from the camp's season and accommodation; reusing a camp
-copies its site but not its lead. See `devdocs/CAMP_SITES.md`.
-
-### Camp plan written sections
-
-`/camp-plan/:id` (`meetings.view`; writing takes `meetings.manage`) holds what the camp permit asks
-the team to write (migration 071): V.C.P.R.E.F., theme, motivation, and the games kept for bad weather
-from the unit's activity library. Rules of life, camp rules, code of ethics and emergency procedures
-are the unit's templates (`/camp-plan-templates`, `camp_plan_templates.manage`): a camp follows them
-unless it writes its own, and says so. Writes go through `services/campPlan.js` (rich text rebuilt,
-version-checked, camp row locked); keys are `config/camp_plan.json`. An empty section is "to write"
-in the plan and in `/camp-readiness`, never complete. Reusing a camp copies its own sections as
-drafts to reread, never the stable ones. `/camp-plans` lists the unit's camps with what each plan
-lacks. See `devdocs/CAMP_PLAN_SECTIONS.md`. The dashboard's "Plan the year and the camps" section
-(`moment: 'plan'`, after "This week") gathers the long-range and camp tiles.
-
-### Starter activities
-
-`config/activity_library_starter.json` is the reviewed bilingual catalogue; only
-`services/activityLibraryStarter.js` copies it into a unit's `activity_library`
-(planner import, unit creation, `seed.mjs`). A copy records `metadata.starter_key`,
-unique per unit with hidden copies included (migration 053); never write that key
-elsewhere. Withdrawn entries are never offered, copied or matched. Older copies are
-adopted by exact legacy name, without changing their text; ambiguous matches are
-reported, never guessed. New units get their branch's standard-supervision entries.
-Rules and the meeting-template links are in `devdocs/ACTIVITY_LIBRARY.md`.
-
-### Creating a unit
-
-`POST /api/v1/organizations` (`org.create`, district-only) takes the unit's information, its branch
-(`program_section`), its subdomain and its administrator's email. In one transaction it records the
-domain in `organization_domains` (unique without case, migration 056; rules in
-`config/unit_subdomains.json`, read by the server and the SPA), sets the branch before installing
-starter activities, makes the creator a district member, and creates a pending invitation into the
-unit's `unitadmin` role (`resolveUnitRoleId`, `checkRolesGrantable`). The email goes after COMMIT; a
-failed send leaves the invitation to resend. `/units` (`org.create`) lists the person's units and
-switches with `POST /api/v1/organizations/switch`, which requires an active membership.
-
-A unit's branch and addresses are changed under Unit settings › General. `PATCH
-/api/v1/organizations/settings/branch` (`org.edit`) sets the branch; its vocabulary follows unless
-the unit wrote its own (`custom`). Saving the vocabulary sets the branch only while it is still
-`general`. A branch without terms or a meeting layout of its own (scouts, pioneers, rovers) uses the
-generic ones, ahead of a stale legacy meeting section once vocabulary is saved; an unknown branch
-still falls back to its legacy section. OVH routes the unit base domain's wildcard to the app
-(`deploy/ovh/README.md`); wildcard DNS and TLS must be configured before using new addresses.
-`middleware/unit-host.js` redirects unassigned unit subdomains to the fixed public home URL before
-static files and routes, using exact case-insensitive domain assignments (no header or wildcard
-fallback). Its 302 is not cached, drops path/query, and reflects address changes immediately;
-database failures stay errors. Apex/`www`, local development and other domain suffixes keep their
-existing routing.
-The storage hostname is reserved for infrastructure, including the OVH `STORAGE_DOMAIN` override.
-Saving vocabulary synchronizes both the app and the branch selector with the returned branch.
-Addresses are listed with `org.view`; adding one, choosing the
-primary one (`organization_domains.is_primary`, migration 057, used by `resolveOrganizationBaseUrl`)
-and removing one take `org.create`. A unit keeps its primary and at least one exact address. Adding
-an address never replaces one, so links already sent keep working.
-
-### Equipment catalogue and unit material
-
-`/equipment-catalog` (`equipment_catalog.manage`, migrations 054 and 055) names a unit's articles once:
-name, category (`config/equipment_categories.json`), unit of measure (`config/equipment_units.json`)
-and, optionally, an inventory item the unit may use (`services/equipmentAccess.js`). Articles are
-archived, never deleted; one active name per unit.
-
-A schedule line (`year_plan_meeting_activities`: a regular meeting's activity or a camp line) lists
-the unit's material with quantities in `meeting_activity_equipment`, beside its free-text
-`material`, which stays as it was. Each entry names a catalogue article of the unit or an inventory
-item it has or may borrow, never both. `GET /api/v1/equipment-catalog/options` (`meetings.manage`
-or `equipment_catalog.manage`) lists the choices: active articles, then accessible inventory that no
-active article stands for, by name and category only. Meeting preparation and the planner's line
-routes accept and return `material_items` (`services/equipmentCatalog.js`): sent, it replaces the
-line's list in the line's transaction; omitted, the list is kept. Something archived or no longer
-shared stays on a line that lists it but cannot be added; copying a camp schedule copies only what
-is still active. Composite foreign keys keep a line and its articles in the same unit.
-
-The AI meeting plan and outing plan choose material only from that list: `routes/ai.js` reads it
-for the unit of the token (a client cannot supply it) and sends names and categories with short
-references (`a3`, `e7`); the answer keeps only references it was offered and never free-text
-material. A unit with no catalogue and no inventory keeps the free-text answer. Catalogue writes
-need a connection.
-
-A camp's collective material list (`/camp-material/:id`, from the camp schedule;
-`GET /api/v1/yearly-planner/meetings/:id/material-list`, `meetings.view`) is built by
-`services/campMaterialList.js`: each article once, its quantity the sum of every line naming it; an
-inventory item listed directly joins the article that stands for it. Free-text material is listed
-apart, line by line, never added up. With `inventory.view` only, each inventory entry is compared over
-the camp's dates as a reservation of those dates is counted: reserved for this camp (by its meeting or
-its outing, covering all its days), still free (loans included), missing, or no longer accessible; reservations for the camp
-that no line lists are returned too. Print and CSV export carry the same content. Two articles standing for one item are compared with their combined need. Each inventory
-entry carries `to_reserve` (whole units the camp still lacks, at most what is free); "Reserve what is
-missing" sends exactly those to `POST /api/v1/resources/equipment/reservations/camps/:meetingId`
-(`meetings.view`, `inventory.view`, `inventory.reserve`; online only). The server locks the items,
-recounts, and refuses with 409 `camp_material_reservation_stale` anything beyond what is still
-lacking or free, all or none; reservations name the camp's meeting and outing, and one already made
-for the camp over exactly its dates grows rather than doubling (any other booking is never altered).
-Each free-text line offers "Convert to catalogue articles" (`meetings.manage`; creating a missing
-article there also takes `equipment_catalog.manage`): the line's articles and the text they leave are
-saved in one `PATCH /api/v1/yearly-planner/meeting-activities/:id`, so the list never counts them twice.
-A line's articles and missing articles also offer "Assign to someone" (`tasks.manage`), which opens
-the task form filled for the camp with its material reminder.
-
-Meeting preparation sends a change to the server once the date (and the youth of honour, where
-the unit requires one) is filled; the leader in charge and the place are optional, as on the
-server. Until then the change stays on the device and the status names what is missing.
-
-### Action rosters during activities
-
-Attendance, points and honors share `ActionRoster` and `/api/v1/action-roster`.
-An activity with issued permission requests defaults to its signed participants;
-an activity without permission requests offers the whole unit. Once attendance
-exists for the day, points and honors show only present/late participants still
-on site. Attendance keeps the eligible roster visible so late arrivals can be
-marked. A planned meeting defaults to the whole unit in attendance. The explicit
-meeting/activity selector resolves overlapping dates; its choice follows navigation.
-“Show all participants” is an explicit exception for that screen, reset on a context
-change. Group and individual awards send that scope and the server enforces it.
-Unit enrollment checks always apply, including with an exception.
-
-Attendance remains daily, shared by the unit: an activity selector filters the
-roster; it does not create a second attendance register for the same day.
-`POST /api/v1/attendance/departure` sets `is_on_site = false` while retaining the
-recorded status and earned points. Marking present/late again clears the departure.
-Departures do not carry forward to the next camp day. Attendance writes keep their
-outbox order across reconnections. Camp preparation caches the authorization and
-roster snapshots as well as attendance; local unsent arrivals/departures overlay
-them when another action screen opens offline. Apply migration 045 before the client.
+| Area | Code it covers | Read |
+|---|---|---|
+| Offline points at camp (outbox, idempotency, camp preparation) | `spa/modules/points/`, `CampPreparation`, `point_mutation_receipts`, attendance points | `devdocs/OFFLINE_CAMP_POINTS.md` (French) |
+| Shared activity tasks | `/tasks`, `services/activityTasks.js`, `config/tasks.js` | `devdocs/ACTIVITY_TASKS.md` |
+| Volunteering | `/volunteers`, `services/volunteerShifts.js` | `devdocs/VOLUNTEERS.md` |
+| Camp equipment lots | `/camp-lots`, `/my-camp-lots`, `services/campEquipmentLots.js`, `CampLotOffline.js` | `devdocs/CAMP_EQUIPMENT_LOTS.md` |
+| Reusing an earlier camp | `services/campDuplication.js` | `devdocs/CAMP_DUPLICATION.md` |
+| Camp sites | `/camp-sites`, `/camp-site/:id`, `services/campSites.js` | `devdocs/CAMP_SITES.md` |
+| Camp plan written sections | `/camp-plan`, `/camp-plans`, `services/campPlan.js` | `devdocs/CAMP_PLAN_SECTIONS.md` |
+| Team camp readiness, camp dates | `/camp-readiness`, `services/campDates.js` | `devdocs/CAMP_READINESS.md` |
+| Dashboard during a camp | `spa/utils/CampDayUtils.js`, `CAMP_DAY_SHORTCUTS` | `devdocs/CAMP_DAY_DASHBOARD.md` |
+| Starter activities, activity library | `services/activityLibraryStarter.js`, `config/activity_library_starter.json` | `devdocs/ACTIVITY_LIBRARY.md` |
+| Creating a unit, branch, addresses | `POST /api/v1/organizations`, `/units`, `middleware/unit-host.js`, `organization_domains` | `devdocs/UNIT_CREATION.md` |
+| Equipment catalogue, camp material list | `/equipment-catalog`, `/camp-material`, `services/equipmentCatalog.js`, `services/campMaterialList.js` | `devdocs/EQUIPMENT_CATALOG.md` |
+| Action rosters (attendance, points, honors) | `ActionRoster`, `/api/v1/action-roster`, departures | `devdocs/ACTION_ROSTERS.md` |
+| SISC import | `POST /api/v1/import/sisc`, `SISC_IMPORT_LIMITS` | `devdocs/SISC_IMPORT.md` |
+| Family access, invitations, links | `services/participantAccess.js`, `/invitations` | `devdocs/FAMILY_ACCESS.md` |
+| Scout years, archives, alumni, erasure | `spa/modules/scout-year/` | `devdocs/GESTION_ANNEE_SCOUTE.md` (French) |
+| Unit vocabulary, hidden tiles | `UnitVocabularyUtils.js`, `dashboard-tiles.js` | `devdocs/UNIT_CUSTOMIZATION.md` |
 
 ### 7) Frontend Best Practices
 
@@ -697,7 +506,9 @@ them when another action screen opens offline. Apply migration 045 before the cl
   October 2026 (`spa/modules/badges/BadgeTracker.js`, `spa/modules/finance/Budgets.js`, …) were moved,
   not rewritten. The app is to read as one codebase, however long it has been built:
   - bring the parts you change up to this section (back link, states, escaping, `apiErrorMessage`,
-    `showMessage`, `openModal`, `button` classes), and at least what a test of your change exercises;
+    `showMessage`, `openModal`, `button` classes), and at least what a test of your change exercises.
+    "The parts you change" means the functions or markup your fix edits, not the whole screen: a
+    one-line fix does not become a rewrite. List the rest of the screen's gaps as a follow-up;
   - moving or renaming a file: `git mv`, so history follows; update its imports, the router's loader,
     every test's import and `jest.mock` path; and, since the lint ratchets count by path, rename its key
     in `scripts/modernization/policy-baseline.json` and in `eslint-suppressions.json`, counts unchanged.
@@ -963,7 +774,8 @@ The project enforces ESLint 9 rules. **Errors block CI; warnings must be resolve
 
 ### 11) Automated Lint Scripts
 
-Run `npm run lint:all` before every PR — it runs every check below, and it is exactly what CI runs.
+`npm run lint:all` runs every check below; it is exactly what CI runs on every pushed commit. Locally, run
+only the checks your change concerns ("Working on an issue").
 
 | Script | What it checks |
 |---|---|
@@ -992,20 +804,6 @@ file in `scripts/modernization/policy-baseline.json`:
   false positive inline with `// eslint-disable-next-line <rule> -- <reason>`.
 - When you remove violations, run `npm run lint:policy -- --update-baseline` and commit the lower counts;
   CI fails while the baseline overstates them. The script refuses to raise a count.
-
-### SISC import limits
-
-`POST /api/v1/import/sisc` validates the complete CSV before acquiring its import database connection.
-`SISC_IMPORT_LIMITS` in `config/constants.js` caps one synchronous import at 5 MiB of UTF-8,
-1,000 nonblank data rows (plus the header), 128 columns, 64 Ki characters per physical line,
-and 16 Ki characters per field. These bounds limit parsing memory and transaction work for a
-unit-sized import. Split larger imports into batches. Non-string content, missing data rows
-and unclosed quotes return 400; exceeded limits return 413 through the standard error helper.
-The format remains semicolon-delimited, with quoted separators and blank lines supported.
-
-SPA link navigation parses URLs before checking new-tab, download or modifier gestures.
-Only HTTP, HTTPS, mailto, tel and blob links may reach browser navigation; other protocols are
-cancelled. Only same-origin HTTP(S) links are routed inside the SPA.
 
 ### 12) Tests
 
@@ -1037,12 +835,12 @@ before changing it.
   WCAG 2.2 A/AA violation (contrast included), sideways scroll at 390px, a screen left `aria-busy`, a
   title not named after the screen's `<h1>`, a screen that shows the 404 or 403 page instead of
   itself, and focus that is invisible, hidden, or lost after a navigation or in a dialog. A new
-  screen joins `SCREENS` there; a detail screen opens on a record `seed.mjs` creates (`seededRecord`). `KNOWN_VIOLATIONS` only shrinks: fix
-  an entry when you touch its screen. It needs a running seeded app
+  screen joins `SCREENS` there; a detail screen opens on a record `seed.mjs` creates (`seededRecord`). `KNOWN_VIOLATIONS` only shrinks: never add an entry,
+  and fix one when the issue is about that screen's accessibility or rewrites its markup. It needs a running seeded app
   (`run-wampums` skill: `db.sh`, `seed.mjs`, `start.sh`).
 - ✅ CI runs `npm run lint:all`, `npm run build`, `npm run test:quality` (every Jest suite; the
-  integration ones skip without `TEST_DATABASE_URL`), the integration job and the accessibility job.
-  Run the same before a PR.
+  integration ones skip without `TEST_DATABASE_URL`), the integration job and the accessibility job,
+  once on every pushed commit, any branch (`.github/workflows/ci-integrity.yml`). Locally, run the targeted checks of "Working on an issue"; CI runs the rest.
 - ✅ To see a change in a real browser (phone or desktop size, as admin, leader or parent), use the
   `run-wampums` project skill (`.claude/skills/run-wampums/`).
 
@@ -1246,279 +1044,8 @@ STRIPE_SECRET_KEY=<payment-processing>
 
 ## Common Patterns & Examples
 
-### Backend Route Template
-
-```javascript
-// routes/resource.js
-const express = require('express');
-const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
-const { success, error, asyncHandler } = require('../middleware/response');
-const { validateIdParam, checkValidation } = require('../middleware/validation');
-
-module.exports = (pool) => {
-  const router = express.Router();
-
-  // GET collection - read permission
-  router.get('/v1/resources', 
-    authenticate, 
-    requirePermission('resources.view'), 
-    asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
-      
-      const result = await pool.query(
-        'SELECT * FROM resources WHERE organization_id = $1 ORDER BY created_at DESC',
-        [organizationId]
-      );
-      
-      return success(res, result.rows);
-    })
-  );
-
-  // POST create - manage permission + block demos
-  router.post('/v1/resources', 
-    authenticate, 
-    blockDemoRoles,
-    requirePermission('resources.manage'), 
-    asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
-      const { name, description } = req.body;
-      
-      // Validate input
-      if (!name) {
-        return error(res, 'Name is required', 400);
-      }
-      
-      const result = await pool.query(
-        'INSERT INTO resources (name, description, organization_id) VALUES ($1, $2, $3) RETURNING *',
-        [name, description, organizationId]
-      );
-      
-      return success(res, result.rows[0], 'Resource created', 201);
-    })
-  );
-
-  // PATCH update - manage permission + ownership check
-  router.patch('/v1/resources/:id', 
-    authenticate, 
-    blockDemoRoles,
-    requirePermission('resources.manage'), 
-    validateIdParam('id'),
-    checkValidation,
-    asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
-      const resourceId = Number(req.params.id);
-      const { name, description } = req.body;
-      
-      // Verify resource exists and belongs to organization
-      const check = await pool.query(
-        'SELECT id FROM resources WHERE id = $1 AND organization_id = $2',
-        [resourceId, organizationId]
-      );
-      
-      if (check.rows.length === 0) {
-        return error(res, 'Resource not found', 404);
-      }
-      
-      const result = await pool.query(
-        'UPDATE resources SET name = COALESCE($1, name), description = COALESCE($2, description), updated_at = NOW() WHERE id = $3 AND organization_id = $4 RETURNING *',
-        [name, description, resourceId, organizationId]
-      );
-      
-      return success(res, result.rows[0], 'Resource updated');
-    })
-  );
-
-  // DELETE - manage permission
-  router.delete('/v1/resources/:id', 
-    authenticate, 
-    blockDemoRoles,
-    requirePermission('resources.manage'), 
-    validateIdParam('id'),
-    checkValidation,
-    asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
-      const resourceId = Number(req.params.id);
-      
-      const result = await pool.query(
-        'DELETE FROM resources WHERE id = $1 AND organization_id = $2 RETURNING id',
-        [resourceId, organizationId]
-      );
-      
-      if (result.rows.length === 0) {
-        return error(res, 'Resource not found', 404);
-      }
-      
-      return success(res, null, 'Resource deleted');
-    })
-  );
-
-  return router;
-};
-```
-
-### Frontend Module Template
-
-A new screen, modelled on `spa/modules/walk-in/WalkInChildren.js` and `spa/modules/messages/Messages.js`.
-
-```javascript
-// spa/api/api-resources.js
-import { API } from './api-core.js';
-
-/** @returns {Promise<Object>} The unit's resources */
-export function getResources(options = {}) {
-  return API.get('v1/resources', {}, options);   // options: { forceRefresh, cacheDuration }
-}
-
-/** @returns {Promise<Object>} API response */
-export function deleteResource(resourceId) {
-  return API.delete(`v1/resources/${encodeURIComponent(resourceId)}`);  // invalidates the cache itself
-}
-```
-
-```javascript
-// spa/modules/resources/ResourceManager.js
-/**
- * Resources — what the unit lends out, and removing what it no longer has.
- *
- * @module spa/modules/resources/ResourceManager
- */
-import { translate } from '../../app.js';
-import { setContent } from '../../utils/DOMUtils.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { debugError } from '../../utils/DebugUtils.js';
-import { hasPermission } from '../../utils/PermissionUtils.js';
-import { confirmDestructive } from '../../utils/DialogUtils.js';
-import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
-import { renderBackLink } from '../../utils/BackLinkUtils.js';
-import { getResources, deleteResource } from '../../api/api-resources.js';
-
-export class ResourceManager {
-  /** @param {Object} app - Application instance */
-  constructor(app) {
-    this.app = app;
-    this.resources = [];
-    // The permission the DELETE route requires, so the button is offered exactly when it would work.
-    this.canManage = hasPermission('resources.manage');
-    this.destroyed = false;
-  }
-
-  /** Called by the router when the person leaves this screen. */
-  destroy() {
-    this.destroyed = true;
-  }
-
-  /** @returns {Promise<void>} */
-  async init() {
-    this.renderLoading();
-    try {
-      await this.load();
-      this.render();
-    } catch (error) {
-      debugError('Failed to load resources:', error);
-      this.renderError();
-    }
-  }
-
-  /** @param {{forceRefresh?: boolean}} [options] */
-  async load(options = {}) {
-    const response = await getResources(options);
-    this.resources = Array.isArray(response?.data) ? response.data : [];
-  }
-
-  /** @returns {HTMLElement|null} The page root */
-  root() {
-    return document.getElementById('app');
-  }
-
-  renderLoading() {
-    setContent(this.root(), `
-      <section class="page resources" aria-busy="true">
-        ${renderBackLink()}
-        <h1>${translate('resources_title')}</h1>
-        <p role="status">${translate('loading')}</p>
-      </section>
-    `);
-  }
-
-  renderError() {
-    if (this.destroyed) {
-      return;
-    }
-    setContent(this.root(), `
-      <section class="page resources">
-        ${renderBackLink()}
-        <h1>${translate('resources_title')}</h1>
-        <p class="status-message error" role="alert">${translate('error_loading_data')}</p>
-        <button type="button" class="button" id="resources-retry">${translate('retry')}</button>
-      </section>
-    `);
-    document.getElementById('resources-retry')?.addEventListener('click', () => this.init());
-  }
-
-  render() {
-    // #app outlives every screen: a late answer must not draw over the next one.
-    if (this.destroyed) {
-      return;
-    }
-    const root = this.root();
-    const items = this.resources.map((resource) => `
-      <li class="resource-card">
-        <span>${escapeHTML(resource.name)}</span>
-        ${this.canManage ? `
-          <button type="button" class="button button--small button--danger" data-delete="${Number(resource.id)}">
-            ${translate('delete')}
-          </button>` : ''}
-      </li>`).join('');
-    setContent(root, `
-      <section class="page resources">
-        ${renderBackLink()}
-        <h1>${translate('resources_title')}</h1>
-        ${items ? `<ul class="resource-list">${items}</ul>` : `<p>${translate('resources_empty')}</p>`}
-      </section>
-    `);
-    // The markup was just replaced, so these listeners never stack.
-    root.querySelectorAll('[data-delete]').forEach((button) => {
-      button.addEventListener('click', () => this.remove(Number(button.dataset.delete)));
-    });
-  }
-
-  /** @param {number} resourceId */
-  async remove(resourceId) {
-    const resource = this.resources.find((item) => item.id === resourceId);
-    const confirmed = await confirmDestructive({
-      title: translate('resources_delete_title'),
-      message: translate('resources_delete_confirm').replace('{name}', resource?.name ?? ''),
-    });
-    if (!confirmed) {
-      return;
-    }
-    let result;
-    try {
-      result = await deleteResource(resourceId);
-    } catch (error) {
-      debugError('Failed to delete resource:', error);
-      this.app.showMessage(apiErrorMessage(error, 'resources_delete_failed'), 'error');
-      return;
-    }
-    // Offline, the delete is only queued: say so rather than claim it is done.
-    this.app.showMessage(
-      translate(result?.queued ? 'resources_delete_queued' : 'resources_deleted'),
-      result?.queued ? 'info' : 'success',
-    );
-    // The delete stands even if the reload fails: show the error state, not "delete failed".
-    try {
-      await this.load({ forceRefresh: true });
-      this.render();
-    } catch (error) {
-      debugError('Failed to reload resources:', error);
-      this.renderError();
-    }
-  }
-}
-```
-
-Then register it in `spa/router.js` (loader, path, `guard(hasPermission('resources.view'))`), add every
-key to `lang/en.json` and `lang/fr.json`, and add `test/spa/ResourceManager.test.js` (§12).
+`devdocs/TEMPLATES.md` holds a backend route template and a frontend screen template (with its API
+module). Read it when creating a new route file or a new screen.
 
 ## Code Review Checklist
 
@@ -1554,8 +1081,9 @@ Before submitting code, verify:
 - [ ] `test/spa/` test covering the behaviour, escaping, and an axe check
 - [ ] `debugLog`/`debugError` instead of `console.*`; `spa/config.js` constants, no hardcoded values
 
-**Linting (run all before PR):**
-- [ ] `npm run lint:all` passes (all checks in §11, ESLint included)
+**Linting and CI:**
+- [ ] Targeted local checks pass ("Working on an issue"); CI on the pushed commit passes `lint:all`, the build, every suite (watched, §"Working on an issue")
+- [ ] Out-of-scope gaps listed under "Follow-ups" in the PR description rather than fixed
 - [ ] Baselines lowered when violations were removed; no new `policy-allow` without a CLAUDE.md-permitted reason
 
 **General:**
@@ -1571,32 +1099,3 @@ Before submitting code, verify:
 ---
 
 **This document is the source of truth for development practices, after the tests (§12). When in doubt, read the tests of the area, then the reference screens named in §7 and existing code in `routes/` and `middleware/`. When a test and this document disagree, fix this document.**
-
-### Team camp readiness
-
-The camp schedule opens `/camp-readiness/:id` for organization-scoped members with
-`meetings.view`; a camp not scheduled in the year plan opens `/camp-readiness/activity-:id`
-(tasks and consent only). A camp is always an activity (`activities.is_camp`, migration 068); not
-every activity is a camp. `services/campDates.js` keeps a camp's activity and its year-plan date on
-one set of dates: an activity marked as a camp joins the covering year plan, moving either moves
-both, and no event lasts more than `config/event_limits.json` days. The read-only summary includes only sections whose destination
-permissions the shared authorization engine confirms; it never equates empty or
-hidden sections with readiness. See `devdocs/CAMP_READINESS.md`. Offline readiness
-still belongs to `CampPreparation` on each device.
-
-### Dashboard during a camp
-
-On a camp day the leaders' dashboard follows the camp (`spa/utils/CampDayUtils.js`), decided by dates
-only, never by a name: today's programme of a planned camp (`GET /api/v1/meetings/programme`,
-`kind: 'camp'`), else an activity with `is_camp` covering today, else the camp prepared on the device
-for today. "Give points" leads all day; attendance is offered as the morning roll call
-(`CONFIG.DASHBOARD.CAMP_ROLL_CALL_UNTIL_HOUR`) until today's attendance exists; welcoming a new child
-and the meetings screen leave "now", reporting an incident joins it. The card says "{camp} — day N of
-M" and what is on now and next (the programme bar's calculation, `ProgrammeTimeline.js`); a schedule
-the device could not read is said so, and only `meetings.view` holders (the programme's permission)
-see a schedule. A minute clock redraws the schedule in place and the dashboard at the roll-call cutoff
-or a new day. The "At camp" shortcuts are declared in `CAMP_DAY_SHORTCUTS`
-(`spa/config/dashboard-tiles.js`): readiness, site and emergencies, the caller's equipment lots and
-departures, each through the tiles' visibility (gate, unit-hidden `featureKey`, person-hidden tiles;
-pages that need the network are not offered offline). Medication is promoted when a dose is near during a camp
-day or an activity under way by its dates and times. Tests: `test/spa/DashboardCampDay.test.js`.

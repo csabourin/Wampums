@@ -66,3 +66,18 @@ list the same values.
 Tests: `test/camp-plan.integration.test.js`, `test/routes-camp-plans.test.js`,
 `test/spa/CampPlan.test.js`, `test/spa/CampPlanTemplates.test.js`, and both screens in
 `e2e/accessibility.spec.mjs`.
+
+## Rules summary
+
+The binding rules for this area, formerly in CLAUDE.md.
+
+`/camp-plan/:id` (`meetings.view`; writing takes `meetings.manage`) holds what the camp permit asks
+the team to write (migration 071): V.C.P.R.E.F., theme, motivation, and the games kept for bad weather
+from the unit's activity library. Rules of life, camp rules, code of ethics and emergency procedures
+are the unit's templates (`/camp-plan-templates`, `camp_plan_templates.manage`): a camp follows them
+unless it writes its own, and says so. Writes go through `services/campPlan.js` (rich text rebuilt,
+version-checked, camp row locked); keys are `config/camp_plan.json`. An empty section is "to write"
+in the plan and in `/camp-readiness`, never complete. Reusing a camp copies its own sections as
+drafts to reread, never the stable ones. `/camp-plans` lists the unit's camps with what each plan
+lacks. See `devdocs/CAMP_PLAN_SECTIONS.md`. The dashboard's "Plan the year and the camps" section
+(`moment: 'plan'`, after "This week") gathers the long-range and camp tiles.

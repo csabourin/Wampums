@@ -78,3 +78,17 @@ no equipment unit.
 Consent deadlines are stored as `timestamptz` and serialized as ISO UTC instants,
 including when the database session uses another time zone. Calendar-only dates
 remain `YYYY-MM-DD` strings.
+
+## Rules summary
+
+The binding rules for this area, formerly in CLAUDE.md.
+
+The camp schedule opens `/camp-readiness/:id` for organization-scoped members with
+`meetings.view`; a camp not scheduled in the year plan opens `/camp-readiness/activity-:id`
+(tasks and consent only). A camp is always an activity (`activities.is_camp`, migration 068); not
+every activity is a camp. `services/campDates.js` keeps a camp's activity and its year-plan date on
+one set of dates: an activity marked as a camp joins the covering year plan, moving either moves
+both, and no event lasts more than `config/event_limits.json` days. The read-only summary includes only sections whose destination
+permissions the shared authorization engine confirms; it never equates empty or
+hidden sections with readiness. See `devdocs/CAMP_READINESS.md`. Offline readiness
+still belongs to `CampPreparation` on each device.
