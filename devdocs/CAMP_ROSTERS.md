@@ -44,7 +44,9 @@ opened from each camp of `/camp-plans`. It shows, in this order:
   `camp_aide`), the migration's check lists the same keys. A member who left the unit stays listed,
   marked, until removed.
 - **Birth date** (`users.date_of_birth`) is optional, written by a camp manager in the team dialog. It is
-  returned only to holders of `meetings.manage`; others see the age status alone. A date in the future,
+  returned only to holders of `meetings.manage`; others see the age status alone. It belongs to the
+  account, shared by every camp: a request without `date_of_birth` keeps it, `null` clears it. Adding a
+  member with the field left empty sends none; emptying the date shown when editing clears it. A date in the future,
   or more than `oldest_age` years ago, is refused (400, field `date_of_birth`). Minor means under
   `adult_age` (18) on the camp's first day. Without a date, the age reads "not verified", never "adult",
   and a camp aide without one is listed to check.

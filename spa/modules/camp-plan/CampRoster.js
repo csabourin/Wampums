@@ -365,7 +365,12 @@ export class CampRoster {
       this.showFieldError(form, 'camp-roster-birth', translate('camp_roster_birth_date_invalid'));
       return;
     }
-    const payload = { team_role: form.querySelector('#camp-roster-role').value, date_of_birth: birth || null };
+    const payload = { team_role: form.querySelector('#camp-roster-role').value };
+    // Editing shows the recorded date, so emptying it clears it. Adding shows none (another camp may
+    // have recorded one on the account), so an empty field sends nothing and the account keeps its own.
+    if (birth || member) {
+      payload.date_of_birth = birth || null;
+    }
     try {
       await saveCampTeamMember(this.meetingId, userId, payload);
       if (this.destroyed) {

@@ -176,6 +176,35 @@ test('a manager adds a member from the unit’s team, choosing a role and a birt
   expect(document.querySelector('.modal-overlay')).toBeNull();
 });
 
+test('adding a member without typing a birth date keeps the one already on their account', async () => {
+  await open();
+  $('#camp-roster-add').click();
+  await flush();
+  const dialog = document.querySelector('.modal-dialog');
+  dialog.querySelector('#camp-roster-role').value = 'leader';
+  dialog.querySelector('form').dispatchEvent(new Event('submit', { cancelable: true }));
+  await flush();
+  await flush();
+  expect(api.saveCampTeamMember).toHaveBeenCalledWith(12, NEW_ID, { team_role: 'leader' });
+});
+
+test('emptying a member’s recorded birth date clears it', async () => {
+  api.getCampRoster.mockResolvedValue({ success: true, data: roster({
+    team: [{ user_id: AIDE_ID, team_role: 'camp_aide', name: 'Alan Turing', nickname: null, age_status: 'minor', active_member: true, date_of_birth: '2012-04-01' }],
+  }) });
+  await open();
+  document.querySelector(`[data-edit-member="${AIDE_ID}"]`).click();
+  await flush();
+  const dialog = document.querySelector('.modal-dialog');
+  const birth = dialog.querySelector('#camp-roster-birth');
+  expect(birth.value).toBe('2012-04-01');
+  birth.value = '';
+  dialog.querySelector('form').dispatchEvent(new Event('submit', { cancelable: true }));
+  await flush();
+  await flush();
+  expect(api.saveCampTeamMember).toHaveBeenCalledWith(12, AIDE_ID, { team_role: 'camp_aide', date_of_birth: null });
+});
+
 test('a birth date in the future is refused next to its field, before anything is sent', async () => {
   await open();
   document.querySelector(`[data-edit-member="${  AIDE_ID  }"]`).click();
