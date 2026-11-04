@@ -26,6 +26,7 @@ import { showPageError } from '../../utils/PageStateUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 
 const DEFAULT_CURRENCY = CONFIG.DEFAULT_CURRENCY;
+const HTTP_NOT_FOUND = 404;
 
 /**
  * External Revenue Management Module
@@ -685,7 +686,17 @@ export class ExternalRevenue {
         : await createExternalRevenue(payload);
     } catch (error) {
       debugError('Error saving external revenue', error);
+      if (this.destroyed) {
+        return;
+      }
       this.app.showMessage(apiErrorMessage(error, 'error_saving_external_revenue'), 'error');
+      if (revenueId && Number(error.status ?? error.cause?.status) === HTTP_NOT_FOUND) {
+        closeModal('revenue-modal');
+        await this.clearRevenueCachesAndRefresh();
+        if (!this.destroyed && document.activeElement === document.body) {
+          document.getElementById('add-revenue-btn')?.focus();
+        }
+      }
       return;
     }
 
