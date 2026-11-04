@@ -157,6 +157,15 @@ test('without meetings.manage the team is read, never offered for change', async
   expect(document.querySelector('[data-edit-member], [data-remove-member]')).toBeNull();
 });
 
+test('a cancelled camp says so and offers no team change, which the server would refuse', async () => {
+  api.getCampRoster.mockResolvedValue({ success: true, data: roster({ camp: { ...roster().camp, is_cancelled: true } }) });
+  await open();
+  expect(document.body.textContent).toContain('camp_roster_cancelled');
+  expect($('#camp-roster-add')).toBeNull();
+  expect(document.querySelector('[data-edit-member], [data-remove-member]')).toBeNull();
+  expect(document.querySelectorAll('.camp-roster__member').length).toBeGreaterThan(0);
+});
+
 test('a manager adds a member from the unit’s team, choosing a role and a birth date', async () => {
   await open();
   $('#camp-roster-add').click();

@@ -94,6 +94,11 @@ export class CampRoster {
     }
   }
 
+  /** @returns {boolean} Whether to offer team changes: the server refuses them for a cancelled camp */
+  canEditTeam() {
+    return this.canManage && !this.data?.camp?.is_cancelled;
+  }
+
   /** @returns {string} A person's name, with the name they go by when there is one */
   personName(name, nickname) {
     const shown = name || translate('camp_roster_unnamed');
@@ -167,7 +172,7 @@ export class CampRoster {
   memberMarkup(member) {
     const name = this.personName(member.name, member.nickname);
     const left = member.active_member ? '' : `<p class="camp-roster__warning">${escapeHTML(translate('camp_roster_member_left'))}</p>`;
-    const actions = this.canManage
+    const actions = this.canEditTeam()
       ? `<div class="camp-plan__actions">
           <button type="button" class="button button--secondary button--small" data-edit-member="${escapeAttribute(member.user_id)}">${escapeHTML(translate('edit'))}<span class="sr-only"> : ${escapeHTML(name)}</span></button>
           <button type="button" class="button button--danger button--small" data-remove-member="${escapeAttribute(member.user_id)}">${escapeHTML(translate('camp_roster_remove'))}<span class="sr-only"> : ${escapeHTML(name)}</span></button>
@@ -184,7 +189,7 @@ export class CampRoster {
   /** @returns {string} The camp's named team */
   teamMarkup() {
     const { team } = this.data;
-    const add = this.canManage
+    const add = this.canEditTeam()
       ? `<button type="button" class="button button--primary" id="camp-roster-add">${escapeHTML(translate('camp_roster_add_member'))}</button>`
       : '';
     const list = team.length

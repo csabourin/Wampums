@@ -26,7 +26,7 @@ opened from each camp of `/camp-plans`. It shows, in this order:
    up (permission requests, or the whole year's roster).
 3. **Camp team**: each member's role and age on the camp's dates in words (minor, adult, age not
    verified). Someone with `meetings.manage` adds, changes and removes members in a dialog; removing is
-   confirmed first.
+   confirmed first. A cancelled camp says so and offers none of these changes.
 4. **Volunteers of the camp's shifts**: names for holders of `volunteers.manage`, a count for anyone
    else (the rule of `devdocs/VOLUNTEERS.md`).
 
