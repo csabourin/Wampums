@@ -84,6 +84,23 @@ test('a cancelled read is not retried or treated as a connectivity failure', asy
   expect(global.fetch).toHaveBeenCalledTimes(1);
 });
 
+test('a read the service worker could not send reads as a lost connection, even with the radio on', async () => {
+  // Its answer when the network failed and nothing was cached (src-sw.js).
+  global.fetch.mockResolvedValue({
+    ok: false, status: 503, headers: { get: (name) => (name.toLowerCase() === 'content-type' ? 'application/json' : null) },
+    json: () => Promise.resolve({ success: false, error: 'No data available - offline and no cached data', offline: true }),
+  });
+  await expect(makeApiRequest('v1/camp-sites/camps/12', { retries: 0 })).rejects.toMatchObject({ status: 503, isNetworkError: true });
+});
+
+test('a 503 from the server itself is not a lost connection', async () => {
+  global.fetch.mockResolvedValue({
+    ok: false, status: 503, headers: { get: (name) => (name.toLowerCase() === 'content-type' ? 'application/json' : null) },
+    json: () => Promise.resolve({ success: false, message: 'Service unavailable' }),
+  });
+  await expect(makeApiRequest('v1/camp-sites/camps/12', { retries: 0 })).rejects.toMatchObject({ status: 503, isNetworkError: false });
+});
+
 test('field validation errors survive the complete request pipeline', async () => {
   const errors = [{ path: 'email', msg: 'invalid_email' }];
   global.fetch.mockResolvedValue({
