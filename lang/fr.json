@@ -5549,5 +5549,7 @@
   "dashboard_outing_departure": "Départ :",
   "dashboard_outing_return": "Retour :",
   "dashboard_outing_section": "En sortie",
-  "meeting_already_processed": "Les honneurs de cette réunion ont déjà été traités : elle ne peut pas être annulée. Rétablissez-la plutôt."
+  "meeting_already_processed": "Les honneurs de cette réunion ont déjà été traités : elle ne peut pas être annulée. Rétablissez-la plutôt.",
+  "camp_site_offline_copy": "Pas de connexion : voici la copie gardée sur cet appareil le {when}. La modifier demande une connexion.",
+  "camp_site_not_on_device": "Pas de connexion, et le lieu de ce camp n’est pas gardé sur cet appareil. Ouvrez-le une fois avec du réseau, ou préparez le camp hors ligne."
 }

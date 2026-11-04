@@ -128,6 +128,9 @@ export async function handleResponse(response) {
     let errorCode = null;
     let errorDetails = null;
     let validationErrors = null;
+    // The service worker answers a read it could not send, with nothing cached, with a 503
+    // whose body says `offline` (src-sw.js); the device may still believe it is online.
+    let offlineAnswer = false;
 
     try {
       if (contentType && contentType.includes('application/json')) {
@@ -135,6 +138,7 @@ export async function handleResponse(response) {
         errorMessage = errorData.message || errorMessage;
         errorCode = errorData.code || errorData.errors?.code || null; // AI routes: errors.code
         errorDetails = errorData.data || null;
+        offlineAnswer = errorData.offline === true;
         // Log detailed validation errors if present
         if (errorData.errors && Array.isArray(errorData.errors)) {
           validationErrors = errorData.errors;
@@ -156,7 +160,7 @@ export async function handleResponse(response) {
     httpError.code = errorCode;
     httpError.data = errorDetails;
     httpError.errors = validationErrors;
-    httpError.isNetworkError = getHeader('X-Network-Error') === 'true';
+    httpError.isNetworkError = getHeader('X-Network-Error') === 'true' || offlineAnswer;
     throw httpError;
   }
 

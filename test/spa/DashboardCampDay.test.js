@@ -358,9 +358,10 @@ test('offline, a camp whose schedule is not on this device says so instead of sh
   expect(primaryAction().getAttribute('href')).toBe('/managePoints');
   expect(document.querySelector('.dashboard-v2__camp-schedule').textContent).toContain('dashboard_camp_schedule_unavailable');
   expect(document.body.textContent).not.toContain('dashboard_next_meeting_eyebrow');
-  // Pages that need the network are not offered offline; the lots are, and the
-  // morning roll call (where departures are marked too) stays in "now".
-  expect(campShortcuts()).toEqual(['/my-camp-lots/41']);
+  // Pages that need the network are not offered offline; the site and emergencies and the
+  // lots are kept on the device, and the morning roll call (where departures are marked
+  // too) stays in "now".
+  expect(campShortcuts()).toEqual(['/camp-site/41', '/my-camp-lots/41']);
   expect(nowActions()).toContain('/attendance');
   dashboard.destroy();
 });
