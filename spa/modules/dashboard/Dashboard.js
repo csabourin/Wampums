@@ -13,6 +13,7 @@ import {
   getMedicationDistributions,
 } from '../../api/api-endpoints.js';
 import { getActivities } from '../../api/api-activities.js';
+import { getDayProgramme } from '../../api/api-programme.js';
 import { translate } from '../../app.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
@@ -57,7 +58,14 @@ import { CommandPalette } from '../CommandPalette.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 import { renderCampReadinessSummary } from '../offline/CampReadiness.js';
-import { loadUpcomingCamps, upcomingCampsMarkup } from '../camp-readiness/UpcomingCamps.js';
+import {
+  loadUpcomingCamps,
+  upcomingCampsMarkup,
+  canSeeTeamReadiness,
+  campReadinessHref,
+} from '../camp-readiness/UpcomingCamps.js';
+import { campDayFromActivities, campDayFromProgramme, mergeCampDays } from '../../utils/CampDayUtils.js';
+import { programmeMoment } from '../../utils/ProgrammeTimeline.js';
 import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { offlineManager } from '../OfflineManager.js';
 
@@ -73,6 +81,21 @@ const MEETING_DAY_STAGE_ROUTES = Object.freeze({
 });
 // Ahead of attendance (0), behind a time-sensitive medication dose (-1).
 const MEETING_DAY_STAGE_PRIORITY = -0.5;
+/**
+ * At camp, points are the action of the whole day, not a stage after
+ * attendance. The morning roll call sits beside them until it is taken;
+ * welcoming a new child and the meetings screen leave "now", and reporting an
+ * incident joins it. Each tile keeps its own permission gate.
+ */
+const CAMP_DAY_TILE_CONTEXT = Object.freeze({
+  '/managePoints': { moment: 'now', priority: MEETING_DAY_STAGE_PRIORITY },
+  '/manageHonors': { moment: 'now', priority: 2 },
+  '/incident-reports/new': { moment: 'now', priority: 3 },
+  '/walk-in-children': { moment: 'tools' },
+  '/reunions': { moment: 'tools' },
+});
+// Taken for the morning roll call until this hour, by the phone's clock.
+const DEFAULT_CAMP_ROLL_CALL_UNTIL_HOUR = 12;
 const MINUTES_PER_HOUR = 60;
 const MS_PER_MINUTE = 60000;
 const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
@@ -90,6 +113,13 @@ export class Dashboard extends BaseModule {
     this.nextMeeting = null;
     this.medicationDoseIsTimeSensitive = false;
     this.meetingDayStage = null;
+    // Today's camp, if today is one of its days, and where its day programme stands.
+    this.campDay = null;
+    this.campProgramme = null;
+    // 'loaded': the camp's programme for today; 'none': nothing planned for the
+    // camp today; 'unavailable': this device could not read it.
+    this.campScheduleState = 'unavailable';
+    this.campRollCallTaken = false;
     this.counters = {
       medicationDosesToday: null,
       permissionSlipsPending: null,
@@ -457,6 +487,7 @@ export class Dashboard extends BaseModule {
     const content = `
       ${this._renderTopBar()}
       ${this._renderHero(buckets.now)}
+      ${this._renderCampShortcuts(isOffline)}
       <div id="dashboard-camp-readiness">${renderCampReadinessSummary(this.app.lang || this.app.currentLanguage)}</div>
       <div id="dashboard-team-camps">${upcomingCampsMarkup(this.upcomingCamps, this.app.lang || this.app.currentLanguage)}</div>
       ${this._renderWeek(buckets.week)}
@@ -569,9 +600,22 @@ export class Dashboard extends BaseModule {
         : ctx;
     }
 
+    if (this.campDay) {
+      if (tile.href === '/attendance') {
+        return this._isCampRollCallDue() ? { ...ctx, moment: 'now', priority: 0 } : { ...ctx, moment: 'tools' };
+      }
+      return CAMP_DAY_TILE_CONTEXT[tile.href] ? { ...ctx, ...CAMP_DAY_TILE_CONTEXT[tile.href] } : ctx;
+    }
+
     return ctx.moment === 'now' && tile.href === MEETING_DAY_STAGE_ROUTES[this.meetingDayStage]
       ? { ...ctx, priority: MEETING_DAY_STAGE_PRIORITY }
       : ctx;
+  }
+
+  /** @returns {boolean} Whether the camp's morning roll call is still to be taken */
+  _isCampRollCallDue() {
+    const untilHour = CONFIG.DASHBOARD?.CAMP_ROLL_CALL_UNTIL_HOUR ?? DEFAULT_CAMP_ROLL_CALL_UNTIL_HOUR;
+    return !this.campRollCallTaken && new Date().getHours() < untilHour;
   }
 
   _computeTileStats() {
@@ -641,8 +685,13 @@ export class Dashboard extends BaseModule {
       'meetings.view', 'meetings.manage', 'activities.view', 'participants.view',
     );
 
+    // The day programme says whether today is a planned camp's day, and its
+    // schedule; cached on the device by camp preparation, so it answers offline.
+    const canSeeProgramme = hasPermission('meetings.view');
+
     const tasks = [
       canSeeMeetings ? ['nextMeeting', getNextMeetingInfo()] : null,
+      canSeeProgramme ? ['programme', getDayProgramme(getTodayISO())] : null,
       canSeeSlips ? ['slips', getPermissionSlips({})] : null,
       canSeeMedication ? ['meds', getMedicationDistributions({ upcoming_only: true })] : null,
       canSeeActivities ? ['activities', getActivities()] : null,
@@ -653,12 +702,17 @@ export class Dashboard extends BaseModule {
     let changed = false;
     let medicationDistributions = null;
     let activities = null;
+    let programme = null;
+    let programmeRead = false;
     results.forEach((res, i) => {
       if (res.status !== 'fulfilled') {return;}
       const key = tasks[i][0];
       const value = res.value;
       try {
-        if (key === 'nextMeeting') {
+        if (key === 'programme') {
+          programme = value?.data || null;
+          programmeRead = true;
+        } else if (key === 'nextMeeting') {
           // Standard envelope: data is the meeting object (or null)
           const meeting = value?.data || value?.meeting || null;
           if (meeting && meeting.date) {
@@ -702,6 +756,13 @@ export class Dashboard extends BaseModule {
       }
     });
 
+    if (this._applyCampDay(programme, programmeRead, activities)) {
+      changed = true;
+    }
+    if (this.campDay && await this._refreshCampRollCall()) {
+      changed = true;
+    }
+
     if (medicationDistributions || activities) {
       const shouldPromoteMedication = this._shouldPromoteMedicationAction(
         medicationDistributions || [],
@@ -713,7 +774,8 @@ export class Dashboard extends BaseModule {
       }
     }
 
-    const meetingDayStage = await this._resolveMeetingDayStage();
+    // A camp day follows the camp, not a meeting's evening.
+    const meetingDayStage = this.campDay ? null : await this._resolveMeetingDayStage();
     if (this.meetingDayStage !== meetingDayStage) {
       this.meetingDayStage = meetingDayStage;
       changed = true;
@@ -723,6 +785,73 @@ export class Dashboard extends BaseModule {
       this.render();
       this.attachEventListeners();
     }
+  }
+
+  /**
+   * Whether today is one of a camp's days, by dates only: the planned camp the
+   * day programme describes, else a camp activity covering today, else the
+   * camp prepared on this device for today.
+   *
+   * @param {?Object} programme - Today's programme, null when none or unread
+   * @param {boolean} programmeRead - Whether the programme could be read
+   * @param {?Array<Object>} activities - The unit's activities, null when unread
+   * @returns {boolean} Whether anything the dashboard shows changed
+   */
+  _applyCampDay(programme, programmeRead, activities) {
+    const today = getTodayISO();
+    const fromProgramme = campDayFromProgramme(programme, today);
+    const campDay = mergeCampDays(fromProgramme, campDayFromActivities(activities || [], today))
+      || this._preparedCampDay(today);
+    const before = JSON.stringify([this.campDay, this.campProgramme, this.campScheduleState]);
+    this.campDay = campDay;
+    this.campProgramme = fromProgramme ? programme : null;
+    if (fromProgramme) {
+      this.campScheduleState = 'loaded';
+    } else {
+      // Read, and the camp is not in the year plan (or a meeting is): nothing planned for it.
+      this.campScheduleState = programmeRead ? 'none' : 'unavailable';
+    }
+    return before !== JSON.stringify([this.campDay, this.campProgramme, this.campScheduleState]);
+  }
+
+  /**
+   * The camp prepared on this device for today, when nothing else answers
+   * (offline, its activity list not cached).
+   *
+   * @param {string} today - YYYY-MM-DD
+   * @returns {?import('../../utils/CampDayUtils.js').CampDay}
+   */
+  _preparedCampDay(today) {
+    const prepared = this._getActivePreparedCampActivity();
+    if (!prepared?.startDate) {return null;}
+    return campDayFromActivities([{
+      id: prepared.activityId ?? prepared.id,
+      name: prepared.name,
+      is_camp: true,
+      activity_start_date: prepared.startDate,
+      activity_end_date: prepared.endDate,
+    }], today);
+  }
+
+  /**
+   * Whether today's roll call is taken: any attendance recorded for today.
+   * A lookup that fails or is not permitted leaves the roll call offered.
+   *
+   * @returns {Promise<boolean>} Whether that changed
+   */
+  async _refreshCampRollCall() {
+    let taken = false;
+    if (hasPermission('attendance.view')) {
+      try {
+        const response = await getAttendance(getTodayISO());
+        taken = Array.isArray(response?.data) && response.data.length > 0;
+      } catch (error) {
+        debugLog('Camp roll call lookup skipped:', error);
+      }
+    }
+    const changed = this.campRollCallTaken !== taken;
+    this.campRollCallTaken = taken;
+    return changed;
   }
 
   /**
@@ -794,7 +923,8 @@ export class Dashboard extends BaseModule {
 
   /**
    * Medication becomes the dashboard primary action only when a scheduled dose
-   * is near and the unit is currently in a camp/field-trip style activity.
+   * is near and the unit is away: a camp day, or an activity (an outing, a
+   * camp) under way by its dates and times. Never decided by a name.
    *
    * @param {Array<Object>} distributions
    * @param {Array<Object>} activities
@@ -803,6 +933,7 @@ export class Dashboard extends BaseModule {
   _shouldPromoteMedicationAction(distributions = [], activities = []) {
     const now = new Date();
     const activeActivity = this._getActiveMedicationActivity(activities, now)
+      || (this.campDay ? { name: this.campDay.title } : null)
       || this._getActivePreparedCampActivity();
 
     if (!activeActivity) {return false;}
@@ -827,8 +958,6 @@ export class Dashboard extends BaseModule {
 
   _getActiveMedicationActivity(activities = [], now = new Date()) {
     return activities.find((activity) => {
-      if (!this._isMedicationPriorityActivity(activity)) {return false;}
-
       const startDate = activity.activity_start_date || activity.start_date || activity.activity_date || activity.date;
       const endDate = activity.activity_end_date || activity.end_date || startDate;
       const startTime = activity.activity_start_time || activity.meeting_time_going || '00:00';
@@ -854,23 +983,6 @@ export class Dashboard extends BaseModule {
       debugLog('Prepared activity lookup skipped:', error);
       return null;
     }
-  }
-
-  _isMedicationPriorityActivity(activity = {}) {
-    const startDate = activity.activity_start_date || activity.start_date || activity.activity_date || activity.date;
-    const endDate = activity.activity_end_date || activity.end_date || startDate;
-    if (startDate && endDate && startDate !== endDate) {return true;}
-
-    const haystack = this._normalizeSearchText([
-      activity.name,
-      activity.title,
-      activity.description,
-      activity.activity_type,
-      activity.type,
-      activity.category,
-    ].filter(Boolean).join(' '));
-
-    return /\b(camp|camps|camping|field trip|fieldtrip|sortie|sorties|excursion|excursions)\b/.test(haystack);
   }
 
   _distributionMatchesActivity(distribution = {}, activity = {}) {
@@ -935,6 +1047,7 @@ export class Dashboard extends BaseModule {
       return `
         <section class="dashboard-v2__section" aria-labelledby="moment-now">
           <h2 id="moment-now" class="dashboard-v2__section-title">${escapeHTML(translate('dashboard_now_section'))}</h2>
+          ${this.campDay ? `<div class="dashboard-v2__hero-card">${this._renderCampSchedule()}</div>` : ''}
           <div class="dashboard-v2__empty">
             <i class="fa-solid fa-mug-hot" aria-hidden="true"></i>
             <p>${escapeHTML(translate('dashboard_empty_now'))}</p>
@@ -959,7 +1072,13 @@ export class Dashboard extends BaseModule {
     let title;
     let meta = '';
 
-    if (isMeetingHero) {
+    if (this.campDay) {
+      eyebrow = `<i class="fa-solid fa-campground" aria-hidden="true"></i> ${escapeHTML(this._campDayLabel())}`;
+      title = escapeHTML(translate(hero.label));
+      if (hero.stat) {
+        meta = `<span class="dashboard-v2__hero-meta">${escapeHTML(String(hero.stat.value))} ${escapeHTML(hero.stat.label || '')}</span>`;
+      }
+    } else if (isMeetingHero) {
       const lang = this.app?.lang || 'fr';
       const formattedDate = this._formatMeetingDate(this.nextMeeting.date, lang);
       eyebrow = escapeHTML(translate('dashboard_next_meeting_eyebrow'));
@@ -1009,9 +1128,96 @@ export class Dashboard extends BaseModule {
               <h3 class="dashboard-v2__hero-title">${title}</h3>
               ${meta}
             </a>
+            ${this.campDay ? this._renderCampSchedule() : ''}
             ${chipsHtml ? `<div class="dashboard-v2__hero-actions">${chipsHtml}</div>` : ''}
           </div>
         </div>
+      </section>
+    `;
+  }
+
+  /** @returns {string} "{camp} — day 2 of 3" */
+  _campDayLabel() {
+    const { title, dayNumber, dayCount } = this.campDay;
+    return translate('dashboard_camp_day_label')
+      .replace('{camp}', () => title || translate('camp_readiness_camp'))
+      .replace('{day}', String(dayNumber))
+      .replace('{count}', String(dayCount));
+  }
+
+  /**
+   * What is on in the camp now and what comes next, with who leads it: the
+   * same day programme and the same calculation as the "now / next" bar.
+   * A schedule this device could not read is said so, never shown as empty.
+   *
+   * @returns {string} HTML
+   */
+  _renderCampSchedule() {
+    if (this.campScheduleState !== 'loaded') {
+      const key = this.campScheduleState === 'none' ? 'dashboard_camp_schedule_none' : 'dashboard_camp_schedule_unavailable';
+      return `<p class="dashboard-v2__camp-schedule">${escapeHTML(translate(key))}</p>`;
+    }
+    const moment = programmeMoment(this.campProgramme?.activities || [], new Date(), {
+      leadMinutes: CONFIG.PROGRAMME_BAR?.LEAD_MINUTES ?? 0,
+      endingSoonMinutes: CONFIG.PROGRAMME_BAR?.ENDING_SOON_MINUTES ?? 0,
+      defaultLastMinutes: CONFIG.PROGRAMME_BAR?.DEFAULT_LAST_ACTIVITY_MINUTES ?? 0,
+    });
+    const next = moment.next || moment.entries.find((entry) => entry.status === 'upcoming') || null;
+    const line = (labelKey, entry, withTime) => {
+      const { name, leader, time } = entry.activity;
+      const who = leader ? ` · ${escapeHTML(translate('dashboard_camp_led_by').replace('{leader}', () => leader))}` : '';
+      const when = withTime && time ? `${escapeHTML(time)} ` : '';
+      return `<li><span class="dashboard-v2__camp-schedule-label">${escapeHTML(translate(labelKey))}</span>
+        ${when}${escapeHTML(name || '')}${who}</li>`;
+    };
+    const items = [
+      moment.current ? line('dashboard_camp_now', moment.current, false) : '',
+      next ? line('dashboard_camp_next', next, true) : '',
+    ].join('');
+    return items
+      ? `<ul class="dashboard-v2__camp-schedule">${items}</ul>`
+      : `<p class="dashboard-v2__camp-schedule">${escapeHTML(translate('dashboard_camp_schedule_done'))}</p>`;
+  }
+
+  /**
+   * During a camp: its team overview, its site and emergency numbers, the
+   * caller's equipment lots and a youth's departure, each behind the gate of
+   * its own page. Pages that need the network are not offered offline.
+   *
+   * @param {boolean} isOffline
+   * @returns {string} HTML, empty outside a camp
+   */
+  _renderCampShortcuts(isOffline) {
+    if (!this.campDay) {return '';}
+    const { meetingId, activityId } = this.campDay;
+    const shortcuts = [
+      {
+        show: !isOffline && canSeeTeamReadiness() && Boolean(meetingId || activityId),
+        href: campReadinessHref({ id: meetingId, activity_id: activityId }),
+        icon: 'fa-list-check', label: 'dashboard_camp_shortcut_readiness', domain: 'logistics',
+      },
+      {
+        show: !isOffline && hasPermission('meetings.view') && Boolean(meetingId),
+        href: `/camp-site/${Number(meetingId)}`,
+        icon: 'fa-kit-medical', label: 'dashboard_camp_shortcut_site', domain: 'safety',
+      },
+      {
+        show: hasPermission('tasks.view') && Boolean(meetingId),
+        href: `/my-camp-lots/${Number(meetingId)}`,
+        icon: 'fa-box', label: 'dashboard_camp_shortcut_lots', domain: 'logistics',
+      },
+      {
+        // Departures are marked on the attendance screen; the roll call offers it in the morning.
+        show: hasPermission('attendance.manage') && !this._isCampRollCallDue(),
+        href: '/attendance',
+        icon: 'fa-person-walking-arrow-right', label: 'dashboard_camp_shortcut_departure', domain: 'attendance',
+      },
+    ].filter((shortcut) => shortcut.show);
+    if (!shortcuts.length) {return '';}
+    return `
+      <section class="dashboard-v2__section" aria-labelledby="moment-camp">
+        <h2 id="moment-camp" class="dashboard-v2__section-title">${escapeHTML(translate('dashboard_camp_section'))}</h2>
+        <div class="dashboard-v2__grid">${shortcuts.map((shortcut) => this._renderTile(shortcut)).join('')}</div>
       </section>
     `;
   }

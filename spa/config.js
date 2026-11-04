@@ -242,6 +242,8 @@ export const CONFIG = {
     // Promote medication dispensing only around the scheduled dose time.
     MEDICATION_DUE_WINDOW_BEFORE_MINUTES: 90,
     MEDICATION_DUE_WINDOW_AFTER_MINUTES: 15,
+    // At camp, attendance is the morning roll call: offered until this hour, phone's clock.
+    CAMP_ROLL_CALL_UNTIL_HOUR: 12,
   },
 
   /**
