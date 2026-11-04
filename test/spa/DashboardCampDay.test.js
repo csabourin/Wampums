@@ -130,6 +130,7 @@ import {
 import { getActivities } from '../../spa/api/api-activities.js';
 import { getDayProgramme } from '../../spa/api/api-programme.js';
 import { offlineManager as mockOfflineManager } from '../../spa/modules/OfflineManager.js';
+import { getDashboardPrefs } from '../../spa/utils/DashboardPreferences.js';
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
@@ -200,6 +201,7 @@ beforeEach(() => {
   getActivities.mockResolvedValue({ data: [] });
   getMedicationDistributions.mockResolvedValue({ data: { distributions: [] } });
   getDayProgramme.mockResolvedValue({ data: campProgramme() });
+  getDashboardPrefs.mockReturnValue({ hiddenTiles: [], collapsedToolGroups: [] });
 });
 
 afterEach(() => {
@@ -440,5 +442,73 @@ test('the camp dashboard has no accessibility violations and its shortcuts are r
     expect(link.textContent.trim()).not.toBe('');
     expect(link.tabIndex).toBe(0);
   });
+  dashboard.destroy();
+});
+
+/** Fake the clock and the timers too, so the dashboard's minute clock can be moved forward. */
+function atTimeWithTimers(hours, minutes = 0) {
+  jest.useFakeTimers({
+    now: new Date(2026, 6, 14, hours, minutes),
+    doNotFake: ['setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask'],
+  });
+}
+
+test('left open, the camp card moves on to the next activity as the clock passes it', async () => {
+  atTimeWithTimers(10, 29);
+  const dashboard = await openDashboard();
+  const focused = primaryAction();
+  focused.focus();
+  const schedule = () => document.querySelector('.dashboard-v2__camp-schedule').textContent.replace(/\s+/g, ' ');
+  expect(schedule()).toContain('dashboard_camp_now Grand jeu');
+
+  jest.advanceTimersByTime(2 * 60 * 1000);
+
+  expect(schedule()).toContain('dashboard_camp_now Baignade');
+  expect(schedule()).not.toContain('Grand jeu');
+  // Redrawn in place: the person's place on the page is kept.
+  expect(document.activeElement).toBe(focused);
+  dashboard.destroy();
+});
+
+test('left open past noon, the morning roll call leaves "now" without a reload', async () => {
+  atTimeWithTimers(11, 59);
+  const dashboard = await openDashboard();
+  expect(nowActions()).toContain('/attendance');
+
+  jest.advanceTimersByTime(60 * 1000);
+
+  expect(nowActions()).not.toContain('/attendance');
+  expect(campShortcuts()).toContain('/attendance');
+  dashboard.destroy();
+});
+
+test('someone who cannot read meeting plans sees the camp day without a schedule they could never read', async () => {
+  atTime(9, 30);
+  mockPermissions.delete('meetings.view');
+  getActivities.mockResolvedValue({
+    data: [{ id: 7, name: 'Camp du lac Bleu', is_camp: true, linked_year_plan_meeting_id: 41,
+      activity_start_date: '2026-07-13', activity_end_date: '2026-07-15' }],
+  });
+  const dashboard = await openDashboard();
+
+  expect(getDayProgramme).not.toHaveBeenCalled();
+  expect(primaryAction().getAttribute('href')).toBe('/managePoints');
+  expect(document.querySelector('.dashboard-v2__camp-schedule')).toBeNull();
+  dashboard.destroy();
+});
+
+test('a camp shortcut follows the unit\'s hidden features and the person\'s hidden tiles', async () => {
+  atTime(14, 0);
+  let dashboard = new Dashboard({ userRoles: ['leader'], showMessage: jest.fn() });
+  dashboard.organizationSettings = { dashboard_configuration: { hidden_tile_keys: ['attendance', 'camp_sites'] } };
+  dashboard.isLoading = false;
+  dashboard.render();
+  await dashboard.refreshDashboardCounters();
+  expect(campShortcuts()).toEqual(['/camp-readiness/41', '/my-camp-lots/41']);
+  dashboard.destroy();
+
+  getDashboardPrefs.mockReturnValue({ hiddenTiles: ['/attendance'], collapsedToolGroups: [] });
+  dashboard = await openDashboard();
+  expect(campShortcuts()).not.toContain('/attendance');
   dashboard.destroy();
 });

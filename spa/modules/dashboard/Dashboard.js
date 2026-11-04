@@ -45,6 +45,7 @@ import {
   TOOL_GROUP_ORDER,
   OFFLINE_AVAILABLE_ROUTES,
   FINANCE_WORKSPACE_EXTRA_TILES,
+  CAMP_DAY_SHORTCUTS,
   UNIT_SETTINGS_TILE_PERMISSIONS,
   getTileContext,
 } from '../../config/dashboard-tiles.js';
@@ -62,7 +63,6 @@ import {
   loadUpcomingCamps,
   upcomingCampsMarkup,
   canSeeTeamReadiness,
-  campReadinessHref,
 } from '../camp-readiness/UpcomingCamps.js';
 import { campDayFromActivities, campDayFromProgramme, mergeCampDays } from '../../utils/CampDayUtils.js';
 import { programmeMoment } from '../../utils/ProgrammeTimeline.js';
@@ -571,6 +571,8 @@ export class Dashboard extends BaseModule {
         return canCreateOrganization();
       case 'switchUnits':
         return canSwitchUnits();
+      case 'teamReadiness':
+        return canSeeTeamReadiness();
       case 'member':
         return true;
       default:
@@ -811,6 +813,7 @@ export class Dashboard extends BaseModule {
       // Read, and the camp is not in the year plan (or a meeting is): nothing planned for it.
       this.campScheduleState = programmeRead ? 'none' : 'unavailable';
     }
+    this._syncCampClock();
     return before !== JSON.stringify([this.campDay, this.campProgramme, this.campScheduleState]);
   }
 
@@ -1047,7 +1050,7 @@ export class Dashboard extends BaseModule {
       return `
         <section class="dashboard-v2__section" aria-labelledby="moment-now">
           <h2 id="moment-now" class="dashboard-v2__section-title">${escapeHTML(translate('dashboard_now_section'))}</h2>
-          ${this.campDay ? `<div class="dashboard-v2__hero-card">${this._renderCampSchedule()}</div>` : ''}
+          ${this._canSeeCampSchedule() ? `<div class="dashboard-v2__hero-card">${this._campScheduleSlot()}</div>` : ''}
           <div class="dashboard-v2__empty">
             <i class="fa-solid fa-mug-hot" aria-hidden="true"></i>
             <p>${escapeHTML(translate('dashboard_empty_now'))}</p>
@@ -1128,7 +1131,7 @@ export class Dashboard extends BaseModule {
               <h3 class="dashboard-v2__hero-title">${title}</h3>
               ${meta}
             </a>
-            ${this.campDay ? this._renderCampSchedule() : ''}
+            ${this._canSeeCampSchedule() ? this._campScheduleSlot() : ''}
             ${chipsHtml ? `<div class="dashboard-v2__hero-actions">${chipsHtml}</div>` : ''}
           </div>
         </div>
@@ -1152,6 +1155,62 @@ export class Dashboard extends BaseModule {
    *
    * @returns {string} HTML
    */
+  /**
+   * The schedule comes from the day programme, which takes meetings.view: without it
+   * the card shows the camp day but no schedule, rather than one it could never read.
+   *
+   * @returns {boolean}
+   */
+  _canSeeCampSchedule() {
+    return Boolean(this.campDay) && hasPermission('meetings.view');
+  }
+
+  /** @returns {string} The schedule inside the element the minute clock redraws */
+  _campScheduleSlot() {
+    this._campScheduleMarkup = this._renderCampSchedule();
+    return `<div class="dashboard-v2__camp-schedule-slot">${this._campScheduleMarkup}</div>`;
+  }
+
+  /**
+   * While today is a camp day, a minute clock keeps the dashboard in step with
+   * the time: the schedule is redrawn in place (nothing focusable is replaced),
+   * and the whole dashboard only when the roll call stops being offered or the
+   * day changes.
+   */
+  _syncCampClock() {
+    if (!this.campDay) {
+      if (this._campClock) {
+        this.clearInterval(this._campClock);
+        this._campClock = null;
+      }
+      return;
+    }
+    this._campClockDate = getTodayISO();
+    this._campRollCallDueShown = this._isCampRollCallDue();
+    if (!this._campClock) {
+      this._campClock = this.setInterval(() => this._onCampClockTick(), MS_PER_MINUTE);
+    }
+  }
+
+  /** One minute later: redraw what the time changed. */
+  _onCampClockTick() {
+    if (this.isDestroyed || this.isLoading || !this.campDay) {return;}
+    if (getTodayISO() !== this._campClockDate) {
+      this.refreshDashboardCounters().catch((error) => debugError('Camp day refresh failed:', error));
+      return;
+    }
+    if (this._isCampRollCallDue() !== this._campRollCallDueShown) {
+      this._campRollCallDueShown = this._isCampRollCallDue();
+      this.render();
+      this.attachEventListeners();
+      return;
+    }
+    const markup = this._renderCampSchedule();
+    if (markup === this._campScheduleMarkup) {return;}
+    this._campScheduleMarkup = markup;
+    document.querySelectorAll('.dashboard-v2__camp-schedule-slot').forEach((slot) => setContent(slot, markup));
+  }
+
   _renderCampSchedule() {
     if (this.campScheduleState !== 'loaded') {
       const key = this.campScheduleState === 'none' ? 'dashboard_camp_schedule_none' : 'dashboard_camp_schedule_unavailable';
@@ -1189,30 +1248,13 @@ export class Dashboard extends BaseModule {
    */
   _renderCampShortcuts(isOffline) {
     if (!this.campDay) {return '';}
-    const { meetingId, activityId } = this.campDay;
-    const shortcuts = [
-      {
-        show: !isOffline && canSeeTeamReadiness() && Boolean(meetingId || activityId),
-        href: campReadinessHref({ id: meetingId, activity_id: activityId }),
-        icon: 'fa-list-check', label: 'dashboard_camp_shortcut_readiness', domain: 'logistics',
-      },
-      {
-        show: !isOffline && hasPermission('meetings.view') && Boolean(meetingId),
-        href: `/camp-site/${Number(meetingId)}`,
-        icon: 'fa-kit-medical', label: 'dashboard_camp_shortcut_site', domain: 'safety',
-      },
-      {
-        show: hasPermission('tasks.view') && Boolean(meetingId),
-        href: `/my-camp-lots/${Number(meetingId)}`,
-        icon: 'fa-box', label: 'dashboard_camp_shortcut_lots', domain: 'logistics',
-      },
-      {
-        // Departures are marked on the attendance screen; the roll call offers it in the morning.
-        show: hasPermission('attendance.manage') && !this._isCampRollCallDue(),
-        href: '/attendance',
-        icon: 'fa-person-walking-arrow-right', label: 'dashboard_camp_shortcut_departure', domain: 'attendance',
-      },
-    ].filter((shortcut) => shortcut.show);
+    const hiddenSet = new Set(this._prefs?.hiddenTiles || []);
+    const shortcuts = CAMP_DAY_SHORTCUTS
+      .filter((shortcut) => this._passesGate(shortcut.gate) && this._isFeatureEnabled(shortcut.featureKey))
+      .filter((shortcut) => !(isOffline && shortcut.requiresNetwork))
+      .filter((shortcut) => !(shortcut.afterRollCall && this._isCampRollCallDue()))
+      .map((shortcut) => ({ ...shortcut, href: this._campShortcutHref(shortcut) }))
+      .filter((shortcut) => shortcut.href && !hiddenSet.has(shortcut.href));
     if (!shortcuts.length) {return '';}
     return `
       <section class="dashboard-v2__section" aria-labelledby="moment-camp">
@@ -1220,6 +1262,18 @@ export class Dashboard extends BaseModule {
         <div class="dashboard-v2__grid">${shortcuts.map((shortcut) => this._renderTile(shortcut)).join('')}</div>
       </section>
     `;
+  }
+
+  /**
+   * @param {Object} shortcut - An entry of CAMP_DAY_SHORTCUTS
+   * @returns {?string} Its address for today's camp, null when the camp lacks the identifier it needs
+   */
+  _campShortcutHref(shortcut) {
+    const option = shortcut.hrefs.find(({ needs }) => !needs || Number(this.campDay[needs]) > 0);
+    if (!option) {return null;}
+    return option.href
+      .replace('{meetingId}', () => String(Number(this.campDay.meetingId)))
+      .replace('{activityId}', () => String(Number(this.campDay.activityId)));
   }
 
   /**
