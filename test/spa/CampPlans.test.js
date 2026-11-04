@@ -16,11 +16,11 @@ import axe from 'axe-core';
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
 jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
 jest.mock('../../spa/config.js', () => ({ CONFIG: {}, getStorageKey: (key) => key }));
-jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(() => true), isDemoUser: jest.fn(() => false) }));
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(() => true), isDemoUser: jest.fn(() => false), hasOrganizationScope: jest.fn(() => true) }));
 jest.mock('../../spa/api/api-camp-plans.js', () => ({ getCampPlans: jest.fn() }));
 
 const { getCampPlans } = require('../../spa/api/api-camp-plans.js');
-const { hasPermission } = require('../../spa/utils/PermissionUtils.js');
+const { hasPermission, hasOrganizationScope } = require('../../spa/utils/PermissionUtils.js');
 const { CampPlans } = require('../../spa/modules/camp-plan/CampPlans.js');
 
 const AXE_OPTIONS = {
@@ -40,6 +40,7 @@ async function open() {
 beforeEach(() => {
   document.body.innerHTML = '<main id="app"></main>';
   hasPermission.mockImplementation(() => true);
+  hasOrganizationScope.mockReturnValue(true);
   getCampPlans.mockReset().mockResolvedValue({ success: true, data: {
     coming: [
       { id: 12, theme: 'Camp d’été', date_from: '2027-07-10', date_to: '2027-07-17', to_write: 3, to_review: 1 },
@@ -63,6 +64,13 @@ test('coming camps come first, each saying what its plan still lacks and leading
   expect(Array.from(first.querySelectorAll('a')).map((link) => link.getAttribute('href')))
     .toEqual(['/camp-plan/12', '/camp-site/12', '/camp-readiness/12']);
   expect(document.querySelectorAll('.camp-plans__camp')[1].textContent).toContain('camp_plan_all_written');
+});
+
+test('someone who sees only their own children is not offered the team overview, which would refuse them', async () => {
+  hasOrganizationScope.mockReturnValue(false);
+  await open();
+  const links = Array.from(document.querySelector('.camp-plans__camp').querySelectorAll('a')).map((link) => link.getAttribute('href'));
+  expect(links).toEqual(['/camp-plan/12', '/camp-site/12']);
 });
 
 test('a camp’s name is shown as text, and names each of its links', async () => {
