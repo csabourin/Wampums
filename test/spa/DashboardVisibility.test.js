@@ -183,6 +183,7 @@ describe('tool groups separate weekly work from unit set-up', () => {
 
   test('"Administration de l\'unité" holds the settings changed a few times a year', () => {
     expect(routesIn('admin').sort()).toEqual([
+      '/camp-plan-templates',
       '/communication-history',
       '/invitations',
       '/manage-groups',
@@ -405,8 +406,9 @@ describe('planning the year and the camps has its own section, after this week',
   test('it holds the year planner, activities, camp plans and sites, equipment reservations, carpooling and volunteering, in that order', () => {
     renderPlanner();
     const hrefs = Array.from(document.querySelectorAll('#moment-plan + .dashboard-v2__grid a')).map((tile) => tile.getAttribute('href'));
-    expect(hrefs).toEqual(['/yearly-planner', '/activities', '/camp-plans', '/camp-sites', '/material-management', '/volunteers',
-      '/camp-plan-templates']);
+    expect(hrefs).toEqual(['/yearly-planner', '/activities', '/camp-plans', '/camp-sites', '/material-management', '/volunteers']);
+    // The templates are written once, with the unit's other settings.
+    expect(document.querySelector('.dashboard-v2__group[data-group="admin"] a[href="/camp-plan-templates"]')).not.toBeNull();
     // This week keeps what is done this week.
     expect(sectionOf('/tasks')).toBe('moment-week');
     expect(sectionOf('/equipment-loans')).toBe('moment-tools');

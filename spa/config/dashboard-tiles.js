@@ -341,17 +341,6 @@ export const DASHBOARD_TILES = [
     gate: { permission: 'meetings.view' },
   },
   {
-    featureKey: 'camp_plan_templates',
-    href: '/camp-plan-templates',
-    icon: 'fa-file-signature',
-    label: 'tile_camp_plan_templates',
-    aliases: 'tile_camp_plan_templates_aliases',
-    moment: 'plan',
-    priority: 80,
-    domain: 'logistics',
-    gate: { permission: 'camp_plan_templates.manage' },
-  },
-  {
     featureKey: 'equipment_loans',
     href: '/equipment-loans',
     icon: 'fa-people-carry-box',
@@ -441,6 +430,17 @@ export const DASHBOARD_TILES = [
     domain: 'admin',
     priority: 10,
     gate: { check: 'unitSettings' },
+  },
+  {
+    featureKey: 'camp_plan_templates',
+    href: '/camp-plan-templates',
+    icon: 'fa-file-signature',
+    label: 'tile_camp_plan_templates',
+    aliases: 'tile_camp_plan_templates_aliases',
+    // Written once and changed rarely, like the unit's other settings.
+    moment: 'tools',
+    domain: 'admin',
+    gate: { permission: 'camp_plan_templates.manage' },
   },
   {
     featureKey: 'groups',

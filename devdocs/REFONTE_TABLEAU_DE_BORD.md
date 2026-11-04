@@ -40,7 +40,8 @@ dans les deux fichiers de langue, sinon `translate()` renvoie la clé brute dans
   « Faire les présences », car on note qui est là avant de récompenser), *Cette semaine* (ce qui se
   prépare avant la prochaine sortie : tâches, autorisations), *Planifier l'année et les camps*
   (`moment: 'plan'` : planificateur annuel, activités, plans et lieux de camp, réservation du
-  matériel, covoiturage, bénévolat, modèles du plan de camp, dans l'ordre de leur `priority`),
+  matériel, covoiturage, bénévolat, dans l'ordre de leur `priority` ; les modèles du plan de camp,
+  rédigés une fois, sont dans *Administration de l'unité*),
   *Tout le reste* (groupes repliables).
 - **Groupes de « Tout le reste »**, dans l'ordre de `TOOL_GROUP_ORDER` :
   - *Jeunes et familles* (`people`) : ce qu'on fait chaque semaine ;

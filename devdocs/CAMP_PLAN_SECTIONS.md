@@ -34,7 +34,7 @@ list the same values.
   "Camp plans", sits in the dashboard's "Plan the year and the camps" section.
 - **`/camp-plan-templates`** (`camp_plan_templates.manage`, migration 071, given to every unit-wide
   role holding `meetings.manage`; the district role through its trigger): the four templates, with a
-  dashboard tile gated the same way.
+  dashboard tile gated the same way, under "Unit administration" with the unit's other settings.
 
 ## Rules
 
