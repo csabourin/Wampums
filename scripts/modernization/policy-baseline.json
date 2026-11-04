@@ -36,7 +36,7 @@
     "routes/incidents.js": 49,
     "routes/index.js": 1,
     "routes/localGroups.js": 6,
-    "routes/medication.js": 127,
+    "routes/medication.js": 126,
     "routes/meetings.js": 18,
     "routes/offline.js": 33,
     "routes/organizations.js": 25,

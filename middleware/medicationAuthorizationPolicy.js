@@ -156,8 +156,18 @@ const MEDICATION_REQUIREMENT_WRITE_POLICY = {
   },
 };
 
+/**
+ * Doses and medication brought to an activity are the team's work (#1339): listing the unit's
+ * doses, scheduling, confirming a dose, and recording what was received. A role that sees only
+ * its own children is refused, whatever keys a unit gave it; families plan through
+ * MEDICATION_REQUIREMENT_WRITE_POLICY instead.
+ */
+const MEDICATION_STAFF_POLICY = { permissions: ['medication.manage'], organizationScope: true };
+
 module.exports = {
   MEDICATION_REQUIREMENT_WRITE_POLICY,
+  MEDICATION_STAFF_POLICY,
+  validId,
   medicationParticipantInUnit,
   familyMedicationAccess,
   MEDICATION_LIST_READ_POLICY,
