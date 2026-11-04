@@ -73,6 +73,18 @@ test('a planned meeting defaults to the whole unit in attendance even when an ac
   expect(roster.includes(99)).toBe(true);
 });
 
+test('an outing that replaces the meeting is the day\'s activity, even beside another one', async () => {
+  const errand = { ...CAMP, id: 6, name: 'Patrol errand', requires_permission: false };
+  getActionRoster.mockResolvedValue({
+    data: { ...snapshot(), activities: [errand, CAMP], replacing_activities: { [DATE]: CAMP.id } },
+  });
+  const roster = new ActionRoster('attendance');
+  await roster.load(DATE);
+  expect(roster.activity?.id).toBe(CAMP.id);
+  // Its permission requests apply: an unsigned youth is not on its roster.
+  expect(roster.includes(99)).toBe(false);
+});
+
 test('showing everyone is an explicit exception carried to the award request', async () => {
   const roster = new ActionRoster('points');
   await roster.load(DATE);

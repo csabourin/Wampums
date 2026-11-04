@@ -874,7 +874,10 @@ module.exports = (pool) => {
    * leaders are emailed that it is cancelled.
    * Accessible by: animation, admin only
    */
-  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('activities.delete'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
+  // Keeping a replaced meeting cancelled cancels a meeting: it takes the planner's own right to.
+  const keepsMeetingCancelled = (req) => String(req.query.restore_meeting ?? '').toLowerCase() === 'false';
+  const deletePermissions = (req) => (keepsMeetingCancelled(req) ? ['activities.delete', 'meetings.edit'] : ['activities.delete']);
+  router.delete('/:id', authenticate, blockDemoRoles, requirePermission(deletePermissions), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 
@@ -906,7 +909,7 @@ module.exports = (pool) => {
     // An outing that replaced a meeting brings it back unless the person said not
     // to (`restore_meeting=false`). Worked out before the pending slips are archived,
     // since they are part of what made it replace the meeting.
-    const restoreMeeting = String(req.query.restore_meeting ?? '').toLowerCase() !== 'false';
+    const restoreMeeting = !keepsMeetingCancelled(req);
     const client = await pool.connect();
     let result;
     let replaced;

@@ -27,6 +27,11 @@ jest.mock('../../spa/app.js', () => ({
   translate: (key) => key,
 }));
 
+const mockPermissions = new Set(['meetings.edit']);
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({
+  hasPermission: (key) => mockPermissions.has(key),
+}));
+
 jest.mock('../../spa/utils/DateUtils.js', () => ({
   formatDate: (value) => `formatted ${value}`,
 }));
@@ -158,6 +163,19 @@ describe('cancelling an outing that replaced a meeting', () => {
     expect(results.violations).toEqual([]);
     actionButton('activity_delete_restore_meeting_yes').click();
     await answer;
+  });
+
+  test('someone who may not cancel meetings is not asked: the meeting comes back', async () => {
+    mockPermissions.delete('meetings.edit');
+    try {
+      const answer = confirmActivityDeletion(MUSEUM, 'fr');
+      document.getElementById('activity-delete-confirm').click();
+
+      await expect(answer).resolves.toEqual({ notify: false, restoreMeeting: true });
+      expect(document.body.textContent).not.toContain('activity_delete_restore_meeting_message');
+    } finally {
+      mockPermissions.add('meetings.edit');
+    }
   });
 
   test('the message after deletion says what became of the meeting', () => {

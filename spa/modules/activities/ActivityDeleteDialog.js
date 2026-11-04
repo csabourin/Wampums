@@ -9,6 +9,7 @@ import { openModal } from '../../utils/ModalUtils.js';
 import { confirm } from '../../utils/DialogUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
+import { hasPermission } from '../../utils/PermissionUtils.js';
 
 const DIALOG_ID = 'activity-delete-dialog';
 
@@ -36,7 +37,8 @@ export async function confirmActivityDeletion(activity, lang) {
  * @returns {Promise<boolean>} true when nothing was replaced
  */
 export function askRestoreReplacedMeeting(activity, lang) {
-  if (!activity?.replaces_meeting_id) {
+  // Keeping it cancelled takes the planner's right to cancel a meeting; without it, it comes back.
+  if (!activity?.replaces_meeting_id || !hasPermission('meetings.edit')) {
     return Promise.resolve(true);
   }
   const date = activity.replaces_meeting_date ? formatDate(activity.replaces_meeting_date, lang) : '';

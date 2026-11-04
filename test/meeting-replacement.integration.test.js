@@ -14,7 +14,7 @@ process.env.JWT_SECRET_KEY ||= 'fictional-meeting-replacement-integration';
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 
 const LEADER = [
-  'meetings.view', 'meetings.manage', 'activities.view', 'activities.create', 'activities.edit',
+  'meetings.view', 'meetings.manage', 'meetings.edit', 'activities.view', 'activities.create', 'activities.edit',
   'activities.delete', 'attendance.view',
 ];
 
@@ -219,6 +219,37 @@ describe.skipIf(!DATABASE_URL)('An outing that replaces a meeting', () => {
     expect(response.body.data.replaced_meeting).toEqual({ id: meetingId, date, restored: false });
     const row = (await pool.query('SELECT is_cancelled, theme, meeting_kind FROM year_plan_meetings WHERE id = $1', [meetingId])).rows[0];
     expect(row).toEqual({ is_cancelled: true, theme: 'Fictional kept theme', meeting_kind: 'regular' });
+  });
+
+  test('keeping the meeting cancelled takes the right to cancel meetings: without it, nothing is deleted', async () => {
+    const date = nextDate();
+    const meetingId = await meeting(date);
+    const activityId = await outing(date);
+    const deleter = await member(ids.unit, ['activities.view', 'activities.delete'], 'Grace Hopper');
+
+    const refused = await api('delete', `/activities/${activityId}?restore_meeting=false`, deleter);
+    expect(refused.status).toBe(403);
+    expect(refused.body).toMatchObject({ required: expect.arrayContaining(['meetings.edit']), missing: ['meetings.edit'] });
+    expect(await one('SELECT is_active FROM activities WHERE id = $1', [activityId])).toBe(true);
+    expect(await one('SELECT is_cancelled FROM year_plan_meetings WHERE id = $1', [meetingId])).toBe(false);
+
+    // Without asking to keep it cancelled, deleting the outing needs only its own right; the meeting comes back.
+    const allowed = await api('delete', `/activities/${activityId}`, deleter);
+    expect(allowed.status).toBe(200);
+    expect(allowed.body.data.replaced_meeting).toEqual({ id: meetingId, date, restored: true });
+  });
+
+  test('the roster names the outing a replaced date follows, even beside another activity', async () => {
+    const date = nextDate();
+    await meeting(date);
+    const activityId = await outing(date);
+    await outing(date, { invitesEveryone: false, name: 'Fictional patrol errand' });
+
+    const roster = await api('get', `/action-roster?date=${date}`);
+
+    expect(roster.status).toBe(200);
+    expect(roster.body.data.activities).toHaveLength(2);
+    expect(roster.body.data.replacing_activities).toEqual({ [date]: activityId });
   });
 
   test('cancelling an outing that replaced nothing touches no meeting, whatever is asked', async () => {

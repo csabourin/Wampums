@@ -32,13 +32,14 @@ async function getActionRoster(db, organizationId, startDate, endDate = startDat
   );
   // A date an outing replaces is the outing's day: its roster defaults to the outing.
   // Only meeting days can be replaced, so days without one need no lookup.
-  const replaced = meetings.rows.length
-    ? new Set((await findReplacedMeetings(db, organizationId, startDate, endDate)).map((row) => row.meeting_date))
-    : new Set();
+  const replacements = meetings.rows.length ? await findReplacedMeetings(db, organizationId, startDate, endDate) : [];
+  const replaced = new Set(replacements.map((row) => row.meeting_date));
   return {
     activities: activities.rows,
     attendance: attendance.rows,
     meeting_dates: meetings.rows.map((row) => row.date).filter((date) => !replaced.has(date)),
+    // The outing each replaced date follows, so the roster defaults to it even beside other activities.
+    replacing_activities: Object.fromEntries(replacements.map((row) => [row.meeting_date, row.activity_id])),
   };
 }
 
