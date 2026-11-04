@@ -197,6 +197,25 @@
   opacity: 0.9;
 }
 
+/* At camp: what is on now and next, in the hero's own colours (no opacity, for contrast). */
+.dashboard-v2__camp-schedule {
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs, 0.25rem);
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-v2__camp-schedule-label {
+  font-weight: 700;
+  margin-inline-end: 0.35rem;
+}
+
 .dashboard-v2__hero-actions {
   display: flex;
   flex-wrap: wrap;

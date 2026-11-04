@@ -49,6 +49,7 @@ jest.mock('../../spa/api/api-endpoints.js', () => ({
   getMedicationDistributions: jest.fn(),
 }));
 
+jest.mock('../../spa/api/api-programme.js', () => ({ getDayProgramme: jest.fn(() => Promise.resolve({ data: null })) }));
 jest.mock('../../spa/api/api-activities.js', () => ({ getActivities: jest.fn() }));
 jest.mock('../../spa/indexedDB.js', () => ({
   getCachedData: jest.fn(),

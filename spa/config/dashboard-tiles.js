@@ -600,6 +600,59 @@ export const TOOL_GROUP_ORDER = [
 ];
 
 /**
+ * The "At camp" shortcuts, shown only on a camp day. Each goes through the
+ * same visibility as a tile: its gate (the permission its page requires), the
+ * unit's hidden features (`featureKey`) and the person's hidden tiles. `hrefs`
+ * names the camp identifier each address needs, first match wins: a shortcut
+ * whose camp has none of them is not offered. `requiresNetwork` pages are not
+ * offered offline; `afterRollCall` waits until the morning roll call, which
+ * already leads to the same screen, is no longer offered.
+ */
+export const CAMP_DAY_SHORTCUTS = [
+  {
+    key: 'readiness',
+    hrefs: [
+      { needs: 'meetingId', href: '/camp-readiness/{meetingId}' },
+      { needs: 'activityId', href: '/camp-readiness/activity-{activityId}' },
+    ],
+    icon: 'fa-list-check',
+    label: 'dashboard_camp_shortcut_readiness',
+    domain: 'logistics',
+    gate: { check: 'teamReadiness' },
+    requiresNetwork: true,
+  },
+  {
+    key: 'site',
+    featureKey: 'camp_sites',
+    hrefs: [{ needs: 'meetingId', href: '/camp-site/{meetingId}' }],
+    icon: 'fa-kit-medical',
+    label: 'dashboard_camp_shortcut_site',
+    domain: 'safety',
+    gate: { permission: 'meetings.view' },
+    requiresNetwork: true,
+  },
+  {
+    key: 'lots',
+    hrefs: [{ needs: 'meetingId', href: '/my-camp-lots/{meetingId}' }],
+    icon: 'fa-box',
+    label: 'dashboard_camp_shortcut_lots',
+    domain: 'logistics',
+    gate: { permission: 'tasks.view' },
+  },
+  {
+    // Departures are marked on the attendance screen.
+    key: 'departure',
+    featureKey: 'attendance',
+    hrefs: [{ href: '/attendance' }],
+    icon: 'fa-person-walking-arrow-right',
+    label: 'dashboard_camp_shortcut_departure',
+    domain: 'attendance',
+    gate: { permission: 'attendance.manage' },
+    afterRollCall: true,
+  },
+];
+
+/**
  * Groups collapsed the first time a user opens the dashboard. Once they
  * expand or collapse anything the stored preference wins for good.
  */

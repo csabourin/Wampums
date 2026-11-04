@@ -5523,5 +5523,17 @@
   "camp_plans_past": "Past camps",
   "camp_plans_empty": "No camp is planned yet. Add one in the year planner to start its plan.",
   "camp_plans_open_plan": "Open the plan",
-  "camp_plans_load_failed": "The camp plans could not be loaded."
+  "camp_plans_load_failed": "The camp plans could not be loaded.",
+  "dashboard_camp_day_label": "{camp} — day {day} of {count}",
+  "dashboard_camp_now": "Now:",
+  "dashboard_camp_next": "Next:",
+  "dashboard_camp_led_by": "led by {leader}",
+  "dashboard_camp_schedule_unavailable": "This camp's schedule is not on this device. Prepare the camp for offline use while you have a connection.",
+  "dashboard_camp_schedule_none": "No camp schedule is planned for today.",
+  "dashboard_camp_schedule_done": "Nothing else on today's camp schedule.",
+  "dashboard_camp_section": "At camp",
+  "dashboard_camp_shortcut_readiness": "Camp readiness",
+  "dashboard_camp_shortcut_site": "Site and emergencies",
+  "dashboard_camp_shortcut_lots": "My equipment lots",
+  "dashboard_camp_shortcut_departure": "A youth is leaving"
 }

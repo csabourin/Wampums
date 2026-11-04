@@ -5523,5 +5523,17 @@
   "camp_plans_past": "Camps passés",
   "camp_plans_empty": "Aucun camp n’est encore planifié. Ajoutez-en un dans le planificateur annuel pour commencer son plan.",
   "camp_plans_open_plan": "Ouvrir le plan",
-  "camp_plans_load_failed": "Les plans de camp n’ont pas pu être chargés."
+  "camp_plans_load_failed": "Les plans de camp n’ont pas pu être chargés.",
+  "dashboard_camp_day_label": "{camp} — jour {day} sur {count}",
+  "dashboard_camp_now": "En cours :",
+  "dashboard_camp_next": "Ensuite :",
+  "dashboard_camp_led_by": "animation : {leader}",
+  "dashboard_camp_schedule_unavailable": "L’horaire de ce camp n’est pas sur cet appareil. Préparez le camp hors ligne pendant que vous avez du réseau.",
+  "dashboard_camp_schedule_none": "Aucun horaire de camp n’est prévu aujourd’hui.",
+  "dashboard_camp_schedule_done": "Plus rien à l’horaire du camp aujourd’hui.",
+  "dashboard_camp_section": "Au camp",
+  "dashboard_camp_shortcut_readiness": "Préparation du camp",
+  "dashboard_camp_shortcut_site": "Lieu et urgences",
+  "dashboard_camp_shortcut_lots": "Mes lots de matériel",
+  "dashboard_camp_shortcut_departure": "Départ d’un jeune"
 }
