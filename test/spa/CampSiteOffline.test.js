@@ -25,6 +25,8 @@ jest.mock('../../spa/modules/scout-year/ScoutYearContext.js', () => ({
 
 import { storeCampSiteSnapshot, getCampSiteSnapshot, currentCampSiteScope } from '../../spa/modules/camp-sites/CampSiteOffline.js';
 import { invalidateForWrite } from '../../spa/utils/CacheInvalidation.js';
+import { clearCachedApiPaths } from '../../spa/indexedDB.js';
+import { cachePathsForMutation } from '../../spa/utils/OfflineCacheKeys.js';
 
 const CAMP_SITE = {
   camp: { id: 41, theme: 'Camp d’automne', date_from: '2026-11-01', date_to: '2026-11-03', is_cancelled: false },
@@ -63,6 +65,23 @@ test('the copy is only read back for the same camp, account and unit', async () 
 
 test('an expired copy is not shown', async () => {
   await storeCampSiteSnapshot(41, CAMP_SITE, -1);
+  expect(await getCampSiteSnapshot(41)).toBeNull();
+});
+
+test('in camp mode or offline, a confirmed change to the camp clears the copy too', async () => {
+  // There api-core clears by path prefix (clearCachedApiPaths), never reading `sources`.
+  await storeCampSiteSnapshot(41, CAMP_SITE);
+
+  await clearCachedApiPaths(cachePathsForMutation('/api/v1/camp-sites/camps/41'));
+
+  expect(await getCampSiteSnapshot(41)).toBeNull();
+});
+
+test('in camp mode or offline, editing the site itself clears the copies naming it', async () => {
+  await storeCampSiteSnapshot(41, CAMP_SITE);
+
+  await clearCachedApiPaths(cachePathsForMutation('/api/v1/camp-sites/4'));
+
   expect(await getCampSiteSnapshot(41)).toBeNull();
 });
 

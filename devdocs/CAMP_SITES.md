@@ -44,7 +44,7 @@ once and chosen for each camp.
   (`POST /api/v1/offline/prepare-activity` returns `campSites` to `meetings.view` holders; the screen is
   preloaded with the camp's others). Known to be offline, the screen shows that copy with when it was kept
   and no form; never a service-worker answer, which would show an old page as editable. With no copy, it
-  says so. A confirmed write to the camp sites clears the copy (`sources`). The dashboard's "Site and
+  says so. A confirmed write to the camp sites clears the copy in every mode: it is kept under `/api/v1/camp-sites/camps/:id/offline-copy`, which writes clear by path prefix in camp mode and offline, and by `sources` otherwise. It is scoped to the session that read it. The dashboard's "Site and
   emergencies" shortcut is offered offline. Browser test: `e2e/camp-site.offline.mjs` (built PWA).
 
 Tests: `test/camp-sites.integration.test.js`, `test/routes-camp-sites.test.js`,

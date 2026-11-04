@@ -7,8 +7,9 @@
  * members a manager may choose a lead from. It is stored when the screen opens
  * online and by camp preparation, scoped to the account, unit and scout year,
  * and it expires with the camp's other prepared data. Any confirmed write to
- * the camp sites clears it (its `sources`), so a stale copy is never kept
- * after an edit.
+ * the camp sites clears it, so a stale copy is never kept after an edit: its
+ * key sits under the resource's own path, which the writes clear in every
+ * mode (by prefix in camp mode or offline, by `sources` otherwise).
  *
  * Callers pass the scope they captured before reading (as the camp lots do):
  * a copy is written only while that scope is still the session's, records it,
@@ -47,7 +48,7 @@ function assertScope(scope) {
  * @returns {string} Its snapshot's key
  */
 export function campSiteSnapshotKey(meetingId, scope = currentCampSiteScope()) {
-  return buildScopedCacheKey(`camp_site_snapshot_${Number(meetingId)}${scope}`);
+  return buildScopedCacheKey(`/api/v1/camp-sites/camps/${Number(meetingId)}/offline-copy${scope}`);
 }
 
 /**
