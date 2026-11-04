@@ -35,7 +35,7 @@ describe.skipIf(!DATABASE_URL)('External revenue updates', () => {
       client.release();
     }
     ids.role = await one('INSERT INTO roles (role_name, display_name, data_scope, organization_id) VALUES ($1, $1, $2, $3) RETURNING id', [`revenue_${randomUUID()}`, 'organization', ids.unit]);
-    await pool.query("INSERT INTO role_permissions (role_id, permission_id) SELECT $1, id FROM permissions WHERE permission_key = ANY($2::text[])", [ids.role, ['finance.view', 'finance.manage']]);
+    await pool.query('INSERT INTO role_permissions (role_id, permission_id) SELECT $1, id FROM permissions WHERE permission_key = ANY($2::text[])', [ids.role, ['finance.view', 'finance.manage']]);
     ids.user = await one("INSERT INTO users (email, password, full_name) VALUES ($1, 'x', 'Revenue Test') RETURNING id", [`revenue_${randomUUID()}@example.test`]);
     await pool.query("INSERT INTO user_organizations (user_id, organization_id, role_ids, status) VALUES ($1, $2, $3::jsonb, 'active')", [ids.user, ids.unit, JSON.stringify([ids.role])]);
     ids.category = await one("INSERT INTO budget_categories (organization_id, name) VALUES ($1, 'Test category') RETURNING id", [ids.unit]);
