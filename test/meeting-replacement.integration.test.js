@@ -261,4 +261,27 @@ describe.skipIf(!DATABASE_URL)('An outing that replaces a meeting', () => {
     expect(response.status).toBe(200);
     expect(response.body.data.date).toBe('2032-03-09');
   });
+
+  test('if many consecutive dates are replaced, the next meeting is found beyond the first candidate window', async () => {
+    const quietUnit = await unit();
+    const leader = await member(quietUnit, LEADER, 'Léa Tremblay');
+    await pool.query("INSERT INTO scout_years (organization_id, label, start_date, end_date, status) VALUES ($1, 'Current', '2030-09-01', '2031-08-31', 'active')", [quietUnit]);
+    const insertMeeting = (date) => pool.query(`INSERT INTO year_plan_meetings (organization_id, meeting_date, theme, meeting_kind)
+      VALUES ($1, $2, 'Fictional meeting', 'regular')`, [quietUnit, date]);
+    const dates = ['2032-03-02', '2032-03-09', '2032-03-16', '2032-03-23', '2032-03-30', '2032-04-06', '2032-04-13', '2032-04-20', '2032-04-27', '2032-05-04'];
+    for (const date of dates) {
+      await insertMeeting(date);
+    }
+    for (const date of dates.slice(0, 9)) {
+      await pool.query(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+        meeting_time_going, departure_time_going, activity_start_date, activity_start_time, activity_end_date, activity_end_time)
+        VALUES ($1, $2, 'Fictional replaced outing', $3, 'Hall', '09:00', '09:15', $3, '09:00', $3, '16:00')`,
+      [quietUnit, leader, date]);
+    }
+
+    const response = await api('get', '/meetings/next', leader, quietUnit);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.date).toBe('2032-05-04');
+  });
 });

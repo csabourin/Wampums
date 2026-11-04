@@ -468,22 +468,39 @@ module.exports = (pool, logger) => {
       const organizationId = await getOrganizationId(req, pool);
       const today = formatLocalDate(new Date());
 
-      // A meeting an outing replaces is not the next meeting; a few dates are
-      // read so that the following one answers.
-      const result = await pool.query(
-        `${MEETING_SELECT}
-         WHERE m.organization_id = $1 AND m.meeting_date >= $2 AND NOT m.is_cancelled
-         ORDER BY m.meeting_date ASC
-         LIMIT $3`,
-        [organizationId, today, NEXT_MEETING_CANDIDATES]
-      );
+      // A meeting an outing replaces is not the next meeting. Consecutive
+      // replacements may exceed the first candidate window, so keep walking the
+      // upcoming dates until the first non-replaced one appears.
+      const MAX_NEXT_MEETING_LOOKAHEAD = 1000;
+      const lookAhead = async (startDate, remaining) => {
+        const result = await pool.query(
+         `${MEETING_SELECT}
+           WHERE m.organization_id = $1 AND m.meeting_date >= $2::date AND NOT m.is_cancelled
+           ORDER BY m.meeting_date ASC
+           LIMIT $3`,
+         [organizationId, startDate, NEXT_MEETING_CANDIDATES]
+        );
+        if (result.rows.length === 0) {
+         return null;
+        }
 
-      const dates = result.rows.map((row) => String(row.meeting_date).slice(0, ISO_DATE_LENGTH));
-      const replaced = dates.length
-        ? new Set((await findReplacedMeetings(pool, organizationId, dates[0], dates[dates.length - 1]))
-          .map((row) => row.meeting_date))
-        : new Set();
-      const nextDate = dates.find((date) => !replaced.has(date));
+        const dates = result.rows.map((row) => String(row.meeting_date).slice(0, ISO_DATE_LENGTH));
+        const replaced = new Set((await findReplacedMeetings(pool, organizationId, dates[0], dates[dates.length - 1]))
+         .map((row) => row.meeting_date));
+        const candidate = dates.find((date) => !replaced.has(date));
+        if (candidate) {
+         return candidate;
+        }
+        if (remaining <= 1) {
+         return null;
+        }
+
+        const nextDay = new Date(`${dates[dates.length - 1]}T00:00:00Z`);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+        return lookAhead(nextDay.toISOString().slice(0, ISO_DATE_LENGTH), remaining - 1);
+      };
+
+      const nextDate = await lookAhead(today, MAX_NEXT_MEETING_LOOKAHEAD);
       if (!nextDate) {
         return success(res, null, 'No upcoming meetings found');
       }
