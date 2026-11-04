@@ -939,8 +939,10 @@ module.exports = (pool) => {
         [id, organizationId]
       );
 
-      if (replaced && !restoreMeeting) {
-        await cancelReplacedMeeting(client, organizationId, replaced.meeting_id);
+      // A meeting whose honors were processed is never cancelled: nothing is deleted then.
+      if (replaced && !restoreMeeting && !(await cancelReplacedMeeting(client, organizationId, replaced.meeting_id))) {
+        await client.query('ROLLBACK');
+        return error(res, 'meeting_already_processed', HTTP_CONFLICT);
       }
       await client.query('COMMIT');
     } catch (err) {

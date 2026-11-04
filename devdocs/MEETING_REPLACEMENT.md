@@ -28,7 +28,11 @@ everyone, replaces that meeting (`services/meetingReplacement.js`).
   comes back. Yes, or a DELETE without `restore_meeting`, leaves it uncancelled; declining (or dismissing)
   sends `restore_meeting=false`, which marks the meeting cancelled in the outing's own deletion
   transaction. Keeping it cancelled takes `meetings.edit` as well as `activities.delete` (the planner's
-  right to cancel a meeting); without it the question is not asked and the meeting comes back. The replacement is worked out before the pending permission requests are archived. The
+  right to cancel a meeting); without it the question is not asked and the meeting comes back.
+  As in the planner, a meeting whose honors were processed is never cancelled: the deletion answers
+  409 `meeting_already_processed` and changes nothing.
+- **Cache:** writes to permission requests (`resources/permission-slips`, `activity-authorizations`)
+  and to activities clear the cached meetings, day programme and year plan (`spa/utils/CacheInvalidation.js`). The replacement is worked out before the pending permission requests are archived. The
   answer's `replaced_meeting` says what became of it.
 
 Tests: `test/meeting-replacement.integration.test.js`, `test/spa/DashboardCampDay.test.js`,

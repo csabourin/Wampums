@@ -119,19 +119,30 @@ async function findMeetingReplacedBy(db, organizationId, activityId) {
 
 /**
  * The outing is cancelled and its meeting is not to come back: mark the meeting
- * cancelled. Nothing else of the meeting changes (schedule lines, tasks).
+ * cancelled. Nothing else of the meeting changes (schedule lines, tasks). As in the
+ * planner, a meeting whose honors were already processed is never cancelled.
  *
  * @param {Object} client - Client inside the outing's cancellation transaction
  * @param {number} organizationId - Authenticated unit
  * @param {number} meetingId - The meeting the outing replaced
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} false, with nothing changed, when its honors were processed
  */
 async function cancelReplacedMeeting(client, organizationId, meetingId) {
+  const processed = await client.query(
+    `SELECT 1 FROM year_plan_meeting_activities
+      WHERE meeting_id = $1 AND organization_id = $2 AND processed = TRUE
+      LIMIT 1`,
+    [meetingId, organizationId]
+  );
+  if (processed.rows.length > 0) {
+    return false;
+  }
   await client.query(
     `UPDATE year_plan_meetings SET is_cancelled = TRUE, updated_at = NOW()
       WHERE id = $1 AND organization_id = $2`,
     [meetingId, organizationId]
   );
+  return true;
 }
 
 module.exports = { ISSUED_SLIP_STATUSES, findReplacedMeetings, findMeetingReplacedBy, cancelReplacedMeeting };

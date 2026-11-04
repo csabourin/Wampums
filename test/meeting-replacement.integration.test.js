@@ -252,6 +252,21 @@ describe.skipIf(!DATABASE_URL)('An outing that replaces a meeting', () => {
     expect(roster.body.data.replacing_activities).toEqual({ [date]: activityId });
   });
 
+  test('a meeting whose honors were processed is never cancelled this way: nothing is deleted', async () => {
+    const date = nextDate();
+    const meetingId = await meeting(date);
+    await pool.query(`INSERT INTO year_plan_meeting_activities (organization_id, meeting_id, name, day_offset, sort_order, processed)
+      VALUES ($1, $2, 'Fictional honors', 0, 0, TRUE)`, [ids.unit, meetingId]);
+    const activityId = await outing(date);
+
+    const refused = await api('delete', `/activities/${activityId}?restore_meeting=false`);
+
+    expect(refused.status).toBe(409);
+    expect(refused.body.message).toBe('meeting_already_processed');
+    expect(await one('SELECT is_active FROM activities WHERE id = $1', [activityId])).toBe(true);
+    expect(await one('SELECT is_cancelled FROM year_plan_meetings WHERE id = $1', [meetingId])).toBe(false);
+  });
+
   test('cancelling an outing that replaced nothing touches no meeting, whatever is asked', async () => {
     const date = nextDate();
     const meetingId = await meeting(date);

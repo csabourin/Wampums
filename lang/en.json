@@ -5548,5 +5548,6 @@
   "dashboard_outing_day_label": "{outing} — today's outing",
   "dashboard_outing_departure": "Departure:",
   "dashboard_outing_return": "Return:",
-  "dashboard_outing_section": "On the outing"
+  "dashboard_outing_section": "On the outing",
+  "meeting_already_processed": "This meeting's honors were already processed: it cannot be cancelled. Restore it instead."
 }

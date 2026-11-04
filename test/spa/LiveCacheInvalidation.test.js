@@ -219,6 +219,20 @@ describe('writes that do not change the roster', () => {
     expect(plan.matchesPath('/api/v1/participants')).toBe(false);
   });
 
+  test('issuing permission requests refreshes the meetings an outing may stop replacing', () => {
+    const slip = planInvalidation('v1/resources/permission-slips');
+    expect(slip.matchesPath('/api/v1/meetings/next')).toBe(true);
+    expect(slip.matchesPath('/api/v1/meetings/programme')).toBe(true);
+    expect(slip.matchesPath('/api/v1/yearly-planner/plans/3')).toBe(true);
+
+    const authorizations = planInvalidation('v1/activity-authorizations/12/send');
+    expect(authorizations.matchesPath('/api/v1/meetings/next')).toBe(true);
+    expect(authorizations.matchesPath('/api/v1/yearly-planner/plans/3')).toBe(true);
+
+    // Other equipment writes do not touch the meetings.
+    expect(planInvalidation('v1/resources/equipment').matchesPath('/api/v1/meetings/next')).toBe(false);
+  });
+
   test('changing a year-plan date refreshes cached activities, whose camp mark follows its kind', () => {
     const plan = planInvalidation('v1/yearly-planner/meetings/9');
     expect(plan.matchesPath('/api/v1/activities')).toBe(true);

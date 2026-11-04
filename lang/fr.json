@@ -5548,5 +5548,6 @@
   "dashboard_outing_day_label": "{outing} — sortie du jour",
   "dashboard_outing_departure": "Départ :",
   "dashboard_outing_return": "Retour :",
-  "dashboard_outing_section": "En sortie"
+  "dashboard_outing_section": "En sortie",
+  "meeting_already_processed": "Les honneurs de cette réunion ont déjà été traités : elle ne peut pas être annulée. Rétablissez-la plutôt."
 }
