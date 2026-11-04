@@ -96,7 +96,22 @@ module.exports = (pool) => {
     );
 
     // Each outing that replaces a meeting says so, for the calendar and the day's screens.
-    const replacements = result.rows.length ? await findReplacedMeetings(pool, organizationId) : [];
+    // Limit the replacement scan to the date span covered by the activities we just loaded;
+    // a unit with many meetings should not trigger a full-range lookup for every screen read.
+    const activityDates = result.rows.flatMap((row) => {
+      const candidates = [row.activity_start_date, row.activity_end_date, row.activity_date];
+      return candidates
+        .filter((value) => value !== null && value !== undefined)
+        .map((value) => String(value).slice(0, 10));
+    });
+    const replacements = activityDates.length
+      ? await findReplacedMeetings(
+        pool,
+        organizationId,
+        activityDates.reduce((min, value) => (value < min ? value : min)),
+        activityDates.reduce((max, value) => (value > max ? value : max))
+      )
+      : [];
     const replacedBy = new Map(replacements.map((replacement) => [replacement.activity_id, replacement]));
     return success(res, result.rows.map((row) => {
       const replacement = replacedBy.get(Number(row.id));
