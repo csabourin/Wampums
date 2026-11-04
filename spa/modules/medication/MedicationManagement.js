@@ -2448,9 +2448,7 @@ export class MedicationManagement {
           throw firstError;
         }
         const queued = settled.some((outcome) => outcome.status === 'fulfilled' && outcome.value?.queued);
-        if (queued) {
-          await this.persistDistributionsCache();
-        }
+        // The device's copy is written in successFn, once refused doses are back to "to give".
         return { queued, failed, firstError, givenElsewhere, recorded: distributionIds.length - failed.length };
       },
 
@@ -2478,6 +2476,8 @@ export class MedicationManagement {
         }
         if (response.queued) {
           // Sent once the connection returns: reloading now would show the doses not yet given.
+          // Keep the reconciled list on the device, so reopening offline shows a refused dose to give.
+          await this.persistDistributionsCache();
           return;
         }
         // Reload what the server recorded (forced refresh inside refreshData).

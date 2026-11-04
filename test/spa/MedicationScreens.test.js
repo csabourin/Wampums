@@ -254,6 +254,24 @@ describe('giving several doses at once', () => {
     screen.destroy();
   });
 
+  test('offline, the copy kept on the device shows a refused dose still to give', async () => {
+    const app = makeApp();
+    const screen = await openDispensing(app);
+    const { setCachedData } = require('../../spa/indexedDB.js');
+    setCachedData.mockClear();
+    api.markMedicationDistributionAsGiven
+      .mockResolvedValueOnce({ success: true, queued: true })
+      .mockRejectedValueOnce(Object.assign(new Error('Refused'), { status: 403 }));
+
+    await screen.handleMarkGiven([21, 22], 'slot');
+    await flush();
+
+    const saved = setCachedData.mock.calls.filter(([key]) => key === 'medication_distributions').pop();
+    const statuses = Object.fromEntries(saved[1].data.distributions.map((dist) => [dist.id, dist.status]));
+    expect(statuses).toEqual({ 21: 'given', 22: 'scheduled' });
+    screen.destroy();
+  });
+
   test('a dose already given from another device counts as given, not as a failure', async () => {
     const app = makeApp();
     const screen = await openDispensing(app);
