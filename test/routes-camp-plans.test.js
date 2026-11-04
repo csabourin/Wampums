@@ -13,7 +13,7 @@ jest.mock('../services/campPlan', () => {
   const actual = jest.requireActual('../services/campPlan');
   return {
     ...actual,
-    listTemplates: jest.fn(), saveTemplate: jest.fn(), readCampPlan: jest.fn(), saveCampSection: jest.fn(), saveRainGames: jest.fn(),
+    listTemplates: jest.fn(), listCampPlans: jest.fn(), saveTemplate: jest.fn(), readCampPlan: jest.fn(), saveCampSection: jest.fn(), saveRainGames: jest.fn(),
   };
 });
 const service = require('../services/campPlan');
@@ -43,6 +43,7 @@ beforeEach(() => {
   permissions = ['meetings.view', 'meetings.manage', 'camp_plan_templates.manage'];
   roles = [{ role_name: 'animation', display_name: 'Leader', data_scope: 'organization' }];
   service.listTemplates.mockResolvedValue([]);
+  service.listCampPlans.mockResolvedValue({ coming: [], past: [] });
   service.saveTemplate.mockResolvedValue({ key: 'camp_rules' });
   service.readCampPlan.mockResolvedValue({ camp: { id: 12 }, sections: [] });
   service.saveCampSection.mockResolvedValue({ section: { key: 'theme' } });
@@ -72,6 +73,16 @@ test('the templates are read by whoever may write them, even without meetings.vi
   const refused = await call('get', '/templates');
   expect(refused.status).toBe(403);
   expect(refused.body.required).toEqual(['meetings.view', 'camp_plan_templates.manage']);
+});
+
+test('the unit’s camp plans are listed for the authenticated unit with meetings.view', async () => {
+  permissions = ['meetings.view'];
+  expect((await call('get', '/camps?organization_id=99')).status).toBe(200);
+  expect(service.listCampPlans).toHaveBeenCalledWith(pool, UNIT_ID);
+  permissions = [];
+  const refused = await call('get', '/camps');
+  expect(refused.status).toBe(403);
+  expect(refused.body.missing).toEqual(['meetings.view']);
 });
 
 test('reading takes meetings.view, and the refusal says so', async () => {

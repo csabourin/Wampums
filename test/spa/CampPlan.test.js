@@ -26,7 +26,7 @@ jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
 jest.mock('../../spa/config.js', () => ({ CONFIG: {}, getStorageKey: (key) => key }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   hasPermission: jest.fn(() => true),
-  isDemoUser: jest.fn(() => false),
+  isDemoUser: jest.fn(() => false), hasOrganizationScope: jest.fn(() => true),
 }));
 jest.mock('../../spa/utils/DialogUtils.js', () => ({
   hasActiveDialog: () => false, confirm: jest.fn(), prompt: jest.fn(), alert: jest.fn(),
@@ -39,7 +39,7 @@ jest.mock('../../spa/api/api-yearly-planner.js', () => ({ getActivityLibrary: je
 
 const api = require('../../spa/api/api-camp-plans.js');
 const { getActivityLibrary } = require('../../spa/api/api-yearly-planner.js');
-const { hasPermission } = require('../../spa/utils/PermissionUtils.js');
+const { hasPermission, hasOrganizationScope } = require('../../spa/utils/PermissionUtils.js');
 const { confirm } = require('../../spa/utils/DialogUtils.js');
 const { CampPlan } = require('../../spa/modules/camp-plan/CampPlan.js');
 
@@ -317,6 +317,16 @@ test('a library that failed to load says so; the plan is still readable', async 
   await open();
   expect($('#camp-plan-rain [role="alert"]').textContent).toBe('camp_plan_library_failed');
   expect($('#camp-plan-form-theme')).not.toBeNull();
+});
+
+test('the way back leads to the camp overview, or to the camp plans for whoever may not open it', async () => {
+  await open();
+  expect($('#app .page').firstElementChild.querySelector('a')?.getAttribute('href') || $('#app .page').firstElementChild.getAttribute('href')).toBe('/camp-readiness/12');
+  screen.destroy();
+  hasOrganizationScope.mockReturnValue(false);
+  await open();
+  expect($('#app .page').firstElementChild.querySelector('a')?.getAttribute('href') || $('#app .page').firstElementChild.getAttribute('href')).toBe('/camp-plans');
+  hasOrganizationScope.mockReturnValue(true);
 });
 
 test('a cancelled camp is read, not written', async () => {

@@ -15,7 +15,7 @@ const { authenticate, requirePermission, requireAnyPermission, blockDemoRoles, g
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 const {
-  CampPlanError, ALL_SECTIONS, UNIT_SECTIONS, listTemplates, saveTemplate, readCampPlan, saveCampSection, saveRainGames,
+  CampPlanError, ALL_SECTIONS, UNIT_SECTIONS, listTemplates, listCampPlans, saveTemplate, readCampPlan, saveCampSection, saveRainGames,
 } = require('../services/campPlan');
 
 /** Answer known refusals with their translation key, naming the field when there is one. */
@@ -52,6 +52,14 @@ module.exports = (pool) => {
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       return success(res, await saveTemplate(pool, organizationId, req.user.id, req.params.sectionKey, req.body), 'camp_plan_saved');
+    }));
+
+  // The unit's camps and what each plan still lacks, read as each camp's plan is.
+  router.get('/camps',
+    requirePermission('meetings.view'),
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      return success(res, await listCampPlans(pool, organizationId));
     }));
 
   router.get('/camps/:meetingId',

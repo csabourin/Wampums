@@ -410,6 +410,61 @@ async function copyCampPlan(db, organizationId, actorId, targetMeetingId, source
   return { sections: sections.rowCount, rain_games: games.rowCount };
 }
 
+/** How many past camps the list of plans shows after the coming ones. */
+const PAST_CAMPS_SHOWN = 10;
+
+/**
+ * The unit's planned camps, each with what its plan still lacks: camps under
+ * way or to come first (soonest first), then the latest past ones. A cancelled
+ * camp is left out.
+ *
+ * @param {Object} db
+ * @param {number} organizationId
+ * @returns {Promise<{coming: Object[], past: Object[]}>}
+ */
+async function listCampPlans(db, organizationId) {
+  const camps = (await db.query(
+    `SELECT m.id, m.theme, m.meeting_date::text AS date_from,
+            COALESCE(a.activity_end_date, m.meeting_date)::text AS date_to,
+            COALESCE(a.activity_end_date, m.meeting_date) >= CURRENT_DATE AS coming
+       FROM year_plan_meetings m
+       LEFT JOIN activities a ON a.id = m.activity_id AND a.organization_id = m.organization_id
+      WHERE m.organization_id = $1 AND m.meeting_kind = 'camp' AND NOT m.is_cancelled
+      ORDER BY m.meeting_date, m.id`,
+    [organizationId]
+  )).rows;
+  const coming = camps.filter((camp) => camp.coming);
+  const past = camps.filter((camp) => !camp.coming).reverse().slice(0, PAST_CAMPS_SHOWN);
+  const shown = [...coming, ...past].map((camp) => camp.id);
+  if (!shown.length) {
+    return { coming: [], past: [] };
+  }
+  // Two reads for the whole list: every listed camp's sections and games, and the unit's templates once.
+  const [sections, templates] = await Promise.all([
+    db.query(
+      `SELECT m.id AS meeting_id,
+              COALESCE((SELECT json_agg(json_build_object('section_key', s.section_key, 'needs_review', s.needs_review,
+                                                          'body_html', s.body_html IS NOT NULL))
+                          FROM camp_plan_sections s WHERE s.organization_id = m.organization_id AND s.meeting_id = m.id), '[]'::json) AS rows,
+              (SELECT COUNT(*) FROM camp_plan_rain_games g WHERE g.organization_id = m.organization_id AND g.meeting_id = m.id)::int AS games
+         FROM year_plan_meetings m
+        WHERE m.organization_id = $1 AND m.id = ANY($2::int[])`,
+      [organizationId, shown]
+    ).then((result) => new Map(result.rows.map((row) => [row.meeting_id, row]))),
+    db.query('SELECT section_key AS key, body_html FROM camp_plan_templates WHERE organization_id = $1', [organizationId])
+      .then((result) => result.rows),
+  ]);
+  const withGaps = (camp) => {
+    const read = sections.get(camp.id) || { rows: [], games: 0 };
+    const gaps = planGaps(resolveSections(read.rows || [], templates), Number(read.games) || 0);
+    return {
+      id: camp.id, theme: camp.theme, date_from: camp.date_from, date_to: camp.date_to,
+      to_write: gaps.to_write.length, to_review: gaps.to_review.length,
+    };
+  };
+  return { coming: coming.map(withGaps), past: past.map(withGaps) };
+}
+
 module.exports = {
   CampPlanError,
   RULES,
@@ -424,6 +479,7 @@ module.exports = {
   saveTemplate,
   readCampPlan,
   campPlanGaps,
+  listCampPlans,
   saveCampSection,
   saveRainGames,
   copyCampPlan,

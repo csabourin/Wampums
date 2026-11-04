@@ -28,7 +28,7 @@ import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
-import { hasPermission, isDemoUser } from '../../utils/PermissionUtils.js';
+import { hasPermission, hasOrganizationScope, isDemoUser } from '../../utils/PermissionUtils.js';
 import { richTextOrPlain } from '../../utils/RichTextUtils.js';
 import { sanitizeRichText } from '../../utils/FormTextUtils.js';
 import { confirm } from '../../utils/DialogUtils.js';
@@ -78,9 +78,9 @@ export class CampPlan {
     return this.app.lang || 'fr';
   }
 
-  /** @returns {string} Back to the camp's overview */
+  /** @returns {string} Back to the camp's overview, or to the camp plans for whoever may not open it */
   backHref() {
-    return `/camp-readiness/${this.meetingId}`;
+    return hasPermission('meetings.view') && hasOrganizationScope() ? `/camp-readiness/${this.meetingId}` : '/camp-plans';
   }
 
   /** @returns {boolean} Whether the camp may still be written */

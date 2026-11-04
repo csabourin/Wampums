@@ -23,6 +23,11 @@ export function saveCampPlanTemplate(sectionKey, body) {
   return API.put(`v1/camp-plans/templates/${encodeURIComponent(sectionKey)}`, body);
 }
 
+/** @returns {Promise<Object>} The unit's camps, coming then past, with what each plan lacks */
+export function getCampPlans() {
+  return API.getNoCache('v1/camp-plans/camps');
+}
+
 /**
  * @param {number} meetingId - The planned camp
  * @returns {Promise<Object>} { camp, sections, rain_games, motivation, gaps }

@@ -569,7 +569,9 @@ are the unit's templates (`/camp-plan-templates`, `camp_plan_templates.manage`):
 unless it writes its own, and says so. Writes go through `services/campPlan.js` (rich text rebuilt,
 version-checked, camp row locked); keys are `config/camp_plan.json`. An empty section is "to write"
 in the plan and in `/camp-readiness`, never complete. Reusing a camp copies its own sections as
-drafts to reread, never the stable ones. See `devdocs/CAMP_PLAN_SECTIONS.md`.
+drafts to reread, never the stable ones. `/camp-plans` lists the unit's camps with what each plan
+lacks. See `devdocs/CAMP_PLAN_SECTIONS.md`. The dashboard's "Plan the year and the camps" section
+(`moment: 'plan'`, after "This week") gathers the long-range and camp tiles.
 
 ### Starter activities
 
