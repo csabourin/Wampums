@@ -22,7 +22,7 @@ import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { hasPermission, isDemoUser } from '../../utils/PermissionUtils.js';
 import { getCampSite, getCampSites, saveCampSite } from '../../api/api-camp-sites.js';
 import { openSiteForm } from './SiteForm.js';
-import { getCampSiteSnapshot, storeCampSiteSnapshot } from './CampSiteOffline.js';
+import { getCampSiteSnapshot, storeCampSiteSnapshot, currentCampSiteScope } from './CampSiteOffline.js';
 import { emergencyGapLabels } from './siteLabels.js';
 import styles from '../../../css/camp-sites.css?url';
 
@@ -82,6 +82,8 @@ export class CampSite {
    */
   async init({ selectSiteId = null } = {}) {
     const request = ++this.request;
+    // The account, unit and year this load is for: an answer arriving after a switch is dropped.
+    const scope = currentCampSiteScope();
     loadStylesheet(styles).catch((err) => debugError('Camp sites stylesheet failed', err));
     const options = { title: translate('camp_site_title'), backHref: this.backHref() };
     if (!this.data) {
@@ -90,7 +92,7 @@ export class CampSite {
     // Known to be offline: the copy kept on this device, never an answer the service worker
     // may hold, which would show an old page as if it could still be changed.
     if (navigator.onLine === false) {
-      if (!(await this.showOfflineCopy(request)) && !this.destroyed && request === this.request) {
+      if (!(await this.showOfflineCopy(request, scope)) && !this.isStale(request, scope)) {
         this.showError(options, translate('camp_site_not_on_device'));
       }
       return;
@@ -100,7 +102,7 @@ export class CampSite {
         getCampSite(this.meetingId),
         this.canManage ? getCampSites() : Promise.resolve(null),
       ]);
-      if (this.destroyed || request !== this.request) {
+      if (this.isStale(request, scope)) {
         return;
       }
       if (!response?.data?.camp) {
@@ -111,13 +113,13 @@ export class CampSite {
       this.offlineSince = null;
       this.render(selectSiteId);
       // Kept for the days without a network; a failure here never hides what was read.
-      storeCampSiteSnapshot(this.meetingId, response.data)
+      storeCampSiteSnapshot(this.meetingId, response.data, undefined, scope)
         .catch((err) => debugError('The camp site could not be kept on this device', err));
     } catch (err) {
-      if (this.destroyed || request !== this.request) {
+      if (this.isStale(request, scope)) {
         return;
       }
-      if (CampSite.isUnreachable(err) && await this.showOfflineCopy(request)) {
+      if (CampSite.isUnreachable(err) && await this.showOfflineCopy(request, scope)) {
         return;
       }
       debugError('Failed to load the camp site:', err);
@@ -139,16 +141,17 @@ export class CampSite {
    * Without a network, show the copy kept on this device, read-only.
    *
    * @param {number} request - The load this answers
+   * @param {string} scope - The scope captured when it started
    * @returns {Promise<boolean>} Whether a copy was shown
    */
-  async showOfflineCopy(request) {
+  async showOfflineCopy(request, scope) {
     let snapshot = null;
     try {
-      snapshot = await getCampSiteSnapshot(this.meetingId);
+      snapshot = await getCampSiteSnapshot(this.meetingId, scope);
     } catch (err) {
       debugError('The camp site kept on this device could not be read', err);
     }
-    if (this.destroyed || request !== this.request || !snapshot) {
+    if (this.isStale(request, scope) || !snapshot) {
       return false;
     }
     this.data = snapshot.data;
@@ -156,6 +159,15 @@ export class CampSite {
     this.offlineSince = snapshot.preparedAt;
     this.render();
     return true;
+  }
+
+  /**
+   * @param {number} request - The load an answer belongs to
+   * @param {string} scope - The scope captured when it started
+   * @returns {boolean} Whether the answer must be dropped: the screen was left, reloaded, or the session changed
+   */
+  isStale(request, scope) {
+    return this.destroyed || request !== this.request || scope !== currentCampSiteScope();
   }
 
   /** @returns {string} Says the page is the copy kept on this device, and from when */

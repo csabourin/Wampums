@@ -23,7 +23,7 @@ jest.mock('../../spa/modules/scout-year/ScoutYearContext.js', () => ({
   getSelectedScoutYearId: () => null,
 }));
 
-import { storeCampSiteSnapshot, getCampSiteSnapshot } from '../../spa/modules/camp-sites/CampSiteOffline.js';
+import { storeCampSiteSnapshot, getCampSiteSnapshot, currentCampSiteScope } from '../../spa/modules/camp-sites/CampSiteOffline.js';
 import { invalidateForWrite } from '../../spa/utils/CacheInvalidation.js';
 
 const CAMP_SITE = {
@@ -72,4 +72,22 @@ test('a confirmed change to the camp sites clears the copy, so a stale number is
   await invalidateForWrite('v1/camp-sites/camps/41');
 
   expect(await getCampSiteSnapshot(41)).toBeNull();
+});
+
+test('a copy read before a switch of unit is never written for the unit switched to', async () => {
+  const scope = currentCampSiteScope();
+  mockOrganizationId = 13;
+
+  await expect(storeCampSiteSnapshot(41, CAMP_SITE, undefined, scope)).rejects.toMatchObject({ name: 'AbortError' });
+  expect(await getCampSiteSnapshot(41)).toBeNull();
+  mockOrganizationId = 12;
+  expect(await getCampSiteSnapshot(41)).toBeNull();
+});
+
+test('a scope captured before a switch reads nothing once the session changed', async () => {
+  await storeCampSiteSnapshot(41, CAMP_SITE);
+  const scope = currentCampSiteScope();
+  mockUserId = 'user-2';
+
+  expect(await getCampSiteSnapshot(41, scope)).toBeNull();
 });

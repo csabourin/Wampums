@@ -1185,7 +1185,7 @@ export class OfflineManager {
       for (const pack of bulkData.campSites || []) {
         assertScope();
         // eslint-disable-next-line no-await-in-loop -- required camp snapshots must finish before readiness is recorded
-        cacheKeys.push(await storeCampSiteSnapshot(pack.meeting_id, pack.data, duration));
+        cacheKeys.push(await storeCampSiteSnapshot(pack.meeting_id, pack.data, duration, scope));
         assertScope();
       }
 

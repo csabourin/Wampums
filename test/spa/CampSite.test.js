@@ -33,9 +33,11 @@ jest.mock('../../spa/api/api-camp-sites.js', () => ({
   createCampSite: jest.fn(), updateCampSite: jest.fn(), setCampSiteArchived: jest.fn(),
 }));
 
+let mockScope = 'scope:unit-1';
 jest.mock('../../spa/modules/camp-sites/CampSiteOffline.js', () => ({
   storeCampSiteSnapshot: jest.fn(() => Promise.resolve('camp_site_snapshot_12')),
   getCampSiteSnapshot: jest.fn(() => Promise.resolve(null)),
+  currentCampSiteScope: () => mockScope,
 }));
 
 const offline = require('../../spa/modules/camp-sites/CampSiteOffline.js');
@@ -90,6 +92,7 @@ beforeEach(() => {
   hasPermission.mockReset();
   hasPermission.mockImplementation(() => true);
   offline.storeCampSiteSnapshot.mockClear();
+  mockScope = 'scope:unit-1';
   offline.getCampSiteSnapshot.mockReset();
   offline.getCampSiteSnapshot.mockResolvedValue(null);
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
@@ -327,7 +330,7 @@ describe('without a network, at camp', () => {
 
   test('opened online, the camp\'s site is kept on this device', async () => {
     await open();
-    expect(offline.storeCampSiteSnapshot).toHaveBeenCalledWith(12, expect.objectContaining({ site: SITE }));
+    expect(offline.storeCampSiteSnapshot).toHaveBeenCalledWith(12, expect.objectContaining({ site: SITE }), undefined, 'scope:unit-1');
   });
 
   test('the copy kept on this device shows the emergency numbers, read-only, and says from when', async () => {
@@ -380,6 +383,25 @@ describe('without a network, at camp', () => {
 
     expect(document.body.textContent).toContain('camp_site_not_on_device');
     expect($('#camp-site-retry')).toBeTruthy();
+  });
+
+  test('an answer that arrives after a switch of unit is neither shown nor kept', async () => {
+    let release;
+    api.getCampSite.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+    screen = new CampSite(app, { meetingId: 12 });
+    const loading = screen.init();
+    mockScope = 'scope:unit-2';
+    release({ success: true, data: campSite() });
+    await loading;
+    await flush();
+
+    expect(document.body.textContent).not.toContain('Fictional Lake Camp');
+    expect(offline.storeCampSiteSnapshot).not.toHaveBeenCalled();
+  });
+
+  test('the copy is kept under the scope the page was read in', async () => {
+    await open();
+    expect(offline.storeCampSiteSnapshot).toHaveBeenCalledWith(12, expect.any(Object), undefined, 'scope:unit-1');
   });
 
   test('a refusal from the server is never covered by the copy kept on this device', async () => {
