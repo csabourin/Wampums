@@ -1,10 +1,13 @@
 name: CI Integrity
 
+# One run per pushed commit, on every branch of this repository: a pull
+# request shows the run of its head commit, so the workflow does not also
+# run on pull_request (that would test each commit twice). Pull requests
+# from forks therefore get no run; re-add `pull_request:` to accept them.
 on:
-  pull_request:
   push:
     branches:
-      - main
+      - '**'
 
 # Every job only reads the repository.
 permissions:
