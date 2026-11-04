@@ -1600,3 +1600,18 @@ or a new day. The "At camp" shortcuts are declared in `CAMP_DAY_SHORTCUTS`
 departures, each through the tiles' visibility (gate, unit-hidden `featureKey`, person-hidden tiles;
 pages that need the network are not offered offline). Medication is promoted when a dose is near during a camp
 day or an activity under way by its dates and times. Tests: `test/spa/DashboardCampDay.test.js`.
+
+### An outing that replaces a meeting
+
+A one-day outing (not a camp) on the date of a regular or special meeting, inviting everyone, replaces
+that meeting (`services/meetingReplacement.js`). "Everyone" follows the action rosters: an outing
+without permission requests concerns the whole unit; one with permission requests replaces the
+meeting only once every active enrollment of the active scout year has received one (declined counts:
+it was received). The replacement is worked out on every read, never stored: the planner marks the
+meeting "replaced by {outing}" (`replaced_by_activity_*`) and keeps its schedule lines and tasks; the
+day programme, `GET /api/v1/meetings/next` and the action roster's `meeting_dates` skip it; activities
+carry `replaces_meeting_id` / `replaces_meeting_date`, and the dashboard follows that outing as it
+follows a camp day (points lead, the roll call is offered at any hour until taken, departure and return
+shown, only the departures shortcut). Deleting the outing asks (`DialogUtils.confirm`) whether the
+meeting comes back: yes, or a DELETE without `restore_meeting`, leaves it uncancelled; `restore_meeting=false`
+marks it cancelled in the outing's own transaction. Tests: `test/meeting-replacement.integration.test.js`.

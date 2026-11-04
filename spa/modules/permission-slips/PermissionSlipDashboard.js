@@ -34,6 +34,7 @@ import { withButtonLoading } from '../../utils/PerformanceUtils.js';
 import { QuickCreateActivityModal } from '../../modules/modals/QuickCreateActivityModal.js';
 import { openActivityFormModal } from '../../modules/activities/ActivityFormModal.js';
 import { deleteActivity } from '../../api/api-activities.js';
+import { askRestoreReplacedMeeting, deletedMessageKey } from '../activities/ActivityDeleteDialog.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
@@ -672,11 +673,16 @@ export class PermissionSlipDashboard {
       if (!(await confirmDestructive(translate('confirm_delete_activity')))) {
         return;
       }
+      // An outing that replaced a meeting asks whether the meeting comes back.
+      const restoreMeeting = await askRestoreReplacedMeeting(this.activity, this.app.lang || this.app.currentLanguage);
       withButtonLoading(trigger, async () => {
         try {
-          await deleteActivity(this.activityId);
+          const result = await deleteActivity(this.activityId, { restoreMeeting });
           await this.clearPermissionSlipCaches();
-          this.app.showMessage(translate('activity_deleted_success'), 'success');
+          this.app.showMessage(
+            translate(result?.queued ? 'activity_delete_queued' : deletedMessageKey(result?.data?.replaced_meeting)),
+            result?.queued ? 'info' : 'success'
+          );
           this.app.router.navigate('/permission-slips');
         } catch (error) {
           debugError('Error deleting activity', error);

@@ -191,6 +191,26 @@ describe('buildYearModel - outings', () => {
   });
 });
 
+describe('buildYearModel - a meeting an outing replaces', () => {
+  test('the meeting stays on the calendar, naming the outing that replaces it', () => {
+    const model = buildYearModel({
+      meetings: [meeting({ id: 12, meeting_date: '2025-11-18', replaced_by_activity_id: 77, replaced_by_activity_name: 'Musée' })],
+      activity_events: [{ id: 77, name: 'Musée', linked_meeting_id: null, start_date: '2025-11-18', end_date: '2025-11-18' }]
+    });
+
+    const chips = model.months[0].chips;
+    const replaced = chips.find((chip) => chip.meetingId === 12);
+    expect(replaced.replacedBy).toEqual({ activityId: 77, name: 'Musée' });
+    expect(replaced.isCancelled).toBe(false);
+    expect(chips.find((chip) => chip.activityId === 77 && chip.isEvent).replacedBy).toBeNull();
+  });
+
+  test('a meeting nothing replaces says nothing about it', () => {
+    const model = buildYearModel({ meetings: [meeting()], activity_events: [] });
+    expect(model.months[0].chips[0].replacedBy).toBeNull();
+  });
+});
+
 describe('buildYearModel - period bands', () => {
   const periods = [
     { id: 1, title: 'Decouverte', settings: { color: '#123456' } },

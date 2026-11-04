@@ -18,6 +18,7 @@ const { validateDate, validateDateOptional, checkValidation } = require('../midd
 const { getMeetingSectionConfig } = require('../utils/meeting-sections');
 const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');
 const { durationToMinutes, getProgrammeForDate } = require('../services/meetingProgramme');
+const { findReplacedMeetings } = require('../services/meetingReplacement');
 const {
   CatalogError,
   readMaterialItems,
@@ -30,6 +31,8 @@ const UNPROCESSED_MEETINGS_LIMIT = 10;
 const HTTP_BAD_REQUEST = 400;
 /** Length of the date part of an ISO 8601 value (YYYY-MM-DD). */
 const ISO_DATE_LENGTH = 10;
+// Upcoming dates read when looking for the next meeting an outing does not replace.
+const NEXT_MEETING_CANDIDATES = 8;
 
 // Reading a meeting's plan: whoever prepares meetings, and the leaders who run
 // them (the same people the SPA shows the upcoming-meeting screen to).
@@ -465,19 +468,27 @@ module.exports = (pool, logger) => {
       const organizationId = await getOrganizationId(req, pool);
       const today = formatLocalDate(new Date());
 
+      // A meeting an outing replaces is not the next meeting; a few dates are
+      // read so that the following one answers.
       const result = await pool.query(
         `${MEETING_SELECT}
          WHERE m.organization_id = $1 AND m.meeting_date >= $2 AND NOT m.is_cancelled
          ORDER BY m.meeting_date ASC
-         LIMIT 1`,
-        [organizationId, today]
+         LIMIT $3`,
+        [organizationId, today, NEXT_MEETING_CANDIDATES]
       );
 
-      if (result.rows.length === 0) {
+      const dates = result.rows.map((row) => String(row.meeting_date).slice(0, ISO_DATE_LENGTH));
+      const replaced = dates.length
+        ? new Set((await findReplacedMeetings(pool, organizationId, dates[0], dates[dates.length - 1]))
+          .map((row) => row.meeting_date))
+        : new Set();
+      const nextDate = dates.find((date) => !replaced.has(date));
+      if (!nextDate) {
         return success(res, null, 'No upcoming meetings found');
       }
 
-      const meeting = await loadMeetingByDate(organizationId, result.rows[0].meeting_date);
+      const meeting = await loadMeetingByDate(organizationId, nextDate);
       return success(res, meeting);
     })
   );

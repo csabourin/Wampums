@@ -13,7 +13,7 @@ import { parseDate, isoToDateString } from '../../utils/DateUtils.js';
 import { debounce } from '../../utils/PerformanceUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { openActivityFormModal } from './ActivityFormModal.js';
-import { confirmActivityDeletion } from './ActivityDeleteDialog.js';
+import { confirmActivityDeletion, deletedMessageKey } from './ActivityDeleteDialog.js';
 import {
   formatActivityDateRange,
   getActivityEndDateObj,
@@ -301,7 +301,10 @@ export class Activities extends BaseModule {
       // Captured before the dialog: currentTarget is cleared once dispatch ends
       const button = e.currentTarget;
       const activityId = parseInt(button.dataset.activityId, 10);
-      const choice = await confirmActivityDeletion(this.activities.find((a) => a.id === activityId));
+      const choice = await confirmActivityDeletion(
+        this.activities.find((a) => a.id === activityId),
+        this.app.lang || this.app.currentLanguage,
+      );
       if (choice) {
         setButtonLoading(button, true);
         try {
@@ -370,13 +373,13 @@ export class Activities extends BaseModule {
     });
   }
 
-  async deleteActivity(activityId, { notify = false } = {}) {
+  async deleteActivity(activityId, { notify = false, restoreMeeting = true } = {}) {
     try {
-      const result = await deleteActivity(activityId, { notify });
+      const result = await deleteActivity(activityId, { notify, restoreMeeting });
       await clearActivityRelatedCaches();
       // Offline, the deletion (and its emails) is only queued: say so
       this.app.showMessage(
-        translate(result?.queued ? 'activity_delete_queued' : 'activity_deleted_success'),
+        translate(result?.queued ? 'activity_delete_queued' : deletedMessageKey(result?.data?.replaced_meeting)),
         result?.queued ? 'info' : 'success'
       );
       await this.loadActivities(true);

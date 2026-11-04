@@ -115,6 +115,7 @@ export function renderDateChip(chip, options = {}) {
   const classes = ['yp-chip', `yp-chip--${chip.kind}`];
   if (chip.isPrepared) { classes.push('is-prepared'); }
   if (chip.isCancelled) { classes.push('is-cancelled'); }
+  if (chip.replacedBy) { classes.push('is-replaced'); }
   if (chip.isPast) { classes.push('is-past'); }
   if (chip.isToday) { classes.push('is-today'); }
   if (chip.isEvent) { classes.push('yp-chip--event'); }
@@ -169,6 +170,11 @@ export function renderDateChip(chip, options = {}) {
 function renderChipBadges(chip) {
   const badges = [];
 
+  if (chip.replacedBy) {
+    badges.push(`<span class="yp-badge yp-badge--replaced">
+      <i class="fas fa-route" aria-hidden="true"></i>${escapeHTML(translate('yearly_planner_replaced_short'))}
+    </span>`);
+  }
   if (chip.spanDays > 1) {
     badges.push(`<span class="yp-badge yp-badge--days">${chip.spanDays}&nbsp;j</span>`);
   }
@@ -219,6 +225,9 @@ export function describeChip(chip, lang = 'fr') {
   }
   if (chip.isCancelled) {
     parts.push(translate('yearly_planner_cancelled'));
+  }
+  if (chip.replacedBy) {
+    parts.push(translate('yearly_planner_replaced_by').replace('{outing}', () => chip.replacedBy.name));
   }
   if (chip.theme) {
     parts.push(chip.theme);

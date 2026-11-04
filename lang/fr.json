@@ -5535,5 +5535,18 @@
   "dashboard_camp_shortcut_readiness": "Préparation du camp",
   "dashboard_camp_shortcut_site": "Lieu et urgences",
   "dashboard_camp_shortcut_lots": "Mes lots de matériel",
-  "dashboard_camp_shortcut_departure": "Départ d’un jeune"
+  "dashboard_camp_shortcut_departure": "Départ d’un jeune",
+  "activity_delete_restore_meeting_title": "Rétablir la réunion ?",
+  "activity_delete_restore_meeting_message": "Cette sortie remplaçait la réunion du {date}. Remettre cette réunion au calendrier, avec ce qui avait été préparé ?",
+  "activity_delete_restore_meeting_yes": "Rétablir la réunion",
+  "activity_delete_restore_meeting_no": "La garder annulée",
+  "activity_deleted_meeting_restored": "Activité supprimée. La réunion qu’elle remplaçait est de retour au calendrier.",
+  "activity_deleted_meeting_cancelled": "Activité supprimée. La réunion qu’elle remplaçait reste annulée.",
+  "yearly_planner_replaced_by": "Remplacée par {outing}.",
+  "yearly_planner_replaced_short": "Remplacée",
+  "yearly_planner_replaced_kept": "Son horaire et ses tâches sont conservés.",
+  "dashboard_outing_day_label": "{outing} — sortie du jour",
+  "dashboard_outing_departure": "Départ :",
+  "dashboard_outing_return": "Retour :",
+  "dashboard_outing_section": "En sortie"
 }
