@@ -16,6 +16,7 @@ const MS_PER_DAY = 86400000;
 /**
  * @typedef {Object} CampDay
  * @property {string} title - The day's title, else the camp's theme or name ('' when none)
+ * @property {string} campName - The camp activity's own name, '' when unknown (a day title is not one)
  * @property {number} dayNumber - 1 on the first day
  * @property {number} dayCount - Days the camp lasts
  * @property {?number} meetingId - The planned camp, when the year plan schedules it
@@ -61,6 +62,7 @@ export function campDayFromProgramme(programme, today) {
   const dayNumber = Number(programme.day_number) || 1;
   return {
     title: String(programme.title || ''),
+    campName: '',
     dayNumber,
     dayCount: Math.max(Number(programme.day_count) || 1, dayNumber),
     meetingId: Number(programme.meeting_id) > 0 ? Number(programme.meeting_id) : null,
@@ -90,6 +92,7 @@ export function campDayFromActivities(activities, today) {
   const meetingId = Number(found.activity.linked_year_plan_meeting_id);
   return {
     title: String(found.activity.name || ''),
+    campName: String(found.activity.name || ''),
     dayNumber: daysBetween(found.start, today) + 1,
     dayCount: daysBetween(found.start, found.end) + 1,
     meetingId: meetingId > 0 ? meetingId : null,
@@ -112,5 +115,7 @@ export function mergeCampDays(fromProgramme, fromActivities) {
   }
   const sameCamp = fromActivities
     && (!fromActivities.meetingId || fromActivities.meetingId === fromProgramme.meetingId);
-  return sameCamp ? { ...fromProgramme, activityId: fromActivities.activityId } : fromProgramme;
+  return sameCamp
+    ? { ...fromProgramme, activityId: fromActivities.activityId, campName: fromActivities.campName }
+    : fromProgramme;
 }

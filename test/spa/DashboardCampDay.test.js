@@ -512,3 +512,17 @@ test('a camp shortcut follows the unit\'s hidden features and the person\'s hidd
   expect(campShortcuts()).not.toContain('/attendance');
   dashboard.destroy();
 });
+
+test('a dose named after the camp is promoted on a day whose schedule has its own title', async () => {
+  atTime(9, 30);
+  getDayProgramme.mockResolvedValue({ data: campProgramme({ title: 'La piste du loup' }) });
+  getMedicationDistributions.mockResolvedValue({
+    data: { distributions: [{
+      scheduled_for: new Date(2026, 6, 14, 10, 0).toISOString(), status: 'scheduled', activity_name: 'Camp d’automne',
+    }] },
+  });
+  const dashboard = await openDashboard();
+
+  expect(primaryAction().getAttribute('href')).toBe('/medication-dispensing');
+  dashboard.destroy();
+});

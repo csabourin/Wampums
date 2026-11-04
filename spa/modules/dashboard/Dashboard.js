@@ -936,7 +936,8 @@ export class Dashboard extends BaseModule {
   _shouldPromoteMedicationAction(distributions = [], activities = []) {
     const now = new Date();
     const activeActivity = this._getActiveMedicationActivity(activities, now)
-      || (this.campDay ? { name: this.campDay.title } : null)
+      // The camp's own name, never a day's title: unknown, every dose near counts.
+      || (this.campDay ? { name: this.campDay.campName } : null)
       || this._getActivePreparedCampActivity();
 
     if (!activeActivity) {return false;}
