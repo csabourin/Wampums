@@ -33,6 +33,8 @@ const HTTP_BAD_REQUEST = 400;
 const ISO_DATE_LENGTH = 10;
 // Upcoming dates read when looking for the next meeting an outing does not replace.
 const NEXT_MEETING_CANDIDATES = 8;
+// Windows of candidates read at most before giving up on finding one nothing replaces.
+const MAX_NEXT_MEETING_LOOKAHEAD = 1000;
 
 // Reading a meeting's plan: whoever prepares meetings, and the leaders who run
 // them (the same people the SPA shows the upcoming-meeting screen to).
@@ -469,32 +471,26 @@ module.exports = (pool, logger) => {
       const today = formatLocalDate(new Date());
 
       // A meeting an outing replaces is not the next meeting. Consecutive
-      // replacements may exceed the first candidate window, so keep walking the
-      // upcoming dates until the first non-replaced one appears.
-      const MAX_NEXT_MEETING_LOOKAHEAD = 1000;
+      // replacements may exceed one window of candidates, so the following
+      // windows are read until a meeting nothing replaces appears.
       const lookAhead = async (startDate, remaining) => {
         const result = await pool.query(
-         `${MEETING_SELECT}
+          `${MEETING_SELECT}
            WHERE m.organization_id = $1 AND m.meeting_date >= $2::date AND NOT m.is_cancelled
            ORDER BY m.meeting_date ASC
            LIMIT $3`,
-         [organizationId, startDate, NEXT_MEETING_CANDIDATES]
+          [organizationId, startDate, NEXT_MEETING_CANDIDATES]
         );
         if (result.rows.length === 0) {
-         return null;
+          return null;
         }
-
         const dates = result.rows.map((row) => String(row.meeting_date).slice(0, ISO_DATE_LENGTH));
         const replaced = new Set((await findReplacedMeetings(pool, organizationId, dates[0], dates[dates.length - 1]))
-         .map((row) => row.meeting_date));
+          .map((row) => row.meeting_date));
         const candidate = dates.find((date) => !replaced.has(date));
-        if (candidate) {
-         return candidate;
+        if (candidate || remaining <= 1) {
+          return candidate || null;
         }
-        if (remaining <= 1) {
-         return null;
-        }
-
         const nextDay = new Date(`${dates[dates.length - 1]}T00:00:00Z`);
         nextDay.setUTCDate(nextDay.getUTCDate() + 1);
         return lookAhead(nextDay.toISOString().slice(0, ISO_DATE_LENGTH), remaining - 1);

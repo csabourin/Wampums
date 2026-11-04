@@ -17,6 +17,10 @@ const { readRichTextField } = require('../utils/richText');
 const { CampDateError, isTooLong, alignPlannedDate, assertMovable, planCamp, unplanCamp } = require('../services/campDates');
 const { findMeetingReplacedBy, findReplacedMeetings, cancelReplacedMeeting } = require('../services/meetingReplacement');
 const { buildActivitiesCalendar, buildICalFilename } = require('../utils/activityCalendar');
+const { formatLocalDate } = require('../utils/meeting-defaults');
+
+/** Length of the date part of an ISO 8601 value (YYYY-MM-DD). */
+const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
 
 module.exports = (pool) => {
   /** Creation retry metadata stays on the server. */
@@ -98,12 +102,10 @@ module.exports = (pool) => {
     // Each outing that replaces a meeting says so, for the calendar and the day's screens.
     // Limit the replacement scan to the date span covered by the activities we just loaded;
     // a unit with many meetings should not trigger a full-range lookup for every screen read.
-    const activityDates = result.rows.flatMap((row) => {
-      const candidates = [row.activity_start_date, row.activity_end_date, row.activity_date];
-      return candidates
-        .filter((value) => value !== null && value !== undefined)
-        .map((value) => String(value).slice(0, 10));
-    });
+    // pg reads a DATE as a local-midnight Date: its local calendar day is the stored one.
+    const activityDates = result.rows.flatMap((row) => [row.activity_start_date, row.activity_end_date, row.activity_date])
+      .filter((value) => value !== null && value !== undefined)
+      .map((value) => (value instanceof Date ? formatLocalDate(value) : String(value).slice(0, ISO_DATE_LENGTH)));
     const replacements = activityDates.length
       ? await findReplacedMeetings(
         pool,
