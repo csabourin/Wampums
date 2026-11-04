@@ -72,6 +72,8 @@ export const CONFIG = {
     'volunteer-shifts',
     // An emergency number must be the current one, never a later replay.
     'camp-sites',
+    // Each plan section names the version it replaces; a later replay could undo a colleague's text.
+    'camp-plans',
   ],
   /**
      * Cache Duration Settings

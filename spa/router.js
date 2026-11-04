@@ -144,6 +144,8 @@ const lazyModules = {
   CampMaterialList: () => import('./modules/camp-material/CampMaterialList.js').then(m => m.CampMaterialList),
   CampSites: () => import('./modules/camp-sites/CampSites.js').then(m => m.CampSites),
   CampSite: () => import('./modules/camp-sites/CampSite.js').then(m => m.CampSite),
+  CampPlan: () => import('./modules/camp-plan/CampPlan.js').then(m => m.CampPlan),
+  CampPlanTemplates: () => import('./modules/camp-plan/CampPlanTemplates.js').then(m => m.CampPlanTemplates),
   ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
   AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink),
   ReactivationLink: () => import('./modules/reactivation/ReactivationLink.js').then(m => m.ReactivationLink),
@@ -270,6 +272,8 @@ const routes = {
   '/camp-material/:id': 'campMaterial',
   '/camp-sites': 'campSites',
   '/camp-site/:id': 'campSite',
+  '/camp-plan/:id': 'campPlan',
+  '/camp-plan-templates': 'campPlanTemplates',
   '/unit-settings': 'unitSettings',
   '/scout-year': 'scoutYear'
 
@@ -850,6 +854,22 @@ export class Router {
           if (!guard(hasPermission('meetings.view'))) {break;}
           const CampSite = await this.loadModule('CampSite');
           this.currentModuleInstance = new CampSite(this.app, { meetingId: Number(param) });
+          await this.currentModuleInstance.init();
+          break;
+        }
+        case 'campPlan': {
+          // A camp's written plan is read with meetings.view, as its schedule is; writing takes meetings.manage.
+          if (!guard(hasPermission('meetings.view'))) {break;}
+          const CampPlan = await this.loadModule('CampPlan');
+          this.currentModuleInstance = new CampPlan(this.app, { meetingId: Number(param) });
+          await this.currentModuleInstance.init();
+          break;
+        }
+        case 'campPlanTemplates': {
+          // The page writes the unit's templates, which takes camp_plan_templates.manage.
+          if (!guard(hasPermission('camp_plan_templates.manage'))) {break;}
+          const CampPlanTemplates = await this.loadModule('CampPlanTemplates');
+          this.currentModuleInstance = new CampPlanTemplates(this.app);
           await this.currentModuleInstance.init();
           break;
         }

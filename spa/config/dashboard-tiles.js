@@ -323,6 +323,16 @@ export const DASHBOARD_TILES = [
     gate: { permission: 'meetings.view' },
   },
   {
+    featureKey: 'camp_plan_templates',
+    href: '/camp-plan-templates',
+    icon: 'fa-file-signature',
+    label: 'tile_camp_plan_templates',
+    aliases: 'tile_camp_plan_templates_aliases',
+    moment: 'tools',
+    domain: 'logistics',
+    gate: { permission: 'camp_plan_templates.manage' },
+  },
+  {
     featureKey: 'equipment_loans',
     href: '/equipment-loans',
     icon: 'fa-people-carry-box',

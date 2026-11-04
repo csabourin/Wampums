@@ -21,6 +21,7 @@ import { CAMP_LOTS } from '../../config/camp-lots.js';
 import { getCampReadiness, getActivityCampReadiness } from '../../api/api-camp-readiness.js';
 import { shiftName } from '../../utils/VolunteerTypeUtils.js';
 import { emergencyGapLabels } from '../camp-sites/siteLabels.js';
+import { planSectionLabel, planPartOf } from '../camp-plan/planLabels.js';
 import styles from '../../../css/camp-readiness.css?url';
 
 export const READINESS_LABELS = {
@@ -34,7 +35,7 @@ export const READINESS_LABELS = {
 
 /** Standings that still call for reserving, borrowing or buying; an article outside the inventory has neither. */
 const MATERIAL_TO_DO = ['available', 'missing', 'unavailable', 'not_in_inventory'];
-const SECTION_ORDER = ['site', 'permissions', 'material', 'lots', 'volunteers', 'tasks'];
+const SECTION_ORDER = ['site', 'plan', 'permissions', 'material', 'lots', 'volunteers', 'tasks'];
 /** A consent deadline is an instant; its calendar date is its first YYYY-MM-DD characters. */
 const ISO_DATE_LENGTH = 10;
 
@@ -113,6 +114,16 @@ export class CampReadiness {
       return section.gaps.length
         ? { attention: true, text: translate('camp_readiness_left_site_gaps').replace('{count}', this.count(section.gaps.length)) }
         : { attention: false, text: translate('camp_readiness_left_site_done') };
+    }
+    if (key === 'plan') {
+      // A section with nothing to show is still to write; a copied one, to reread.
+      const toWrite = section.to_write?.length || 0;
+      const toReview = section.to_review?.length || 0;
+      if (!toWrite && !toReview) { return { attention: false, text: translate('camp_readiness_left_plan_done') }; }
+      const parts = [];
+      if (toWrite) { parts.push(translate('camp_readiness_left_plan').replace('{count}', this.count(toWrite))); }
+      if (toReview) { parts.push(translate('camp_readiness_left_plan_review').replace('{count}', this.count(toReview))); }
+      return { attention: true, text: parts.join(' · ') };
     }
     if (key === 'permissions') {
       if (!recorded(section)) { return { text: translate('camp_readiness_left_none'), attention: true }; }
@@ -213,6 +224,17 @@ export class CampReadiness {
         chip: translate(gaps.length ? 'camp_site_emergency_incomplete' : 'camp_site_emergency_complete'),
         detail: gaps.length ? `${translate('camp_site_emergency_missing')} ${gaps.join(', ')}` : '',
       }) : '', siteHref);
+    }
+    if (sections.plan) {
+      const planHref = `/camp-plan/${meetingId}`;
+      const toWrite = sections.plan.to_write || [];
+      const toReview = sections.plan.to_review || [];
+      const rows = [
+        // Each row opens the part of the plan that holds its section.
+        ...toWrite.map((key) => this.row({ title: planSectionLabel(key), href: `${planHref}?part=${planPartOf(key)}`, chip: translate('camp_plan_state_to_write') })),
+        ...toReview.map((key) => this.row({ title: planSectionLabel(key), href: `${planHref}?part=${planPartOf(key)}`, chip: translate('camp_plan_state_to_review') })),
+      ];
+      body += this.section('plan', (rows.length ? rows : [this.row({ title: translate('camp_plan_all_written'), href: planHref })]).join(''), planHref);
     }
     if (sections.permissions) {
       body += this.section('permissions', sections.permissions.map((row) => this.row({

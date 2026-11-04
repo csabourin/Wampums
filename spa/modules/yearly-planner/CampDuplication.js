@@ -1,6 +1,6 @@
 /**
  * Reuse an earlier camp: pick it, tick what to bring over (site, schedule,
- * personal packing list, equipment lots, tasks), and see what was copied. Dates follow
+ * personal packing list, equipment lots, tasks, written plan sections), and see what was copied. Dates follow
  * the new camp; nothing that belonged to the earlier stay or to a person comes
  * along (#1256). Each part is offered only when it can be copied, and says why
  * when it cannot.
@@ -295,12 +295,19 @@ export class CampDuplication {
     if ('tasks' in copied) {
       lines.push(fill('camp_duplicate_result_tasks', { count: Number(copied.tasks) || 0 }));
     }
+    if ('plan_sections' in copied) {
+      lines.push(fill('camp_duplicate_result_plan', {
+        count: Number(copied.plan_sections) || 0,
+        games: Number(copied.rain_games) || 0,
+      }));
+    }
     const skipped = Array.isArray(result.skipped_lots) ? result.skipped_lots : [];
     const reassigned = Number(result.reassigned_tasks) || 0;
     setContent(body, `
       <h3 id="yp-camp-duplicate-result" tabindex="-1">${escapeHTML(translate('camp_duplicate_done'))}</h3>
       <ul>${lines.map((line) => `<li>${escapeHTML(line)}</li>`).join('')}</ul>
       ${'packing_items' in copied ? `<p>${escapeHTML(translate('camp_duplicate_packing_draft'))}</p>` : ''}
+      ${'plan_sections' in copied ? `<p>${escapeHTML(translate('camp_duplicate_plan_draft'))}</p>` : ''}
       ${skipped.length ? `
         <div class="status-message warning">
           <p>${escapeHTML(translate('camp_duplicate_lots_skipped'))}</p>

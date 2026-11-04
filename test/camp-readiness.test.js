@@ -1,5 +1,7 @@
 jest.mock('../services/campMaterialList', () => ({ buildCampMaterialList: jest.fn() }));
 jest.mock('../services/campEquipmentLots', () => ({ listLots: jest.fn() }));
+jest.mock('../services/campPlan', () => ({ campPlanGaps: jest.fn() }));
+const { campPlanGaps } = require('../services/campPlan');
 const { buildCampMaterialList } = require('../services/campMaterialList');
 const { listLots } = require('../services/campEquipmentLots');
 const { campReadiness } = require('../services/campReadiness');
@@ -10,10 +12,11 @@ beforeEach(() => {
   db.query.mockResolvedValueOnce({ rows: [{ id: 3, theme: 'Fictional camp', activity_id: 8 }] });
   buildCampMaterialList.mockResolvedValue({ items: [], free_text: [], inventory_compared: false });
   listLots.mockResolvedValue([]);
+  campPlanGaps.mockResolvedValue({ to_write: ['theme', 'rain_games'], to_review: [], rain_games: 0 });
 });
 test('a minimal team member gets material and the site without inventory quantities, duties or consent details', async () => {
   const result = await campReadiness(db, 7, 3, {});
-  expect(Object.keys(result.sections).sort()).toEqual(['material', 'site']);
+  expect(Object.keys(result.sections).sort()).toEqual(['material', 'plan', 'site']);
   expect(buildCampMaterialList).toHaveBeenCalledWith(db, 7, 3, { withInventory: undefined });
   expect(listLots).not.toHaveBeenCalled(); expect(db.query).toHaveBeenCalledTimes(2);
 });
@@ -30,6 +33,11 @@ test('a chosen site lists what its emergency information still lacks', async () 
   const result = await campReadiness(db, 7, 3, {});
   expect(result.sections.site).toEqual({ site: { id: 5, name: 'Fictional lake', archived: false }, gaps: ['hospital_phone', 'directions_url'] });
 });
+test('what the camp plan still lacks is listed for the camp, never read as written', async () => {
+  const result = await campReadiness(db, 7, 3, {});
+  expect(campPlanGaps).toHaveBeenCalledWith(db, 7, 3);
+  expect(result.sections.plan).toEqual({ to_write: ['theme', 'rain_games'], to_review: [], rain_games: 0 });
+});
 test('a foreign camp or a regular meeting has no preparation overview', async () => {
   db.query.mockReset().mockResolvedValue({ rows: [] });
   expect(await campReadiness(db, 7, 3, {})).toBeNull();
@@ -38,7 +46,7 @@ test('a foreign camp or a regular meeting has no preparation overview', async ()
 });
 test('authorized sections use only this unit and this camp or its linked outing', async () => {
   const result = await campReadiness(db, 7, 3, { inventory: true, lots: true, tasks: true, permissions: true });
-  expect(Object.keys(result.sections).sort()).toEqual(['lots', 'material', 'permissions', 'site', 'tasks']);
+  expect(Object.keys(result.sections).sort()).toEqual(['lots', 'material', 'permissions', 'plan', 'site', 'tasks']);
   expect(listLots).toHaveBeenCalledWith(db, 7, 3);
   expect(db.query).toHaveBeenCalledWith(expect.stringContaining('t.organization_id = $1'), [7, 3, 8]);
   expect(db.query).toHaveBeenCalledWith(expect.stringContaining('FROM permission_slips'), [7, 8]);

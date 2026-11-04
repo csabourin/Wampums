@@ -1,0 +1,21 @@
+{
+  "VCPREF_SECTIONS": [
+    "vcpref_wanted",
+    "vcpref_chosen",
+    "vcpref_prepared",
+    "vcpref_realized",
+    "vcpref_evaluated",
+    "vcpref_celebrated"
+  ],
+  "STORY_SECTIONS": [
+    "theme",
+    "motivation"
+  ],
+  "UNIT_SECTIONS": [
+    "rules_of_life",
+    "camp_rules",
+    "code_of_ethics",
+    "emergency_procedures"
+  ],
+  "RAIN_GAMES_MAX": 20
+}

@@ -13,6 +13,7 @@ and copies it into the camp being prepared.
 | `packing_list` | The personal packing list's settings, notes, active items and translations | Copied **unpublished and unreviewed**; families see nothing until the team publishes it. An item's link to an archived article is dropped, its text kept. |
 | `lots` | Each equipment lot, its articles and duties | State `to_prepare`, version 1, one `created` history entry. An article missing from the new camp's material list is left out; no lot takes more than the list holds; a lot left with nothing is reported in `skipped_lots`. Duties fall on the new camp's first day (return: last day). |
 | `tasks` | The camp's own tasks, on its date or its activity, and their material reminders | Status `todo`; due date shifted by the number of days between the two camps' starts; a reminder waits to be sent again. Lot duties travel with their lot, not here. |
+| `plan` | The camp's own written plan sections (#1318: V.C.P.R.E.F., theme, motivation) and its games for bad weather still in the library | Sections copied as drafts to reread. Rules and emergency sections are not copied: the new camp follows the unit's current templates. |
 
 Nothing that belonged to the earlier stay or to a person is copied: registrations, invitations,
 authorizations, attendance, family packing checks (they never reach the server), lot and task
@@ -30,7 +31,7 @@ answer counts them in `reassigned_tasks` and the dialog asks to reassign them.
   (`blockDemoRoles`). Each part takes the rights its own screen requires
   (`config/camp_duplication.json`, read by the server and the SPA): `meetings.manage` always (enough for the site and the schedule), plus
   `personal_equipment.manage` for the packing list, `camp_lots.view` + `camp_lots.manage` +
-  `tasks.manage` for lots, `tasks.view` + `tasks.manage` for tasks. A missing right answers 403 with
+  `tasks.manage` for lots, `tasks.view` + `tasks.manage` for tasks; the plan needs `meetings.manage` only. A missing right answers 403 with
   `required` and `missing`.
 - Every part chosen is copied in one transaction (`services/campDuplication.js`), or none is. The
   target camp's row is locked first, so two leaders copying at once produce one copy.

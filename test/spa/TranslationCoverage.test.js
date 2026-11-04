@@ -281,3 +281,19 @@ test('every equipment lot state, duty and transition has labels in both language
   ];
   expect(missing(uses)).toEqual([]);
 });
+
+test('every camp plan section, group and duplication part has its labels in both languages', () => {
+  const rules = require('../../config/camp_plan.json');
+  const duplication = require('../../config/camp_duplication.json');
+  const sections = [...rules.VCPREF_SECTIONS, ...rules.STORY_SECTIONS, ...rules.UNIT_SECTIONS, 'rain_games'];
+  const uses = [
+    ...sections.flatMap((key) => [[`camp_plan_section_${key}`, 'camp plan sections'], [`camp_plan_help_${key}`, 'camp plan help']]),
+    ...['vcpref', 'story', 'unit'].flatMap((group) => [[`camp_plan_group_${group}`, 'CampPlan'], [`camp_plan_group_${group}_intro`, 'CampPlan']]),
+    ...duplication.PARTS.flatMap((part) => [[`camp_duplicate_part_${part}`, 'CampDuplication'], [`camp_duplicate_count_${part}`, 'CampDuplication'],
+      [`camp_duplicate_reason_filled_${part}`, 'CampDuplication']]),
+    ['camp_readiness_plan', 'CampReadiness'],
+    ['role_category_camp_plan', 'role matrix category'],
+  ];
+  expect(sections).toHaveLength(13);
+  expect(missing(uses)).toEqual([]);
+});

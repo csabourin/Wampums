@@ -4,7 +4,8 @@
     "schedule",
     "packing_list",
     "lots",
-    "tasks"
+    "tasks",
+    "plan"
   ],
   "PART_PERMISSIONS": {
     "site": [],
@@ -20,7 +21,8 @@
     "tasks": [
       "tasks.view",
       "tasks.manage"
-    ]
+    ],
+    "plan": []
   },
   "BASE_PERMISSION": "meetings.manage",
   "ORGANIZATION_SCOPE_PARTS": [
