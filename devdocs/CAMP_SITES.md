@@ -42,3 +42,17 @@ once and chosen for each camp.
 Tests: `test/camp-sites.integration.test.js`, `test/routes-camp-sites.test.js`,
 `test/spa/CampSites.test.js`, `test/spa/CampSite.test.js`, and both screens in
 `e2e/accessibility.spec.mjs` (seeded site: `campSiteId`).
+
+## Rules summary
+
+The binding rules for this area, formerly in CLAUDE.md.
+
+`/camp-sites` (`meetings.view`; editing takes `camp_sites.manage`, migration 070) lists the places a
+unit camps at, with what the camp permit asks: owner, accommodation, heating, the site's insurance,
+nearest hospital, poison centre, directions. Sites are archived, never deleted, and hold no personal
+data. `/camp-site/:id` chooses a planned camp's site, season, accommodation, unit lead on site (an
+active member) and the number families call (`camp_details`, `meetings.manage`, version-checked,
+camp row locked). Writes go through `services/campSites.js`; allowed values are
+`config/camp_sites.json`, shared with the SPA. `/camp-readiness` lists the emergency information
+still missing; a new packing list starts from the camp's season and accommodation; reusing a camp
+copies its site but not its lead. See `devdocs/CAMP_SITES.md`.

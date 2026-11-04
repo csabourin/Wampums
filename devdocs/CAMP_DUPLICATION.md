@@ -44,3 +44,17 @@ answer counts them in `reassigned_tasks` and the dialog asks to reassign them.
 Tests: `test/camp-duplication.integration.test.js` (the copy on a real database),
 `test/routes-camp-duplication.test.js` (who may copy what), `test/spa/CampDuplication.test.js`
 (the dialog, with axe and keyboard checks).
+
+## Rules summary
+
+The binding rules for this area, formerly in CLAUDE.md.
+
+The camp schedule offers "Reuse an earlier camp" (`services/campDuplication.js`,
+`POST /api/v1/yearly-planner/meetings/:id/duplicate`). It copies the parts chosen (site, schedule
+after day zero, personal packing list, equipment lots, the camp's own tasks) in one transaction, with the
+target camp locked; a part already filled in the target is refused, never merged. Dates shift by the
+gap between the two camps; lots return to `to_prepare`, tasks to `todo`, the packing list to an
+unpublished draft. Nothing personal is copied (registrations, authorizations, checks, progress,
+volunteer signups). Each part takes its own screen's rights (`config/camp_duplication.json`, shared
+with the SPA); a duty held by someone no longer active goes to the person copying. See
+`devdocs/CAMP_DUPLICATION.md`.

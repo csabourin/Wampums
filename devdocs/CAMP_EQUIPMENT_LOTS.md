@@ -121,3 +121,30 @@ outbox lock and cross-tab broadcasts still own replay.
   `npm run build`; run `npx playwright test --config playwright.offline.config.mjs`.
   CI runs it separately from the development-server accessibility suite and retains
   fictional phone/desktop previews as `camp-lots-previews`.
+
+## Rules summary
+
+The binding rules for this area, formerly in CLAUDE.md.
+
+`/camp-lots/:id` requires `camp_lots.view`; editing additionally requires
+`camp_lots.manage` and `tasks.manage`. `/my-camp-lots/:id` requires only `tasks.view`
+and filters to the caller's assigned duties. The camp schedule and material list
+open the unit page; shared tasks link to the matching lot page instead of editing
+lot-owned tasks independently. Responsibilities, quantities and state history use
+`services/campEquipmentLots.js` and shared rules in `config/camp_equipment_lots.json`.
+
+Opening the page online prepares its minimal lot snapshot, scoped by account,
+unit and selected scout year. Readiness requires the real worker's assets and shell,
+not just a flag. A full camp preparation also carries permission-filtered lot packs.
+Creating/editing lots requires a connection; only state changes may enter the shared
+outbox, and only with a valid prepared snapshot. `CampLotOffline.js` owns those
+checks and pending overlays. Pending states never enter confirmed history.
+
+The receipt id in the body and `Idempotency-Key` are identical from the first
+attempt. A subsequent pending change names `previous_mutation_id`; the server
+requires that receipt's committed lot/version before accepting it, so a refused
+load cannot be bypassed by a later return. Expected versions, membership and duty
+ownership are rechecked on replay. A successful replay updates the retained snapshot
+even with its screen closed; refusals clear only that camp's snapshots and announce
+`sync.rejected_kind_camp_lots`. See `devdocs/CAMP_EQUIPMENT_LOTS.md` and the real-PWA
+browser suite (`playwright.offline.config.mjs`).
