@@ -50,3 +50,16 @@ test('updating an existing revenue still returns the saved amount', async () => 
   expect(res.status).toBe(200);
   expect(res.body.data).toMatchObject({ id: 4, organization_id: UNIT, amount: 25 });
 });
+
+test.each([null, ''])('clearing a category with %s is passed as an explicit null update', async (value) => {
+  expect((await update({ budget_category_id: value })).status).toBe(200);
+  const [, params] = pool.query.mock.calls.find(([sql]) => sql.includes('UPDATE budget_revenues'));
+  expect(params[0]).toBeNull();
+  expect(params[11]).toBe(true);
+});
+
+test('omitting optional fields does not request their removal', async () => {
+  expect((await update({ amount: 30 })).status).toBe(200);
+  const [, params] = pool.query.mock.calls.find(([sql]) => sql.includes('UPDATE budget_revenues'));
+  expect(params.slice(11)).toEqual([false, false, false, false, false]);
+});
