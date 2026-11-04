@@ -13,7 +13,7 @@ or a new day. The "At camp" shortcuts are declared in `CAMP_DAY_SHORTCUTS`
 (`spa/config/dashboard-tiles.js`): readiness, site and emergencies, the caller's equipment lots and
 departures, each through the tiles' visibility (gate, unit-hidden `featureKey`, person-hidden tiles;
 pages that need the network are not offered offline). Medication is promoted when a dose is near during a camp
-day or an activity under way by its dates and times. Tests: `test/spa/DashboardCampDay.test.js`.
+day or an activity under way by its dates and times. Tests: `test/spa/DashboardCampDay.test.js`, and in a real browser `e2e/accessibility.spec.mjs` ("the leaders' dashboard at camp and on an outing", on the seeded autumn camp's first evening, `campStartDate`).
 
 An outing that replaces today's meeting is followed the same way, with the differences listed in
 `MEETING_REPLACEMENT.md`.

@@ -62,8 +62,8 @@ export function seededProgrammeDate() {
 /**
  * A record seed.mjs creates so a detail screen opens with content.
  *
- * @param {'fundraiserId'|'yearPlanId'|'messageId'|'incidentId'|'slipToken'} key - Its name in seed.json
- * @returns {number|string} Its id, or the slip's link token
+ * @param {'fundraiserId'|'yearPlanId'|'messageId'|'incidentId'|'slipToken'|'campStartDate'|'replacedMeetingDate'|string} key - Its name in seed.json
+ * @returns {number|string} Its id, the slip's link token, or a date (YYYY-MM-DD)
  */
 export function seededRecord(key) {
   const value = readSeed()[key];

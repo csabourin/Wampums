@@ -47,7 +47,8 @@ every migration through the project's own runner. `seed.mjs` adds one unit with:
 | `parent@run.test` | `Wampums2026!` | parent role (`linked` scope) with the real parent permissions; guardian of one child enrolled this year; standard forms installed |
 
 It also holds one outing ("Sortie canot", a month away) with a slip pending
-Marie's signature for Léa. Two-factor sign-in is off for this unit only.
+Marie's signature for Léa, an autumn camp that began three days ago (`campStartDate`), and a
+meeting in five days that a museum outing replaces (`replacedMeetingDate`). Two-factor sign-in is off for this unit only.
 `seed.json` (with the outing's `activityId`) is written to the cache for
 `start.sh`.
 

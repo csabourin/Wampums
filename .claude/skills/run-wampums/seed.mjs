@@ -461,6 +461,27 @@ try {
     [organizationId, driverShiftId, adminId, cookShiftId]
   );
   await pool.query('UPDATE activities SET is_camp = TRUE WHERE id = $1', [campId]);
+  // The autumn camp's first day, for the dashboard at camp: a browser check sets the page
+  // clock inside its schedule (devdocs/CAMP_DAY_DASHBOARD.md).
+  const campStartDate = await one('SELECT (CURRENT_DATE - 3)::text AS id');
+
+  // A meeting in five days that a museum outing with every youth replaces (no permission
+  // requests: the whole unit), for the planner's "replaced" mark and the dashboard on the
+  // outing's day (devdocs/MEETING_REPLACEMENT.md).
+  const replacedMeetingDate = await one('SELECT (CURRENT_DATE + 5)::text AS id');
+  await pool.query(
+    `INSERT INTO year_plan_meetings (organization_id, year_plan_id, meeting_date, meeting_kind, theme, start_time)
+     VALUES ($1, $2, $3, 'regular', 'Les étoiles', '18:45')`,
+    [organizationId, yearPlanId, replacedMeetingDate]
+  );
+  await pool.query(
+    `INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+                             meeting_time_going, departure_time_going, activity_start_date, activity_start_time,
+                             activity_end_date, activity_end_time, meeting_location_return, meeting_time_return)
+     VALUES ($1, $2, 'Sortie au musée', $3, 'Local scout', '08:45', '09:00', $3, '09:00', $3, '16:00',
+             'Local scout', '16:30')`,
+    [organizationId, adminId, replacedMeetingDate]
+  );
 
   const seed = {
     organizationId,
@@ -473,6 +494,8 @@ try {
     yearPlanId,
     campMeetingId,
     winterCampId,
+    campStartDate,
+    replacedMeetingDate,
     campLotId: campLot.id,
     campLotArticleId: tentArticle.id,
     campSiteId: campSite.id,
