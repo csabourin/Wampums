@@ -194,3 +194,26 @@ test('the site comes first: a camp with no site says so, and a site lists what i
   expect(row.textContent).toContain('camp_site_hospital_phone');
   expect(document.querySelector('.camp-readiness__left li').textContent).toContain('camp_readiness_left_site_gaps');
 });
+test('written plan sections still to write or reread are part of what is left, each linking to the plan', async () => {
+  const payload = data();
+  payload.sections.plan = { to_write: ['rain_games', 'theme'], to_review: ['vcpref_wanted'], rain_games: 0 };
+  getCampReadiness.mockResolvedValue({ data: payload });
+  await screen.init();
+  const line = [...document.querySelectorAll('.camp-readiness__left li')].find((li) => li.querySelector('a[href="#camp-readiness-plan"]'));
+  expect(line.classList.contains('is-attention')).toBe(true);
+  expect(line.textContent).toContain('camp_readiness_left_plan');
+  expect(line.textContent).toContain('camp_readiness_left_plan_review');
+  const rows = [...document.querySelectorAll('#camp-readiness-plan .camp-readiness__row')];
+  expect(rows.map((row) => row.querySelector('a').textContent)).toEqual(['camp_plan_section_rain_games', 'camp_plan_section_theme', 'camp_plan_section_vcpref_wanted']);
+  // Each row opens the part of the plan holding its section.
+  expect(rows.map((row) => row.querySelector('a').getAttribute('href'))).toEqual(['/camp-plan/3?part=rain', '/camp-plan/3?part=story', '/camp-plan/3?part=vcpref']);
+  expect(rows[0].textContent).toContain('camp_plan_state_to_write');
+  expect(rows[2].textContent).toContain('camp_plan_state_to_review');
+
+  payload.sections.plan = { to_write: [], to_review: [], rain_games: 2 };
+  getCampReadiness.mockResolvedValue({ data: payload });
+  await screen.init();
+  const done = [...document.querySelectorAll('.camp-readiness__left li')].find((li) => li.querySelector('a[href="#camp-readiness-plan"]'));
+  expect(done.classList.contains('is-clear')).toBe(true);
+  expect(document.querySelector('#camp-readiness-plan a[href="/camp-plan/3"]').textContent).toBe('camp_plan_all_written');
+});

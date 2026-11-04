@@ -3,6 +3,7 @@ const { buildCampMaterialList } = require('./campMaterialList');
 const { listLots } = require('./campEquipmentLots');
 const { shiftsForActivity } = require('./volunteerShifts');
 const { emergencyGaps } = require('./campSites');
+const { campPlanGaps } = require('./campPlan');
 
 /**
  * Tasks, consent and volunteer shifts: what a planned camp and a camp recorded only as an activity share.
@@ -63,6 +64,8 @@ async function campReadiness(db, organizationId, meetingId, allowed) {
     const site = data.rows[0] || null;
     sections.site = { site: site && { id: site.id, name: site.name, archived: site.archived }, gaps: emergencyGaps(site) };
   }));
+  // The plan's written sections and bad-weather games still to write (#1318).
+  reads.push(campPlanGaps(db, organizationId, meetingId).then((data) => { sections.plan = data; }));
   reads.push(...eventReads(db, organizationId, camp, allowed, sections));
   await Promise.all(reads);
   return { camp, sections };

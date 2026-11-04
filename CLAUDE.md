@@ -560,6 +560,17 @@ camp row locked). Writes go through `services/campSites.js`; allowed values are
 still missing; a new packing list starts from the camp's season and accommodation; reusing a camp
 copies its site but not its lead. See `devdocs/CAMP_SITES.md`.
 
+### Camp plan written sections
+
+`/camp-plan/:id` (`meetings.view`; writing takes `meetings.manage`) holds what the camp permit asks
+the team to write (migration 071): V.C.P.R.E.F., theme, motivation, and the games kept for bad weather
+from the unit's activity library. Rules of life, camp rules, code of ethics and emergency procedures
+are the unit's templates (`/camp-plan-templates`, `camp_plan_templates.manage`): a camp follows them
+unless it writes its own, and says so. Writes go through `services/campPlan.js` (rich text rebuilt,
+version-checked, camp row locked); keys are `config/camp_plan.json`. An empty section is "to write"
+in the plan and in `/camp-readiness`, never complete. Reusing a camp copies its own sections as
+drafts to reread, never the stable ones. See `devdocs/CAMP_PLAN_SECTIONS.md`.
+
 ### Starter activities
 
 `config/activity_library_starter.json` is the reviewed bilingual catalogue; only

@@ -1,7 +1,8 @@
 'use strict';
 /**
  * Duplicating an earlier camp (#1256): its site (#1317), schedule, personal
- * packing list, equipment lots and shared tasks, with dates shifted to the new camp.
+ * packing list, equipment lots, shared tasks and written plan sections (#1318),
+ * with dates shifted to the new camp.
  *
  * Only what the team prepared is copied. Nothing that belongs to the earlier
  * stay or to a person is: no lot or task progress, history, reminder delivery,
@@ -15,6 +16,7 @@ const transaction = require('../utils/transaction');
 const { copyActivityMaterialItems } = require('./equipmentCatalog');
 const { buildCampMaterialList } = require('./campMaterialList');
 const { saveTaskInTransaction } = require('./activityTasks');
+const { CAMP_SECTIONS, copyCampPlan } = require('./campPlan');
 
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
@@ -114,7 +116,13 @@ async function campsWithContent(db, organizationId, ids = null) {
               WHERE t.organization_id = m.organization_id
                 AND (t.meeting_id = m.id OR (m.activity_id IS NOT NULL AND t.activity_id = m.activity_id))
                 AND NOT EXISTS (SELECT 1 FROM camp_equipment_lot_roles r
-                                 WHERE r.organization_id = t.organization_id AND r.task_id = t.id))::integer AS tasks
+                                 WHERE r.organization_id = t.organization_id AND r.task_id = t.id))::integer AS tasks,
+            -- The camp's own plan sections and bad-weather games; stable sections follow the unit's templates.
+            ((SELECT COUNT(*) FROM camp_plan_sections ps
+               WHERE ps.organization_id = m.organization_id AND ps.meeting_id = m.id AND ps.section_key = ANY($3::text[])
+                 AND ps.body_html IS NOT NULL)
+             + (SELECT COUNT(*) FROM camp_plan_rain_games pg
+               WHERE pg.organization_id = m.organization_id AND pg.meeting_id = m.id))::integer AS plan
        FROM year_plan_meetings m
        LEFT JOIN activities act
               ON act.id = m.activity_id
@@ -123,7 +131,7 @@ async function campsWithContent(db, organizationId, ids = null) {
       WHERE m.organization_id = $1 AND m.meeting_kind = 'camp'
         AND ($2::int[] IS NULL OR m.id = ANY($2::int[]))
       ORDER BY m.meeting_date DESC, m.id DESC`,
-    [organizationId, ids]
+    [organizationId, ids, CAMP_SECTIONS]
   );
   return result.rows.map((row) => ({
     ...row,
@@ -544,6 +552,11 @@ function duplicateCamp(pool, { organizationId, actorId }, targetId, sourceId, pa
       const copied = await copyTasks(db, organizationId, actorId, target, source, offsetDays);
       result.copied.tasks = copied.copied;
       result.reassigned_tasks += copied.reassigned;
+    }
+    if (parts.includes('plan')) {
+      const copied = await copyCampPlan(db, organizationId, actorId, targetId, sourceId);
+      result.copied.plan_sections = copied.sections;
+      result.copied.rain_games = copied.rain_games;
     }
     return result;
   });

@@ -369,6 +369,31 @@ try {
     camp_site_id: campSite.id, season: 'autumn', accommodation: 'tent', on_site_lead_id: adminId, expected_version: 0,
   });
 
+  // Its written plan (#1318): two unit templates, a camp of its own rules, a theme, one step
+  // of the V.C.P.R.E.F. and a bad-weather game, so the plan shows every state, gaps included.
+  const campPlan = require(path.join(ROOT, 'services/campPlan.js'));
+  await campPlan.saveTemplate(pool, organizationId, adminId, 'rules_of_life', {
+    body_html: '<p>On se respecte, on s’écoute, on prend soin du matériel.</p>', expected_version: 0,
+  });
+  await campPlan.saveTemplate(pool, organizationId, adminId, 'emergency_procedures', {
+    body_html: '<ul><li>Signal de rassemblement : trois coups de sifflet.</li><li>Trousse de premiers soins vérifiée chaque matin.</li></ul>',
+    expected_version: 0,
+  });
+  await campPlan.saveCampSection(pool, organizationId, adminId, campMeetingId, 'theme', {
+    body_html: '<p>Les explorateurs de la forêt <strong>fictive</strong> cherchent la carte perdue, un indice par soir.</p>',
+    expected_version: 0,
+  });
+  await campPlan.saveCampSection(pool, organizationId, adminId, campMeetingId, 'vcpref_wanted', {
+    body_html: '<p>Les jeunes ont voté pour un camp en forêt au conseil de septembre.</p>', expected_version: 0,
+  });
+  await campPlan.saveCampSection(pool, organizationId, adminId, campMeetingId, 'camp_rules', {
+    body_html: '<p>On reste à la vue d’un animateur près du lac.</p>', expected_version: 0,
+  });
+  const rainGameId = await one('SELECT id FROM activity_library WHERE organization_id = $1 AND is_active ORDER BY id LIMIT 1', [organizationId]);
+  if (rainGameId) {
+    await campPlan.saveRainGames(pool, organizationId, adminId, campMeetingId, { activity_library_ids: [rainGameId] });
+  }
+
   // A camp in ten days, recorded as an activity marked as a camp, with volunteer shifts:
   // cooks (one place still open), a driver (filled), and camp aides, whose place stays to
   // verify until a background check and training are recorded.

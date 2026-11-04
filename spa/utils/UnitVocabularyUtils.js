@@ -75,6 +75,7 @@ const VOCABULARY_TEMPLATE_KEYS = Object.freeze({
   group_has_members_warning: 'vocabulary_group_has_members_warning',
   no_groups_found: 'vocabulary_no_groups_found',
   remove_group: 'vocabulary_remove_group',
+  camp_plan_motivation_honor: 'vocabulary_camp_plan_motivation_honor',
 });
 
 /** The branch of every unit created before a branch could be chosen. */
