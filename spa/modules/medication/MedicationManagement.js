@@ -27,6 +27,7 @@ import {
 } from '../../api/api-endpoints.js';
 import { buildApiCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { offlineManager } from '../OfflineManager.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
@@ -38,6 +39,8 @@ import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
  */
 /** Matches the `maxlength` of the medication name field. */
 const MEDICATION_NAME_MAX_LENGTH = 200;
+/** The server's answer for a dose already given, by this device or another. */
+const HTTP_CONFLICT = 409;
 
 export class MedicationManagement {
   constructor(app, options = {}) {
@@ -2389,7 +2392,10 @@ export class MedicationManagement {
     const witness = witnessInput?.value?.trim() || this.getDefaultWitness();
     const administeredAt = new Date().toISOString();
     const updateKey = `mark-given-${slotKey}-${Date.now()}`;
+    const previousDistributions = JSON.parse(JSON.stringify(this.distributions));
 
+    // A batch nothing of which was recorded is rolled back and explained by rollbackFn; the
+    // rejection that follows has nothing left to tell anyone.
     await this.optimisticManager.execute(updateKey, {
       optimisticFn: () => {
         const rollbackState = {
@@ -2412,31 +2418,69 @@ export class MedicationManagement {
       },
 
       apiFn: async () => {
-        const results = await Promise.all(
+        // Each dose is its own write (#1342): one failing never takes back the ones the server
+        // recorded. A dose someone else already gave counts as given, not as a failure.
+        const settled = await Promise.allSettled(
           distributionIds.map((id) => markMedicationDistributionAsGiven(id, {
             status: 'given',
             administered_at: administeredAt,
             witness_name: witness
           }))
         );
-
-        // Check if any were queued for offline sync
-        const anyQueued = results.some((r) => r?.queued);
-        if (anyQueued) {
-          await this.persistDistributionsCache();
-          return { queued: true };
+        const isGivenElsewhere = (reason) => reason?.status === HTTP_CONFLICT
+          || reason?.message?.includes('already been given');
+        const failed = [];
+        let firstError = null;
+        let givenElsewhere = 0;
+        settled.forEach((outcome, index) => {
+          if (outcome.status === 'fulfilled') {
+            return;
+          }
+          if (isGivenElsewhere(outcome.reason)) {
+            givenElsewhere += 1;
+            return;
+          }
+          failed.push(distributionIds[index]);
+          firstError = firstError || outcome.reason;
+        });
+        // Nothing was recorded: restoring the whole list is exact.
+        if (failed.length === distributionIds.length) {
+          throw firstError;
         }
-
-        return results;
+        const queued = settled.some((outcome) => outcome.status === 'fulfilled' && outcome.value?.queued);
+        if (queued) {
+          await this.persistDistributionsCache();
+        }
+        return { queued, failed, firstError, givenElsewhere, recorded: distributionIds.length - failed.length };
       },
 
       successFn: async (response) => {
-        if (response?.queued) {
+        if (response.failed.length) {
+          // Only the doses the server refused go back to "to give"; the recorded ones stay given.
+          const refused = new Set(response.failed);
+          const before = new Map(previousDistributions.map((dist) => [dist.id, dist]));
+          this.distributions = this.distributions.map((dist) => (refused.has(dist.id) && before.has(dist.id) ? before.get(dist.id) : dist));
+          this.renderAlertArea();
+          this.updateUpcomingTable();
+          this.updateSplitCards();
+          this.attachEventListeners();
+          const count = new Intl.NumberFormat(localeForLanguage(this.app.lang || 'en'));
+          this.app.showMessage(translate('medication_mark_given_partial')
+            .replace('{recorded}', count.format(response.recorded))
+            .replace('{failed}', count.format(response.failed.length))
+            .replace('{reason}', apiErrorMessage(response.firstError, 'error_saving')), 'error');
+        } else if (response.queued) {
           this.app.showMessage(translate('medication_offline_dose_queued'), 'info');
+        } else if (response.givenElsewhere === distributionIds.length) {
+          this.app.showMessage(translate('medication_dose_already_given'), 'info');
+        } else {
+          this.app.showMessage(translate('medication_mark_given_success'), 'success');
+        }
+        if (response.queued) {
+          // Sent once the connection returns: reloading now would show the doses not yet given.
           return;
         }
-
-        this.app.showMessage(translate('medication_mark_given_success'), 'success');
+        // Reload what the server recorded (forced refresh inside refreshData).
         await this.invalidateCaches();
         await this.refreshData(true);
         this.renderAlertArea();
@@ -2469,7 +2513,7 @@ export class MedicationManagement {
       onCommitError: () => {
         this.app.showMessage(translate('error_loading_data'), 'error');
       }
-    });
+    }).catch((err) => debugError('Medication batch not recorded', err));
   }
 
   startAlertTicker() {

@@ -5608,5 +5608,6 @@
   "camp_roster_team_role_invalid": "Choisissez un rôle au camp.",
   "camp_roster_member_not_found": "Cette personne n'est pas membre actif de l'équipe de l'unité.",
   "camp_site_offline_copy": "Pas de connexion : voici la copie gardée sur cet appareil le {when}. La modifier demande une connexion.",
-  "camp_site_not_on_device": "Pas de connexion, et le lieu de ce camp n’est pas gardé sur cet appareil. Ouvrez-le une fois avec du réseau, ou préparez le camp hors ligne."
+  "camp_site_not_on_device": "Pas de connexion, et le lieu de ce camp n’est pas gardé sur cet appareil. Ouvrez-le une fois avec du réseau, ou préparez le camp hors ligne.",
+  "medication_mark_given_partial": "Doses enregistrées : {recorded}. Non enregistrées : {failed}. {reason}"
 }
