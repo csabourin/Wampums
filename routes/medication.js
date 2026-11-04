@@ -13,11 +13,28 @@ const {
 const { areUnitLeaders } = require('../services/unitLeaders');
 const { getActivityParticipation } = require('../services/activityInvitations');
 const { declaresMedication, medicationText } = require('../utils/health-form');
+const { isCalendarDate } = require('../utils/calendar-date');
 
 const MEDICATION_READ_PERMISSIONS = ['medication.view'];
 const MEDICATION_MANAGE_PERMISSIONS = ['medication.manage'];
 
 const validateStatus = (status) => ['scheduled', 'given', 'missed', 'cancelled'].includes(status);
+
+/**
+ * Read a medication instant only when the caller supplies its UTC offset.
+ * Never infer the server's time zone or let Date roll an impossible day forward.
+ * @param {unknown} value ISO date/time with Z or a signed HH:mm offset
+ * @returns {Date|null} The instant, or null for an ambiguous or invalid value
+ */
+function parseMedicationInstant(value) {
+  if (typeof value !== 'string'
+      || !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)
+      || !isCalendarDate(value.split('T')[0])) {
+    return null;
+  }
+  const instant = new Date(value);
+  return Number.isNaN(instant.getTime()) ? null : instant;
+}
 
 const parseParticipantIds = (participantIds) => {
   if (!Array.isArray(participantIds)) {
@@ -462,7 +479,7 @@ module.exports = (pool, logger) => {
 
     const requirementId = Number.parseInt(medication_requirement_id, 10);
     const participants = parseParticipantIds(participant_ids);
-    const scheduledDate = new Date(scheduled_for);
+    const scheduledDate = parseMedicationInstant(scheduled_for);
 
     if (!Number.isInteger(requirementId) || requirementId <= 0) {
       return error(res, 'A valid medication requirement is required', 400);
@@ -472,8 +489,8 @@ module.exports = (pool, logger) => {
       return error(res, 'Exactly one participant must be scheduled per distribution', 400);
     }
 
-    if (Number.isNaN(scheduledDate.getTime())) {
-      return error(res, 'Scheduled time must be a valid date/time', 400);
+    if (!scheduledDate) {
+      return error(res, 'Scheduled time must be a valid ISO date/time with Z or an explicit UTC offset', 400);
     }
 
     const numericDoseAmount = dose_amount !== undefined && dose_amount !== null ? Number(dose_amount) : null;
@@ -599,16 +616,17 @@ module.exports = (pool, logger) => {
 
     const distributionId = Number(req.params.id);
 
-    const { status, administered_at, witness_name } = req.body || {};
+    const { status, administered_at: administeredAt, witness_name } = req.body || {};
     const normalizedStatus = status ? String(status).toLowerCase() : 'scheduled';
 
     if (!validateStatus(normalizedStatus)) {
       return error(res, 'Invalid status value', 400);
     }
 
-    const administeredAtDate = administered_at ? new Date(administered_at) : null;
-    if (administeredAtDate && Number.isNaN(administeredAtDate.getTime())) {
-      return error(res, 'administered_at must be a valid date', 400);
+    const hasAdministeredAt = administeredAt !== undefined && administeredAt !== null;
+    const administeredAtDate = hasAdministeredAt ? parseMedicationInstant(administeredAt) : null;
+    if (hasAdministeredAt && !administeredAtDate) {
+      return error(res, 'administered_at must be a valid ISO date/time with Z or an explicit UTC offset', 400);
     }
 
     // Prevent duplicate dose: if this distribution is already marked as given, reject the update

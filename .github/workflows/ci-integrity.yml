@@ -174,7 +174,7 @@ jobs:
           nohup npx vite preview --host 127.0.0.1 --port 4173 --strictPort > "$HOME/.cache/wampums-run/logs/preview.log" 2>&1 &
           timeout 60 bash -c 'until curl -sf http://127.0.0.1:4173/ >/dev/null; do sleep 1; done'
 
-      - name: Test offline camp lots in the built PWA
+      - name: Test offline camp lots and camp sites in the built PWA
         run: npx playwright test --config playwright.offline.config.mjs
 
       - name: Upload camp preparation previews

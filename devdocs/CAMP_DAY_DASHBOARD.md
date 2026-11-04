@@ -17,3 +17,5 @@ day or an activity under way by its dates and times. Tests: `test/spa/DashboardC
 
 An outing that replaces today's meeting is followed the same way, with the differences listed in
 `MEETING_REPLACEMENT.md`.
+
+The site and emergencies shortcut stays offered offline: that page is kept on the device (`devdocs/CAMP_SITES.md`).

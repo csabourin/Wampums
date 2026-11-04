@@ -79,11 +79,14 @@ describe.skipIf(!DATABASE_URL)('Camp sites', () => {
     app.use('/api/v1/yearly-planner', require('../routes/yearlyPlanner')(pool, { error: jest.fn(), info: jest.fn(), warn: jest.fn() }));
     app.use('/api/v1/camp-readiness', require('../routes/camp-readiness')(pool));
     app.use('/api/v1/personal-equipment', require('../routes/personal-equipment')(pool));
+    app.use('/api/v1/offline', require('../routes/offline')(pool, { error: jest.fn(), info: jest.fn(), warn: jest.fn() }));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
   });
 
   afterAll(async () => {
     if (!pool) {return;}
+    // Preparing a camp for offline use opens the unit's active scout year.
+    await pool.query('DELETE FROM scout_years WHERE organization_id = ANY($1::int[])', [units]);
     await pool.query('DELETE FROM organizations WHERE id = ANY($1::int[])', [units]);
     await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [users]);
     await pool.end();
@@ -190,6 +193,29 @@ describe.skipIf(!DATABASE_URL)('Camp sites', () => {
       expect(response.body.errors[0].path).toBe(field);
     }
     expect(await one('SELECT COUNT(*)::int FROM camp_details WHERE meeting_id = $1', [meeting])).toBe(0);
+  });
+
+  test('preparing a camp for offline use carries its site and emergency numbers, to those who may read them', async () => {
+    const site = await addSite({ ...LAKE, name: 'Fictional Offline Site' });
+    const meeting = await camp(ids.unit, '2027-08-06', '2027-08-08');
+    await call('put', `/camps/${meeting}`).send({ camp_site_id: site.id, contact_phone: '555-0177', expected_version: 0 });
+    const outing = await one('SELECT activity_id FROM year_plan_meetings WHERE id = $1', [meeting]);
+    const reader = await member(ids.unit, ['activities.view', 'meetings.view'], 'Offline Reader Fiction');
+    const notReader = await member(ids.unit, ['activities.view'], 'Offline Other Fiction');
+    const prepare = (user) => request(app).post('/api/v1/offline/prepare-activity').set(auth(user))
+      .send({ activity_id: outing, start_date: '2027-08-06', end_date: '2027-08-08' });
+
+    const allowed = await prepare(reader);
+    expect(allowed.status).toBe(200);
+    expect(allowed.body.data.campSites).toHaveLength(1);
+    const [pack] = allowed.body.data.campSites;
+    expect(pack.meeting_id).toBe(meeting);
+    expect(pack.data.site).toMatchObject({ name: 'Fictional Offline Site', hospital_phone: '555-0199', poison_centre_phone: '1-800-463-5060' });
+    expect(pack.data.details.contact_phone).toBe('555-0177');
+    // Who a manager may choose as lead is never sent to a device for offline use.
+    expect(pack.data.members).toBeUndefined();
+
+    expect((await prepare(notReader)).body.data.campSites).toEqual([]);
   });
 
   test('archiving a site keeps it on the camps that chose it', async () => {

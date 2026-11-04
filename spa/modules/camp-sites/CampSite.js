@@ -22,6 +22,7 @@ import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { hasPermission, isDemoUser } from '../../utils/PermissionUtils.js';
 import { getCampSite, getCampSites, saveCampSite } from '../../api/api-camp-sites.js';
 import { openSiteForm } from './SiteForm.js';
+import { getCampSiteSnapshot, storeCampSiteSnapshot, currentCampSiteScope } from './CampSiteOffline.js';
 import { emergencyGapLabels } from './siteLabels.js';
 import styles from '../../../css/camp-sites.css?url';
 
@@ -43,6 +44,16 @@ export class CampSite {
     this.canManageSites = hasPermission('camp_sites.manage') && !isDemoUser();
     this.destroyed = false;
     this.request = 0;
+    // When the screen shows the copy kept on this device: when that copy was made.
+    this.offlineSince = null;
+  }
+
+  /**
+   * @param {Error} err - A failed read
+   * @returns {boolean} Whether it failed for want of a network, not because the server refused
+   */
+  static isUnreachable(err) {
+    return navigator.onLine === false || err?.isNetworkError === true || err?.data?.offline === true;
   }
 
   destroy() {
@@ -71,17 +82,27 @@ export class CampSite {
    */
   async init({ selectSiteId = null } = {}) {
     const request = ++this.request;
+    // The account, unit and year this load is for: an answer arriving after a switch is dropped.
+    const scope = currentCampSiteScope();
     loadStylesheet(styles).catch((err) => debugError('Camp sites stylesheet failed', err));
     const options = { title: translate('camp_site_title'), backHref: this.backHref() };
     if (!this.data) {
       setContent(this.root(), pageLoadingMarkup(options));
+    }
+    // Known to be offline: the copy kept on this device, never an answer the service worker
+    // may hold, which would show an old page as if it could still be changed.
+    if (navigator.onLine === false) {
+      if (!(await this.showOfflineCopy(request, scope)) && !this.isStale(request, scope)) {
+        this.showError(options, translate('camp_site_not_on_device'));
+      }
+      return;
     }
     try {
       const [response, sites] = await Promise.all([
         getCampSite(this.meetingId),
         this.canManage ? getCampSites() : Promise.resolve(null),
       ]);
-      if (this.destroyed || request !== this.request) {
+      if (this.isStale(request, scope)) {
         return;
       }
       if (!response?.data?.camp) {
@@ -89,15 +110,78 @@ export class CampSite {
       }
       this.data = response.data;
       this.sites = Array.isArray(sites?.data) ? sites.data : [];
+      this.offlineSince = null;
       this.render(selectSiteId);
+      // Kept for the days without a network; a failure here never hides what was read.
+      storeCampSiteSnapshot(this.meetingId, response.data, undefined, scope)
+        .catch((err) => debugError('The camp site could not be kept on this device', err));
     } catch (err) {
-      if (this.destroyed || request !== this.request) {
+      if (this.isStale(request, scope)) {
+        return;
+      }
+      if (CampSite.isUnreachable(err) && (await this.showOfflineCopy(request, scope) || this.isStale(request, scope))) {
         return;
       }
       debugError('Failed to load the camp site:', err);
-      setContent(this.root(), pageErrorMarkup({ ...options, message: apiErrorMessage(err, 'camp_site_load_failed'), retryId: 'camp-site-retry' }));
-      this.root().querySelector('#camp-site-retry')?.addEventListener('click', () => this.init());
+      // Unreachable with no copy kept here: say so, rather than a failure the server made.
+      this.showError(options, CampSite.isUnreachable(err) ? translate('camp_site_not_on_device') : apiErrorMessage(err, 'camp_site_load_failed'));
     }
+  }
+
+  /**
+   * @param {Object} options - The page's title and back link
+   * @param {string} message - What went wrong, translated
+   */
+  showError(options, message) {
+    setContent(this.root(), pageErrorMarkup({ ...options, message, retryId: 'camp-site-retry' }));
+    this.root().querySelector('#camp-site-retry')?.addEventListener('click', () => this.init());
+  }
+
+  /**
+   * Without a network, show the copy kept on this device, read-only.
+   *
+   * @param {number} request - The load this answers
+   * @param {string} scope - The scope captured when it started
+   * @returns {Promise<boolean>} Whether a copy was shown
+   */
+  async showOfflineCopy(request, scope) {
+    let snapshot = null;
+    try {
+      snapshot = await getCampSiteSnapshot(this.meetingId, scope);
+    } catch (err) {
+      debugError('The camp site kept on this device could not be read', err);
+    }
+    if (this.isStale(request, scope) || !snapshot) {
+      return false;
+    }
+    this.data = snapshot.data;
+    this.sites = [];
+    this.offlineSince = snapshot.preparedAt;
+    this.render();
+    return true;
+  }
+
+  /**
+   * @param {number} request - The load an answer belongs to
+   * @param {string} scope - The scope captured when it started
+   * @returns {boolean} Whether the answer must be dropped: the screen was left, reloaded, or the session changed
+   */
+  isStale(request, scope) {
+    return this.destroyed || request !== this.request || scope !== currentCampSiteScope();
+  }
+
+  /** @returns {string} Says the page is the copy kept on this device, and from when */
+  offlineNotice() {
+    const since = new Intl.DateTimeFormat(localeForLanguage(this.lang()), { dateStyle: 'medium', timeStyle: 'short' })
+      .format(new Date(this.offlineSince));
+    return `<p class="status-message info camp-site__offline" role="status">${escapeHTML(
+      translate('camp_site_offline_copy').replace('{when}', () => since),
+    )}</p>`;
+  }
+
+  /** @returns {boolean} Whether the choices and site may be changed from this page now */
+  editable() {
+    return this.offlineSince === null;
   }
 
   /** @returns {string} A select of allowed values, with an empty first choice */
@@ -241,7 +325,7 @@ export class CampSite {
           ${this.fact('camp_site_other_numbers', site.other_emergency_numbers)}
         </dl>
         ${links ? `<h3>${escapeHTML(translate('camp_site_section_directions'))}</h3><ul class="camp-site__links">${links}</ul>` : ''}
-        ${this.canManageSites ? `<button type="button" class="button button--secondary" id="camp-site-edit">${escapeHTML(translate('camp_site_edit'))}</button>` : ''}
+        ${this.canManageSites && this.editable() ? `<button type="button" class="button button--secondary" id="camp-site-edit">${escapeHTML(translate('camp_site_edit'))}</button>` : ''}
       </section>`;
   }
 
@@ -256,8 +340,9 @@ export class CampSite {
         ${renderBackLink(this.backHref())}
         <h1>${escapeHTML(translate('camp_site_title'))}</h1>
         <p class="camp-site__camp"><strong>${escapeHTML(camp.theme || translate('camp_readiness_camp'))}</strong> <span>${escapeHTML(dates)}</span></p>
+        ${this.offlineSince !== null ? this.offlineNotice() : ''}
         ${camp.is_cancelled ? `<p role="status">${escapeHTML(translate('camp_readiness_cancelled'))}</p>` : ''}
-        ${this.canManage && !camp.is_cancelled ? this.formMarkup(selectSiteId) : ''}
+        ${this.canManage && this.editable() && !camp.is_cancelled ? this.formMarkup(selectSiteId) : ''}
         ${this.siteMarkup()}
       </section>`);
     this.wire();

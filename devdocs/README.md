@@ -9,6 +9,7 @@ This directory contains durable material that is not better expressed by code, t
 - [`../readme.md`](../readme.md) — setup, commands, project map, and source-of-truth order
 - [`../.claude/skills/run-wampums/SKILL.md`](../.claude/skills/run-wampums/SKILL.md) — run, seed and screenshot the app locally
 - [`FAMILY_ACCESS.md`](./FAMILY_ACCESS.md) — invitations, parent onboarding, family links, and who can see which child
+- [`MEDICATION_TIMESTAMPS.md`](./MEDICATION_TIMESTAMPS.md) — explicit UTC offsets for scheduled and administered doses, including legacy mobile callers
 - [`EMAIL_SENDER.md`](./EMAIL_SENDER.md) — a unit's email sender name, From and Reply-To, and the DNS that keeps them from being marked as spoofed
 - [`ACTIVITY_LIBRARY.md`](./ACTIVITY_LIBRARY.md) — starter activity fields, bilingual editorial review, specialist references and withdrawn entries
 - [`oas-catalog-pipeline.md`](./oas-catalog-pipeline.md) — versioned bilingual program catalog workflow

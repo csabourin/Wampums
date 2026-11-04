@@ -5606,5 +5606,7 @@
   "camp_roster_camp_cancelled": "This camp is cancelled: its team can no longer be changed.",
   "camp_roster_invalid": "The camp team could not be read.",
   "camp_roster_team_role_invalid": "Choose a role at camp.",
-  "camp_roster_member_not_found": "This person is not an active member of the unit's team."
+  "camp_roster_member_not_found": "This person is not an active member of the unit's team.",
+  "camp_site_offline_copy": "No connection: this is the copy kept on this device on {when}. Changing it needs a connection.",
+  "camp_site_not_on_device": "No connection, and this camp's site is not kept on this device. Open it once with a connection, or prepare the camp for offline use."
 }
