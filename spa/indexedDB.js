@@ -1,6 +1,7 @@
 import { debugLog, debugError, debugWarn } from './utils/DebugUtils.js';
 import { buildApiCacheKey, buildScopedCacheKey, normalizeApiPath } from './utils/OfflineCacheKeys.js';
 import { notePageCacheHit, notePageCacheKey } from './modules/live-sync/LiveSyncState.js';
+import { MS_PER_HOUR } from './utils/TimeUnits.js';
 
 const DB_NAME = 'WampumsAppDB';
 const DB_VERSION = 12;
@@ -87,7 +88,7 @@ export function openDB() {
  *   write to one of them can find this entry whatever its key is named
  * @returns {Promise<*>} Resolves once stored
  */
-export async function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 1000, { sources } = {}) {
+export async function setCachedData(key, data, expirationTime = 2 * MS_PER_HOUR, { sources } = {}) {
   const db = await openDB();
   const scopedKey = buildScopedCacheKey(key);
   notePageCacheKey(scopedKey);

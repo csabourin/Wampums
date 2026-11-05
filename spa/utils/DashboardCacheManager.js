@@ -6,6 +6,7 @@
 import { getCachedData, setCachedData } from '../indexedDB.js';
 import { CONFIG } from '../ajax-functions.js';
 import { debugLog, debugError } from './DebugUtils.js';
+import { MS_PER_HOUR } from './TimeUnits.js';
 
 export class DashboardCacheManager {
   /**
@@ -42,7 +43,7 @@ export class DashboardCacheManager {
    */
   static async cacheGroups(groups) {
     try {
-      await setCachedData('dashboard_groups', groups, 60 * 60 * 1000); // 1 hour
+      await setCachedData('dashboard_groups', groups, MS_PER_HOUR); // 1 hour
     } catch (error) {
       debugError('Error caching groups:', error);
     }

@@ -56,6 +56,7 @@ import {
   getVocabularyProfile,
   UNIT_CUSTOMIZATION_CONFIG,
 } from '../../utils/UnitVocabularyUtils.js';
+import { HTTP_STATUS } from '../../utils/HttpStatus.js';
 
 /** Languages e-mails may be written in: every interface language. */
 const SUPPORTED_LANGUAGES = INTERFACE_LANGS.map((code) => ({ code, label: nativeLanguageName(code) }));
@@ -1101,13 +1102,13 @@ export class UnitSettings extends BaseModule {
    * @returns {string} Localized user-facing message
    */
   getLocalizedSaveError(error) {
-    if (error?.status === 400) {
+    if (error?.status === HTTP_STATUS.BAD_REQUEST) {
       return translate('unit_settings_invalid_settings');
     }
-    if (error?.status === 401) {
+    if (error?.status === HTTP_STATUS.UNAUTHORIZED) {
       return translate('authentication_required');
     }
-    if (error?.status === 403) {
+    if (error?.status === HTTP_STATUS.FORBIDDEN) {
       return translate('insufficient_permissions');
     }
     return translate('error_saving');

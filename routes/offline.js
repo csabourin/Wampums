@@ -4,6 +4,7 @@
  */
 const express = require('express');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { MS_PER_DAY } = require('../utils/time-units');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, userHasPermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
@@ -75,7 +76,7 @@ module.exports = (pool, logger) => {
       }
 
       // Limit date range for performance
-      const daysDiff = Math.ceil((endDateObj - startDateObj) / (1000 * 60 * 60 * 24));
+      const daysDiff = Math.ceil((endDateObj - startDateObj) / MS_PER_DAY);
       if (daysDiff > DATE_LIMITS.OFFLINE_MAX_DAYS) {
         return error(res, `Date range cannot exceed ${DATE_LIMITS.OFFLINE_MAX_DAYS} days`, HTTP_BAD_REQUEST);
       }
@@ -331,7 +332,7 @@ module.exports = (pool, logger) => {
             assignments: carpoolAssignmentsResult.rows
           },
           preparedAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString() // 10 days
+          expiresAt: new Date(Date.now() + 10 * MS_PER_DAY).toISOString() // 10 days
         };
 
         logger.info(`[offline] Prepared data: ${participantsResult.rows.length} participants, ` +

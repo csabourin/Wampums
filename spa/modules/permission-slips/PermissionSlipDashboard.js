@@ -40,6 +40,7 @@ import { hasPermission } from '../../utils/PermissionUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { richTextOrPlain } from '../../utils/RichTextUtils.js';
+import { HTTP_STATUS } from '../../utils/HttpStatus.js';
 
 // The server accepts at most this many participant or slip ids per request
 const SLIP_BATCH_SIZE = 200;
@@ -876,7 +877,7 @@ export class PermissionSlipDashboard {
             debugError('Error archiving permission slip', error);
             this.app.showMessage(
               translate(
-                error?.status === 403
+                error?.status === HTTP_STATUS.FORBIDDEN
                   ? 'insufficient_permissions'
                   : 'permission_slip_error_loading',
               ),

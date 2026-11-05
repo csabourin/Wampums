@@ -32,12 +32,14 @@ import {
   getCurrentOrganizationId,
   getCurrentUserId
 } from '../api/api-helpers.js';
+import { HTTP_STATUS } from '../utils/HttpStatus.js';
+import { MS_PER_DAY, MS_PER_HOUR } from '../utils/TimeUnits.js';
 
 /**
  * Cache duration constants (in milliseconds)
  */
-const HOUR_MS = 3600000;
-const DAY_MS = 86400000;
+const HOUR_MS = MS_PER_HOUR;
+const DAY_MS = MS_PER_DAY;
 const CRITICAL_DAYS = 7;
 const CAMP_MODE_DAYS = 15; // covers max 14-day camp + 1 day buffer
 const VOLATILE_HOURS = 2;
@@ -106,7 +108,14 @@ const OUTBOX_CHANNEL = 'wampums-offline-outbox';
 const RELAYED_OUTBOX_EVENTS = new Set(['offlineMutationReplayed', 'offlineMutationRejected']);
 
 /** Replay answers that will never succeed: the change is dropped, and said so. */
-const NON_RETRIABLE_STATUSES = new Set([400, 403, 404, 409, 410, 422]);
+const NON_RETRIABLE_STATUSES = new Set([
+  HTTP_STATUS.BAD_REQUEST,
+  HTTP_STATUS.FORBIDDEN,
+  HTTP_STATUS.NOT_FOUND,
+  HTTP_STATUS.CONFLICT,
+  HTTP_STATUS.GONE,
+  HTTP_STATUS.UNPROCESSABLE_ENTITY,
+]);
 
 /**
  * What kind of change a queued request was, for the message that reports it.
@@ -305,7 +314,7 @@ export class OfflineManager {
           message: this.getTranslation('offline.savedLocally')
         }),
         {
-          status: 202,
+          status: HTTP_STATUS.ACCEPTED,
           headers: { 'Content-Type': 'application/json' }
         }
       );
@@ -812,7 +821,7 @@ export class OfflineManager {
       if (cachedData) {
         debugLog('OfflineManager: Serving from cache', url);
         return new Response(JSON.stringify(cachedData), {
-          status: 200,
+          status: HTTP_STATUS.OK,
           headers: {
             'Content-Type': 'application/json',
             'X-From-Cache': 'true'
@@ -828,7 +837,7 @@ export class OfflineManager {
           offline: true
         }),
         {
-          status: 503,
+          status: HTTP_STATUS.SERVICE_UNAVAILABLE,
           headers: { 'Content-Type': 'application/json' }
         }
       );
@@ -1375,7 +1384,7 @@ export class OfflineManager {
       if (stored) {
         const { enabled, activityId, enabledAt } = JSON.parse(stored);
         // Auto-disable after 14 days
-        const maxAge = 14 * 24 * 60 * 60 * 1000;
+        const maxAge = 14 * MS_PER_DAY;
         if (enabled && (Date.now() - enabledAt) < maxAge) {
           this.campMode = true;
           this.activeActivityId = activityId;

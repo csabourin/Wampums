@@ -9,6 +9,7 @@
 
 const express = require('express');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { MS_PER_MINUTE } = require('../utils/time-units');
 const router = express.Router();
 const meetingSectionDefaults = require('../config/meeting_sections.json');
 
@@ -149,7 +150,7 @@ const PUBLIC_ORGANIZATION_SETTING_KEYS = [
 // PERFORMANCE OPTIMIZATION: In-memory cache for organization settings
 // Settings rarely change, so caching them significantly improves response time
 const orgSettingsCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+const CACHE_TTL = 5 * MS_PER_MINUTE; // 5 minutes cache
 
 const ORGANIZATION_INFO_LIMITS = Object.freeze({
   shortText: 255,

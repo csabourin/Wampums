@@ -48,6 +48,7 @@ import {
   getDistributionRules,
   deleteDistributionRule
 } from '../../api/api-yearly-planner.js';
+import { HTTP_STATUS } from '../../utils/HttpStatus.js';
 
 const VIEW = {
   LIST: 'list',
@@ -459,7 +460,7 @@ export class YearlyPlanner extends BaseModule {
     } catch (err) {
       debugError('Error deleting meeting:', err);
       // The server refuses dates that already carry attendance.
-      const message = err?.status === 409
+      const message = err?.status === HTTP_STATUS.CONFLICT
         ? translate('yearly_planner_delete_date_has_attendance')
         : translate('yearly_planner_error_saving');
       this.app.showMessage(message, 'error');

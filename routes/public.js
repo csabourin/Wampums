@@ -10,6 +10,7 @@
 const express = require('express');
 const { asyncHandler } = require('../middleware/response');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { MS_PER_HOUR } = require('../utils/time-units');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs').promises;
@@ -91,7 +92,7 @@ function escapeHtml(text) {
  * Prevents spam and abuse
  */
 const contactFormLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: MS_PER_HOUR, // 1 hour
   max: 10, // 3 requests per hour per IP
   message: 'Too many contact form submissions from this IP, please try again after an hour.',
   standardHeaders: true,
@@ -512,7 +513,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
    * neither the reader nor the page needs the distinction.
    */
   const alumniLinkLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
+    windowMs: MS_PER_HOUR,
     max: 30,
     message: 'Too many requests, please try again later.',
     standardHeaders: true,
@@ -568,7 +569,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
    * would be an oracle for probing tokens.
    */
   const reactivationRequestLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
+    windowMs: MS_PER_HOUR,
     max: 5,
     message: { success: false, message: 'too_many_reactivation_requests' },
     standardHeaders: true,
@@ -576,7 +577,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
   });
 
   const reactivationLinkLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
+    windowMs: MS_PER_HOUR,
     max: 30,
     message: { success: false, message: 'too_many_reactivation_requests' },
     standardHeaders: true,
@@ -661,7 +662,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
    * such invitation" would be an oracle for probing tokens.
    */
   const invitationLinkLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
+    windowMs: MS_PER_HOUR,
     max: 30,
     message: { success: false, message: 'too_many_invitation_requests' },
     standardHeaders: true,

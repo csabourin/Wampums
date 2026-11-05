@@ -26,6 +26,7 @@ import {
   noteWriteStarted,
   noteWriteUnconfirmed,
 } from '../modules/live-sync/LiveSyncState.js';
+import { HTTP_STATUS } from '../utils/HttpStatus.js';
 
 /**
  * Add cache buster parameter to URL
@@ -224,7 +225,7 @@ export async function handleResponse(response, { requestToken } = {}) {
 
   if (!response.ok) {
     // Handle 401 Unauthorized specifically
-    if (response.status === 401) {
+    if (response.status === HTTP_STATUS.UNAUTHORIZED) {
       await endRefusedSession(requestToken);
     }
 
@@ -271,7 +272,7 @@ export async function handleResponse(response, { requestToken } = {}) {
     throw httpError;
   }
 
-  if (response.status === 204) {
+  if (response.status === HTTP_STATUS.NO_CONTENT) {
     return { success: true, data: null };
   }
 
@@ -389,7 +390,7 @@ async function sendApiRequest(endpoint, options = {}) {
     // Translated here so the toast a caller shows stays in the page's
     // language rather than dropping an English sentence into a French UI.
     const archiveError = new Error(offlineManager.getTranslation('scout_year_read_only'));
-    archiveError.status = 403;
+    archiveError.status = HTTP_STATUS.FORBIDDEN;
     archiveError.isArchiveReadOnly = true;
     debugWarn(`[Archive] Blocked ${method} ${url} while consulting an archived year`);
     throw archiveError;
@@ -522,7 +523,7 @@ async function sendApiRequest(endpoint, options = {}) {
         // (network errors or 5xx). Retrying writes can duplicate them
         // (e.g. timeout after the server processed the request), and
         // retrying 4xx responses just delays user-facing feedback.
-        const isTransient = !error.status || error.status >= 500;
+        const isTransient = !error.status || error.status >= HTTP_STATUS.INTERNAL_ERROR;
         const isRetryable = method === 'GET' && isTransient && error.name !== 'AbortError';
 
         if (!isRetryable) {

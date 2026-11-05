@@ -23,6 +23,7 @@ const winston = require('winston');
 const { useDatabaseAuthState } = require('./whatsapp-database-auth');
 const util = require('util');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { MS_PER_MINUTE } = require('../utils/time-units');
 
 const WHATSAPP_LOG_LEVEL = process.env.WHATSAPP_LOG_LEVEL || 'info';
 const WHATSAPP_LOG_FILE = process.env.WHATSAPP_LOG_FILE || 'whatsapp-baileys.log';
@@ -313,7 +314,7 @@ class WhatsAppBaileysService {
         const timeSinceLastAttempt = now - reconnectInfo.lastAttempt;
 
         // Reset counter if it's been more than 5 minutes since last attempt
-        if (timeSinceLastAttempt > 5 * 60 * 1000) {
+        if (timeSinceLastAttempt > 5 * MS_PER_MINUTE) {
           reconnectInfo.count = 0;
         }
 

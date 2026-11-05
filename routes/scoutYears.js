@@ -33,6 +33,7 @@ const {
   rollbackTransition
 } = require('../services/scoutYear');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { MS_PER_DAY } = require('../utils/time-units');
 
 /** PostgreSQL's `serialization_failure`, raised when SERIALIZABLE detects a conflict. */
 const SERIALIZATION_FAILURE = '40001';
@@ -131,7 +132,7 @@ module.exports = (pool, logger) => {
     const nextBounds = await computeYearBounds(
       pool,
       organizationId,
-      new Date(new Date(currentYear.end_date).getTime() + 86400000)
+      new Date(new Date(currentYear.end_date).getTime() + MS_PER_DAY)
     );
     const referenceDate = `${nextBounds.label.split('-')[0]}-${ageReference}`;
 

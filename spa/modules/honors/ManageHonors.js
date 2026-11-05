@@ -15,6 +15,7 @@ import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { isDemoSandbox } from '../../utils/PermissionUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
+import { MS_PER_MINUTE } from '../../utils/TimeUnits.js';
 export class ManageHonors {
   constructor(app) {
     this.app = app;
@@ -28,7 +29,7 @@ export class ManageHonors {
     this.pendingHonors = []; // Store honors being processed
     this.currentHonorIndex = 0; // Track which honor we're entering
     this.recentlyAwardedHonors = []; // Track recently awarded honors for undo window
-    this.UNDO_WINDOW_MS = 10 * 60 * 1000; // 10 minutes undo window
+    this.UNDO_WINDOW_MS = 10 * MS_PER_MINUTE; // 10 minutes undo window
     this.documentClickHandler = null; // Store reference to document click handler to prevent memory leaks
     this.destroyed = false;
   }
@@ -346,7 +347,7 @@ export class ManageHonors {
     const now = new Date();
     const created = new Date(createdAt);
     const remainingMs = this.UNDO_WINDOW_MS - (now - created);
-    const remainingMinutes = Math.ceil(remainingMs / 60000);
+    const remainingMinutes = Math.ceil(remainingMs / MS_PER_MINUTE);
     return `${remainingMinutes}min`;
   }
 

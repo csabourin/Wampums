@@ -31,6 +31,7 @@ import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { offlineManager } from '../OfflineManager.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
+import { MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE } from '../../utils/TimeUnits.js';
 
 /**
  * Medication management module
@@ -60,7 +61,7 @@ export class MedicationManagement {
     this.alertInterval = null;
     this.alertWindowMinutes = 90;
     this.alertLookbackMinutes = 30;
-    this.alertRefreshMs = 60000;
+    this.alertRefreshMs = MS_PER_MINUTE;
     this.offlineStatusHandler = null;
     this.optimisticManager = new OptimisticUpdateManager();
     // Authorizations state
@@ -890,11 +891,11 @@ export class MedicationManagement {
     const anchor = new Date();
     anchor.setHours(startHour, startMinute, 0, 0);
     const times = [];
-    const cutoff = new Date(anchor.getTime() + 24 * 60 * 60 * 1000);
+    const cutoff = new Date(anchor.getTime() + MS_PER_DAY);
     let cursor = new Date(anchor);
     while (cursor < cutoff && times.length < 12) {
       times.push(`${String(cursor.getHours()).padStart(2, '0')}:${String(cursor.getMinutes()).padStart(2, '0')}`);
-      cursor = new Date(cursor.getTime() + hours * 60 * 60 * 1000);
+      cursor = new Date(cursor.getTime() + hours * MS_PER_HOUR);
     }
     return Array.from(new Set(times));
   }
@@ -2004,8 +2005,8 @@ export class MedicationManagement {
    */
   getAggregatedAlerts() {
     const now = new Date();
-    const windowLimit = new Date(now.getTime() + this.alertWindowMinutes * 60 * 1000);
-    const recentWindow = new Date(now.getTime() - this.alertLookbackMinutes * 60 * 1000);
+    const windowLimit = new Date(now.getTime() + this.alertWindowMinutes * MS_PER_MINUTE);
+    const recentWindow = new Date(now.getTime() - this.alertLookbackMinutes * MS_PER_MINUTE);
     const grouped = new Map();
 
     this.distributions
@@ -2036,7 +2037,7 @@ export class MedicationManagement {
     return Array.from(grouped.values())
       .map((group) => ({
         ...group,
-        minutesUntil: Math.max(0, Math.round((group.time.getTime() - now.getTime()) / 60000))
+        minutesUntil: Math.max(0, Math.round((group.time.getTime() - now.getTime()) / MS_PER_MINUTE))
       }))
       .sort((a, b) => a.time.getTime() - b.time.getTime());
   }

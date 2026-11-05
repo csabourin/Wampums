@@ -10,6 +10,7 @@
 const express = require('express');
 const { asyncHandler, success: successResponse, error: errorResponse } = require('../middleware/response');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { MS_PER_HOUR, MS_PER_MINUTE } = require('../utils/time-units');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
@@ -122,7 +123,7 @@ requireJWTSecret();
 // Rate limiters
 const isProduction = process.env.NODE_ENV === 'production';
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * MS_PER_MINUTE, // 15 minutes
   max: isProduction ? 6 : 100, // 6 attempts per window in production, 100 in test/dev
   message: { success: false, message: 'too_many_login_attempts' },
   standardHeaders: true,
@@ -130,7 +131,7 @@ const authLimiter = rateLimit({
 });
 
 const passwordResetLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: MS_PER_HOUR, // 1 hour
   max: isProduction ? 5 : 100, // 5 attempts per hour in production, 100 in development
   message: { success: false, message: 'too_many_reset_requests' },
   standardHeaders: true,
@@ -140,7 +141,7 @@ const passwordResetLimiter = rateLimit({
 // Looking up which account a reset link belongs to happens on every page load
 // of the link, so it must not spend the few attempts the reset itself allows.
 const passwordResetLookupLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: MS_PER_HOUR, // 1 hour
   max: isProduction ? 30 : 300,
   message: { success: false, message: 'too_many_reset_requests' },
   standardHeaders: true,

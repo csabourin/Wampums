@@ -9,6 +9,7 @@ const express = require('express');
 const { asyncHandler, error: errorResponse, success: successResponse } = require('../middleware/response');
 const { body, check } = require('express-validator');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { MS_PER_HOUR, MS_PER_MINUTE } = require('../utils/time-units');
 const router = express.Router();
 const {
   handleOrganizationResolutionError,
@@ -57,7 +58,7 @@ const STALE_SENDING_MINUTES = 60;
 const HISTORY_PAGE_SIZE = 50;
 const MAX_HISTORY_PAGE = 100000;
 /** How often the scheduler re-checks with nothing else to wake it. */
-const FALLBACK_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+const FALLBACK_CHECK_INTERVAL_MS = MS_PER_HOUR;
 const pg = require('pg');
 const { Client } = pg;
 
@@ -923,7 +924,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
 
     // True exponential backoff: 5s * 2^attempts, capped at 60s
     reconnectAttempts++;
-    const delay = Math.min(5000 * Math.pow(2, reconnectAttempts - 1), 60000);
+    const delay = Math.min(5000 * Math.pow(2, reconnectAttempts - 1), MS_PER_MINUTE);
     logger.info(`Reconnecting announcement listener in ${delay}ms (attempt ${reconnectAttempts})...`);
 
     reconnectTimeout = setTimeout(() => {

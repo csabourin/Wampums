@@ -12,6 +12,7 @@ const {
 } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const sharp = require('sharp');
+const { SECONDS_PER_DAY, SECONDS_PER_HOUR } = require('./time-units');
 
 // Lazy-loaded to avoid adding HEIC conversion overhead when not needed.
 let heicConvert = null;
@@ -22,8 +23,8 @@ const PHOTO_MAX_WIDTH = 640;
 const PHOTO_MAX_HEIGHT = 480;
 const PHOTO_WEBP_QUALITY = 82;
 const WEBP_EXTENSION = OUTPUT_MIME_TYPE.split('/')[1];
-const DEFAULT_SIGNED_URL_TTL_SECONDS = 60 * 60;
-const MAX_SIGNED_URL_TTL_SECONDS = 7 * 24 * 60 * 60;
+const DEFAULT_SIGNED_URL_TTL_SECONDS = SECONDS_PER_HOUR;
+const MAX_SIGNED_URL_TTL_SECONDS = 7 * SECONDS_PER_DAY;
 
 const ALLOWED_MIME_TYPES = [
   'image/jpeg',

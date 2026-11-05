@@ -10,6 +10,7 @@
  */
 import { debugLog } from './utils/DebugUtils.js';
 import { DEFAULT_LANG, SUPPORTED_LANGS } from './config/languages.js';
+import { MS_PER_DAY, MS_PER_MINUTE } from './utils/TimeUnits.js';
 
 /**
  * Determine if debug mode is enabled
@@ -82,10 +83,10 @@ export const CONFIG = {
      * Controls how long data is cached in IndexedDB
      */
   CACHE_DURATION: {
-    SHORT: 5 * 60 * 1000, // 5 minutes
-    MEDIUM: 30 * 60 * 1000, // 30 minutes
-    LONG: 24 * 60 * 60 * 1000, // 24 hours
-    CAMP_MODE: 10 * 24 * 60 * 60 * 1000, // 10 days (for multi-day offline camps)
+    SHORT: 5 * MS_PER_MINUTE, // 5 minutes
+    MEDIUM: 30 * MS_PER_MINUTE, // 30 minutes
+    LONG: MS_PER_DAY, // 24 hours
+    CAMP_MODE: 10 * MS_PER_DAY, // 10 days (for multi-day offline camps)
   },
 
   /**
@@ -234,7 +235,7 @@ export const CONFIG = {
     MEETING_DRAFT_WRITE_DELAY: 150,
 
     // Recovery drafts expire after 30 days.
-    MEETING_DRAFT_EXPIRATION: 30 * 24 * 60 * 60 * 1000,
+    MEETING_DRAFT_EXPIRATION: 30 * MS_PER_DAY,
   },
 
   /**

@@ -36,6 +36,7 @@ const {
   endFamilyLink,
 } = require('../services/familyLinks');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { MS_PER_HOUR } = require('../utils/time-units');
 
 /** Human-readable reasons for the refusals a parent can fix. */
 const REFUSAL_MESSAGES = {
@@ -61,7 +62,7 @@ const FAMILY_LINK_REQUESTS_PER_HOUR = 10;
  */
 function createFamilyLinkRequestLimiter() {
   return rateLimit({
-    windowMs: 60 * 60 * 1000,
+    windowMs: MS_PER_HOUR,
     max: FAMILY_LINK_REQUESTS_PER_HOUR,
     keyGenerator: (req) => `family-link:${req.user.id}`,
     message: { success: false, message: 'too_many_family_link_requests' },
