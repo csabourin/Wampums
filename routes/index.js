@@ -84,6 +84,7 @@ module.exports = (app, pool) => {
   const campRosterRoutes = require('./camp-rosters')(pool);
   const volunteerShiftRoutes = require('./volunteer-shifts')(pool);
   const memberCertificationRoutes = require('./member-certifications')(pool);
+  const memberAllergyRoutes = require('./member-allergies')(pool);
   const equipmentCatalogRoutes = require('./equipmentCatalog')(pool);
   const announcementsRoutes = require('./announcements')(pool, logger, whatsappService, googleChatService);
   const newsRoutes = require('./news')(pool);
@@ -174,6 +175,7 @@ module.exports = (app, pool) => {
   app.use('/api/v1/camp-rosters', campRosterRoutes);
   app.use('/api/v1/volunteer-shifts', volunteerShiftRoutes);
   app.use('/api/v1/member-certifications', memberCertificationRoutes);
+  app.use('/api/v1/member-allergies', memberAllergyRoutes);
 
   app.use('/api/v1/news', newsRoutes);
 

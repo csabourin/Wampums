@@ -198,6 +198,60 @@ test('without meetings.manage, the camp’s swimming is read, not offered for ch
   expect(document.querySelector('#camp-roster-activities').parentElement.textContent).toContain('camp_roster_swimming_yes');
 });
 
+function allergies(overrides = {}) {
+  return {
+    youth: [{ participant_id: 2, first_name: HOSTILE, last_name: 'Lovelace', nickname: null, allergies: 'Arachides', epipen: true,
+      emergency_medication: 'EpiPen 0,3 mg', reaction: 'Urticaire', action: 'Auto-injecteur puis 911' }],
+    youth_without_health_form: 1,
+    adults: [{ user_id: LEAD_ID, name: 'Grace Hopper', nickname: null, allergies: HOSTILE, carries_epipen: false, person_to_notify: '$& Ada, 555-0100' }],
+    adults_without_declaration: 1,
+    ...overrides,
+  };
+}
+
+test('without the right to read allergies, the server sends none and no allergy section is drawn', async () => {
+  await open();
+  expect($('#camp-roster-allergies')).toBeNull();
+});
+
+test('youth allergies come with the response and a link to the health form, which names the person to notify', async () => {
+  api.getCampRoster.mockResolvedValue({ success: true, data: roster({ allergies: allergies() }) });
+  await open();
+  const row = document.querySelector('#camp-roster-allergies-youth + table tbody tr');
+  expect(row.querySelector('td[data-label="camp_roster_column_allergies"]').textContent).toBe('Arachides');
+  expect(row.querySelector('td[data-label="camp_roster_column_epipen"]').textContent).toBe('camp_roster_yes');
+  expect(row.querySelector('td[data-label="camp_roster_column_response"]').textContent).toBe('Urticaire · Auto-injecteur puis 911 · EpiPen 0,3 mg');
+  expect(row.querySelector('a').getAttribute('href')).toBe('/dynamic-form/fiche_sante/2');
+  expect(document.querySelector('#camp-roster-allergies').parentElement.textContent).toContain('camp_roster_allergies_youth_no_form');
+});
+
+test('team allergies are each adult’s own declaration; those who declared nothing are counted, not read as “none”', async () => {
+  api.getCampRoster.mockResolvedValue({ success: true, data: roster({ allergies: allergies() }) });
+  await open();
+  const section = document.querySelector('#camp-roster-allergies').parentElement;
+  expect(section.textContent).toContain('camp_roster_allergies_adults_help');
+  expect(section.textContent).toContain('camp_roster_allergies_adults_silent');
+  expect(section.textContent).toContain('camp_roster_notify_line');
+});
+
+test('an allergy list with nothing declared says so, and still counts what is unknown', async () => {
+  api.getCampRoster.mockResolvedValue({ success: true, data: roster({ allergies: allergies({ youth: [], adults: [], youth_without_health_form: 0 }) }) });
+  await open();
+  const section = document.querySelector('#camp-roster-allergies').parentElement;
+  expect(section.textContent).toContain('camp_roster_allergies_youth_empty');
+  expect(section.textContent).toContain('camp_roster_allergies_adults_empty');
+  expect(section.textContent).toContain('camp_roster_allergies_adults_silent');
+  expect(section.textContent).not.toContain('camp_roster_allergies_youth_no_form');
+});
+
+test('allergies and names typed by people are shown as text', async () => {
+  api.getCampRoster.mockResolvedValue({ success: true, data: roster({ allergies: allergies() }) });
+  await open();
+  expect(document.querySelector('#app img')).toBeNull();
+  const section = document.querySelector('#camp-roster-allergies').parentElement;
+  expect(section.textContent).toContain(HOSTILE);
+});
+
 test('volunteers are named only when the server names them', async () => {
   await open();
   expect(document.querySelector('#camp-roster-volunteers').parentElement.textContent).toContain('Mary Somerville');
@@ -371,6 +425,7 @@ test('the lists and the team dialog meet WCAG A/AA', async () => {
   api.getCampRoster.mockResolvedValue({ success: true, data: roster({
     gaps: ['no_first_aider'], blocking_gaps: ['no_first_aider'],
     team: [{ ...roster().team[0], certifications: { verified: ['first_aid_certificate'], to_verify: [] } }],
+    allergies: allergies(),
   }) });
   await open();
   expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);

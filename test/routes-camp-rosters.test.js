@@ -62,22 +62,31 @@ test('a leader reads the authenticated unit’s camp lists, with the rights the 
   permissions = ['meetings.view', 'participants.view'];
   expect((await call('get', '/12?organization_id=99')).status).toBe(200);
   expect(service.readCampRoster).toHaveBeenCalledWith(pool, UNIT_ID, 12,
-    { canManage: false, canSeeVolunteers: false, canSeeCertifications: false });
+    { canManage: false, canSeeVolunteers: false, canSeeCertifications: false, canSeeAllergies: false });
   permissions = ['meetings.view', 'participants.view', 'meetings.manage', 'volunteers.manage'];
   await call('get', '/12');
   expect(service.readCampRoster).toHaveBeenLastCalledWith(pool, UNIT_ID, 12,
-    { canManage: true, canSeeVolunteers: true, canSeeCertifications: true });
+    { canManage: true, canSeeVolunteers: true, canSeeCertifications: true, canSeeAllergies: false });
 });
 
 test('team members’ certifications go to whoever manages the camp or its volunteers, and no one else', async () => {
   permissions = ['meetings.view', 'participants.view', 'volunteers.manage'];
   await call('get', '/12');
   expect(service.readCampRoster).toHaveBeenLastCalledWith(pool, UNIT_ID, 12,
-    { canManage: false, canSeeVolunteers: true, canSeeCertifications: true });
+    { canManage: false, canSeeVolunteers: true, canSeeCertifications: true, canSeeAllergies: false });
   permissions = ['meetings.view', 'participants.view', 'meetings.manage'];
   await call('get', '/12');
   expect(service.readCampRoster).toHaveBeenLastCalledWith(pool, UNIT_ID, 12,
-    { canManage: true, canSeeVolunteers: false, canSeeCertifications: true });
+    { canManage: true, canSeeVolunteers: false, canSeeCertifications: true, canSeeAllergies: false });
+});
+
+test('allergies go only to holders of camp_allergies.view, whatever else they manage', async () => {
+  permissions = ['meetings.view', 'participants.view', 'camp_allergies.view'];
+  await call('get', '/12');
+  expect(service.readCampRoster).toHaveBeenLastCalledWith(pool, UNIT_ID, 12, expect.objectContaining({ canSeeAllergies: true }));
+  permissions = ['meetings.view', 'participants.view', 'meetings.manage', 'volunteers.manage', 'reports.view'];
+  await call('get', '/12');
+  expect(service.readCampRoster).toHaveBeenLastCalledWith(pool, UNIT_ID, 12, expect.objectContaining({ canSeeAllergies: false }));
 });
 
 test('saying a camp plans swimming takes meetings.manage and refuses demo accounts', async () => {

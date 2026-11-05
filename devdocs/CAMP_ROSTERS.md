@@ -7,7 +7,7 @@ with the SISC. Delivered in slices; this file says what each one settled.
 |---|---|---|
 | 1 | Youth taking part, named team (lead, leaders, camp aides), volunteers of the camp's shifts | Done |
 | 2 | Adult certifications (first aid, wilderness first aid, winter camping), blocking gaps, swimming | Done |
-| 3 | Allergies of youth and adults, behind a permission of their own | To do |
+| 3 | Allergies of youth and adults, behind a permission of their own | Done |
 | 4 | Comparison with a recent SISC import | To do |
 
 Decisions of 4 November 2026: the team is **named explicitly** for each camp; a camp aide's age comes
@@ -31,7 +31,11 @@ opened from each camp of `/camp-plans`. It shows, in this order:
    verified), and, for holders of `meetings.manage` or `volunteers.manage`, the certifications verified
    for the camp's dates and those declared but still to verify. Someone with `meetings.manage` adds, changes and removes members in a dialog; removing is
    confirmed first. A cancelled camp says so and offers none of these changes.
-5. **Volunteers of the camp's shifts**: names for holders of `volunteers.manage`, a count for anyone
+5. **Allergies**, only for holders of `camp_allergies.view`: the youth whose health form declares one
+   (allergies, auto-injector, reaction and what to do, and a link to the health form, which names the
+   person to notify), the number of youth without a health form, and the team members' allergies as
+   each declared them (auto-injector, person to notify), with the number who declared nothing.
+6. **Volunteers of the camp's shifts**: names for holders of `volunteers.manage`, a count for anyone
    else (the rule of `devdocs/VOLUNTEERS.md`).
 
 ## Rules (`services/campRoster.js`, migration 072)
@@ -71,6 +75,19 @@ opened from each camp of `/camp-plans`. It shows, in this order:
   wilderness first aid certification; volunteers of the camp's shifts do not count. A declaration valid
   for the camp's dates but unverified is `certification_to_verify`. Declarations and verifications
   belong to one unit: another unit sees neither.
+- **Allergies** (migration 074): reading them takes `camp_allergies.view` (category `camp_plan`). The
+  migration gave it to every unit-wide role holding `reports.view`, `medication.view` or
+  `medication.manage`, or allowed to view the unit's `fiche_sante` form; a role of `linked` scope never
+  receives it, and the route reads them for the camp's unit only. Without it, `allergies` is `null`; the
+  gaps stay. **Youth**: the latest `fiche_sante` submission of the camp's unit, read with
+  `utils/health-form.js` (`declaresAllergy`, the rule of the allergy report: anything said about an
+  allergy lists the youth). A youth without one is `youth_health_form_missing`, never "no allergy".
+  **Adults**: `member_allergy_declarations`, written only by the adult under "My allergies" on
+  `/account-info` (`GET`/`PUT`/`DELETE /api/v1/member-allergies/me`; no route takes another person's
+  id), in the unit where they declared it: allergies (required, up to 1,000 characters), auto-injector,
+  person to notify (optional, up to 200). Only active team members' declarations are listed; any active
+  member without one is `adult_allergies_not_declared`. Withdrawing a declaration removes it from every
+  list at once.
 - **Swimming** (`year_plan_meetings.swimming_planned`, `PATCH /api/v1/camp-rosters/:meetingId`,
   `meetings.manage`): when planned, `swimming_supervision` is listed to check. It is never blocking:
   no lifeguard certification is recorded. A cancelled camp answers 409.
@@ -82,7 +99,9 @@ opened from each camp of `/camp-plans`. It shows, in this order:
 `test/camp-roster.integration.test.js` (youth by enrollment and signed requests, a youth in two units,
 role scope, unit isolation, ages, volunteer names), `test/member-certifications.integration.test.js`
 (declared versus verified, validity through the last day, wilderness first aid, a member who left, who
-reads certifications, unit isolation, swimming), `test/routes-camp-rosters.test.js`,
+reads certifications, unit isolation, swimming), `test/camp-allergies.integration.test.js` (the default
+grant, health forms of the camp's unit, declarations of active members only, withdrawal, who reads),
+`test/routes-member-allergies.test.js`, `test/spa/AllergyPanel.test.js`, `test/routes-camp-rosters.test.js`,
 `test/routes-member-certifications.test.js`, `test/spa/CampRoster.test.js` (axe, dialog keyboard,
 escaping, field errors, blocking gaps, swimming), `test/spa/CertificationsPanel.test.js`, and the screen
 in `e2e/accessibility.spec.mjs` on the seeded camp.

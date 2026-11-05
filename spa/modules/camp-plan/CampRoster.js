@@ -5,7 +5,8 @@
  * Reading takes `meetings.view` and `participants.view` with a unit-wide
  * scope; naming the team, and saying the camp plans swimming, takes
  * `meetings.manage`. Team members' certifications are shown to whoever manages
- * the camp or its volunteers. Nothing here says the camp is compliant: what the
+ * the camp or its volunteers; allergies, to holders of `camp_allergies.view`
+ * (the server sends them to no one else). Nothing here says the camp is compliant: what the
  * lists cannot vouch for, including the comparison with the SISC, is listed
  * under "To check", blocking gaps first and named as such.
  *
@@ -31,6 +32,8 @@ import rules from '../../../config/camp_team.json';
 import styles from '../../../css/camp-plan.css?url';
 
 const BACK_HREF = '/camp-plans';
+/** Where a youth's health form opens, with the person to notify. */
+const HEALTH_FORM_HREF = '/dynamic-form/fiche_sante/';
 const MODAL_ID = 'camp-roster-modal';
 const FORM_ID = 'camp-roster-member-form';
 
@@ -245,6 +248,80 @@ export class CampRoster {
       </section>`;
   }
 
+  /** @returns {string} A yes or no in words */
+  yesNo(value) {
+    return translate(value ? 'camp_roster_yes' : 'camp_roster_no');
+  }
+
+  /** @returns {string} Youth whose health form declares an allergy, with what to do */
+  youthAllergiesMarkup(allergies) {
+    const missing = Number(allergies.youth_without_health_form) || 0;
+    const missingText = missing
+      ? `<p class="camp-roster__warning">${escapeHTML(translate('camp_roster_allergies_youth_no_form').replace('{count}', this.number(missing)))}</p>`
+      : '';
+    if (!allergies.youth.length) {
+      return `<h3 id="camp-roster-allergies-youth">${escapeHTML(translate('camp_roster_allergies_youth'))}</h3>
+        <p class="camp-plan__empty">${escapeHTML(translate('camp_roster_allergies_youth_empty'))}</p>${missingText}`;
+    }
+    const label = (key) => escapeAttribute(translate(key));
+    const rows = allergies.youth.map((person) => {
+      const name = this.personName(`${person.first_name || ''} ${person.last_name || ''}`.trim(), person.nickname);
+      const response = [person.reaction, person.action, person.emergency_medication].filter(Boolean).join(' · ');
+      const href = `${HEALTH_FORM_HREF}${encodeURIComponent(person.participant_id)}`;
+      return `<tr>
+          <td data-label="${label('camp_roster_column_name')}">${escapeHTML(name)}</td>
+          <td data-label="${label('camp_roster_column_allergies')}">${escapeHTML(person.allergies || translate('camp_roster_allergies_unspecified'))}</td>
+          <td data-label="${label('camp_roster_column_epipen')}">${escapeHTML(this.yesNo(person.epipen))}</td>
+          <td data-label="${label('camp_roster_column_response')}">${escapeHTML(response || '—')}</td>
+          <td data-label="${label('camp_roster_column_notify')}"><a href="${escapeAttribute(href)}">${escapeHTML(translate('camp_roster_health_form'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a></td>
+        </tr>`;
+    }).join('');
+    return `<h3 id="camp-roster-allergies-youth">${escapeHTML(translate('camp_roster_allergies_youth'))}</h3>
+      <table class="mobile-labeled-table camp-roster__table">
+        <caption class="sr-only">${escapeHTML(translate('camp_roster_allergies_youth'))}</caption>
+        <thead><tr>
+          <th scope="col">${escapeHTML(translate('camp_roster_column_name'))}</th>
+          <th scope="col">${escapeHTML(translate('camp_roster_column_allergies'))}</th>
+          <th scope="col">${escapeHTML(translate('camp_roster_column_epipen'))}</th>
+          <th scope="col">${escapeHTML(translate('camp_roster_column_response'))}</th>
+          <th scope="col">${escapeHTML(translate('camp_roster_column_notify'))}</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>${missingText}`;
+  }
+
+  /** @returns {string} Team members' allergies, as each declared them */
+  adultAllergiesMarkup(allergies) {
+    const silent = Number(allergies.adults_without_declaration) || 0;
+    const silentText = silent
+      ? `<p class="camp-roster__warning">${escapeHTML(translate('camp_roster_allergies_adults_silent').replace('{count}', this.number(silent)))}</p>`
+      : '';
+    const list = allergies.adults.length
+      ? `<ul class="camp-roster__list">${allergies.adults.map((person) => `<li class="camp-roster__member">
+            <p><strong>${escapeHTML(this.personName(person.name, person.nickname))}</strong></p>
+            <p>${escapeHTML(person.allergies)}</p>
+            <p>${escapeHTML(translate('camp_roster_epipen_line').replace('{answer}', this.yesNo(person.carries_epipen)))}</p>
+            <p>${escapeHTML(translate('camp_roster_notify_line').replace('{person}', () => person.person_to_notify || translate('camp_roster_notify_not_given')))}</p>
+          </li>`).join('')}</ul>`
+      : `<p class="camp-plan__empty">${escapeHTML(translate('camp_roster_allergies_adults_empty'))}</p>`;
+    return `<h3 id="camp-roster-allergies-adults">${escapeHTML(translate('camp_roster_allergies_adults'))}</h3>
+      <p class="form-help">${escapeHTML(translate('camp_roster_allergies_adults_help'))}</p>
+      ${list}${silentText}`;
+  }
+
+  /** @returns {string} The camp's allergies, for whoever may read them; nothing otherwise */
+  allergiesMarkup() {
+    const { allergies } = this.data;
+    if (!allergies || !Array.isArray(allergies.youth) || !Array.isArray(allergies.adults)) {
+      return '';
+    }
+    return `<section class="camp-roster__section" aria-labelledby="camp-roster-allergies">
+        <h2 id="camp-roster-allergies">${escapeHTML(translate('camp_roster_allergies'))}</h2>
+        ${this.youthAllergiesMarkup(allergies)}
+        ${this.adultAllergiesMarkup(allergies)}
+      </section>`;
+  }
+
   /** @returns {string} The volunteers of the camp's shifts: names for volunteer managers only */
   volunteersMarkup() {
     const { volunteers } = this.data;
@@ -288,6 +365,7 @@ export class CampRoster {
         ${this.activitiesMarkup()}
         ${this.youthMarkup()}
         ${this.teamMarkup()}
+        ${this.allergiesMarkup()}
         ${this.volunteersMarkup()}
       </section>`);
     this.bind();

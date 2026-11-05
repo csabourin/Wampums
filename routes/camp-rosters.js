@@ -8,6 +8,7 @@
  * holders of `volunteers.manage` (devdocs/VOLUNTEERS.md). Team members'
  * certifications go to holders of either `meetings.manage` or
  * `volunteers.manage`; the gaps they cause are shown to every reader.
+ * Allergies (youth and adults) go only to holders of `camp_allergies.view`.
  *
  * @module routes/camp-rosters
  */
@@ -48,13 +49,14 @@ module.exports = (pool) => {
     checkValidation,
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const [canManage, canSeeVolunteers] = await Promise.all([
+      const [canManage, canSeeVolunteers, canSeeAllergies] = await Promise.all([
         userHasPermission(req, pool, organizationId, 'meetings.manage'),
         userHasPermission(req, pool, organizationId, 'volunteers.manage'),
+        userHasPermission(req, pool, organizationId, 'camp_allergies.view'),
       ]);
       const canSeeCertifications = canManage || canSeeVolunteers;
       return success(res, await readCampRoster(pool, organizationId, Number(req.params.meetingId),
-        { canManage, canSeeVolunteers, canSeeCertifications }));
+        { canManage, canSeeVolunteers, canSeeCertifications, canSeeAllergies }));
     }));
 
   // What the camp plans that changes its lists: today, whether it plans swimming.

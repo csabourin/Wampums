@@ -21,6 +21,11 @@
  *   verified one valid through the camp's last day counts; a team without a
  *   verified first aider is a blocking gap. They are shown only to whoever
  *   manages the camp or volunteers.
+ * - **Allergies** (third slice): the youth's come from their health forms, the
+ *   team's from what each adult declared for themselves
+ *   (services/memberAllergies.js). They are returned only to holders of
+ *   `camp_allergies.view`; a youth without a health form, or a team member who
+ *   declared nothing, is listed to check, never read as "no allergy".
  * - **Swimming**: a camp may say it plans swimming; its supervision is then
  *   listed to check. It is never a blocking gap: no lifeguard certification is
  *   recorded.
@@ -35,6 +40,8 @@ const transaction = require('../utils/transaction');
 const { isCalendarDate } = require('../utils/calendar-date');
 const RULES = require('../config/camp_team.json');
 const { FIRST_AID, certificationsForCamp } = require('./memberCertifications');
+const { declarationsFor } = require('./memberAllergies');
+const { isAffirmative, allergyText, medicationText, declaresAllergy } = require('../utils/health-form');
 
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
@@ -197,8 +204,57 @@ async function withCertifications(db, organizationId, camp, team, { canSeeCertif
   return { members, certifications };
 }
 
+/**
+ * Each listed youth's health form in the unit: whether there is one, and, for whoever may read
+ * allergies, what it says about them. The latest submission is the one in force.
+ */
+async function youthHealthForms(db, organizationId, youth, { canSeeAllergies }) {
+  if (!youth.length) {
+    return new Map();
+  }
+  const rows = (await db.query(
+    `SELECT DISTINCT ON (fs.participant_id) fs.participant_id,
+            CASE WHEN $3::boolean THEN fs.submission_data END AS health_data
+       FROM form_submissions fs
+      WHERE fs.organization_id = $1 AND fs.participant_id = ANY($2::int[]) AND fs.form_type = 'fiche_sante'
+      ORDER BY fs.participant_id, fs.updated_at DESC NULLS LAST, fs.id DESC`,
+    [organizationId, youth.map((person) => person.id), Boolean(canSeeAllergies)]
+  )).rows;
+  return new Map(rows.map((row) => [row.participant_id, row.health_data || {}]));
+}
+
+/**
+ * The camp's allergies, for holders of `camp_allergies.view`: youth whose health form declares one,
+ * and active team members who declared theirs. What cannot be known is counted, never left out.
+ */
+function campAllergies(youth, team, healthForms, declarations) {
+  const present = team.filter((member) => member.active_member);
+  const youthAllergies = youth.filter((person) => healthForms.has(person.id) && declaresAllergy(healthForms.get(person.id)))
+    .map((person) => {
+      const health = healthForms.get(person.id);
+      const epipen = isAffirmative(health.epipen);
+      return {
+        participant_id: person.id, first_name: person.first_name, last_name: person.last_name, nickname: person.nickname,
+        allergies: allergyText(health),
+        epipen,
+        emergency_medication: epipen ? medicationText(health) : null,
+        reaction: health.allergie_reaction || health.reaction_allergie || null,
+        action: health.allergie_action || health.mesures_allergie || null,
+      };
+    });
+  const adults = present.filter((member) => declarations.has(member.user_id)).map((member) => ({
+    user_id: member.user_id, name: member.name, nickname: member.nickname, ...declarations.get(member.user_id),
+  }));
+  return {
+    youth: youthAllergies,
+    youth_without_health_form: youth.filter((person) => !healthForms.has(person.id)).length,
+    adults,
+    adults_without_declaration: present.length - adults.length,
+  };
+}
+
 /** What the lists cannot vouch for: each entry is a key the screen explains. */
-function rosterGaps({ scout_year: scoutYear, youth }, team, certifications, camp) {
+function rosterGaps({ scout_year: scoutYear, youth }, team, certifications, camp, healthForms, declarations) {
   const gaps = [];
   if (!scoutYear) {
     gaps.push('no_scout_year');
@@ -222,6 +278,12 @@ function rosterGaps({ scout_year: scoutYear, youth }, team, certifications, camp
   if (present.some((member) => held(member).to_verify.length)) {
     gaps.push('certification_to_verify');
   }
+  if (youth.some((person) => !healthForms.has(person.id))) {
+    gaps.push('youth_health_form_missing');
+  }
+  if (present.some((member) => !declarations.has(member.user_id))) {
+    gaps.push('adult_allergies_not_declared');
+  }
   if (camp.swimming_planned) {
     gaps.push('swimming_supervision');
   }
@@ -232,8 +294,9 @@ function rosterGaps({ scout_year: scoutYear, youth }, team, certifications, camp
  * @param {Object} db
  * @param {number} organizationId
  * @param {number} meetingId - The planned camp
- * @param {{canManage: boolean, canSeeVolunteers: boolean, canSeeCertifications: boolean}} rights - From the authorization engine
- * @returns {Promise<Object>} { camp, scout_year, consent, youth, team, volunteers, gaps, blocking_gaps }
+ * @param {{canManage: boolean, canSeeVolunteers: boolean, canSeeCertifications: boolean, canSeeAllergies: boolean}} rights - From the authorization engine
+ * @returns {Promise<Object>} { camp, scout_year, consent, youth, team, volunteers, allergies, gaps, blocking_gaps };
+ *   `allergies` is null without `camp_allergies.view`
  */
 async function readCampRoster(db, organizationId, meetingId, rights) {
   const camp = await campFor(db, organizationId, meetingId);
@@ -242,8 +305,14 @@ async function readCampRoster(db, organizationId, meetingId, rights) {
     campTeam(db, organizationId, camp, rights),
     campVolunteers(db, organizationId, camp, rights),
   ]);
-  const { members, certifications } = await withCertifications(db, organizationId, camp, team, rights);
-  const gaps = rosterGaps(youth, team, certifications, camp);
+  const present = team.filter((member) => member.active_member).map((member) => member.user_id);
+  const [{ members, certifications }, healthForms, declarations] = await Promise.all([
+    withCertifications(db, organizationId, camp, team, rights),
+    youthHealthForms(db, organizationId, youth.youth, rights),
+    declarationsFor(db, organizationId, present),
+  ]);
+  const gaps = rosterGaps(youth, team, certifications, camp, healthForms, declarations);
+  const allergies = rights.canSeeAllergies ? campAllergies(youth.youth, team, healthForms, declarations) : null;
   return {
     camp: {
       id: camp.id, theme: camp.theme, date_from: camp.date_from, date_to: camp.date_to,
@@ -252,6 +321,7 @@ async function readCampRoster(db, organizationId, meetingId, rights) {
     ...youth,
     team: members,
     volunteers,
+    allergies,
     gaps,
     blocking_gaps: gaps.filter((gap) => BLOCKING_GAPS.includes(gap)),
   };

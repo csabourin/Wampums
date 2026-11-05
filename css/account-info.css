@@ -582,3 +582,10 @@ h1 {
   font-weight: 600;
   padding-inline: .25rem;
 }
+
+/* My allergies: save and withdraw side by side, wrapping on a phone. */
+.allergy-declaration__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
