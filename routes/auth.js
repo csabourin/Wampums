@@ -72,7 +72,7 @@ const emailTranslations = {
 };
 
 function getEmailTranslations(req) {
-  const preferredLanguage = (req.headers['accept-language'] || '').split(',')[0]?.slice(0, 2);
+  const preferredLanguage = (req.headers['accept-language'] || '').split(',')[0]?.slice(0, LANGUAGE_CODE_LENGTH);
   return emailTranslations[preferredLanguage] || emailTranslations.en;
 }
 
@@ -120,11 +120,28 @@ function mapRequestedRole(userType) {
 // Validate JWT secret at startup
 requireJWTSecret();
 
-// Rate limiters
+// Rate limiters. Outside production, tests and local runs get a far higher ceiling.
 const isProduction = process.env.NODE_ENV === 'production';
+const LOGIN_WINDOW_MINUTES = 15;
+const LOGIN_ATTEMPTS_PER_WINDOW = 6;
+const RESET_REQUESTS_PER_HOUR = 5;
+const RESET_LOOKUPS_PER_HOUR = 30;
+const DEVELOPMENT_ATTEMPTS_PER_WINDOW = 100;
+const DEVELOPMENT_RESET_LOOKUPS_PER_HOUR = 300;
+/** bcrypt cost factor for new password hashes. */
+const BCRYPT_SALT_ROUNDS = 10;
+/** Length of the `$2y$` prefix PHP wrote on legacy hashes. */
+const BCRYPT_PREFIX_LENGTH = 4;
+/** Digits in an emailed two-factor code. */
+const TWO_FACTOR_CODE_LENGTH = 6;
+/** Random bytes in a password reset token. */
+const RESET_TOKEN_BYTES = 32;
+/** Two-letter language code at the start of Accept-Language. */
+const LANGUAGE_CODE_LENGTH = 2;
+
 const authLimiter = rateLimit({
-  windowMs: 15 * MS_PER_MINUTE, // 15 minutes
-  max: isProduction ? 6 : 100, // 6 attempts per window in production, 100 in test/dev
+  windowMs: LOGIN_WINDOW_MINUTES * MS_PER_MINUTE,
+  max: isProduction ? LOGIN_ATTEMPTS_PER_WINDOW : DEVELOPMENT_ATTEMPTS_PER_WINDOW,
   message: { success: false, message: 'too_many_login_attempts' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -132,7 +149,7 @@ const authLimiter = rateLimit({
 
 const passwordResetLimiter = rateLimit({
   windowMs: MS_PER_HOUR, // 1 hour
-  max: isProduction ? 5 : 100, // 5 attempts per hour in production, 100 in development
+  max: isProduction ? RESET_REQUESTS_PER_HOUR : DEVELOPMENT_ATTEMPTS_PER_WINDOW,
   message: { success: false, message: 'too_many_reset_requests' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -142,7 +159,7 @@ const passwordResetLimiter = rateLimit({
 // of the link, so it must not spend the few attempts the reset itself allows.
 const passwordResetLookupLimiter = rateLimit({
   windowMs: MS_PER_HOUR, // 1 hour
-  max: isProduction ? 30 : 300,
+  max: isProduction ? RESET_LOOKUPS_PER_HOUR : DEVELOPMENT_RESET_LOOKUPS_PER_HOUR,
   message: { success: false, message: 'too_many_reset_requests' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -364,7 +381,7 @@ module.exports = (pool, logger) => {
         // Convert $2y$ to $2a$ for compatibility with legacy PHP hashes
         let storedHash = user.password;
         if (storedHash && storedHash.startsWith('$2y$')) {
-          storedHash = `$2a$${  storedHash.substring(4)}`;
+          storedHash = `$2a$${storedHash.substring(BCRYPT_PREFIX_LENGTH)}`;
         }
 
         const passwordValid = await bcrypt.compare(trimmedPassword, storedHash);
@@ -622,7 +639,7 @@ module.exports = (pool, logger) => {
         const { email, code } = req.body;
         const normalizedEmail = normalizeEmailValue(email);
 
-        if (!code || code.length !== 6) {
+        if (!code || code.length !== TWO_FACTOR_CODE_LENGTH) {
           return res.status(HTTP_STATUS.BAD_REQUEST).json({
             success: false,
             message: 'invalid_2fa_code'
@@ -754,7 +771,7 @@ module.exports = (pool, logger) => {
         await client.query('BEGIN');
 
         // Hash password
-        const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
+        const hashedPassword = await bcrypt.hash(trimmedPassword, BCRYPT_SALT_ROUNDS);
 
         // Insert user
         // Parent role users are auto-verified, animation role requires admin approval
@@ -908,7 +925,7 @@ module.exports = (pool, logger) => {
         const organizationId = user.rows[0].organization_id;
 
         // Generate a strong reset token and hash it before storage
-        const rawResetToken = crypto.randomBytes(32).toString('hex');
+        const rawResetToken = crypto.randomBytes(RESET_TOKEN_BYTES).toString('hex');
         const hashedToken = crypto.createHash('sha256').update(rawResetToken).digest('hex');
 
         // Persist reset token securely
@@ -1103,7 +1120,7 @@ module.exports = (pool, logger) => {
         const userEmail = tokenResult.rows[0].email;
 
         // Hash new password
-        const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
+        const hashedPassword = await bcrypt.hash(trimmedPassword, BCRYPT_SALT_ROUNDS);
 
         // Update password and clear reset token for the user
         // We use ID here for precision, as we've already identified the user by their valid token

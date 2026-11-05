@@ -12,7 +12,7 @@
     "migrations/002_fix_parent_guardian_email_label.js": 4,
     "migrations/006_asc_form_content.js": 4,
     "routes/announcements.js": 6,
-    "routes/auth.js": 25,
+    "routes/auth.js": 12,
     "routes/badges.js": 10,
     "routes/budgets.js": 3,
     "routes/carpools.js": 2,
