@@ -230,7 +230,6 @@ export {
 
   // Calendar
   getCalendars,
-  updateCalendar,
   getParticipantCalendar,
 
   // Fundraisers

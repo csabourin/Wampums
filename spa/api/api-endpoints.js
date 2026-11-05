@@ -1608,16 +1608,6 @@ export function getCalendars() {
   return API.get('v1/calendars');
 }
 
-/**
- * Update calendar amount
- */
-export function updateCalendar(participantId, amount) {
-  return API.post('v1/calendars/update-calendar', {
-    participant_id: participantId,
-    amount
-  });
-}
-
 // ============================================================================
 // FUNDRAISERS
 // ============================================================================
