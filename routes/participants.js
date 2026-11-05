@@ -1238,31 +1238,6 @@ module.exports = (pool) => {
   }));
 
   /**
-   * GET /api/participant-calendar
-   * Get calendar data for a specific participant
-   */
-  router.get('/calendar', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
-    const { participant_id } = req.query;
-
-    if (!participant_id) {
-      return error(res, 'Participant ID is required', HTTP_STATUS.BAD_REQUEST);
-    }
-
-    const organizationId = await getOrganizationId(req, pool);
-
-    const result = await pool.query(
-      `SELECT c.*, p.first_name, p.last_name
-       FROM fundraiser_entries c
-       JOIN participants p ON c.participant_id = p.id
-       WHERE c.participant_id = $1 AND c.organization_id = $2
-       ORDER BY c.date DESC`,
-      [participant_id, organizationId]
-    );
-
-    return success(res, result.rows);
-  }));
-
-  /**
    * GET /api/v1/participants/with-documents
    * Get participants with their document submission status for the selected scout year.
    *
