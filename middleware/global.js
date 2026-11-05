@@ -99,7 +99,6 @@ function sitemapUrl({ loc, enPath, frPath, lastmod, changefreq = 'monthly', prio
 }
 
 module.exports = (app) => {
-  const requestBodyLimit = process.env.REQUEST_BODY_LIMIT || '20mb';
 
   // Trust proxy - use 1 (trust first proxy hop) instead of true
   // to avoid express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY warning

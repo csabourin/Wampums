@@ -1679,7 +1679,6 @@ module.exports = (pool, logger) => {
 
         let normalizedDateFrom;
         let normalizedDateTo;
-        let activityName;
 
         // If activity_id is provided, fetch activity details and use its date
         if (activity_id) {
@@ -1694,7 +1693,6 @@ module.exports = (pool, logger) => {
           }
 
           const activity = activityResult.rows[0];
-          activityName = activity.name;
           // The whole activity, as the picker counts availability for it.
           normalizedDateFrom = parseDate(activity.activity_start_date || activity.activity_date);
           normalizedDateTo = parseDate(activity.activity_end_date || activity.activity_date || activity.activity_start_date);
@@ -2148,8 +2146,6 @@ module.exports = (pool, logger) => {
 
           const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
           const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
-          const webSignLink = signLink; // Web link (legacy compatibility)
-          const mobileSignLink = `wampums://permission-slip/${slip.access_token}`;
 
           // Send to ALL recipients
           let slipSentCount = 0;
@@ -2440,8 +2436,6 @@ module.exports = (pool, logger) => {
 
           const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
           const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
-          const webSignLink = signLink; // Web link (legacy compatibility)
-          const mobileSignLink = `wampums://permission-slip/${slip.access_token}`;
 
           // Send to ALL recipients
           let slipSentCount = 0;

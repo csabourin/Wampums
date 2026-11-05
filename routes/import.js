@@ -176,7 +176,6 @@ module.exports = function (pool, logger) {
           const lastName = get('nom');
           const firstName = get('prenom');
           const birthDate = parseDate(get('naissance'));
-          const sex = get('sexe')?.toUpperCase() === 'H' ? 'M' : get('sexe')?.toUpperCase() === 'F' ? 'F' : null;
           const situation = get('situation')?.toLowerCase();
 
           if (!lastName || !firstName) {

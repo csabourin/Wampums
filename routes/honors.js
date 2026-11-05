@@ -63,7 +63,6 @@ module.exports = (pool, logger) => {
     withScoutYear(pool),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const requestedDate = req.query.date;
       const { id: scoutYearId, start_date: yearStart, end_date: yearEnd } = req.scoutYear;
 
       // Get the participants enrolled that year
@@ -267,25 +266,7 @@ module.exports = (pool, logger) => {
             honorParams
           );
 
-          // Batch insert points for all honors
-          const pointValues = honorResult.rows.map((_, idx) => {
-            const base = idx * 5;
-            return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $6)`;
-          }).join(', ');
-          
-          const pointParams = [
-            ...honorResult.rows.flatMap(row => [
-              row.participant_id,
-              groupsMap.get(row.participant_id) || null,
-              honorPoints,
-              row.date,
-              organizationId
-            ]),
-            honorResult.rows[0].id // honor_id - using first honor's ID for batch
-          ];
-
-          // Note: We need to insert points with correct honor_id for each row
-          // Let's do this in a better way using a CTE
+          // Each honor's points name that honor.
           const pointInserts = honorResult.rows.map(row => ({
             participantId: row.participant_id,
             groupId: groupsMap.get(row.participant_id) || null,

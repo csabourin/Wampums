@@ -155,7 +155,6 @@ export class MedicationManagement {
       const cachedDistributions = await getCacheFn('medication_distributions');
       const cachedParticipants = await getCacheFn('participants_v2');
       const cachedAssignments = await getCacheFn('participant_medications');
-      const cachedReceptions = await getCacheFn('medication_receptions');
 
       if (cachedRequirements && cachedDistributions) {
         debugLog('Using cached medication data');

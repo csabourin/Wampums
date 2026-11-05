@@ -229,14 +229,11 @@ async function handlePaymentSuccess(paymentIntent, pool, logger) {
     const {
       id: paymentIntentId,
       amount,
-      currency,
       payment_method,
       metadata
     } = paymentIntent;
 
     const participant_fee_id = metadata.participant_fee_id;
-    const participant_id = metadata.participant_id;
-    const organization_id = metadata.organization_id;
 
     if (!participant_fee_id) {
       throw new Error('Missing participant_fee_id in PaymentIntent metadata');
