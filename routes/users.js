@@ -34,7 +34,6 @@ const { param, body } = require('express-validator');
 const { checkValidation } = require('../middleware/validation');
 
 // Import utilities
-const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { HTTP_STATUS } = require('../utils/http-status');
 
 /**
@@ -796,7 +795,8 @@ module.exports = (pool, logger) => {
    */
   router.post('/link-participants', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    let { user_id, participant_ids } = req.body;
+    let { user_id } = req.body;
+    const { participant_ids } = req.body;
 
     // If no user_id provided, use the current user (self-linking)
     if (!user_id) {

@@ -30,7 +30,6 @@ jest.mock('pg', () => {
   };
 });
 
-const { Pool } = require('pg');
 const { setupDefaultMocks, mockQueryImplementation, authorizationContextRow, DEFAULT_SCOUT_YEAR } = require('./mock-helpers');
 let app;
 

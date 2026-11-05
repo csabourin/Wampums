@@ -21,7 +21,6 @@ const { success, error: errorResponse, forbidden, asyncHandler } = require('../m
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 
 // Import utilities
-const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { findReservedFieldNames } = require('../utils/formFieldNames');
 
 /** Language codes a field's own texts may use (ISO 639-1, as in lang/*.json). */

@@ -170,7 +170,6 @@ module.exports = (pool) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
-    const userRole = req.user.role;
 
     const {
       vehicle_make,
@@ -246,7 +245,6 @@ module.exports = (pool) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
-    const userRole = req.user.role;
     const { reason } = req.body;
 
     // Check if offer exists and user has permission

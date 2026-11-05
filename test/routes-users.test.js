@@ -46,7 +46,6 @@ jest.mock('pg', () => {
   };
 });
 
-const { Pool } = require('pg');
 let app;
 
 const TEST_SECRET = 'testsecret';

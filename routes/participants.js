@@ -346,7 +346,7 @@ module.exports = (pool) => {
       });
 
       // Remove form_submissions from output
-      const { form_submissions, ...participantData } = p;
+      const { form_submissions: _formSubmissions, ...participantData } = p;
 
       return {
         ...participantData,
@@ -1135,7 +1135,8 @@ module.exports = (pool) => {
 
     const organizationId = await getOrganizationId(req, pool);
 
-    let { user_id, participant_ids } = req.body;
+    let { user_id } = req.body;
+    const { participant_ids } = req.body;
 
     // If no user_id provided, use the current user (self-linking)
     if (!user_id) {
@@ -1662,7 +1663,7 @@ module.exports = (pool) => {
     });
 
     // Remove form_submissions from output
-    const { form_submissions, ...participantData } = participant;
+    const { form_submissions: _formSubmissions, ...participantData } = participant;
 
     return success(res, {
       ...participantData,

@@ -36,7 +36,6 @@ jest.mock('pg', () => {
     __mPool: mPool
   };
 });
-const { Pool } = require('pg');
 const { setupDefaultMocks } = require('./mock-helpers');
 let app;
 

@@ -10,7 +10,7 @@
 const express = require('express');
 const { randomUUID } = require('crypto');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, userHasPermission } = require('../middleware/auth');
-const { success, error, paginated, asyncHandler } = require('../middleware/response');
+const { success, error, asyncHandler } = require('../middleware/response');
 const { check } = require('express-validator');
 const { checkValidation, validateIdParam, validateIdBody } = require('../middleware/validation');
 const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');

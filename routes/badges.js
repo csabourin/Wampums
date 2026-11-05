@@ -567,7 +567,6 @@ module.exports = (pool, logger) => {
    *         description: Badge not found
    */
   router.post('/approve', authenticate, blockDemoRoles, requirePermission('badges.approve'), asyncHandler(async (req, res) => {
-    const userId = req.user.id;
     const organizationId = await getOrganizationId(req, pool);
     const { badge_id } = req.body;
 
@@ -651,7 +650,6 @@ module.exports = (pool, logger) => {
    *         description: Badge not found
    */
   router.post('/reject', authenticate, blockDemoRoles, requirePermission('badges.approve'), asyncHandler(async (req, res) => {
-    const userId = req.user.id;
     const organizationId = await getOrganizationId(req, pool);
     const { badge_id } = req.body;
 
@@ -958,7 +956,6 @@ module.exports = (pool, logger) => {
    *         description: Badge progress not found
    */
   router.put('/badge-progress/:id', authenticate, blockDemoRoles, requirePermission('badges.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
-    const userId = req.user.id; // Set by authenticate middleware
     const organizationId = await getOrganizationId(req, pool);
     const badgeId = Number(req.params.id);
     const {

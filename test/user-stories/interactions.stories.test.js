@@ -118,7 +118,6 @@ const {
 const { getTodayISO } = require('../../spa/utils/DateUtils.js');
 const { ManagePoints } = require('../../spa/modules/points/ManagePoints.js');
 const { Attendance } = require('../../spa/modules/attendance/Attendance.js');
-const { PointsStore } = require('../../spa/modules/points/PointsStore.js');
 const {
   tr,
   deferred,

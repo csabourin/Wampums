@@ -8,7 +8,7 @@ const { allEnrolledInUnit, lockParticipantsInUnit } = require('../services/unitP
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateDate, validateAttendanceStatus, checkValidation, validateIdQuery, validateDateOptional } = require('../middleware/validation');
 const { getPointSystemRules } = require('../utils');
-const { calculateAttendancePoints, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { calculateAttendancePoints } = require('../utils/api-helpers');
 
 // Longest activity date range (in days) expanded into selectable attendance dates
 const MAX_ACTIVITY_SPAN_DAYS = 31;

@@ -19,7 +19,6 @@ const { asyncHandler } = require('../middleware/response');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 
 // Import utilities and middleware
-const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { success, error: errorResponse } = require('../middleware/response');
 
 const LEGACY_INDIVIDUAL_TYPE = 'participant';

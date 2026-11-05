@@ -16,7 +16,6 @@ const { authenticate, requirePermission, getOrganizationId, getUserDataScope, wi
 const { asyncHandler } = require('../middleware/response');
 
 // Import utilities
-const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const {
   isAffirmative,
   allergyText,

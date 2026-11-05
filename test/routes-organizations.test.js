@@ -39,7 +39,6 @@ jest.mock('pg', () => {
   };
 });
 
-const { Pool } = require('pg');
 const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 let app;
 
@@ -751,7 +750,7 @@ describe('Organization domain mapping', () => {
       return undefined;
     });
 
-    const res = await request(app)
+    await request(app)
       .get('/api/v1/organizations/status')
       .set('Host', 'scout.wampums.app');
 

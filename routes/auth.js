@@ -14,7 +14,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { body, validationResult } = require('express-validator');
+const { body } = require('express-validator');
 
 // Import middleware
 const { authenticate, dataScopeOfRoles, holdsFamilyRoleOf } = require('../middleware/auth');
@@ -28,7 +28,6 @@ const {
   validateToken,
   validateFullName,
   checkValidation,
-  normalizeEmailInput,
   normalizeEmailValue
 } = require('../middleware/validation');
 

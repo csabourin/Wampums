@@ -16,7 +16,7 @@ const { authenticate, requirePermission, requireAnyPermission, blockDemoRoles, g
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateDate, validateDateOptional, checkValidation } = require('../middleware/validation');
 const { getMeetingSectionConfig } = require('../utils/meeting-sections');
-const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');
+const { getMeetingDefaults, formatLocalDate } = require('../utils/meeting-defaults');
 const { durationToMinutes, getProgrammeForDate } = require('../services/meetingProgramme');
 const { findReplacedMeetings } = require('../services/meetingReplacement');
 const {

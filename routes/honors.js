@@ -365,7 +365,8 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const honorId = Number(req.params.id);
-      let { date, reason } = req.body;
+      const { date } = req.body;
+      let { reason } = req.body;
 
       // Validation
       if (!date && reason === undefined) {

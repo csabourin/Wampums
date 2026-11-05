@@ -18,7 +18,6 @@ const { authenticate, blockDemoRoles, getOrganizationId, dataScopeOfRoles, holds
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 const {
   validateEmail,
-  validatePassword,
   checkValidation,
   normalizeEmailInput,
   validateCurrentPassword,

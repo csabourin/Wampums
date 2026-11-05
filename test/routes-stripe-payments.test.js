@@ -60,7 +60,6 @@ jest.mock('pg', () => {
   };
 });
 
-const { Pool } = require('pg');
 const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 let app;
 
@@ -449,7 +448,7 @@ describe('Parent vs Staff payment authorization', () => {
       return Promise.resolve({ rows: [] });
     });
 
-    const res = await request(app)
+    await request(app)
       .post('/api/v1/stripe/create-payment-intent')
       .set('Authorization', `Bearer ${token}`)
       .send({
@@ -502,7 +501,7 @@ describe('Parent vs Staff payment authorization', () => {
       return Promise.resolve({ rows: [] });
     });
 
-    const res = await request(app)
+    await request(app)
       .post('/api/v1/stripe/create-payment-intent')
       .set('Authorization', `Bearer ${token}`)
       .send({

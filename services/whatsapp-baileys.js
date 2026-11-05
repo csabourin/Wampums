@@ -15,8 +15,7 @@ const makeWASocket = require('@whiskeysockets/baileys').default;
 const {
   DisconnectReason,
   fetchLatestBaileysVersion,
-  makeCacheableSignalKeyStore,
-  makeInMemoryStore
+  makeCacheableSignalKeyStore
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const qrcodeTerminal = require('qrcode-terminal');
