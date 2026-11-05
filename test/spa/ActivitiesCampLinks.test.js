@@ -33,7 +33,9 @@ jest.mock('../../spa/modules/offline/CampReadiness.js', () => ({
   renderCampReadiness: (id) => `<p role="status" data-camp-status="${id}">camp_device_incomplete</p>`,
 }));
 
-import { getActivities } from '../../spa/api/api-activities.js';
+import { getActivities, deleteActivity } from '../../spa/api/api-activities.js';
+import { clearActivityRelatedCaches } from '../../spa/indexedDB.js';
+import { openActivityFormModal } from '../../spa/modules/activities/ActivityFormModal.js';
 import { Activities } from '../../spa/modules/activities/Activities.js';
 
 const activity = (fields) => ({
@@ -52,6 +54,7 @@ let screen;
 const card = (id) => document.querySelector(`.activity-card[data-activity-id="${id}"]`);
 
 beforeEach(async () => {
+  jest.clearAllMocks();
   jest.useFakeTimers({ now: new Date(2026, 9, 30, 12), doNotFake: ['setTimeout', 'queueMicrotask', 'nextTick', 'setImmediate'] });
   document.body.innerHTML = '<main id="app"></main>';
   mockPermissions.clear();
@@ -110,4 +113,99 @@ test('without meetings.view, or for a family account, no team overview is offere
   await screen.init();
   expect(document.querySelector('a[href^="/camp-readiness"]')).toBeNull();
   expect(document.querySelector('.prepare-offline-btn')).toBeNull();
+});
+
+/** A response held until the person has navigated away or asked to retry. */
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+const NEXT_PAGE = '<h1>Messages</h1><button id="next-page-action">Read message</button>';
+const showNextPage = () => {
+  screen.destroy();
+  document.getElementById('app').innerHTML = NEXT_PAGE;
+  document.getElementById('next-page-action').focus();
+};
+
+test.each(['resolve', 'reject'])('leaving while activities load preserves the next screen when the old request %ss', async (outcome) => {
+  screen.destroy();
+  const pending = deferred();
+  getActivities.mockReturnValueOnce(pending.promise);
+  screen = new Activities({ showMessage: jest.fn(), router: { navigate: jest.fn() } });
+  const done = screen.init();
+  expect(document.querySelector('[role="status"]')).not.toBeNull();
+  expect(document.querySelector('#app a').getAttribute('href')).toBe('/dashboard');
+  showNextPage();
+  if (outcome === 'resolve') {pending.resolve(ACTIVITIES);} else {pending.reject(new Error('Late failure'));}
+  await done;
+  expect(document.getElementById('app').innerHTML).toBe(NEXT_PAGE);
+  expect(document.activeElement.id).toBe('next-page-action');
+  expect(screen.app.showMessage).not.toHaveBeenCalled();
+  expect(screen.activities).toEqual([]);
+});
+
+test('a failed load shows a translated alert and a working retry instead of an empty calendar', async () => {
+  getActivities.mockRejectedValueOnce(Object.assign(new Error('<img src=x onerror=alert(1)>'), { status: 403 }));
+  await screen.refreshActivities(true);
+  expect(document.querySelector('[role="alert"]').textContent).toBe('api_error_forbidden');
+  expect(document.querySelector('.empty-state')).toBeNull();
+  expect(document.querySelector('#app img')).toBeNull();
+  expect((await axe.run(document.getElementById('app'), {
+    runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+    rules: { 'color-contrast': { enabled: false } },
+  })).violations).toEqual([]);
+  const retry = document.getElementById('activities-retry');
+  expect(retry.textContent).toBe('retry');
+  retry.click();
+  await settle();
+  expect(getActivities).toHaveBeenLastCalledWith({ forceRefresh: true });
+  expect(document.querySelector('[role="alert"]')).toBeNull();
+  expect(card(1)).not.toBeNull();
+});
+
+test('leaving during a retry also preserves the next screen', async () => {
+  getActivities.mockRejectedValueOnce(new Error('offline'));
+  await screen.refreshActivities();
+  const pending = deferred();
+  getActivities.mockReturnValueOnce(pending.promise);
+  document.getElementById('activities-retry').click();
+  showNextPage();
+  pending.resolve(ACTIVITIES);
+  await settle();
+  expect(document.getElementById('app').innerHTML).toBe(NEXT_PAGE);
+});
+
+test('a saved activity cannot redraw a page visited while the refreshed list loads', async () => {
+  screen.showActivityModal(ACTIVITIES[0]);
+  const { onSaved } = openActivityFormModal.mock.calls[0][1];
+  const pending = deferred();
+  getActivities.mockReturnValueOnce(pending.promise);
+  const done = onSaved();
+  showNextPage();
+  pending.resolve(ACTIVITIES);
+  await done;
+  expect(document.getElementById('app').innerHTML).toBe(NEXT_PAGE);
+});
+
+test('a completed deletion still clears caches but does not redraw or notify another page', async () => {
+  const pending = deferred();
+  deleteActivity.mockReturnValueOnce(pending.promise);
+  const done = screen.deleteActivity(1);
+  showNextPage();
+  pending.resolve({ data: {} });
+  await done;
+  expect(clearActivityRelatedCaches).toHaveBeenCalled();
+  expect(screen.app.showMessage).not.toHaveBeenCalled();
+  expect(document.getElementById('app').innerHTML).toBe(NEXT_PAGE);
+});
+
+test('activity names remain text when they contain markup', async () => {
+  getActivities.mockResolvedValueOnce([activity({ id: 99, name: '<img src=x onerror=alert(1)>', activity_start_date: '2026-11-04', activity_end_date: '2026-11-04' })]);
+  await screen.refreshActivities(true);
+  expect(card(99).querySelector('h3').textContent).toBe('<img src=x onerror=alert(1)>');
+  expect(card(99).querySelector('img')).toBeNull();
 });

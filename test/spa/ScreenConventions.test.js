@@ -18,7 +18,6 @@ const ROOT = path.join(__dirname, '../..');
 const HAND_WRITTEN_BACK_LINKS = [
   'spa/modules/TabbedPage.js',
   'spa/modules/account-info.js',
-  'spa/modules/activities/Activities.js',
   'spa/modules/meetings/MeetingPrep.js',
   'spa/modules/scout-year/ScoutYearTransition.js',
   'spa/modules/unit-settings/unit-settings.js',

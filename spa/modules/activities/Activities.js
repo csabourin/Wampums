@@ -5,7 +5,7 @@ import { translate } from '../../app.js';
 import { getActivities, deleteActivity } from '../../api/api-activities.js';
 import { clearActivityRelatedCaches } from '../../indexedDB.js';
 import { canFollowPermissionSlips, canViewActivities, hasPermission, hasOrganizationScope } from '../../utils/PermissionUtils.js';
-import { skeletonActivityList, setButtonLoading } from '../../utils/SkeletonUtils.js';
+import { setButtonLoading } from '../../utils/SkeletonUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
@@ -25,6 +25,8 @@ import { campReadinessHref } from '../camp-readiness/UpcomingCamps.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { richTextOrPlain } from '../../utils/RichTextUtils.js';
+import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { pageErrorMarkup, pageLoadingMarkup } from '../../utils/PageStateUtils.js';
 const SEARCH_DEBOUNCE_MS = 300;
 
 export class Activities extends BaseModule {
@@ -32,6 +34,7 @@ export class Activities extends BaseModule {
     super(app);
     this.activities = [];
     this.isLoading = true;
+    this.loadError = null;
     this.searchTerm = '';
     this.canCreate = hasPermission('activities.create');
     this.canEdit = hasPermission('activities.edit');
@@ -51,10 +54,20 @@ export class Activities extends BaseModule {
         target.replaceWith(wrapper.firstElementChild);
       });
     });
+    await this.refreshActivities();
+  }
+
+  /** Load and render only while this screen is still active. */
+  async refreshActivities(forceRefresh = false) {
+    if (this.isDestroyed) {
+      return;
+    }
     this.isLoading = true;
     this.render();
-
-    await this.loadActivities();
+    await this.loadActivities(forceRefresh);
+    if (this.isDestroyed) {
+      return;
+    }
 
     this.isLoading = false;
     this.render();
@@ -62,12 +75,19 @@ export class Activities extends BaseModule {
   }
 
   async loadActivities(forceRefresh = false) {
+    this.loadError = null;
     try {
-      this.activities = await getActivities({ forceRefresh });
+      const activities = await getActivities({ forceRefresh });
+      if (this.isDestroyed) {
+        return;
+      }
+      this.activities = activities;
     } catch (err) {
+      if (this.isDestroyed) {
+        return;
+      }
       debugError('Error loading activities:', err);
-      this.app.showMessage(translate('error_loading_activities'), 'error');
-      this.activities = [];
+      this.loadError = apiErrorMessage(err, 'error_loading_activities');
     }
   }
 
@@ -77,12 +97,19 @@ export class Activities extends BaseModule {
 
   render() {
     const container = document.getElementById('app');
-    if (!container) {
+    if (this.isDestroyed || !container) {
       return;
     }
 
     if (this.isLoading) {
-      setContent(container, skeletonActivityList());
+      setContent(container, pageLoadingMarkup({ title: translate('activities_calendar'), className: 'activities-page' }));
+      return;
+    }
+    if (this.loadError) {
+      setContent(container, pageErrorMarkup({
+        title: translate('activities_calendar'), className: 'activities-page',
+        message: this.loadError, retryId: 'activities-retry',
+      }));
       return;
     }
 
@@ -109,9 +136,9 @@ export class Activities extends BaseModule {
 
     setContent(container, `
       <section class="page activities-page">
+        ${renderBackLink()}
         <header class="page__header">
           <div class="page__header-top">
-            <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
             <h1>${translate('activities_calendar')}</h1>
             ${this.canCreate ? `
               <button class="button button--primary" id="add-activity-btn">
@@ -285,6 +312,13 @@ export class Activities extends BaseModule {
   // ==========================================================================
 
   attachEventListeners() {
+    if (this.isDestroyed) {
+      return;
+    }
+    if (this.loadError) {
+      this.addEventListener(document.getElementById('activities-retry'), 'click', () => this.refreshActivities(true));
+      return;
+    }
     this.addEventListener(document.getElementById('add-activity-btn'), 'click', () => {
       this.showActivityModal();
     });
@@ -365,11 +399,7 @@ export class Activities extends BaseModule {
   showActivityModal(activity = null) {
     openActivityFormModal(this.app, {
       activity,
-      onSaved: async () => {
-        await this.loadActivities(true);
-        this.render();
-        this.attachEventListeners();
-      }
+      onSaved: () => this.refreshActivities(true)
     });
   }
 
@@ -377,15 +407,19 @@ export class Activities extends BaseModule {
     try {
       const result = await deleteActivity(activityId, { notify, restoreMeeting });
       await clearActivityRelatedCaches();
+      if (this.isDestroyed) {
+        return;
+      }
       // Offline, the deletion (and its emails) is only queued: say so
       this.app.showMessage(
         translate(result?.queued ? 'activity_delete_queued' : deletedMessageKey(result?.data?.replaced_meeting)),
         result?.queued ? 'info' : 'success'
       );
-      await this.loadActivities(true);
-      this.render();
-      this.attachEventListeners();
+      await this.refreshActivities(true);
     } catch (err) {
+      if (this.isDestroyed) {
+        return;
+      }
       debugError('Error deleting activity:', err);
       this.app.showMessage(apiErrorMessage(err, 'error_deleting_activity'), 'error');
     }
