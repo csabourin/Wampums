@@ -101,6 +101,16 @@ async function assertMember(db, organizationId, userId, { lock = false } = {}) {
 }
 
 /**
+ * Serialize what changes one person's certifications: they are shared by every unit, so a lock on
+ * one unit's membership row would not order two saves made from two units.
+ * @param {Object} db - Transaction client
+ * @param {string} userId
+ */
+async function lockPerson(db, userId) {
+  await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`member-certifications:${userId}`]);
+}
+
+/**
  * Every certification, with what the person declared and whether it was verified. Both belong to
  * the person: a verification made in any of their units holds in all of them.
  *
@@ -142,6 +152,7 @@ function saveOwnDeclarations(pool, organizationId, userId, input) {
   const declared = readDeclarations(input, new Date());
   const keys = Object.keys(declared);
   return transaction(pool, async (db) => {
+    await lockPerson(db, userId);
     await assertMember(db, organizationId, userId, { lock: true });
     await db.query(
       'DELETE FROM member_certifications WHERE user_id = $1 AND NOT (certification_key = ANY($2::text[]))',
@@ -192,6 +203,7 @@ function verifyCertification(pool, organizationId, managerId, userId, key, input
     refuse('certification_invalid', HTTP_BAD_REQUEST, 'obtained_on');
   }
   return transaction(pool, async (db) => {
+    await lockPerson(db, userId);
     await assertMember(db, organizationId, userId, { lock: true });
     const updated = await db.query(
       `UPDATE member_certifications SET
