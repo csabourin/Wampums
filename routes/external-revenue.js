@@ -8,7 +8,8 @@ const { validateIdParam, checkValidation } = require('../middleware/validation')
 const {
   toNumeric,
   validateMoney,
-  validateDate
+  validateDate,
+  validatePositiveInteger
 } = require('../utils/validation-helpers');
 
 module.exports = (pool, logger) => {
@@ -35,11 +36,12 @@ module.exports = (pool, logger) => {
     let parsedCategoryId = null;
 
     if (hasCategoryFilter) {
-      parsedCategoryId = Number.parseInt(category_id, 10);
+      const categoryValidation = validatePositiveInteger(category_id, 'category_id');
 
-      if (!Number.isInteger(parsedCategoryId)) {
+      if (!categoryValidation.valid) {
         return error(res, 'category_id must be a valid integer or "all"', 400);
       }
+      parsedCategoryId = categoryValidation.value;
     }
 
     let query = `
@@ -144,11 +146,11 @@ module.exports = (pool, logger) => {
       // If a value is provided, it must be a valid integer
       let normalizedCategoryId = null;
       if (budget_category_id !== null && budget_category_id !== undefined && budget_category_id !== '') {
-        const categoryId = Number.parseInt(budget_category_id, 10);
-        if (!Number.isInteger(categoryId) || categoryId <= 0) {
+        const categoryValidation = validatePositiveInteger(budget_category_id, 'budget_category_id');
+        if (!categoryValidation.valid) {
           return error(res, 'budget_category_id must be a valid positive integer or null', 400);
         }
-        normalizedCategoryId = categoryId;
+        normalizedCategoryId = categoryValidation.value;
       }
 
       if (normalizedCategoryId !== null && !await categoryBelongsToUnit(normalizedCategoryId, organizationId)) {
@@ -237,11 +239,11 @@ module.exports = (pool, logger) => {
     // Validate and normalize budget_category_id if provided
     let normalizedCategoryId = budget_category_id;
     if (budget_category_id !== undefined && budget_category_id !== null && budget_category_id !== '') {
-      const categoryId = Number.parseInt(budget_category_id, 10);
-      if (!Number.isInteger(categoryId) || categoryId <= 0) {
+      const categoryValidation = validatePositiveInteger(budget_category_id, 'budget_category_id');
+      if (!categoryValidation.valid) {
         return error(res, 'budget_category_id must be a valid positive integer or null', 400);
       }
-      normalizedCategoryId = categoryId;
+      normalizedCategoryId = categoryValidation.value;
     } else if (budget_category_id === '') {
       // Normalize empty string to null
       normalizedCategoryId = null;

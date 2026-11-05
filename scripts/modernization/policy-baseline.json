@@ -24,7 +24,7 @@
     "routes/dashboards.js": 5,
     "routes/external-revenue.js": 37,
     "routes/familyLinks.js": 9,
-    "routes/finance.js": 47,
+    "routes/finance.js": 45,
     "routes/formBuilder.js": 52,
     "routes/forms.js": 145,
     "routes/fundraisers.js": 21,
@@ -219,8 +219,7 @@
     "utils/meeting-defaults.js": 4,
     "utils/permission-slip-email.js": 1,
     "utils/railway-storage.js": 14,
-    "utils/twoFactor.js": 12,
-    "utils/validation-helpers.js": 2
+    "utils/twoFactor.js": 12
   },
   "manual-auth": {},
   "role-names": {
