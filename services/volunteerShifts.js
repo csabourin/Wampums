@@ -459,7 +459,7 @@ async function shiftsForActivity(db, organizationId, activityId) {
 }
 
 module.exports = {
-  VOLUNTEER_TYPES, REQUIREMENTS, TYPE_REQUIREMENTS, VALIDITY_YEARS, VolunteerError, missingRequirements, teamChecks,
+  VOLUNTEER_TYPES, REQUIREMENTS, TYPE_REQUIREMENTS, VALIDITY_YEARS, VolunteerError, missingRequirements, requirementsByUser, teamChecks,
   listShifts, listShiftActivities, saveShift, deleteShift, signUp, withdraw, shiftsForActivity,
   getRequirements, recordRequirements,
 };

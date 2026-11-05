@@ -85,11 +85,11 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
 
   afterAll(async () => { if (pool) { await pool.end(); } });
 
-  test('the volunteer role holds only shifts and its own tasks: no youth, family or health permission', async () => {
+  test('the volunteer role holds only shifts, its own tasks and the volunteer space: no youth, family or health permission', async () => {
     const keys = (await pool.query(`SELECT p.permission_key FROM roles r
       JOIN role_permissions rp ON rp.role_id = r.id JOIN permissions p ON p.id = rp.permission_id
       WHERE r.role_name = 'volunteer' AND r.organization_id IS NULL ORDER BY 1`)).rows.map((row) => row.permission_key);
-    expect(keys).toEqual(['tasks.view', 'volunteers.view']);
+    expect(keys).toEqual(['tasks.view', 'volunteer_space.view', 'volunteers.view']);
   });
 
   test.each([
