@@ -34,6 +34,7 @@ const { findUninvitedParticipants } = require('../services/activityInvitations')
 const { CampMaterialError, reserveCampMaterial } = require('../services/campMaterialList');
 const {
   MAX_FILE_SIZE,
+  MAX_FILE_SIZE_MB,
   OUTPUT_MIME_TYPE,
   validateFile,
   isAllowedImageType,
@@ -1094,7 +1095,7 @@ module.exports = (pool, logger) => {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return error(
             res,
-            `File size exceeds maximum allowed (${MAX_FILE_SIZE / 1024 / 1024}MB)`,
+            `File size exceeds maximum allowed (${MAX_FILE_SIZE_MB}MB)`,
             HTTP_STATUS.BAD_REQUEST,
           );
         }

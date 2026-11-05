@@ -10,6 +10,9 @@
  */
 import { debugLog } from './utils/DebugUtils.js';
 import { DEFAULT_LANG, SUPPORTED_LANGS } from './config/languages.js';
+
+const BYTES_PER_KB = 1024;
+const BYTES_PER_MB = BYTES_PER_KB * BYTES_PER_KB;
 import { MS_PER_DAY, MS_PER_MINUTE } from './utils/TimeUnits.js';
 
 /**
@@ -203,7 +206,7 @@ export const CONFIG = {
     DEFAULT_PAGE_SIZE: 50,
 
     // Maximum file upload size (in bytes)
-    MAX_FILE_SIZE: 30 * 1024 * 1024, // 30MB
+    MAX_FILE_SIZE: 30 * BYTES_PER_MB, // 30MB
 
     // Toast notification duration (in milliseconds)
     TOAST_DURATION: 3000,
@@ -254,16 +257,16 @@ export const CONFIG = {
      */
   PHOTO_UPLOAD: {
     // Max original file size accepted from the client (bytes)
-    MAX_ORIGINAL_SIZE_BYTES: 30 * 1024 * 1024, // 30MB
+    MAX_ORIGINAL_SIZE_BYTES: 30 * BYTES_PER_MB, // 30MB
 
     // Target long-edge resize for client-side optimization (pixels)
     TARGET_MAX_EDGE_PX: 2048,
 
     // Max desired upload payload size after optimization (bytes)
-    TARGET_MAX_BYTES: 5 * 1024 * 1024, // 5MB
+    TARGET_MAX_BYTES: 5 * BYTES_PER_MB, // 5MB
 
     // Chunk size for streaming reads (bytes)
-    STREAM_CHUNK_SIZE: 512 * 1024, // 512KB
+    STREAM_CHUNK_SIZE: 512 * BYTES_PER_KB, // 512KB
 
     // Preferred and minimum WebP qualities for resize/export
     WEBP_QUALITY: 0.82,

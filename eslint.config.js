@@ -135,7 +135,8 @@ module.exports = [
     rules: { 'no-console': 'off', 'no-magic-numbers': 'off' },
   },
   {
-    files: ['config/**/*.js', '*.config.js', '*.config.mjs'],
+    // Configuration files are where values get their names.
+    files: ['config/**/*.js', '*.config.js', '*.config.mjs', 'spa/config.js', 'spa/config/**/*.js'],
     rules: { 'no-magic-numbers': 'off' },
   },
 

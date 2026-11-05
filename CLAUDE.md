@@ -773,7 +773,7 @@ The project enforces ESLint 9 rules. **Errors block CI; warnings must be resolve
 **Override exceptions:**
 - `routes/`, `middleware/`, `services/`, `scripts/` — `no-console` is off (use `console.log` freely)
 - `*.test.js`, `*.spec.js` — `no-magic-numbers`, `no-console` and `no-script-url` are off
-- `migrations/`, `config/` — `no-magic-numbers` is off
+- `migrations/`, `config/`, `spa/config.js`, `spa/config/` — `no-magic-numbers` is off (configuration is where values are named)
 - Backend files are parsed as CommonJS; `spa/` and the shared `config/roles.js` / `config/meeting_sections.js` as ES modules
 
 ### 11) Automated Lint Scripts
