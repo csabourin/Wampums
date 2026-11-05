@@ -24,7 +24,7 @@
     "routes/medication.js": 6,
     "routes/offline.js": 5,
     "routes/organizations.js": 7,
-    "routes/participants.js": 3,
+    "routes/participants.js": 2,
     "routes/points.js": 13,
     "routes/programProgress.js": 3,
     "routes/public.js": 2,

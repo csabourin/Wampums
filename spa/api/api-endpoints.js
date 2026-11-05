@@ -984,26 +984,6 @@ export function saveGuardianFormSubmission(formData) {
   return API.post('v1/guardians/form-submission', formData);
 }
 
-/**
- * Link parent to participant
- */
-export function linkParentToParticipant(parentId, participantId) {
-  return API.post('v1/participants/link-parent', {
-    parent_id: parentId,
-    participant_id: participantId
-  });
-}
-
-/**
- * Link guardian to participant (alias)
- */
-export function linkGuardianToParticipant(participantId, guardianId) {
-  return API.post('v1/participants/link-parent', {
-    participant_id: participantId,
-    parent_id: guardianId
-  });
-}
-
 /** Unlink one guardian and revoke the access backed by that relationship. */
 export function removeGuardian(participantId, guardianId) {
   return API.delete('v1/guardians', { participant_id: participantId, guardian_id: guardianId });

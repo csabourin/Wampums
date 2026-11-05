@@ -45,7 +45,6 @@ jest.mock('../../spa/api/api-endpoints.js', () => ({
   saveGuardian: jest.fn(),
   removeGuardians: jest.fn(),
   removeGuardian: jest.fn(),
-  linkGuardianToParticipant: jest.fn(),
 }));
 jest.mock('../../spa/api/api-family.js', () => ({ registerChild: jest.fn(), updateOwnChild: jest.fn() }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
@@ -338,7 +337,6 @@ describe('guardian management', () => {
   test('saving goes through the form, so Enter in a field saves instead of reloading', async () => {
     await open();
     guardianApi.saveGuardian.mockResolvedValue({ success: true, data: { id: 9 } });
-    guardianApi.linkGuardianToParticipant.mockResolvedValue({ success: true });
     page().querySelector('#add-guardian-btn').click();
     page().querySelector('#add-prenom').value = 'Anne';
     page().querySelector('#add-nom').value = 'Roy';
@@ -352,7 +350,27 @@ describe('guardian management', () => {
 
     expect(submit.defaultPrevented).toBe(true);
     expect(guardianApi.saveGuardian).toHaveBeenCalledWith(expect.objectContaining({ prenom: 'Anne', participant_id: 12 }));
-    expect(guardianApi.linkGuardianToParticipant).toHaveBeenCalledWith(12, 9);
+  });
+
+  test('adding a guardian saves them with the child in one request and says so', async () => {
+    history.replaceState(null, '', '/guardian-management?participant_id=12&participant_name=L%C3%A9a%20Roy');
+    guardianApi.getGuardiansForParticipant.mockResolvedValue({ success: true, data: GUARDIANS });
+    const screenApp = app();
+    await initGuardianManagement(screenApp);
+    guardianApi.saveGuardian.mockResolvedValue({ success: true, data: { id: 9 } });
+    guardianApi.getGuardiansForParticipant.mockClear();
+    page().querySelector('#add-guardian-btn').click();
+    page().querySelector('#add-prenom').value = 'Anne';
+    page().querySelector('#add-nom').value = 'Roy';
+    page().querySelector('#add-lien').value = 'Tante';
+
+    page().querySelector('#add-guardian-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+
+    expect(guardianApi.saveGuardian).toHaveBeenCalledTimes(1);
+    expect(screenApp.showMessage).toHaveBeenCalledWith('guardian_added_successfully', 'success');
+    expect(screenApp.showMessage).not.toHaveBeenCalledWith(expect.anything(), 'error');
+    expect(guardianApi.getGuardiansForParticipant).toHaveBeenCalled();
   });
 
   test('a failed load is an alert with a retry', async () => {

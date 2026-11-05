@@ -1402,35 +1402,6 @@ module.exports = (pool) => {
   }));
 
   /**
-   * POST /api/link-parent-participant
-   * Link a parent to a participant (child)
-   * Requires admin or animation role
-   */
-  router.post('/link-parent', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
-    if (!isPlainBodyObject(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', HTTP_STATUS.BAD_REQUEST);
-    }
-
-    const organizationId = await getOrganizationId(req, pool);
-
-    const { parent_id, participant_id, relationship } = req.body;
-
-    if (!parent_id || !participant_id) {
-      return error(res, 'Parent ID and participant ID are required', HTTP_STATUS.BAD_REQUEST);
-    }
-
-    await pool.query(
-      `INSERT INTO guardians (participant_id, guardian_id, relationship)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (participant_id, guardian_id)
-       DO UPDATE SET relationship = EXCLUDED.relationship`,
-      [participant_id, parent_id, relationship || 'parent']
-    );
-
-    return success(res, null, 'Parent linked to participant successfully');
-  }));
-
-  /**
    * POST /api/v1/participants/remove-guardians
    * Remove guardians from participant
    * Requires admin or animation role

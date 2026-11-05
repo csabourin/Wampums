@@ -14,7 +14,6 @@ import {
   getGuardiansForParticipant,
   saveGuardian,
   removeGuardians,
-  linkGuardianToParticipant,
 } from '../../api/api-endpoints.js';
 import { validateEmail } from '../../utils/ValidationUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
@@ -360,14 +359,12 @@ export class GuardianManagementModule {
       return;
     }
 
+    // Saving with participant_id creates the guardian and links them to this
+    // child in one request.
     try {
       const response = await saveGuardian(guardianData);
       if (!response?.success) {
         throw Object.assign(new Error('guardian_not_added'), { status: response?.status });
-      }
-      const guardianId = response.data?.id || response.data?.parent_id;
-      if (guardianId) {
-        await linkGuardianToParticipant(this.participantId, guardianId);
       }
     } catch (error) {
       debugError('[GuardianManagement] Error adding guardian:', error);
