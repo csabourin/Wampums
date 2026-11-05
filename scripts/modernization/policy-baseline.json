@@ -78,7 +78,7 @@
     "services/whatsapp-baileys.js": 16,
     "services/whatsapp-database-auth.js": 1,
     "spa/api/api-core.js": 19,
-    "spa/api/api-endpoints.js": 189,
+    "spa/api/api-endpoints.js": 82,
     "spa/api/api-helpers.js": 6,
     "spa/api/api-yearly-planner.js": 11,
     "spa/app.js": 7,

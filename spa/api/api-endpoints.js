@@ -63,7 +63,7 @@ async function invalidateUserAssociationCaches() {
 /**
  * Get organization ID based on hostname
  */
-export async function getOrganizationId() {
+export function getOrganizationId() {
   return API.get('v1/organizations/get_organization_id');
 }
 
@@ -75,14 +75,14 @@ export const getApiOrganizationId = getOrganizationId;
 /**
  * Get public organization settings
  */
-export async function getPublicOrganizationSettings() {
+export function getPublicOrganizationSettings() {
   return fetchPublic('organizations/settings/public');
 }
 
 /**
  * Get news for the organization
  */
-export async function getPublicNews(lang = 'en') {
+export function getPublicNews(lang = 'en') {
   return API.get('v1/public/news', { lang });
 }
 
@@ -234,14 +234,14 @@ export async function register(userData) {
 /**
  * Request password reset
  */
-export async function requestPasswordReset(email) {
+export function requestPasswordReset(email) {
   return API.post('v1/auth/request-reset', { email });
 }
 
 /**
  * Reset password with token
  */
-export async function resetPassword(token, newPassword) {
+export function resetPassword(token, newPassword) {
   return API.post('v1/auth/reset-password', { token, new_password: newPassword });
 }
 
@@ -267,7 +267,7 @@ export async function logout() {
 /**
  * Create new organization
  */
-export async function createOrganization(data) {
+export function createOrganization(data) {
   // A unit, its address and its administrator's invitation exist only once the server says so.
   return API.post('v1/organizations', data, {}, { queueOffline: false });
 }
@@ -281,21 +281,21 @@ export async function createOrganization(data) {
  * @param {Object} params - Query parameters
  * @param {Object} cacheOptions - Cache options (e.g., { forceRefresh: true })
  */
-export async function getEquipmentInventory(params = {}, cacheOptions = {}) {
+export function getEquipmentInventory(params = {}, cacheOptions = {}) {
   return API.get('v1/resources/equipment', params, cacheOptions);
 }
 
 /**
  * Create or update equipment
  */
-export async function saveEquipmentItem(payload) {
+export function saveEquipmentItem(payload) {
   return API.post('v1/resources/equipment', payload);
 }
 
 /**
  * Update existing equipment item
  */
-export async function updateEquipmentItem(id, payload) {
+export function updateEquipmentItem(id, payload) {
   return API.put(`v1/resources/equipment/${id}`, payload);
 }
 
@@ -305,7 +305,7 @@ export async function updateEquipmentItem(id, payload) {
  * @param {number} equipmentId - Equipment ID
  * @returns {Promise<Object>} Fresh photo URL response
  */
-export async function getEquipmentPhotoUrl(equipmentId) {
+export function getEquipmentPhotoUrl(equipmentId) {
   return API.getNoCache(`v1/resources/equipment/${equipmentId}/photo`);
 }
 
@@ -335,7 +335,7 @@ export async function uploadEquipmentPhoto(equipmentId, file) {
  * @param {number} equipmentId - Equipment ID
  * @returns {Promise<Object>} Delete result
  */
-export async function deleteEquipmentPhoto(equipmentId) {
+export function deleteEquipmentPhoto(equipmentId) {
   return API.delete(`v1/resources/equipment/${equipmentId}/photo`);
 }
 
@@ -344,35 +344,35 @@ export async function deleteEquipmentPhoto(equipmentId) {
  * @param {number} equipmentId - Equipment ID
  * @returns {Promise<Object>} Delete result
  */
-export async function deleteEquipmentItem(equipmentId) {
+export function deleteEquipmentItem(equipmentId) {
   return API.delete(`v1/resources/equipment/${equipmentId}`);
 }
 
 /**
  * Get reservations for equipment by meeting date
  */
-export async function getEquipmentReservations(params = {}) {
+export function getEquipmentReservations(params = {}) {
   return API.get('v1/resources/equipment/reservations', params);
 }
 
 /**
  * Save an equipment reservation
  */
-export async function saveEquipmentReservation(payload) {
+export function saveEquipmentReservation(payload) {
   return API.post('v1/resources/equipment/reservations', payload);
 }
 
 /**
  * Update an equipment reservation
  */
-export async function updateEquipmentReservation(id, payload) {
+export function updateEquipmentReservation(id, payload) {
   return API.patch(`v1/resources/equipment/reservations/${id}`, payload);
 }
 
 /**
  * Save bulk equipment reservations for an activity
  */
-export async function saveBulkReservations(payload) {
+export function saveBulkReservations(payload) {
   return API.post('v1/resources/equipment/reservations/bulk', payload);
 }
 
@@ -391,28 +391,28 @@ export async function getPermissionSlips(params = {}, cacheOptions = {}) {
 /**
  * Create or update a permission slip
  */
-export async function savePermissionSlip(payload) {
+export function savePermissionSlip(payload) {
   return API.post('v1/resources/permission-slips', payload);
 }
 
 /**
  * Archive a permission slip
  */
-export async function archivePermissionSlip(id) {
+export function archivePermissionSlip(id) {
   return API.patch(`v1/resources/permission-slips/${id}/archive`, {});
 }
 
 /**
  * Delete a permission slip (only if not sent)
  */
-export async function deletePermissionSlip(id) {
+export function deletePermissionSlip(id) {
   return API.delete(`v1/resources/permission-slips/${id}`);
 }
 
 /**
  * Capture signature for a permission slip
  */
-export async function signPermissionSlip(id, payload) {
+export function signPermissionSlip(id, payload) {
   return API.patch(`v1/resources/permission-slips/${id}/sign`, payload);
 }
 
@@ -429,14 +429,14 @@ export async function declinePermissionSlip(id, payload) {
 /**
  * Send emails to parents for permission slips
  */
-export async function sendPermissionSlipEmails(payload) {
+export function sendPermissionSlipEmails(payload) {
   return API.post('v1/resources/permission-slips/send-emails', payload);
 }
 
 /**
  * Send reminder emails to parents for unsigned permission slips
  */
-export async function sendPermissionSlipReminders(payload) {
+export function sendPermissionSlipReminders(payload) {
   return API.post('v1/resources/permission-slips/send-reminders', payload);
 }
 
@@ -451,14 +451,14 @@ export function sendPermissionSlipTestEmail(payload) {
 /**
  * Get public permission slip by token (no auth required)
  */
-export async function getPublicPermissionSlip(token) {
+export function getPublicPermissionSlip(token) {
   return API.get(`v1/resources/permission-slips/v/${token}`);
 }
 
 /**
  * Sign public permission slip by token (no auth required)
  */
-export async function signPublicPermissionSlip(token, payload) {
+export function signPublicPermissionSlip(token, payload) {
   return API.patch(`v1/resources/permission-slips/s/${token}`, payload);
 }
 
@@ -603,7 +603,7 @@ export async function getRoleAuditLog(userId, options = {}) {
 /**
  * Subscribe to push notifications
  */
-export async function subscribeToPush(subscription) {
+export function subscribeToPush(subscription) {
   return API.post('v1/notifications/subscription', subscription);
 }
 
@@ -636,14 +636,14 @@ export async function clearUserCaches(organizationId) {
 /**
  * Approve user (admin only)
  */
-export async function approveUser(userId) {
+export function approveUser(userId) {
   return API.post('v1/users/approve', { user_id: userId });
 }
 
 /**
  * Update user role (admin only)
  */
-export async function updateUserRole(userId, role) {
+export function updateUserRole(userId, role) {
   return API.post('users/update-role', { user_id: userId, role });
 }
 
@@ -678,7 +678,7 @@ export async function getUserOrganizations(options = {}) {
 /**
  * Link user to multiple participants
  */
-export async function linkUserParticipants(userId, participantIds) {
+export function linkUserParticipants(userId, participantIds) {
   return API.post('v1/participants/link-users', {
     user_id: userId,
     participant_ids: participantIds
@@ -703,7 +703,7 @@ export async function getParticipants() {
 /**
  * Get participants with their associated user information
  */
-export async function getParticipantsWithUsers() {
+export function getParticipantsWithUsers() {
   return API.get('v1/participants/with-users');
 }
 
@@ -736,14 +736,14 @@ export async function fetchParticipant(participantId) {
 /**
  * Get detailed participant information
  */
-export async function getParticipantDetails(participantId) {
+export function getParticipantDetails(participantId) {
   return API.get('v1/participants/details', { participant_id: participantId });
 }
 
 /**
  * Save or update participant
  */
-export async function saveParticipant(participantData, options = {}) {
+export function saveParticipant(participantData, options = {}) {
   return API.post('v1/participants/save', participantData, {}, options);
 }
 
@@ -760,7 +760,7 @@ export async function getParticipantAge() {
 /**
  * Get participants with linked users
  * @param {boolean} [forceRefresh=false] */
-export async function fetchParticipantsWithUsers(forceRefresh = false) {
+export function fetchParticipantsWithUsers(forceRefresh = false) {
   return API.get('v1/participants/with-users', {}, { forceRefresh });
 }
 
@@ -910,28 +910,28 @@ export async function fetchParticipants(organizationId, { includeMedication = fa
 /**
  * Get all guardians
  */
-export async function getGuardians() {
+export function getGuardians() {
   return API.get('v1/guardians');
 }
 
 /**
  * Fetch push notification subscribers
  */
-export async function fetchPushSubscribers() {
+export function fetchPushSubscribers() {
   return API.get('v1/notifications/subscribers');
 }
 
 /**
  * Fetch guardians for a participant
  */
-export async function fetchGuardians(participantId) {
+export function fetchGuardians(participantId) {
   return API.get('v1/guardians', { participant_id: participantId });
 }
 
 /**
  * Get guardian info by ID
  */
-export async function getGuardianInfo(guardianId) {
+export function getGuardianInfo(guardianId) {
   return API.get('v1/guardians/info', { guardian_id: guardianId });
 }
 
@@ -959,35 +959,35 @@ export async function getGuardiansForParticipant(participantId, { includeAccount
 /**
  * Get all users with leader/animation roles for the current organization
  */
-export async function getLeaders() {
+export function getLeaders() {
   return API.get('v1/users/leaders');
 }
 
 /**
  * Save parent/guardian
  */
-export async function saveParent(parentData) {
+export function saveParent(parentData) {
   return API.post('v1/guardians', parentData);
 }
 
 /**
  * Save guardian (alias for saveParent)
  */
-export async function saveGuardian(guardianData, options = {}) {
+export function saveGuardian(guardianData, options = {}) {
   return API.post('v1/guardians', guardianData, {}, options);
 }
 
 /**
  * Save guardian form submission
  */
-export async function saveGuardianFormSubmission(formData) {
+export function saveGuardianFormSubmission(formData) {
   return API.post('v1/guardians/form-submission', formData);
 }
 
 /**
  * Link parent to participant
  */
-export async function linkParentToParticipant(parentId, participantId) {
+export function linkParentToParticipant(parentId, participantId) {
   return API.post('v1/participants/link-parent', {
     parent_id: parentId,
     participant_id: participantId
@@ -997,7 +997,7 @@ export async function linkParentToParticipant(parentId, participantId) {
 /**
  * Link guardian to participant (alias)
  */
-export async function linkGuardianToParticipant(participantId, guardianId) {
+export function linkGuardianToParticipant(participantId, guardianId) {
   return API.post('v1/participants/link-parent', {
     participant_id: participantId,
     parent_id: guardianId
@@ -1012,7 +1012,7 @@ export function removeGuardian(participantId, guardianId) {
 /**
  * Remove guardians from participant
  */
-export async function removeGuardians(participantId, guardianIds) {
+export function removeGuardians(participantId, guardianIds) {
   // Assuming backend might handle bulk or we iterate if needed
   // For now, mapping to updated path
   return API.post('v1/participants/remove-guardians', {
@@ -1031,14 +1031,14 @@ export async function fetchParents(participantId) {
 /**
  * Get parent users
  */
-export async function getParentUsers(forceRefresh = false) {
+export function getParentUsers(forceRefresh = false) {
   return API.get('v1/users/parents', {}, { forceRefresh });
 }
 
 /**
  * Get parent dashboard data
  */
-export async function getParentDashboard() {
+export function getParentDashboard() {
   return API.getNoCache('v1/dashboards/parent');
 }
 
@@ -1055,7 +1055,7 @@ export async function getParentContactList() {
 /**
  * Get user children
  */
-export async function getUserChildren(userId) {
+export function getUserChildren(userId) {
   return API.get('v1/users/children', { user_id: userId });
 }
 
@@ -1160,7 +1160,7 @@ export async function getParticipantProgressReport(participantId = null) {
 /**
  * Get points leaderboard
  */
-export async function getPointsLeaderboard(type = 'individuals', limit = 10) {
+export function getPointsLeaderboard(type = 'individuals', limit = 10) {
   return API.get('v1/points/leaderboard', { type, limit });
 }
 
@@ -1191,7 +1191,7 @@ export async function getFormStructure() {
 /**
  * Get form submission
  */
-export async function getFormSubmission(participantId, formType) {
+export function getFormSubmission(participantId, formType) {
   return API.get('v1/forms/submissions', {
     participant_id: participantId,
     form_type: formType
@@ -1330,7 +1330,7 @@ export async function getParticipantsWithDocuments() {
 /**
  * Get risk acceptance form
  */
-export async function getRiskAcceptance(participantId) {
+export function getRiskAcceptance(participantId) {
   return API.get('v1/forms/risk-acceptance', { participant_id: participantId });
 }
 
@@ -1351,7 +1351,7 @@ export async function saveRiskAcceptance(participantId, riskData) {
 /**
  * Get badge progress for participant
  */
-export async function getBadgeProgress(participantId) {
+export function getBadgeProgress(participantId) {
   return API.get('v1/badges/progress', { participant_id: participantId });
 }
 
@@ -1395,14 +1395,14 @@ export async function rejectBadge(badgeId) {
 /**
  * Get badge summary
  */
-export async function getBadgeSummary() {
+export function getBadgeSummary() {
   return API.get('v1/badges/summary');
 }
 
 /**
  * Get badge history for participant
  */
-export async function getBadgeHistory(participantId) {
+export function getBadgeHistory(participantId) {
   return API.get('v1/badges/history', { participant_id: participantId });
 }
 
@@ -1422,7 +1422,7 @@ export async function updateBadgeStatus(badgeId, status) {
 /**
  * Update badge progress fields (stars, description, status, etc.)
  */
-export async function updateBadgeProgress(badgeId, updates) {
+export function updateBadgeProgress(badgeId, updates) {
   return API.put(`v1/badges/badge-progress/${badgeId}`, updates);
 }
 
@@ -1439,14 +1439,14 @@ export async function getBadgeSystemSettings() {
 /**
  * Get organization settings through the public (unauthenticated) endpoint
  */
-export async function fetchPublicOrganizationSettings() {
+export function fetchPublicOrganizationSettings() {
   return fetchPublic('organizations/settings/public');
 }
 
 /**
  * Get badges awaiting physical delivery
  */
-export async function getBadgesAwaitingDelivery() {
+export function getBadgesAwaitingDelivery() {
   return API.getNoCache('v1/badges/badges-awaiting-delivery');
 }
 
@@ -1540,7 +1540,7 @@ export async function getHonorsHistory(options = {}) {
 /**
  * Get available dates for honors
  */
-export async function getAvailableDates() {
+export function getAvailableDates() {
   return API.get('v1/meetings/dates');
 }
 
@@ -1636,14 +1636,14 @@ export async function getAttendanceReport(options = {}) {
 /**
  * Get all calendars
  */
-export async function getCalendars() {
+export function getCalendars() {
   return API.get('v1/calendars');
 }
 
 /**
  * Update calendar amount
  */
-export async function updateCalendar(participantId, amount) {
+export function updateCalendar(participantId, amount) {
   return API.post('v1/calendars/update-calendar', {
     participant_id: participantId,
     amount
@@ -1657,21 +1657,21 @@ export async function updateCalendar(participantId, amount) {
 /**
  * Get all fundraisers
  */
-export async function getFundraisers(includeArchived = false) {
+export function getFundraisers(includeArchived = false) {
   return API.get('v1/fundraisers', { include_archived: includeArchived });
 }
 
 /**
  * Get fundraiser details
  */
-export async function getFundraiserDetails(fundraiserId) {
+export function getFundraiserDetails(fundraiserId) {
   return API.get(`v1/fundraisers/${fundraiserId}`);
 }
 
 /**
  * Save fundraiser
  */
-export async function saveFundraiser(fundraiserData) {
+export function saveFundraiser(fundraiserData) {
   return API.post('v1/fundraisers', fundraiserData);
 }
 
@@ -1682,7 +1682,7 @@ export async function saveFundraiser(fundraiserData) {
  * @param {Object} fundraiserData - Fields to update
  * @returns {Promise<Object>} API response
  */
-export async function updateFundraiser(fundraiserId, fundraiserData) {
+export function updateFundraiser(fundraiserId, fundraiserData) {
   return API.put(`v1/fundraisers/${fundraiserId}`, fundraiserData);
 }
 
@@ -1695,42 +1695,42 @@ export async function updateFundraiser(fundraiserId, fundraiserData) {
  * @param {string|number} fundraiserId - Campaign identifier
  * @returns {Promise<Object>} API response
  */
-export async function deleteFundraiser(fundraiserId) {
+export function deleteFundraiser(fundraiserId) {
   return API.delete(`v1/fundraisers/${fundraiserId}`);
 }
 
 /**
  * Archive/unarchive fundraiser
  */
-export async function archiveFundraiser(fundraiserId, archived) {
+export function archiveFundraiser(fundraiserId, archived) {
   return API.put(`v1/fundraisers/${fundraiserId}/archive`, { archived });
 }
 
 /**
  * Get fundraiser entries (calendars)
  */
-export async function getCalendarsForFundraiser(fundraiserId) {
+export function getCalendarsForFundraiser(fundraiserId) {
   return API.get('v1/calendars', { fundraiser_id: fundraiserId });
 }
 
 /**
  * Update fundraiser entry
  */
-export async function updateCalendarEntry(id, data) {
+export function updateCalendarEntry(id, data) {
   return API.put(`v1/calendars/${id}`, data);
 }
 
 /**
  * Update payment for fundraiser entry
  */
-export async function updateCalendarPayment(id, amountPaid) {
+export function updateCalendarPayment(id, amountPaid) {
   return API.put(`v1/calendars/${id}/payment`, { amount_paid: amountPaid });
 }
 
 /**
  * Get participant fundraiser entries
  */
-export async function getParticipantCalendar(participantId) {
+export function getParticipantCalendar(participantId) {
   return API.get('v1/calendars/participant', { participant_id: participantId });
 }
 
@@ -1745,7 +1745,7 @@ export async function getParticipantCalendar(participantId) {
  * Get past meetings with unprocessed badge-linked activities
  * @returns {Promise<Object>} { data: [{ id, date, activities: [...] }] }
  */
-export async function getUnprocessedAchievements() {
+export function getUnprocessedAchievements() {
   return API.get('v1/meetings/achievements/unprocessed');
 }
 
@@ -1753,7 +1753,7 @@ export async function getUnprocessedAchievements() {
  * Mark badge-linked meeting activities as processed after awards are saved
  * @param {number[]} activityIds - year_plan_meeting_activities ids
  */
-export async function markMeetingActivitiesProcessed(activityIds) {
+export function markMeetingActivitiesProcessed(activityIds) {
   return API.post('v1/meetings/activities/mark-processed', { activity_ids: activityIds });
 }
 
@@ -1775,7 +1775,7 @@ export async function getReunionPreparation(date, options = {}) {
  * Save the meeting preparation for a date (upserts the calendar row)
  * @returns {Promise<Object>} { data: meeting }
  */
-export async function saveReunionPreparation(preparationData) {
+export function saveReunionPreparation(preparationData) {
   return API.post('v1/meetings/preparation', preparationData);
 }
 
@@ -1803,28 +1803,28 @@ export const getActivitesRencontre = () => getMeetingActivities();
  * @param {Object} cacheOptions - Cache options (e.g., { forceRefresh: true })
  * @returns {Promise<Object>} Response with activities array
  */
-export async function getActivities(params = {}, cacheOptions = {}) {
+export function getActivities(params = {}, cacheOptions = {}) {
   return API.get('v1/activities', params, cacheOptions);
 }
 
 /**
  * Save reminder
  */
-export async function saveReminder(reminderData) {
+export function saveReminder(reminderData) {
   return API.post('v1/meetings/reminders', reminderData);
 }
 
 /**
  * Get reminder for date
  */
-export async function getReminder() {
+export function getReminder() {
   return API.get('v1/meetings/reminders');
 }
 
 /**
  * Get next meeting info
  */
-export async function getNextMeetingInfo() {
+export function getNextMeetingInfo() {
   return API.get('v1/meetings/next');
 }
 
@@ -1839,28 +1839,28 @@ export async function getGuests(date = null) {
 /**
  * Save a guest
  */
-export async function saveGuest(guestData) {
+export function saveGuest(guestData) {
   return API.post('v1/meetings/guests', guestData);
 }
 
 /**
  * Get meeting activity types
  */
-export async function getMeetingActivities() {
+export function getMeetingActivities() {
   return API.get('v1/meetings/activities');
 }
 
 /**
  * Get meeting templates
  */
-export async function getMeetingTemplates() {
+export function getMeetingTemplates() {
   return API.get('v1/meetings/activities/templates');
 }
 
 /**
  * Get animators
  */
-export async function getAnimateurs() {
+export function getAnimateurs() {
   return API.get('v1/users/animateurs');
 }
 
@@ -1881,7 +1881,7 @@ export async function fetchHealthContactReport() {
 /**
  * Fetch general health report with group filter
  */
-export async function fetchHealthReport(params = {}) {
+export function fetchHealthReport(params = {}) {
   return API.get('v1/reports/health', params);
 }
 
@@ -2078,21 +2078,21 @@ export async function getFirstAidSupplies(params = {}) {
 /**
  * Get medication authorizations (treatment + administration) for a participant
  */
-export async function getMedicationAuthorizations(participantId) {
+export function getMedicationAuthorizations(participantId) {
   return API.get(`v1/medication/authorizations/${participantId}`);
 }
 
 /**
  * Save a PDF A treatment authorization
  */
-export async function saveTreatmentAuthorization(payload) {
+export function saveTreatmentAuthorization(payload) {
   return API.post('v1/medication/authorizations/treatment', payload);
 }
 
 /**
  * Save a PDF B administration authorization
  */
-export async function saveAdministrationAuthorization(payload) {
+export function saveAdministrationAuthorization(payload) {
   return API.post('v1/medication/authorizations/administration', payload);
 }
 
@@ -2130,7 +2130,7 @@ export async function getMediaAuthorizationReport() {
 /**
  * Get missing documents report
  */
-export async function getMissingDocumentsReport() {
+export function getMissingDocumentsReport() {
   return API.get('v1/reports/missing-documents');
 }
 
@@ -2141,7 +2141,7 @@ export async function getMissingDocumentsReport() {
  * accepting an invitation or a family link), which no write of the reader's
  * own would invalidate, so a cached copy kept showing yesterday's families.
  */
-export async function getMailingList() {
+export function getMailingList() {
   return API.getNoCache('v1/reports/mailing-list');
 }
 
@@ -2155,7 +2155,7 @@ export async function getAnnouncements() {
   });
 }
 
-export async function createAnnouncement(payload) {
+export function createAnnouncement(payload) {
   return API.post('v1/announcements', payload);
 }
 
@@ -2277,21 +2277,21 @@ export async function getPaymentPlans(participantFeeId) {
 /**
  * Create a payment plan for a participant fee
  */
-export async function createPaymentPlan(participantFeeId, payload) {
+export function createPaymentPlan(participantFeeId, payload) {
   return API.post(`v1/finance/participant-fees/${participantFeeId}/payment-plans`, payload);
 }
 
 /**
  * Update an existing payment plan
  */
-export async function updatePaymentPlan(planId, payload) {
+export function updatePaymentPlan(planId, payload) {
   return API.put(`v1/finance/payment-plans/${planId}`, payload);
 }
 
 /**
  * Delete a payment plan
  */
-export async function deletePaymentPlan(planId) {
+export function deletePaymentPlan(planId) {
   return API.delete(`v1/finance/payment-plans/${planId}`);
 }
 
@@ -2308,7 +2308,7 @@ export async function getFinanceReport() {
 /**
  * Get a participant-level finance statement (guardian or staff scope)
  */
-export async function getParticipantStatement(participantId) {
+export function getParticipantStatement(participantId) {
   return API.get(`v1/finance/participants/${participantId}/statement`);
 }
 
@@ -2319,7 +2319,7 @@ export async function getParticipantStatement(participantId) {
 /**
  * Create a Stripe payment intent for a participant fee
  */
-export async function createStripePaymentIntent(participant_fee_id, amount) {
+export function createStripePaymentIntent(participant_fee_id, amount) {
   return API.post('v1/stripe/create-payment-intent', {
     participant_fee_id,
     amount
@@ -2329,7 +2329,7 @@ export async function createStripePaymentIntent(participant_fee_id, amount) {
 /**
  * Get the status of a Stripe payment intent
  */
-export async function getStripePaymentStatus(paymentIntentId) {
+export function getStripePaymentStatus(paymentIntentId) {
   return API.get(`v1/stripe/payment-status/${paymentIntentId}`);
 }
 
@@ -2527,21 +2527,21 @@ export async function getBudgetPlans(fiscalYearStart = null, fiscalYearEnd = nul
 /**
  * Create a budget plan
  */
-export async function createBudgetPlan(payload) {
+export function createBudgetPlan(payload) {
   return API.post('v1/budget/plans', payload);
 }
 
 /**
  * Update a budget plan
  */
-export async function updateBudgetPlan(id, payload) {
+export function updateBudgetPlan(id, payload) {
   return API.put(`v1/budget/plans/${id}`, payload);
 }
 
 /**
  * Delete a budget plan
  */
-export async function deleteBudgetPlan(id) {
+export function deleteBudgetPlan(id) {
   return API.delete(`v1/budget/plans/${id}`);
 }
 
@@ -2580,7 +2580,7 @@ export async function getExpensesMonthly(fiscalYearStart = null, fiscalYearEnd =
 /**
  * Bulk create expenses
  */
-export async function createExpensesBulk(expenses) {
+export function createExpensesBulk(expenses) {
   return API.post('v1/expenses/bulk', { expenses });
 }
 
@@ -2714,7 +2714,7 @@ export async function getRevenueComparison(fiscalYearStart, fiscalYearEnd) {
 /**
  * Save organization
  */
-export async function saveOrganization(organizationData) {
+export function saveOrganization(organizationData) {
   return API.post('v1/organizations', organizationData);
 }
 
@@ -2723,7 +2723,7 @@ export async function saveOrganization(organizationData) {
  * Switch active organization. Never queued offline: the new token is needed
  * now, and a switch replayed later would change nothing.
  */
-export async function switchOrganization(organizationId) {
+export function switchOrganization(organizationId) {
   return API.post('v1/organizations/switch', { organization_id: organizationId }, {}, { queueOffline: false });
 }
 
@@ -2758,7 +2758,7 @@ export async function fetchOrganizationSettings(params = {}) {
 /**
  * Get current organization settings without a cached copy for the settings editor.
  */
-export async function fetchEditableOrganizationSettings() {
+export function fetchEditableOrganizationSettings() {
   return API.getNoCache('v1/organizations/settings');
 }
 
@@ -2855,12 +2855,12 @@ async function invalidateLocalGroupSharedCaches() {
 }
 
 /** List every local group this organization can join. */
-export async function getLocalGroups() {
+export function getLocalGroups() {
   return API.getNoCache('v1/local-groups');
 }
 
 /** Get the local groups this organization currently belongs to. */
-export async function getLocalGroupMemberships() {
+export function getLocalGroupMemberships() {
   return API.getNoCache('v1/local-groups/memberships');
 }
 
@@ -2896,7 +2896,7 @@ export const getOrganizationSettings = fetchOrganizationSettings;
 /**
  * Get news (API endpoint)
  */
-export async function fetchNews() {
+export function fetchNews() {
   return API.get('v1/public/news');
 }
 
@@ -2906,7 +2906,7 @@ export const getNews = fetchNews;
 /**
  * Import SISC CSV data (admin only)
  */
-export async function importSISC(csvContent) {
+export function importSISC(csvContent) {
   return API.post('v1/import/sisc', { csvContent });
 }
 
@@ -2930,7 +2930,7 @@ export async function fetchOrganizationJwt() {
 /**
  * Get initial data (API endpoint)
  */
-export async function fetchInitialData() {
+export function fetchInitialData() {
   return API.get('v1/dashboards/initial');
 }
 
@@ -2996,7 +2996,7 @@ export async function checkAuthStatus() {
 /**
  * Get current authenticated user profile
  */
-export async function getCurrentUser() {
+export function getCurrentUser() {
   return API.getNoCache('v1/users/me');
 }
 
@@ -3006,7 +3006,7 @@ export async function getCurrentUser() {
  *
  * @returns {Promise<{success: boolean, data: {roles: string[], permissions: string[]}}>}
  */
-export async function getCurrentAccess() {
+export function getCurrentAccess() {
   return API.getNoCache('v1/users/me/access');
 }
 
@@ -3025,7 +3025,7 @@ export async function fetchOrganizationId() {
 export const getParticipantAgeReport = getParticipantAge;
 
 
-export async function getProgramProgressStream(params = {}, cacheOptions = {}) {
+export function getProgramProgressStream(params = {}, cacheOptions = {}) {
   return makeApiRequestWithCache('v1/program-progress/stream', {
     params,
     cacheOptions,
