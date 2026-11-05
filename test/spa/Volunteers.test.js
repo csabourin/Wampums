@@ -392,7 +392,8 @@ describe('types and what they require', () => {
     await flush();
     await flush();
     expect(verifyMemberCertification).toHaveBeenCalledTimes(1);
-    expect(verifyMemberCertification).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000004', 'wilderness_first_aid', true);
+    expect(verifyMemberCertification).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000004', 'wilderness_first_aid', true,
+      { obtained_on: '2025-03-01', valid_until: '2028-03-01' });
   });
 
   test('when declarations cannot be read, verifying still works', async () => {

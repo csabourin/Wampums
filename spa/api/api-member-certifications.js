@@ -33,8 +33,11 @@ export function getMemberCertifications(userId) {
  * @param {string} userId - UUID of a member of the unit
  * @param {string} key - Certification key
  * @param {boolean} verified
+ * @param {{obtained_on: string, valid_until: string|null}} reviewed - The dates the manager saw;
+ *   the server refuses (409) when the person changed them since
  * @returns {Promise<Object>} Their certifications as they now are
  */
-export function verifyMemberCertification(userId, key, verified) {
-  return API.put(`v1/member-certifications/${encodeURIComponent(userId)}/${encodeURIComponent(key)}/verification`, { verified });
+export function verifyMemberCertification(userId, key, verified, reviewed) {
+  return API.put(`v1/member-certifications/${encodeURIComponent(userId)}/${encodeURIComponent(key)}/verification`,
+    { verified, obtained_on: reviewed.obtained_on, valid_until: reviewed.valid_until });
 }

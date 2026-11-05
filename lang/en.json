@@ -5672,6 +5672,7 @@
   "volunteers_certifications_help": "Tick those you verified. A verification holds in every unit the person belongs to; changing the dates withdraws it.",
   "certification_verification_saved": "Verification saved.",
   "certification_not_declared": "This certification was not declared by the person.",
+  "certification_changed": "The person changed this certification's dates since you opened it. Reopen it to review them.",
   "certifications_title": "My certifications",
   "certifications_intro": "Declare each certification you hold once, with its dates. A volunteer manager of one of your units verifies it; the verification holds in all of them. Changing the dates withdraws it. Only a verified certification counts in the camp lists.",
   "certifications_load_failed": "Your certifications could not be loaded.",

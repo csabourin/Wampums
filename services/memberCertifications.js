@@ -21,6 +21,7 @@ const RULES = require('../config/certifications.json');
 
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
+const HTTP_CONFLICT = 409;
 /** Length of a YYYY-MM-DD calendar date in an ISO timestamp. */
 const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
 
@@ -175,7 +176,8 @@ function saveOwnDeclarations(pool, organizationId, userId, input) {
  * @param {string} managerId
  * @param {string} userId - The person
  * @param {string} key - Certification key
- * @param {Object} input - Request body: { verified: boolean }
+ * @param {Object} input - Request body: { verified: boolean, obtained_on, valid_until } with the dates the
+ *   manager reviewed; a verification is refused (409) when the person changed them since
  * @returns {Promise<Array<Object>>} The person's certifications as they now are
  */
 function verifyCertification(pool, organizationId, managerId, userId, key, input) {
@@ -185,6 +187,10 @@ function verifyCertification(pool, organizationId, managerId, userId, key, input
   if (typeof input?.verified !== 'boolean') {
     refuse('certification_invalid', HTTP_BAD_REQUEST, 'verified');
   }
+  const reviewedUntil = input.valid_until ?? null;
+  if (input.verified && (!isCalendarDate(input.obtained_on) || (reviewedUntil !== null && !isCalendarDate(reviewedUntil)))) {
+    refuse('certification_invalid', HTTP_BAD_REQUEST, 'obtained_on');
+  }
   return transaction(pool, async (db) => {
     await assertMember(db, organizationId, userId, { lock: true });
     const updated = await db.query(
@@ -192,11 +198,17 @@ function verifyCertification(pool, organizationId, managerId, userId, key, input
          verified_at = CASE WHEN $3 THEN NOW() END,
          verified_by = CASE WHEN $3 THEN $4::uuid END,
          verified_in_organization_id = CASE WHEN $3 THEN $5::int END
-       WHERE user_id = $1 AND certification_key = $2`,
-      [userId, key, input.verified, managerId, organizationId]
+       WHERE user_id = $1 AND certification_key = $2
+         -- A verification holds for the dates the manager saw, never for dates changed since.
+         AND (NOT $3 OR (obtained_on = $6::date AND valid_until IS NOT DISTINCT FROM $7::date))`,
+      [userId, key, input.verified, managerId, organizationId,
+        input.verified ? input.obtained_on : null, input.verified ? reviewedUntil : null]
     );
     if (!updated.rowCount) {
-      refuse('certification_not_declared', HTTP_NOT_FOUND);
+      const declared = await db.query(
+        'SELECT 1 FROM member_certifications WHERE user_id = $1 AND certification_key = $2', [userId, key]);
+      refuse(declared.rows.length ? 'certification_changed' : 'certification_not_declared',
+        declared.rows.length ? HTTP_CONFLICT : HTTP_NOT_FOUND);
     }
     return certificationsOf(db, organizationId, userId);
   });

@@ -61,8 +61,12 @@ describe.skipIf(!DATABASE_URL)('Adult certifications in the camp lists', () => {
   const verify = async (user, keys, verified = true, by = ids.volunteerManager, unitId = ids.unit) => {
     const responses = [];
     for (const key of keys) {
+      // The manager reviews the declared dates first, as the verify dialog does.
       // eslint-disable-next-line no-await-in-loop -- one certification at a time, as a manager ticks them
-      responses.push(await call('put', `/member-certifications/${user}/${key}/verification`, by, unitId).send({ verified }));
+      const row = await pool.query('SELECT obtained_on::text AS obtained_on, valid_until::text AS valid_until FROM member_certifications WHERE user_id = $1 AND certification_key = $2', [user, key]);
+      const reviewed = row.rows[0] || { obtained_on: '2025-01-01', valid_until: null };
+      // eslint-disable-next-line no-await-in-loop -- one certification at a time, as a manager ticks them
+      responses.push(await call('put', `/member-certifications/${user}/${key}/verification`, by, unitId).send({ verified, ...reviewed }));
     }
     return responses;
   };
@@ -206,6 +210,18 @@ describe.skipIf(!DATABASE_URL)('Adult certifications in the camp lists', () => {
     const theirCamp = await camp(ids.otherUnit, '2031-04-01', '2031-04-02');
     await call('put', `/camp-rosters/${theirCamp}/team/${both}`, ids.outsider, ids.otherUnit).send({ team_role: 'leader' });
     expect((await call('get', `/camp-rosters/${theirCamp}`, ids.outsider, ids.otherUnit)).body.data.blocking_gaps).toEqual([]);
+  });
+
+  test('a verification holds only for the dates the manager reviewed', async () => {
+    const editor = await member(ids.unit, ['volunteers.view'], 'Radia Perlman');
+    await declare(editor, { first_aid_certificate: { obtained_on: '2025-01-01', valid_until: '2026-01-01' } });
+    // The person extends the expiry while the manager's dialog still shows the old dates.
+    await declare(editor, { first_aid_certificate: { obtained_on: '2025-01-01', valid_until: '2030-01-01' } });
+    const stale = await call('put', `/member-certifications/${editor}/first_aid_certificate/verification`, ids.volunteerManager)
+      .send({ verified: true, obtained_on: '2025-01-01', valid_until: '2026-01-01' });
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe('certification_changed');
+    expect(await one('SELECT verified_at FROM member_certifications WHERE user_id = $1', [editor])).toBeNull();
   });
 
   test('a manager verifies only members of their own unit, and only what was declared', async () => {

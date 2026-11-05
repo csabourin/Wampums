@@ -5672,6 +5672,7 @@
   "volunteers_certifications_help": "Cochez celles que vous avez vérifiées. Une vérification vaut dans toutes les unités de la personne ; changer les dates la retire.",
   "certification_verification_saved": "Vérification enregistrée.",
   "certification_not_declared": "Cette compétence n’a pas été déclarée par la personne.",
+  "certification_changed": "La personne a modifié les dates de cette compétence depuis l’ouverture. Rouvrez-la pour les revoir.",
   "certifications_title": "Mes compétences",
   "certifications_intro": "Déclarez une seule fois chaque compétence que vous détenez, avec ses dates. Un gestionnaire des bénévoles d’une de vos unités la vérifie ; la vérification vaut dans toutes. Changer les dates la retire. Seule une compétence vérifiée compte dans les listes du camp.",
   "certifications_load_failed": "Vos compétences n’ont pas pu être chargées.",

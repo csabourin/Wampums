@@ -440,7 +440,7 @@ export class Volunteers {
         try {
           result = await saveVolunteerRequirements(userId, verified);
           await Promise.all(changedCertifications.map((item) => verifyMemberCertification(
-            userId, item.certification_key, form.elements[`cert_${item.certification_key}`].checked)));
+            userId, item.certification_key, form.elements[`cert_${item.certification_key}`].checked, item.declared)));
         } catch (err) {
           if (this.stale()) { return; }
           debugError('Failed to save requirements:', err);
