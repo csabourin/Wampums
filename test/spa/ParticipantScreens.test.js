@@ -43,7 +43,6 @@ jest.mock('../../spa/ajax-functions.js', () => ({
 jest.mock('../../spa/api/api-endpoints.js', () => ({
   getGuardiansForParticipant: jest.fn(),
   saveGuardian: jest.fn(),
-  removeGuardians: jest.fn(),
   removeGuardian: jest.fn(),
 }));
 jest.mock('../../spa/api/api-family.js', () => ({ registerChild: jest.fn(), updateOwnChild: jest.fn() }));
@@ -79,6 +78,7 @@ import {
   getParticipantsWithDocuments, getOrganizationFormFormats, getParentContactList,
 } from '../../spa/ajax-functions.js';
 import * as guardianApi from '../../spa/api/api-endpoints.js';
+import * as dialogs from '../../spa/utils/DialogUtils.js';
 import { TimeSinceRegistration } from '../../spa/modules/participants/TimeSinceRegistration.js';
 import { ViewParticipantDocuments } from '../../spa/modules/participants/ViewParticipantDocuments.js';
 import { ParentContactList } from '../../spa/modules/participants/ParentContactList.js';
@@ -371,6 +371,33 @@ describe('guardian management', () => {
     expect(screenApp.showMessage).toHaveBeenCalledWith('guardian_added_successfully', 'success');
     expect(screenApp.showMessage).not.toHaveBeenCalledWith(expect.anything(), 'error');
     expect(guardianApi.getGuardiansForParticipant).toHaveBeenCalled();
+  });
+
+  test('removing a guardian, once confirmed, unlinks them from the child and says so', async () => {
+    history.replaceState(null, '', '/guardian-management?participant_id=12&participant_name=L%C3%A9a%20Roy');
+    guardianApi.getGuardiansForParticipant.mockResolvedValue({ success: true, data: GUARDIANS });
+    dialogs.confirmDestructive.mockResolvedValue(true);
+    guardianApi.removeGuardian.mockResolvedValue({ success: true });
+    const screenApp = app();
+    await initGuardianManagement(screenApp);
+
+    page().querySelector('.remove-guardian-btn[data-guardian-id="8"]').click();
+    await flush();
+
+    expect(guardianApi.removeGuardian).toHaveBeenCalledWith(12, 8);
+    expect(screenApp.showMessage).toHaveBeenCalledWith('guardian_removed_successfully', 'success');
+  });
+
+  test('declining the confirmation removes no one', async () => {
+    history.replaceState(null, '', '/guardian-management?participant_id=12&participant_name=L%C3%A9a%20Roy');
+    guardianApi.getGuardiansForParticipant.mockResolvedValue({ success: true, data: GUARDIANS });
+    dialogs.confirmDestructive.mockResolvedValue(false);
+    await initGuardianManagement(app());
+
+    page().querySelector('.remove-guardian-btn[data-guardian-id="8"]').click();
+    await flush();
+
+    expect(guardianApi.removeGuardian).not.toHaveBeenCalled();
   });
 
   test('a failed load is an alert with a retry', async () => {

@@ -385,7 +385,7 @@ module.exports = (pool, logger) => {
                      JOIN participant_organizations po ON p.id = po.participant_id
                      WHERE po.organization_id = $1) as participant_count,
                     (SELECT COUNT(*) FROM groups WHERE organization_id = $1) as group_count,
-                    (SELECT COUNT(*) FROM badge_settings WHERE organization_id = $1) as badge_count,
+                    (SELECT COUNT(*) FROM badge_templates WHERE organization_id = $1) as badge_count,
                     (SELECT COUNT(*) FROM medication_requirements WHERE organization_id = $1) as medication_count`,
         [organizationId]
       );

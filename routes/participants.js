@@ -1402,43 +1402,6 @@ module.exports = (pool) => {
   }));
 
   /**
-   * POST /api/v1/participants/remove-guardians
-   * Remove guardians from participant
-   * Requires admin or animation role
-   */
-  router.post('/remove-guardians', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
-    if (!isPlainBodyObject(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', HTTP_STATUS.BAD_REQUEST);
-    }
-
-    const { participant_id, guardian_ids } = req.body;
-
-    if (!participant_id || !Array.isArray(guardian_ids) || guardian_ids.length === 0) {
-      return error(res, 'Participant ID and an array of guardian IDs are required', HTTP_STATUS.BAD_REQUEST);
-    }
-
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      await client.query(
-        `DELETE FROM guardians
-         WHERE participant_id = $1 AND guardian_id = ANY($2::int[])`,
-        [participant_id, guardian_ids]
-      );
-
-      await client.query('COMMIT');
-
-      return success(res, null, 'Guardians removed successfully');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  }));
-
-  /**
    * DELETE /api/participant-groups/:participantId
    * Remove participant from their group
    * Requires admin or animation role

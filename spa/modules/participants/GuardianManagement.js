@@ -13,7 +13,7 @@ import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import {
   getGuardiansForParticipant,
   saveGuardian,
-  removeGuardians,
+  removeGuardian,
 } from '../../api/api-endpoints.js';
 import { validateEmail } from '../../utils/ValidationUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
@@ -388,7 +388,7 @@ export class GuardianManagementModule {
     }
 
     try {
-      const response = await removeGuardians(this.participantId, [guardianId]);
+      const response = await removeGuardian(this.participantId, guardianId);
       if (!response?.success) {
         throw Object.assign(new Error('guardian_not_removed'), { status: response?.status });
       }

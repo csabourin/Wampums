@@ -990,18 +990,6 @@ export function removeGuardian(participantId, guardianId) {
 }
 
 /**
- * Remove guardians from participant
- */
-export function removeGuardians(participantId, guardianIds) {
-  // Assuming backend might handle bulk or we iterate if needed
-  // For now, mapping to updated path
-  return API.post('v1/participants/remove-guardians', {
-    participant_id: participantId,
-    guardian_ids: guardianIds
-  });
-}
-
-/**
  * Fetch parents (alias for fetchGuardians)
  */
 export async function fetchParents(participantId) {

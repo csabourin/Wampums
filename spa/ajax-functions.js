@@ -155,7 +155,6 @@ export {
   saveParent,
   saveGuardian,
   saveGuardianFormSubmission,
-  removeGuardians,
   fetchParents,
   getParentUsers,
   getParentDashboard,
