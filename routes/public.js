@@ -9,6 +9,7 @@
 
 const express = require('express');
 const { asyncHandler } = require('../middleware/response');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs').promises;
@@ -132,7 +133,7 @@ module.exports = (pool, logger) => {
       res.json(Object.fromEntries(translations));
     } catch (error) {
       logger.error('Error loading translations:', error);
-      res.status(500).json({ error: 'Failed to load translations' });
+      res.status(HTTP_STATUS.INTERNAL_ERROR).json({ error: 'Failed to load translations' });
     }
   }));
 
@@ -240,7 +241,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching news:', error);
-      res.status(500).json({ error: 'Failed to fetch news' });
+      res.status(HTTP_STATUS.INTERNAL_ERROR).json({ error: 'Failed to fetch news' });
     }
   }));
 
@@ -354,7 +355,7 @@ module.exports = (pool, logger) => {
         // Validate input
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
-          return res.status(400).json({
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({
             success: false,
             errors: errors.array().map(err => ({
               field: err.path,
@@ -469,7 +470,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
             email,
             organization
           });
-          return res.status(500).json({
+          return res.status(HTTP_STATUS.INTERNAL_ERROR).json({
             success: false,
             message: 'Failed to send demo request. Please try again later.'
           });
@@ -488,7 +489,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
         });
       } catch (error) {
         logger.error('Error processing contact form:', error);
-        res.status(500).json({
+        res.status(HTTP_STATUS.INTERNAL_ERROR).json({
           success: false,
           message: 'An error occurred while processing your request'
         });
@@ -724,7 +725,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
       // The one refusal that is the caller's to fix, so it gets a 4xx rather
       // than a state the page would have to special-case anyway.
       if (result.error === 'password_required' || result.error === 'name_required') {
-        return res.status(400).json({ success: false, message: result.error, data: result });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: result.error, data: result });
       }
 
       return res.json({ success: true, data: result });
@@ -782,7 +783,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
       );
 
       if (result.error === 'password_required' || result.error === 'name_required') {
-        return res.status(400).json({ success: false, message: result.error, data: result });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: result.error, data: result });
       }
 
       return res.json({ success: true, data: result });

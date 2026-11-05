@@ -1,4 +1,5 @@
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const HTTP_NOT_FOUND = 404;
 const HTTP_BAD_REQUEST = 400;
@@ -39,7 +40,7 @@ module.exports = (pool, logger) => {
       const categoryValidation = validatePositiveInteger(category_id, 'category_id');
 
       if (!categoryValidation.valid) {
-        return error(res, 'category_id must be a valid integer or "all"', 400);
+        return error(res, 'category_id must be a valid integer or "all"', HTTP_STATUS.BAD_REQUEST);
       }
       parsedCategoryId = categoryValidation.value;
     }
@@ -134,11 +135,11 @@ module.exports = (pool, logger) => {
       const dateValidation = validateDate(revenue_date, 'revenue_date');
 
       if (!amountValidation.valid || !dateValidation.valid) {
-        return error(res, amountValidation.message || dateValidation.message, 400);
+        return error(res, amountValidation.message || dateValidation.message, HTTP_STATUS.BAD_REQUEST);
       }
 
       if (!description || description.trim().length === 0) {
-        return error(res, 'Description is required', 400);
+        return error(res, 'Description is required', HTTP_STATUS.BAD_REQUEST);
       }
 
       // Validate and normalize budget_category_id
@@ -148,7 +149,7 @@ module.exports = (pool, logger) => {
       if (budget_category_id !== null && budget_category_id !== undefined && budget_category_id !== '') {
         const categoryValidation = validatePositiveInteger(budget_category_id, 'budget_category_id');
         if (!categoryValidation.valid) {
-          return error(res, 'budget_category_id must be a valid positive integer or null', 400);
+          return error(res, 'budget_category_id must be a valid positive integer or null', HTTP_STATUS.BAD_REQUEST);
         }
         normalizedCategoryId = categoryValidation.value;
       }
@@ -186,7 +187,7 @@ module.exports = (pool, logger) => {
         revenue_type
       };
 
-      return success(res, revenue, 'External revenue recorded successfully', 201);
+      return success(res, revenue, 'External revenue recorded successfully', HTTP_STATUS.CREATED);
     } catch (err) {
       logger.error('[external-revenue] POST error:', {
         error: err.message,
@@ -195,7 +196,7 @@ module.exports = (pool, logger) => {
         detail: err.detail,
         body: req.body
       });
-      return error(res, `Database error: ${err.message}`, 500);
+      return error(res, `Database error: ${err.message}`, HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -224,7 +225,7 @@ module.exports = (pool, logger) => {
     if (amount !== undefined && amount !== null) {
       const validation = validateMoney(amount, 'amount');
       if (!validation.valid) {
-        return error(res, validation.message, 400);
+        return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
@@ -232,7 +233,7 @@ module.exports = (pool, logger) => {
     if (revenue_date) {
       const validation = validateDate(revenue_date, 'revenue_date');
       if (!validation.valid) {
-        return error(res, validation.message, 400);
+        return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
@@ -241,7 +242,7 @@ module.exports = (pool, logger) => {
     if (budget_category_id !== undefined && budget_category_id !== null && budget_category_id !== '') {
       const categoryValidation = validatePositiveInteger(budget_category_id, 'budget_category_id');
       if (!categoryValidation.valid) {
-        return error(res, 'budget_category_id must be a valid positive integer or null', 400);
+        return error(res, 'budget_category_id must be a valid positive integer or null', HTTP_STATUS.BAD_REQUEST);
       }
       normalizedCategoryId = categoryValidation.value;
     } else if (budget_category_id === '') {

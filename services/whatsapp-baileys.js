@@ -23,6 +23,7 @@ const qrcodeTerminal = require('qrcode-terminal');
 const winston = require('winston');
 const { useDatabaseAuthState } = require('./whatsapp-database-auth');
 const util = require('util');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 const WHATSAPP_LOG_LEVEL = process.env.WHATSAPP_LOG_LEVEL || 'info';
 const WHATSAPP_LOG_FILE = process.env.WHATSAPP_LOG_FILE || 'whatsapp-baileys.log';
@@ -284,7 +285,7 @@ class WhatsAppBaileysService {
       const isTemporaryError = statusCode === 515;
 
       // Error 401 (Connection Failure) means credentials are unauthorized - clear credentials
-      const credentialRejection = statusCode === 401;
+      const credentialRejection = statusCode === HTTP_STATUS.UNAUTHORIZED;
 
       // Error 440 (conflict/replaced) means another session has replaced this one
       // Do NOT auto-reconnect - this creates an infinite reconnection loop

@@ -6,6 +6,7 @@
  */
 
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 
 const {
@@ -267,7 +268,7 @@ module.exports = (pool, logger) => {
         user: req.user
       });
 
-      return success(res, result, 'Program progression recorded', 201);
+      return success(res, result, 'Program progression recorded', HTTP_STATUS.CREATED);
     } catch (err) {
       if (err.message === 'Participant not found in organization') {
         return errorResponse(res, err.message, 404);

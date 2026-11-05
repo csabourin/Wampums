@@ -8,6 +8,7 @@ const { authenticate, blockDemoRoles, requirePermission, getOrganizationId } = r
 const express = require('express');
 const { asyncHandler, error: errorResponse, success: successResponse } = require('../middleware/response');
 const { body, check } = require('express-validator');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const {
   handleOrganizationResolutionError,
@@ -1027,7 +1028,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
 
         if (normalized.audience !== ALUMNI_AUDIENCE) {
           if (requestedRoleCount && !normalized.roles.length) {
-            return res.status(400).json({ success: false, message: 'No valid roles provided' });
+            return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'No valid roles provided' });
           }
           // Dens that no longer exist would narrow the message to nobody.
           if (requestedGroupCount && !normalized.groups.length) {

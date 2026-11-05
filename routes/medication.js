@@ -1,4 +1,5 @@
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const { authenticate, blockDemoRoles, getOrganizationId, getUserDataScope, requirePermission, withScoutYear } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
@@ -182,11 +183,11 @@ module.exports = (pool, logger) => {
     const participants = parseParticipantIds(participant_ids);
 
     if (!normalizedName) {
-      return error(res, 'Medication name and a participant are required', 400);
+      return error(res, 'Medication name and a participant are required', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (!participants || participants.length !== 1) {
-      return error(res, 'Medication requirements must target exactly one participant', 400);
+      return error(res, 'Medication requirements must target exactly one participant', HTTP_STATUS.BAD_REQUEST);
     }
 
     const numericDoseAmount = default_dose_amount !== undefined && default_dose_amount !== null
@@ -194,7 +195,7 @@ module.exports = (pool, logger) => {
       : null;
 
     if (numericDoseAmount !== null && !Number.isFinite(numericDoseAmount)) {
-      return error(res, 'Default dose amount must be a valid number', 400);
+      return error(res, 'Default dose amount must be a valid number', HTTP_STATUS.BAD_REQUEST);
     }
 
     const client = await pool.connect();
@@ -239,7 +240,7 @@ module.exports = (pool, logger) => {
           userId: req.user.id,
           rowsReturned: insertRequirement.rows?.length || 0
         });
-        return error(res, 'Failed to create medication requirement', 500);
+        return error(res, 'Failed to create medication requirement', HTTP_STATUS.INTERNAL_ERROR);
       }
 
       // Batch insert all participant medications in a single query
@@ -259,11 +260,11 @@ module.exports = (pool, logger) => {
       }
 
       await client.query('COMMIT');
-      return success(res, requirement, 'Medication requirement saved', 201);
+      return success(res, requirement, 'Medication requirement saved', HTTP_STATUS.CREATED);
     } catch (err) {
       await client.query('ROLLBACK');
       logger.error('Error creating medication requirement', err);
-      return error(res, 'Unable to save medication requirement', 500);
+      return error(res, 'Unable to save medication requirement', HTTP_STATUS.INTERNAL_ERROR);
     } finally {
       client.release();
     }
@@ -301,11 +302,11 @@ module.exports = (pool, logger) => {
     const participants = parseParticipantIds(participant_ids);
 
     if (!normalizedName) {
-      return error(res, 'Medication name and a participant are required', 400);
+      return error(res, 'Medication name and a participant are required', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (!participants || participants.length !== 1) {
-      return error(res, 'Medication requirements must target exactly one participant', 400);
+      return error(res, 'Medication requirements must target exactly one participant', HTTP_STATUS.BAD_REQUEST);
     }
 
     const numericDoseAmount = default_dose_amount !== undefined && default_dose_amount !== null
@@ -313,7 +314,7 @@ module.exports = (pool, logger) => {
       : null;
 
     if (numericDoseAmount !== null && !Number.isFinite(numericDoseAmount)) {
-      return error(res, 'Default dose amount must be a valid number', 400);
+      return error(res, 'Default dose amount must be a valid number', HTTP_STATUS.BAD_REQUEST);
     }
 
     const client = await pool.connect();
@@ -327,7 +328,7 @@ module.exports = (pool, logger) => {
 
       if (existing.rows.length === 0) {
         await client.query('ROLLBACK');
-        return error(res, 'Medication requirement not found', 404);
+        return error(res, 'Medication requirement not found', HTTP_STATUS.NOT_FOUND);
       }
 
       const updatedRequirement = await client.query(
@@ -400,7 +401,7 @@ module.exports = (pool, logger) => {
     } catch (err) {
       await client.query('ROLLBACK');
       logger.error('Error updating medication requirement', err);
-      return error(res, 'Unable to update medication requirement', 500);
+      return error(res, 'Unable to update medication requirement', HTTP_STATUS.INTERNAL_ERROR);
     } finally {
       client.release();
     }
@@ -481,20 +482,20 @@ module.exports = (pool, logger) => {
     const scheduledDate = parseMedicationInstant(scheduled_for);
 
     if (!requirementId) {
-      return error(res, 'A valid medication requirement is required', 400);
+      return error(res, 'A valid medication requirement is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (!participants || participants.length !== 1) {
-      return error(res, 'Exactly one participant must be scheduled per distribution', 400);
+      return error(res, 'Exactly one participant must be scheduled per distribution', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (!scheduledDate) {
-      return error(res, 'Scheduled time must be a valid ISO date/time with Z or an explicit UTC offset', 400);
+      return error(res, 'Scheduled time must be a valid ISO date/time with Z or an explicit UTC offset', HTTP_STATUS.BAD_REQUEST);
     }
 
     const numericDoseAmount = dose_amount !== undefined && dose_amount !== null ? Number(dose_amount) : null;
     if (numericDoseAmount !== null && !Number.isFinite(numericDoseAmount)) {
-      return error(res, 'Dose amount must be a valid number', 400);
+      return error(res, 'Dose amount must be a valid number', HTTP_STATUS.BAD_REQUEST);
     }
 
     // The medication names its youth, who must be enrolled in this unit (#1340): ids are global,
@@ -509,7 +510,7 @@ module.exports = (pool, logger) => {
     );
 
     if (requirementResult.rows.length === 0) {
-      return error(res, 'Medication requirement not found', 404);
+      return error(res, 'Medication requirement not found', HTTP_STATUS.NOT_FOUND);
     }
 
     const requirement = requirementResult.rows[0];
@@ -556,7 +557,7 @@ module.exports = (pool, logger) => {
 
         if (existingDist.rows.length > 0 && existingDist.rows[0].status === 'given') {
           await client.query('ROLLBACK');
-          return error(res, 'This dose has already been given and cannot be given again', 409);
+          return error(res, 'This dose has already been given and cannot be given again', HTTP_STATUS.CONFLICT);
         }
 
         const distributionUpsert = await client.query(
@@ -594,16 +595,16 @@ module.exports = (pool, logger) => {
 
         if (distributionUpsert.rows.length === 0) {
           await client.query('ROLLBACK');
-          return error(res, 'This dose has already been given and cannot be given again', 409);
+          return error(res, 'This dose has already been given and cannot be given again', HTTP_STATUS.CONFLICT);
         }
       }
 
       await client.query('COMMIT');
-      return success(res, null, 'Medication distributions saved', 201);
+      return success(res, null, 'Medication distributions saved', HTTP_STATUS.CREATED);
     } catch (err) {
       await client.query('ROLLBACK');
       logger.error('Error saving medication distributions', err);
-      return error(res, 'Unable to save medication distributions', 500);
+      return error(res, 'Unable to save medication distributions', HTTP_STATUS.INTERNAL_ERROR);
     } finally {
       client.release();
     }
@@ -623,13 +624,13 @@ module.exports = (pool, logger) => {
     const normalizedStatus = status ? String(status).toLowerCase() : 'scheduled';
 
     if (!validateStatus(normalizedStatus)) {
-      return error(res, 'Invalid status value', 400);
+      return error(res, 'Invalid status value', HTTP_STATUS.BAD_REQUEST);
     }
 
     const hasAdministeredAt = administeredAt !== undefined && administeredAt !== null;
     const administeredAtDate = hasAdministeredAt ? parseMedicationInstant(administeredAt) : null;
     if (hasAdministeredAt && !administeredAtDate) {
-      return error(res, 'administered_at must be a valid ISO date/time with Z or an explicit UTC offset', 400);
+      return error(res, 'administered_at must be a valid ISO date/time with Z or an explicit UTC offset', HTTP_STATUS.BAD_REQUEST);
     }
 
     // One conditional write (#1341): a dose already given never changes again, so of two devices
@@ -660,8 +661,8 @@ module.exports = (pool, logger) => {
         [distributionId, organizationId]
       );
       return existing.rows.length
-        ? error(res, 'This dose has already been given and cannot be given again', 409)
-        : error(res, 'Distribution not found', 404);
+        ? error(res, 'This dose has already been given and cannot be given again', HTTP_STATUS.CONFLICT)
+        : error(res, 'Distribution not found', HTTP_STATUS.NOT_FOUND);
     }
 
     return success(res, result.rows[0], 'Distribution updated');
@@ -740,13 +741,13 @@ module.exports = (pool, logger) => {
 
     // Validate required fields
     if (!medication_requirement_id || !participant_id) {
-      return error(res, 'medication_requirement_id and participant_id are required', 400);
+      return error(res, 'medication_requirement_id and participant_id are required', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Validate status
     const validStatuses = ['received', 'not_received', 'partial'];
     if (status && !validStatuses.includes(status)) {
-      return error(res, 'Invalid status. Must be: received, not_received, or partial', 400);
+      return error(res, 'Invalid status. Must be: received, not_received, or partial', HTTP_STATUS.BAD_REQUEST);
     }
 
     const receivedAt = status === 'received' || status === 'partial' ? new Date() : null;
@@ -765,7 +766,7 @@ module.exports = (pool, logger) => {
 
     if (existingCheck.rows.length > 0) {
       if (status === 'received' || status === 'partial') {
-        return error(res, 'Medication already received for this participant', 400);
+        return error(res, 'Medication already received for this participant', HTTP_STATUS.BAD_REQUEST);
       }
 
       // Update existing record
@@ -822,7 +823,7 @@ module.exports = (pool, logger) => {
       );
     }
 
-    return success(res, result.rows[0], 'Medication reception recorded', 201);
+    return success(res, result.rows[0], 'Medication reception recorded', HTTP_STATUS.CREATED);
   }));
 
   /**
@@ -844,7 +845,7 @@ module.exports = (pool, logger) => {
     // Validate status if provided
     const validStatuses = ['received', 'not_received', 'partial'];
     if (status && !validStatuses.includes(status)) {
-      return error(res, 'Invalid status. Must be: received, not_received, or partial', 400);
+      return error(res, 'Invalid status. Must be: received, not_received, or partial', HTTP_STATUS.BAD_REQUEST);
     }
 
     const receivedAt = status === 'received' || status === 'partial' ? new Date() : null;
@@ -871,7 +872,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Reception record not found', 404);
+      return error(res, 'Reception record not found', HTTP_STATUS.NOT_FOUND);
     }
 
     return success(res, result.rows[0], 'Medication reception updated');
@@ -893,7 +894,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Reception record not found', 404);
+      return error(res, 'Reception record not found', HTTP_STATUS.NOT_FOUND);
     }
 
     return success(res, null, 'Medication reception deleted');
@@ -1078,11 +1079,11 @@ module.exports = (pool, logger) => {
       }
 
       await client.query('COMMIT');
-      return success(res, { id: newAuthId }, 'Treatment authorization saved', 201);
+      return success(res, { id: newAuthId }, 'Treatment authorization saved', HTTP_STATUS.CREATED);
     } catch (err) {
       await client.query('ROLLBACK');
       logger.error('Error saving treatment authorization', err);
-      return error(res, 'Failed to save treatment authorization', 500);
+      return error(res, 'Failed to save treatment authorization', HTTP_STATUS.INTERNAL_ERROR);
     } finally {
       client.release();
     }
@@ -1107,7 +1108,7 @@ module.exports = (pool, logger) => {
     } = req.body;
 
     if (!(await areUnitLeaders(pool, organizationId, [admin_user_id_1, admin_user_id_2]))) {
-      return error(res, 'Medication may only be entrusted to leaders of this unit', 400);
+      return error(res, 'Medication may only be entrusted to leaders of this unit', HTTP_STATUS.BAD_REQUEST);
     }
 
     const client = await pool.connect();
@@ -1147,11 +1148,11 @@ module.exports = (pool, logger) => {
       }
 
       await client.query('COMMIT');
-      return success(res, { id: newAuthId }, 'Administration authorization saved', 201);
+      return success(res, { id: newAuthId }, 'Administration authorization saved', HTTP_STATUS.CREATED);
     } catch (err) {
       await client.query('ROLLBACK');
       logger.error('Error saving administration authorization', err);
-      return error(res, 'Failed to save administration authorization', 500);
+      return error(res, 'Failed to save administration authorization', HTTP_STATUS.INTERNAL_ERROR);
     } finally {
       client.release();
     }

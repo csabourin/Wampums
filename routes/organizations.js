@@ -8,6 +8,7 @@
  */
 
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const meetingSectionDefaults = require('../config/meeting_sections.json');
 
@@ -371,7 +372,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Organization not found' });
+        return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Organization not found' });
       }
 
       return res.json({ success: true, data: result.rows[0] });
@@ -423,7 +424,7 @@ module.exports = (pool, logger) => {
     }
 
     if (!organizationId) {
-      return res.status(400).json({
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
         message: 'Organization ID is required'
       });
@@ -545,7 +546,7 @@ module.exports = (pool, logger) => {
       }
 
       logger.error('Error fetching public organization settings:', error);
-      return res.status(500).json({
+      return res.status(HTTP_STATUS.INTERNAL_ERROR).json({
         success: false,
         message: 'Error fetching organization settings'
       });
@@ -568,7 +569,7 @@ module.exports = (pool, logger) => {
       }
 
       logger.error('Error fetching organization settings:', error);
-      return res.status(500).json({
+      return res.status(HTTP_STATUS.INTERNAL_ERROR).json({
         success: false,
         message: 'Error fetching organization settings'
       });
@@ -991,7 +992,7 @@ module.exports = (pool, logger) => {
     const { setting_key, setting_value } = req.body || {};
 
     if (!setting_key) {
-      return res.status(400).json({ success: false, message: 'setting_key is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'setting_key is required' });
     }
 
     if (DEDICATED_SETTING_KEYS.has(req.body.setting_key)) {
@@ -1053,14 +1054,14 @@ module.exports = (pool, logger) => {
 
     // Validate language code
     if (!language) {
-      return res.status(400).json({
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
         message: 'Language is required'
       });
     }
 
     if (!supportedLanguages.includes(language)) {
-      return res.status(400).json({
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
         message: `Invalid language code. Supported languages: ${supportedLanguages.join(', ')}`
       });
@@ -1415,7 +1416,7 @@ module.exports = (pool, logger) => {
     const organizationId = Number(req.body?.organization_id);
 
     if (!Number.isInteger(organizationId) || organizationId <= 0) {
-      return res.status(400).json({ success: false, message: 'Organization ID is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Organization ID is required' });
     }
 
     // Verify user is an active member of this organization

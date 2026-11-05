@@ -1,4 +1,5 @@
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
@@ -50,7 +51,7 @@ module.exports = (pool, logger) => {
     const { name, description, category_type, display_order } = req.body;
 
     if (!name || name.trim().length === 0) {
-      return error(res, 'Category name is required', 400);
+      return error(res, 'Category name is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     const result = await pool.query(
@@ -62,7 +63,7 @@ module.exports = (pool, logger) => {
     );
 
     logger.info(`Budget category created: ${name} for organization ${organizationId}`);
-    return success(res, result.rows[0], 'Budget category created successfully', 201);
+    return success(res, result.rows[0], 'Budget category created successfully', HTTP_STATUS.CREATED);
   }));
 
   /**
@@ -89,7 +90,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Budget category not found', 404);
+      return error(res, 'Budget category not found', HTTP_STATUS.NOT_FOUND);
     }
 
     logger.info(`Budget category updated: ${id} for organization ${organizationId}`);
@@ -114,7 +115,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Budget category not found', 404);
+      return error(res, 'Budget category not found', HTTP_STATUS.NOT_FOUND);
     }
 
     logger.info(`Budget category deleted: ${id} for organization ${organizationId}`);
@@ -171,14 +172,14 @@ module.exports = (pool, logger) => {
     } = req.body;
 
     if (!budget_category_id || !name) {
-      return error(res, 'Category ID and name are required', 400);
+      return error(res, 'Category ID and name are required', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Validate unit_price if provided
     if (unit_price !== undefined && unit_price !== null) {
       const validation = validateMoney(unit_price, 'unit_price');
       if (!validation.valid) {
-        return error(res, validation.message, 400);
+        return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
@@ -201,7 +202,7 @@ module.exports = (pool, logger) => {
     );
 
     logger.info(`Budget item created: ${name} for organization ${organizationId}`);
-    return success(res, result.rows[0], 'Budget item created successfully', 201);
+    return success(res, result.rows[0], 'Budget item created successfully', HTTP_STATUS.CREATED);
   }));
 
   /**
@@ -226,7 +227,7 @@ module.exports = (pool, logger) => {
     if (unit_price !== undefined && unit_price !== null) {
       const validation = validateMoney(unit_price, 'unit_price');
       if (!validation.valid) {
-        return error(res, validation.message, 400);
+        return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
@@ -246,7 +247,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Budget item not found', 404);
+      return error(res, 'Budget item not found', HTTP_STATUS.NOT_FOUND);
     }
 
     logger.info(`Budget item updated: ${id} for organization ${organizationId}`);
@@ -271,7 +272,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Budget item not found', 404);
+      return error(res, 'Budget item not found', HTTP_STATUS.NOT_FOUND);
     }
 
     logger.info(`Budget item deleted: ${id} for organization ${organizationId}`);
@@ -364,11 +365,11 @@ module.exports = (pool, logger) => {
     const dateValidation = validateDate(expense_date, 'expense_date');
 
     if (!amountValidation.valid || !dateValidation.valid) {
-      return error(res, amountValidation.message || dateValidation.message, 400);
+      return error(res, amountValidation.message || dateValidation.message, HTTP_STATUS.BAD_REQUEST);
     }
 
     if (!description || description.trim().length === 0) {
-      return error(res, 'Description is required', 400);
+      return error(res, 'Description is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     const result = await pool.query(
@@ -399,7 +400,7 @@ module.exports = (pool, logger) => {
       amount: toNumeric(result.rows[0].amount)
     };
 
-    return success(res, expense, 'Expense recorded successfully', 201);
+    return success(res, expense, 'Expense recorded successfully', HTTP_STATUS.CREATED);
   }));
 
   /**
@@ -426,7 +427,7 @@ module.exports = (pool, logger) => {
     if (amount !== undefined && amount !== null) {
       const validation = validateMoney(amount, 'amount');
       if (!validation.valid) {
-        return error(res, validation.message, 400);
+        return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
@@ -434,7 +435,7 @@ module.exports = (pool, logger) => {
     if (expense_date) {
       const validation = validateDate(expense_date, 'expense_date');
       if (!validation.valid) {
-        return error(res, validation.message, 400);
+        return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
@@ -468,7 +469,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Expense not found', 404);
+      return error(res, 'Expense not found', HTTP_STATUS.NOT_FOUND);
     }
 
     logger.info(`Expense updated: ${id} for organization ${organizationId}`);
@@ -498,7 +499,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Expense not found', 404);
+      return error(res, 'Expense not found', HTTP_STATUS.NOT_FOUND);
     }
 
     logger.info(`Expense deleted: ${id} for organization ${organizationId}`);
@@ -767,28 +768,28 @@ module.exports = (pool, logger) => {
 
     // Validation
     if (!fiscal_year_start || !fiscal_year_end) {
-      return error(res, 'Fiscal year start and end dates are required', 400);
+      return error(res, 'Fiscal year start and end dates are required', HTTP_STATUS.BAD_REQUEST);
     }
 
     const startValidation = validateDate(fiscal_year_start, 'fiscal_year_start');
     const endValidation = validateDate(fiscal_year_end, 'fiscal_year_end');
 
     if (!startValidation.valid || !endValidation.valid) {
-      return error(res, startValidation.message || endValidation.message, 400);
+      return error(res, startValidation.message || endValidation.message, HTTP_STATUS.BAD_REQUEST);
     }
 
     // Validate monetary values if provided
     if (budgeted_revenue !== undefined && budgeted_revenue !== null) {
       const validation = validateMoney(budgeted_revenue, 'budgeted_revenue');
       if (!validation.valid) {
-        return error(res, validation.message, 400);
+        return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
     if (budgeted_expense !== undefined && budgeted_expense !== null) {
       const validation = validateMoney(budgeted_expense, 'budgeted_expense');
       if (!validation.valid) {
-        return error(res, validation.message, 400);
+        return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
@@ -817,7 +818,7 @@ module.exports = (pool, logger) => {
       budgeted_expense: toNumeric(result.rows[0].budgeted_expense)
     };
 
-    return success(res, plan, 'Budget plan created successfully', 201);
+    return success(res, plan, 'Budget plan created successfully', HTTP_STATUS.CREATED);
   }));
 
   /**
@@ -841,14 +842,14 @@ module.exports = (pool, logger) => {
     if (fiscal_year_start) {
       const validation = validateDate(fiscal_year_start, 'fiscal_year_start');
       if (!validation.valid) {
-        return error(res, validation.message, 400);
+        return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
     if (fiscal_year_end) {
       const validation = validateDate(fiscal_year_end, 'fiscal_year_end');
       if (!validation.valid) {
-        return error(res, validation.message, 400);
+        return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
@@ -856,14 +857,14 @@ module.exports = (pool, logger) => {
     if (budgeted_revenue !== undefined && budgeted_revenue !== null) {
       const validation = validateMoney(budgeted_revenue, 'budgeted_revenue');
       if (!validation.valid) {
-        return error(res, validation.message, 400);
+        return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
     if (budgeted_expense !== undefined && budgeted_expense !== null) {
       const validation = validateMoney(budgeted_expense, 'budgeted_expense');
       if (!validation.valid) {
-        return error(res, validation.message, 400);
+        return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
@@ -891,7 +892,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Budget plan not found', 404);
+      return error(res, 'Budget plan not found', HTTP_STATUS.NOT_FOUND);
     }
 
     logger.info(`Budget plan updated: ${id} for organization ${organizationId}`);
@@ -922,7 +923,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Budget plan not found', 404);
+      return error(res, 'Budget plan not found', HTTP_STATUS.NOT_FOUND);
     }
 
     logger.info(`Budget plan deleted: ${id} for organization ${organizationId}`);
@@ -1057,11 +1058,11 @@ module.exports = (pool, logger) => {
     const { expenses } = req.body;
 
     if (!Array.isArray(expenses) || expenses.length === 0) {
-      return error(res, 'Expenses array is required and must not be empty', 400);
+      return error(res, 'Expenses array is required and must not be empty', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (expenses.length > MAX_BULK_EXPENSES) {
-      return error(res, `Maximum ${MAX_BULK_EXPENSES} expenses can be created at once`, 400);
+      return error(res, `Maximum ${MAX_BULK_EXPENSES} expenses can be created at once`, HTTP_STATUS.BAD_REQUEST);
     }
 
     const client = await pool.connect();
@@ -1124,7 +1125,7 @@ module.exports = (pool, logger) => {
       await client.query('COMMIT');
 
       logger.info(`Bulk expenses created: ${created.length} for organization ${organizationId}`);
-      return success(res, { count: created.length, expenses: created }, 'Expenses created successfully', 201);
+      return success(res, { count: created.length, expenses: created }, 'Expenses created successfully', HTTP_STATUS.CREATED);
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -1306,7 +1307,7 @@ module.exports = (pool, logger) => {
     const { fiscal_year_start, fiscal_year_end } = req.query;
 
     if (!fiscal_year_start || !fiscal_year_end) {
-      return error(res, 'Fiscal year start and end dates are required', 400);
+      return error(res, 'Fiscal year start and end dates are required', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Get budgeted revenue from plans

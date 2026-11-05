@@ -12,6 +12,7 @@
  */
 
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 
 // Import middleware
@@ -239,7 +240,7 @@ module.exports = (pool, logger) => {
       );
 
       logger.info(`Form format created: ${form_type} for organization ${organizationId}`);
-      return success(res, result.rows[0], 'Form format created successfully', 201);
+      return success(res, result.rows[0], 'Form format created successfully', HTTP_STATUS.CREATED);
     } catch (error) {
       logger.error('Error creating form format:', error);
       return errorResponse(res, 'Failed to create form format', 500);
@@ -555,7 +556,7 @@ module.exports = (pool, logger) => {
       }
 
       logger.info(`Form format copied: ${formType} from org ${sourceOrgId} to org ${organizationId}`);
-      return success(res, result.rows[0], 'Form format copied successfully', 201);
+      return success(res, result.rows[0], 'Form format copied successfully', HTTP_STATUS.CREATED);
     } catch (error) {
       logger.error('Error copying form format:', error);
       return errorResponse(res, 'Failed to copy form format', 500);
@@ -656,7 +657,7 @@ module.exports = (pool, logger) => {
 
       logger.info(`New version created for form ${formType} (ID: ${formFormatId}) by user ${userId}`);
 
-      return success(res, versionDetails.rows[0], 'New version created successfully', 201);
+      return success(res, versionDetails.rows[0], 'New version created successfully', HTTP_STATUS.CREATED);
     } catch (error) {
       await client.query('ROLLBACK');
       logger.error('Error creating form version:', error);

@@ -8,6 +8,7 @@
  */
 
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const { authenticate, blockDemoRoles, getOrganizationId, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
@@ -94,7 +95,7 @@ module.exports = (pool) => {
     const parsedId = parseLocalGroupId(req.body?.local_group_id);
 
     if (!parsedId) {
-      return error(res, 'A valid local_group_id is required', 400);
+      return error(res, 'A valid local_group_id is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     const groupResult = await pool.query(
@@ -103,7 +104,7 @@ module.exports = (pool) => {
     );
 
     if (groupResult.rows.length === 0) {
-      return error(res, 'Local group not found', 404);
+      return error(res, 'Local group not found', HTTP_STATUS.NOT_FOUND);
     }
 
     await pool.query(
@@ -118,7 +119,7 @@ module.exports = (pool) => {
     return success(res, {
       added: groupResult.rows[0],
       memberships
-    }, 'Local group membership added successfully', 201);
+    }, 'Local group membership added successfully', HTTP_STATUS.CREATED);
   }));
 
   /**
@@ -130,7 +131,7 @@ module.exports = (pool) => {
     const parsedId = parseLocalGroupId(req.params.localGroupId);
 
     if (!parsedId) {
-      return error(res, 'A valid localGroupId is required', 400);
+      return error(res, 'A valid localGroupId is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     const deletionResult = await pool.query(
@@ -141,10 +142,10 @@ module.exports = (pool) => {
     );
 
     if (deletionResult.rows.length === 0) {
-      return error(res, 'Membership not found for organization', 404);
+      return error(res, 'Membership not found for organization', HTTP_STATUS.NOT_FOUND);
     }
 
-    return success(res, null, 'Local group membership removed successfully', 200);
+    return success(res, null, 'Local group membership removed successfully', HTTP_STATUS.OK);
   }));
 
   return router;

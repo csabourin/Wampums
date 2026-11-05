@@ -18,6 +18,7 @@
 
 
 const { UNIT_FINANCE_PERMISSIONS } = require('../config/constants');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 /**
  * Load the given roles that a unit may use: the built-in roles, which are
@@ -207,23 +208,23 @@ function pairedViewKey(key, catalog) {
  */
 function checkPermissionChange({ role, catalog, currentKeys, requestedKeys, heldPermissions, previousScope, requireComplete = true }) {
   if (role.is_system_role) {
-    return { status: 403, message: 'Cannot modify system roles', required: [], missing: [] };
+    return { status: HTTP_STATUS.FORBIDDEN, message: 'Cannot modify system roles', required: [], missing: [] };
   }
   const current = new Set(currentKeys);
   const requested = new Set(requestedKeys);
   if (role.data_scope === 'linked' && requested.has('ai.use')) {
-    return { status: 409, message: 'AI is reserved for organization-scoped staff' };
+    return { status: HTTP_STATUS.CONFLICT, message: 'AI is reserved for organization-scoped staff' };
   }
   const financial = catalog.find((p) => requested.has(p.permission_key)
     && role.data_scope === 'linked' && UNIT_FINANCE_PERMISSIONS.includes(p.permission_key));
   if (financial) {
-    return { status: 409, message: `A role limited to its own children cannot hold ${financial.permission_key}` };
+    return { status: HTTP_STATUS.CONFLICT, message: `A role limited to its own children cannot hold ${financial.permission_key}` };
   }
   const incomplete = catalog.find((p) => requested.has(p.permission_key)
     && pairedViewKey(p.permission_key, catalog) && !requested.has(pairedViewKey(p.permission_key, catalog))
     && (requireComplete || !current.has(p.permission_key) || current.has(pairedViewKey(p.permission_key, catalog))));
   if (incomplete) {
-    return { status: 409, message: 'Manage requires the matching View permission' };
+    return { status: HTTP_STATUS.CONFLICT, message: 'Manage requires the matching View permission' };
   }
   const changed = catalog.filter((p) => current.has(p.permission_key) !== requested.has(p.permission_key)
     || (previousScope && previousScope !== role.data_scope && requested.has(p.permission_key)));
@@ -235,7 +236,7 @@ function checkPermissionChange({ role, catalog, currentKeys, requestedKeys, held
     required.push('roles.manage_district');
   }
   const missing = missingPermissions(required, heldPermissions);
-  return missing.length ? { status: 403, message: 'You can only change permissions you hold', required: [...new Set(required)].sort(), missing } : null;
+  return missing.length ? { status: HTTP_STATUS.FORBIDDEN, message: 'You can only change permissions you hold', required: [...new Set(required)].sort(), missing } : null;
 }
 
 /** Explain the static constraint on a matrix cell; dependency locks are dynamic. */

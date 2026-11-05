@@ -14,7 +14,7 @@
  */
 
 const express = require('express');
-const HTTP_STATUS = { BAD_REQUEST: 400, NOT_FOUND: 404 };
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 
 // Import middleware and utilities
@@ -147,7 +147,7 @@ module.exports = (pool) => {
    * @returns {Object} 403 response
    */
   function refuse(res, permissionKey) {
-    return res.status(403).json({
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
       success: false,
       message: 'Insufficient permissions or no access to this participant',
       required: [permissionKey],
@@ -290,10 +290,10 @@ module.exports = (pool) => {
     const { participant_id } = req.query;
 
     if (!participant_id) {
-      return error(res, 'Participant ID is required', 400);
+      return error(res, 'Participant ID is required', HTTP_STATUS.BAD_REQUEST);
     }
     if (!isPositiveInteger(participant_id)) {
-      return error(res, 'Participant ID must be a positive integer', 400);
+      return error(res, 'Participant ID must be a positive integer', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (!(await mayActOnGuardians(req, participant_id, organizationId, 'guardians.view'))) {
@@ -309,7 +309,7 @@ module.exports = (pool) => {
     );
 
     if (participantCheck.rows.length === 0) {
-      return error(res, 'Participant not found in this organization', 404);
+      return error(res, 'Participant not found in this organization', HTTP_STATUS.NOT_FOUND);
     }
 
     const result = await pool.query(
@@ -446,7 +446,7 @@ module.exports = (pool) => {
       is_primary, is_emergency_contact } = req.body;
 
     if (!participant_id || !nom || !prenom) {
-      return error(res, 'Participant ID, nom, and prenom are required', 400);
+      return error(res, 'Participant ID, nom, and prenom are required', HTTP_STATUS.BAD_REQUEST);
     }
     if (hasNameMarkup(nom) || hasNameMarkup(prenom)) {
       return error(res, 'name_markup_not_allowed', HTTP_STATUS.BAD_REQUEST);
@@ -454,14 +454,14 @@ module.exports = (pool) => {
     // Present at all means it must be valid: 0 or '' is not "no guardian".
     const hasGuardianId = guardian_id !== undefined && guardian_id !== null;
     if (!isPositiveInteger(participant_id) || (hasGuardianId && !isPositiveInteger(guardian_id))) {
-      return error(res, 'Participant ID and guardian ID must be positive integers', 400);
+      return error(res, 'Participant ID and guardian ID must be positive integers', HTTP_STATUS.BAD_REQUEST);
     }
     if (custom_fields !== undefined && custom_fields !== null && !isCustomFieldSet(custom_fields)) {
-      return error(res, 'Custom fields must be an object of plain values', 400);
+      return error(res, 'Custom fields must be an object of plain values', HTTP_STATUS.BAD_REQUEST);
     }
     const hasAccountUserId = account_user_id !== undefined && account_user_id !== null;
     if (hasAccountUserId && (typeof account_user_id !== 'string' || !UUID_PATTERN.test(account_user_id))) {
-      return error(res, 'Account user ID must be a UUID', 400);
+      return error(res, 'Account user ID must be a UUID', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (!(await mayActOnGuardians(req, participant_id, organizationId, 'guardians.manage'))) {
@@ -482,7 +482,7 @@ module.exports = (pool) => {
 
       if (participantCheck.rows.length === 0) {
         await client.query('ROLLBACK');
-        return error(res, 'Participant not found in this organization', 404);
+        return error(res, 'Participant not found in this organization', HTTP_STATUS.NOT_FOUND);
       }
 
       let guardianIdToLink;
@@ -669,9 +669,9 @@ module.exports = (pool) => {
       await client.query('ROLLBACK');
       // Contact records are keyed by address.
       if (err.code === '23505') {
-        return error(res, 'A parent or guardian with this email already exists', 409);
+        return error(res, 'A parent or guardian with this email already exists', HTTP_STATUS.CONFLICT);
       }
-      return error(res, 'Internal server error', 500);
+      return error(res, 'Internal server error', HTTP_STATUS.INTERNAL_ERROR);
     } finally {
       client.release();
     }

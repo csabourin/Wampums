@@ -25,6 +25,7 @@ const {
   toNullableNumber,
 } = require('../services/fundraiserCampaigns');
 const { listFamilyFundraisers } = require('../services/familyFundraisers');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_NAME_LENGTH = 255;
@@ -276,7 +277,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Fundraiser not found', 404);
+      return error(res, 'Fundraiser not found', HTTP_STATUS.NOT_FOUND);
     }
 
     return success(res, { fundraiser: result.rows[0] });
@@ -319,13 +320,13 @@ module.exports = (pool, logger) => {
     const organizationId = await getOrganizationId(req, pool);
 
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+      return error(res, 'Invalid request body. Expected JSON object payload.', HTTP_STATUS.BAD_REQUEST);
     }
 
     const { errors: validationErrors, values } = validateCampaignPayload(req.body);
 
     if (validationErrors.length > 0) {
-      return error(res, 'Invalid campaign data', 400, validationErrors);
+      return error(res, 'Invalid campaign data', HTTP_STATUS.BAD_REQUEST, validationErrors);
     }
 
     const extended = await hasCampaignModelColumns(pool);
@@ -427,7 +428,7 @@ module.exports = (pool, logger) => {
           participants_added: participantsResult.rows.length,
         },
         'Fundraiser created',
-        201
+        HTTP_STATUS.CREATED
       );
     } catch (error) {
       await client.query('ROLLBACK');
@@ -483,13 +484,13 @@ module.exports = (pool, logger) => {
     const { id } = req.params;
 
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+      return error(res, 'Invalid request body. Expected JSON object payload.', HTTP_STATUS.BAD_REQUEST);
     }
 
     const { errors: validationErrors, values } = validateCampaignPayload(req.body, { partial: true });
 
     if (validationErrors.length > 0) {
-      return error(res, 'Invalid campaign data', 400, validationErrors);
+      return error(res, 'Invalid campaign data', HTTP_STATUS.BAD_REQUEST, validationErrors);
     }
 
     const extended = await hasCampaignModelColumns(pool);
@@ -507,7 +508,7 @@ module.exports = (pool, logger) => {
         const startDate = values.start_date || toIso(current.start_date);
         const endDate = values.end_date || toIso(current.end_date);
         if (startDate && endDate && endDate < startDate) {
-          return error(res, 'Invalid campaign data', 400, [
+          return error(res, 'Invalid campaign data', HTTP_STATUS.BAD_REQUEST, [
             { field: 'end_date', message: 'end_date must be on or after start_date' },
           ]);
         }
@@ -561,7 +562,7 @@ module.exports = (pool, logger) => {
       );
 
     if (updateResult.rows.length === 0) {
-      return error(res, 'Fundraiser not found', 404);
+      return error(res, 'Fundraiser not found', HTTP_STATUS.NOT_FOUND);
     }
 
     return success(res, { fundraiser: updateResult.rows[0] }, 'Fundraiser updated');
@@ -610,7 +611,7 @@ module.exports = (pool, logger) => {
     const { archived } = req.body;
 
     if (archived === undefined) {
-      return error(res, 'Archived status is required', 400);
+      return error(res, 'Archived status is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     const result = await pool.query(
@@ -622,7 +623,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Fundraiser not found', 404);
+      return error(res, 'Fundraiser not found', HTTP_STATUS.NOT_FOUND);
     }
 
     return success(res, { fundraiser: result.rows[0] }, 'Fundraiser archive status updated');
@@ -671,7 +672,7 @@ module.exports = (pool, logger) => {
 
       if (campaignResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        return error(res, 'Fundraiser not found', 404);
+        return error(res, 'Fundraiser not found', HTTP_STATUS.NOT_FOUND);
       }
 
       // Entries are created for every participant when the campaign is created,
@@ -697,7 +698,7 @@ module.exports = (pool, logger) => {
         return error(
           res,
           'This campaign has recorded results and cannot be deleted. Archive it instead.',
-          409
+          HTTP_STATUS.CONFLICT
         );
       }
 
@@ -709,7 +710,7 @@ module.exports = (pool, logger) => {
       logger?.info?.(`Fundraiser deleted: ${id} for organization ${organizationId}`);
       // 204 No Content is the contract for a successful DELETE; the SPA
       // response handler already maps it to { success: true, data: null }.
-      return res.status(204).end();
+      return res.status(HTTP_STATUS.NO_CONTENT).end();
     } catch (deleteError) {
       await client.query('ROLLBACK');
       throw deleteError;

@@ -135,6 +135,8 @@ return paginated(res, items, page, limit, total);
 ```
 
 #### HTTP Status Codes
+Name them with `HTTP_STATUS` from `utils/http-status.js` (`HTTP_STATUS.NOT_FOUND`), not a bare number.
+
 - `200` - OK (successful GET, PUT, PATCH)
 - `201` - Created (successful POST)
 - `204` - No Content (successful DELETE)

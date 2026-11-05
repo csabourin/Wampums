@@ -9,6 +9,7 @@
 
 const express = require('express');
 const { asyncHandler, error: errorResponse } = require('../middleware/response');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 
 // Import utilities
@@ -152,7 +153,7 @@ document.addEventListener("DOMContentLoaded", function() {
         return;
       }
       logger.error('Error generating initial data:', error);
-      res.status(500).type('application/javascript').send('console.error("Failed to load initial data");');
+      res.status(HTTP_STATUS.INTERNAL_ERROR).type('application/javascript').send('console.error("Failed to load initial data");');
     }
   }));
 
@@ -192,7 +193,7 @@ document.addEventListener("DOMContentLoaded", function() {
           req.query.scout_year_id ?? req.headers['x-scout-year-id'] ?? null
         );
       } catch (yearError) {
-        return res.status(400).json({
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
           message: 'Unknown scout year for this organization'
         });

@@ -25,6 +25,7 @@ const {
   replaceActivityMaterialItems,
   withMaterialItems
 } = require('../services/equipmentCatalog');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 const MINUTES_PER_HOUR = 60;
 const UNPROCESSED_MEETINGS_LIMIT = 10;
@@ -556,7 +557,7 @@ module.exports = (pool, logger) => {
         [name, email || null, attendance_date, organizationId]
       );
 
-      return success(res, result.rows[0], 'Guest saved', 201);
+      return success(res, result.rows[0], 'Guest saved', HTTP_STATUS.CREATED);
     })
   );
 

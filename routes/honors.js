@@ -10,6 +10,7 @@
 
 const express = require('express');
 const { eligibleActionParticipants } = require('../services/actionRoster');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 
 // Import utilities and middleware
@@ -312,7 +313,7 @@ module.exports = (pool, logger) => {
         }
 
         await client.query('COMMIT');
-        return success(res, { results }, 'Honor(s) awarded successfully', 200);
+        return success(res, { results }, 'Honor(s) awarded successfully', HTTP_STATUS.OK);
       } catch (error) {
         await client.query('ROLLBACK');
         if (error.status) { return errorResponse(res, error.message, error.status); }

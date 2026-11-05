@@ -3,6 +3,7 @@
  * Provides bulk data fetching for multi-day offline operation (camp mode)
  */
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, userHasPermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
@@ -344,7 +345,7 @@ module.exports = (pool, logger) => {
         return success(res, responseData, 'Offline data prepared successfully');
       } catch (err) {
         logger.error('[offline] Error preparing offline data:', err.message, err.stack);
-        return error(res, `Preparation failed: ${err.message}`, 500);
+        return error(res, `Preparation failed: ${err.message}`, HTTP_STATUS.INTERNAL_ERROR);
       } finally {
         client.release();
       }

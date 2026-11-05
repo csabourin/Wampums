@@ -32,6 +32,7 @@ const {
   listRollbackBlockers,
   rollbackTransition
 } = require('../services/scoutYear');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 /** PostgreSQL's `serialization_failure`, raised when SERIALIZABLE detects a conflict. */
 const SERIALIZATION_FAILURE = '40001';
@@ -281,7 +282,7 @@ module.exports = (pool, logger) => {
     } = req.body || {};
 
     if (!Array.isArray(graduatingInput) || !Array.isArray(deactivateInput)) {
-      return error(res, 'graduating_participant_ids and deactivate_membership_ids must be arrays', 400);
+      return error(res, 'graduating_participant_ids and deactivate_membership_ids must be arrays', HTTP_STATUS.BAD_REQUEST);
     }
 
     const graduatingIds = graduatingInput.map(id => parseInt(id, 10)).filter(id => !Number.isNaN(id));
@@ -304,7 +305,7 @@ module.exports = (pool, logger) => {
 
       if (!previousYear) {
         await client.query('ROLLBACK');
-        return error(res, 'No active scout year to close', 409);
+        return error(res, 'No active scout year to close', HTTP_STATUS.CONFLICT);
       }
 
       // Close the enrollments of participants who are leaving. The rows stay.
@@ -442,7 +443,7 @@ module.exports = (pool, logger) => {
         previous_year: previousYear,
         new_year: newYear,
         summary
-      }, 'Scout year transition completed', 201);
+      }, 'Scout year transition completed', HTTP_STATUS.CREATED);
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -521,20 +522,20 @@ module.exports = (pool, logger) => {
     const transition = transitions.find(row => row.id === transitionId);
 
     if (!transition) {
-      return error(res, 'Transition not found', 404);
+      return error(res, 'Transition not found', HTTP_STATUS.NOT_FOUND);
     }
 
     if (transition.rolled_back_at) {
-      return error(res, 'This transition has already been undone', 409);
+      return error(res, 'This transition has already been undone', HTTP_STATUS.CONFLICT);
     }
 
     // Undoing an older transition would have to undo every later one first.
     if (transitions[0].id !== transition.id) {
-      return error(res, 'Only the most recent transition can be undone', 409);
+      return error(res, 'Only the most recent transition can be undone', HTTP_STATUS.CONFLICT);
     }
 
     if (transition.to_status !== 'active') {
-      return error(res, 'The year this transition opened is no longer the active one', 409);
+      return error(res, 'The year this transition opened is no longer the active one', HTTP_STATUS.CONFLICT);
     }
 
     // An early, cheap refusal so the common case does not open a transaction.
@@ -542,7 +543,7 @@ module.exports = (pool, logger) => {
     // transaction below, because anything decided out here is already stale.
     const advisoryBlockers = await listRollbackBlockers(pool, transition);
     if (advisoryBlockers.length > 0) {
-      return res.status(409).json({
+      return res.status(HTTP_STATUS.CONFLICT).json({
         success: false,
         message: 'The new year already holds data, so this transition can no longer be undone',
         blockers: advisoryBlockers,
@@ -576,7 +577,7 @@ module.exports = (pool, logger) => {
 
       if (locked.rows.length === 0 || locked.rows[0].rolled_back_at) {
         await client.query('ROLLBACK');
-        return error(res, 'This transition has already been undone', 409);
+        return error(res, 'This transition has already been undone', HTTP_STATUS.CONFLICT);
       }
 
       // The check that counts, on the same snapshot as the deletion.
@@ -586,7 +587,7 @@ module.exports = (pool, logger) => {
       });
       if (blockers.length > 0) {
         await client.query('ROLLBACK');
-        return res.status(409).json({
+        return res.status(HTTP_STATUS.CONFLICT).json({
           success: false,
           message: 'The new year already holds data, so this transition can no longer be undone',
           blockers,
@@ -622,7 +623,7 @@ module.exports = (pool, logger) => {
       // and the honest answer is the same refusal the blockers give: the year is
       // no longer empty.
       if (err.code === SERIALIZATION_FAILURE) {
-        return res.status(409).json({
+        return res.status(HTTP_STATUS.CONFLICT).json({
           success: false,
           message: 'The new year was written to while this rollback ran, so it can no longer be undone',
           blockers: [{ reason: 'concurrent_write', count: 1 }],
@@ -724,7 +725,7 @@ module.exports = (pool, logger) => {
 
     const allowedStatuses = ['active', 'inactive', 'alumni'];
     if (!allowedStatuses.includes(status)) {
-      return error(res, `status must be one of: ${allowedStatuses.join(', ')}`, 400);
+      return error(res, `status must be one of: ${allowedStatuses.join(', ')}`, HTTP_STATUS.BAD_REQUEST);
     }
 
     // Either way the admin has just decided, so any pending self-service
@@ -745,7 +746,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Membership not found', 404);
+      return error(res, 'Membership not found', HTTP_STATUS.NOT_FOUND);
     }
 
     logger.info('Membership status changed', { organizationId, membershipId, status });

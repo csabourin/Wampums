@@ -1,5 +1,6 @@
 // RESTful routes for attendance
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, allowDemoSandbox, withScoutYear } = require('../middleware/auth');
 const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
@@ -253,7 +254,7 @@ module.exports = (pool, logger) => {
           ...result.rows[0],
           previous_status: previousStatus
         };
-        return success(res, responseData, 'Attendance marked successfully', 201);
+        return success(res, responseData, 'Attendance marked successfully', HTTP_STATUS.CREATED);
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;
@@ -315,11 +316,11 @@ module.exports = (pool, logger) => {
       const { fromDate, toDate } = req.body;
 
       if (!fromDate || !toDate) {
-        return error(res, 'fromDate and toDate are required', 400);
+        return error(res, 'fromDate and toDate are required', HTTP_STATUS.BAD_REQUEST);
       }
 
       if (fromDate === toDate) {
-        return error(res, 'fromDate and toDate must be different', 400);
+        return error(res, 'fromDate and toDate must be different', HTTP_STATUS.BAD_REQUEST);
       }
 
       const client = await pool.connect();
@@ -413,7 +414,7 @@ module.exports = (pool, logger) => {
       const date = req.query.date || req.body?.date;
 
       if (!date) {
-        return error(res, 'Date is required', 400);
+        return error(res, 'Date is required', HTTP_STATUS.BAD_REQUEST);
       }
 
       const client = await pool.connect();
@@ -604,7 +605,7 @@ module.exports = (pool, logger) => {
 
       // Validate participant IDs
       if (participantIds.length === 0 || participantIds.some(id => !Number.isInteger(Number(id)) || Number(id) < 1)) {
-        return res.status(400).json({ success: false, message: 'At least one valid participant ID (positive integer) is required' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'At least one valid participant ID (positive integer) is required' });
       }
       if (!await allEnrolledInUnit(pool, organizationId, participantIds)) {
         return error(res, 'Participant not found', HTTP_NOT_FOUND);

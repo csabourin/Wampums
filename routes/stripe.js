@@ -1,4 +1,5 @@
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const { authenticate, getOrganizationId, blockDemoRoles, userHasPermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
@@ -81,7 +82,7 @@ module.exports = (pool, logger) => {
       const feeResult = await pool.query(feeQuery, feeParams);
 
       if (feeResult.rows.length === 0) {
-        return error(res, 'Fee not found or you do not have permission to pay this fee', 404);
+        return error(res, 'Fee not found or you do not have permission to pay this fee', HTTP_STATUS.NOT_FOUND);
       }
 
       const fee = feeResult.rows[0];
@@ -89,7 +90,7 @@ module.exports = (pool, logger) => {
 
       // Verify the payment amount doesn't exceed outstanding balance
       if (Math.round(amount * CENTS_PER_DOLLAR) > Math.round(outstanding * CENTS_PER_DOLLAR)) {
-        return error(res, 'Payment amount exceeds outstanding balance', 400);
+        return error(res, 'Payment amount exceeds outstanding balance', HTTP_STATUS.BAD_REQUEST);
       }
 
       try {
@@ -121,7 +122,7 @@ module.exports = (pool, logger) => {
 
       } catch (stripeError) {
         logger.error('Stripe PaymentIntent creation failed:', stripeError);
-        return error(res, `Payment processing error: ${stripeError.message}`, 500);
+        return error(res, `Payment processing error: ${stripeError.message}`, HTTP_STATUS.INTERNAL_ERROR);
       }
     }));
 
@@ -140,7 +141,7 @@ module.exports = (pool, logger) => {
       event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
     } catch (err) {
       logger.error(`Webhook signature verification failed: ${err.message}`);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
+      return res.status(HTTP_STATUS.BAD_REQUEST).send(`Webhook Error: ${err.message}`);
     }
 
     logger.info(`Stripe webhook received: ${event.type}, ID: ${event.id}`);
@@ -194,7 +195,7 @@ module.exports = (pool, logger) => {
       const sameUnit = metadata.organization_id === String(organizationId);
       const isPayer = metadata.user_id === String(req.user.id);
       if (!sameUnit || (!isPayer && !(await userHasPermission(req, pool, organizationId, 'finance.view')))) {
-        return error(res, 'Payment not found', 404);
+        return error(res, 'Payment not found', HTTP_STATUS.NOT_FOUND);
       }
 
       return success(res, {
@@ -206,7 +207,7 @@ module.exports = (pool, logger) => {
 
     } catch (stripeError) {
       logger.error('Failed to retrieve PaymentIntent:', stripeError);
-      return error(res, 'Failed to retrieve payment status', 500);
+      return error(res, 'Failed to retrieve payment status', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 

@@ -7,6 +7,7 @@
 
 const winston = require('winston');
 const { verifyJWTToken } = require('./jwt-config');
+const { HTTP_STATUS } = require('./http-status');
 
 // Configure logger for API helpers
 const logger = winston.createLogger({
@@ -43,7 +44,7 @@ function respondWithOrganizationFallback(res) {
   const acceptsHtml = (res.req?.headers?.accept || '').includes('text/html');
 
   if (isApiRequest) {
-    return res.status(400).json({
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
       success: false,
       message: 'organization_not_found',
       fallback: '/organization-not-found.html',
@@ -54,15 +55,15 @@ function respondWithOrganizationFallback(res) {
   if (acceptsHtml) {
     if (!fs.existsSync(fallbackPath)) {
       return res
-        .status(404)
+        .status(HTTP_STATUS.NOT_FOUND)
         .type('html')
         .send('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Organization not found</title></head><body><h1>organization_not_found</h1></body></html>');
     }
 
-    return res.status(404).sendFile(fallbackPath);
+    return res.status(HTTP_STATUS.NOT_FOUND).sendFile(fallbackPath);
   }
 
-  return res.status(404).json({
+  return res.status(HTTP_STATUS.NOT_FOUND).json({
     success: false,
     message: 'organization_not_found',
     fallback: '/organization-not-found.html',

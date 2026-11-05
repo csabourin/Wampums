@@ -6,6 +6,7 @@
  */
 
 const { check, param, query, validationResult } = require('express-validator');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 /** Largest value of a PostgreSQL `integer` column: a larger id would fail in the database with a 500. */
 const POSTGRES_INT_MAX = 2147483647;
@@ -23,7 +24,7 @@ const ID_RANGE = { min: 1, max: POSTGRES_INT_MAX };
 const checkValidation = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
       success: false,
       message: errors.array().map(e => (e.path ? `${e.path}: ${e.msg}` : e.msg)).join('; '),
       errors: errors.array()

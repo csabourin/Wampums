@@ -9,6 +9,7 @@
 
 const express = require('express');
 const { asyncHandler, success: successResponse, error: errorResponse } = require('../middleware/response');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
@@ -353,7 +354,7 @@ module.exports = (pool, logger) => {
         const user = userResult.rows[0];
 
         if (!user) {
-          return res.status(401).json({
+          return res.status(HTTP_STATUS.UNAUTHORIZED).json({
             success: false,
             message: 'invalid_email_or_password'
           });
@@ -369,14 +370,14 @@ module.exports = (pool, logger) => {
         const passwordValid = await bcrypt.compare(trimmedPassword, storedHash);
 
         if (!passwordValid) {
-          return res.status(401).json({
+          return res.status(HTTP_STATUS.UNAUTHORIZED).json({
             success: false,
             message: 'invalid_email_or_password'
           });
         }
 
         if (!user.is_verified) {
-          return res.status(403).json({
+          return res.status(HTTP_STATUS.FORBIDDEN).json({
             success: false,
             message: 'account_not_verified_login'
           });
@@ -390,7 +391,7 @@ module.exports = (pool, logger) => {
             organizationId,
             membershipStatus: user.membership_status
           });
-          return res.status(403).json({
+          return res.status(HTTP_STATUS.FORBIDDEN).json({
             success: false,
             message: inactiveMembershipMessage(user),
             membershipStatus: user.membership_status
@@ -460,7 +461,7 @@ module.exports = (pool, logger) => {
             await send2FAEmail(normalizedEmail, code, user.full_name, organizationId, pool);
 
             // Return response indicating 2FA is required
-            return res.status(200).json({
+            return res.status(HTTP_STATUS.OK).json({
               success: true,
               requires_2fa: true,
               message: '2fa_code_sent',
@@ -477,7 +478,7 @@ module.exports = (pool, logger) => {
           return;
         }
         logger.error('Login error:', error);
-        res.status(500).json({
+        res.status(HTTP_STATUS.INTERNAL_ERROR).json({
           success: false,
           message: 'internal_server_error'
         });
@@ -622,7 +623,7 @@ module.exports = (pool, logger) => {
         const normalizedEmail = normalizeEmailValue(email);
 
         if (!code || code.length !== 6) {
-          return res.status(400).json({
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({
             success: false,
             message: 'invalid_2fa_code'
           });
@@ -641,7 +642,7 @@ module.exports = (pool, logger) => {
         const user = userResult.rows[0];
 
         if (!user) {
-          return res.status(401).json({
+          return res.status(HTTP_STATUS.UNAUTHORIZED).json({
             success: false,
             message: 'invalid_email'
           });
@@ -653,7 +654,7 @@ module.exports = (pool, logger) => {
             organizationId,
             membershipStatus: user.membership_status
           });
-          return res.status(403).json({
+          return res.status(HTTP_STATUS.FORBIDDEN).json({
             success: false,
             message: inactiveMembershipMessage(user),
             membershipStatus: user.membership_status
@@ -664,7 +665,7 @@ module.exports = (pool, logger) => {
         const isValid = await verify2FACode(pool, user.id, organizationId, code);
 
         if (!isValid) {
-          return res.status(401).json({
+          return res.status(HTTP_STATUS.UNAUTHORIZED).json({
             success: false,
             message: 'invalid_or_expired_2fa_code'
           });
@@ -682,7 +683,7 @@ module.exports = (pool, logger) => {
           return;
         }
         logger.error('2FA verification error:', error);
-        res.status(500).json({
+        res.status(HTTP_STATUS.INTERNAL_ERROR).json({
           success: false,
           message: 'internal_server_error'
         });
@@ -747,7 +748,7 @@ module.exports = (pool, logger) => {
 
         const refusal = await checkRegistrationEligibility(client, normalizedEmail, organizationId);
         if (refusal) {
-          return res.status(400).json({ success: false, message: refusal.message });
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: refusal.message });
         }
 
         await client.query('BEGIN');
@@ -814,7 +815,7 @@ module.exports = (pool, logger) => {
           );
         }
 
-        res.status(201).json({
+        res.status(HTTP_STATUS.CREATED).json({
           success: true,
           data: createdUser,
           message: 'registration_successful_await_verification'
@@ -827,7 +828,7 @@ module.exports = (pool, logger) => {
         logger.error('Error registering user:', error);
 
         if (error.code === 'USER_CREATE_NO_ROWS') {
-          return res.status(400).json({
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({
             success: false,
             message: 'registration_error'
           });
@@ -835,13 +836,13 @@ module.exports = (pool, logger) => {
 
         // Handle duplicate email error (PostgreSQL error code 23505)
         if (error.code === '23505' && error.constraint === 'users_email_key') {
-          return res.status(400).json({
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({
             success: false,
             message: 'account_already_exists'
           });
         }
 
-        res.status(500).json({ success: false, message: 'registration_error' });
+        res.status(HTTP_STATUS.INTERNAL_ERROR).json({ success: false, message: 'registration_error' });
       } finally {
         client.release();
       }
@@ -927,7 +928,7 @@ module.exports = (pool, logger) => {
 
         if (tokenUpdate.rowCount === 0) {
           logger.error(`Failed to persist reset token for user ID ${user.rows[0].id}`);
-          return res.status(500).json({ success: false, message: 'reset_token_not_saved' });
+          return res.status(HTTP_STATUS.INTERNAL_ERROR).json({ success: false, message: 'reset_token_not_saved' });
         }
 
         if (!isProduction) {
@@ -1079,7 +1080,7 @@ module.exports = (pool, logger) => {
 
         if (!token) {
           logger.warn('Password reset attempt without token');
-          return res.status(400).json({ success: false, message: 'token_not_found' });
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'token_not_found' });
         }
 
         logger.info('Password reset submission received', { hasToken: !!token });
@@ -1095,7 +1096,7 @@ module.exports = (pool, logger) => {
 
         if (tokenResult.rows.length === 0) {
           logger.warn('Invalid or expired password reset token');
-          return res.status(400).json({ success: false, message: 'invalid_or_expired_token' });
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'invalid_or_expired_token' });
         }
 
         const userId = tokenResult.rows[0].id;

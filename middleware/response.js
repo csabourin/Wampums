@@ -1,3 +1,4 @@
+const { HTTP_STATUS } = require('../utils/http-status');
 // Standardized API response middleware
 
 const INTERNAL_SERVER_ERROR_MESSAGE = 'internal_server_error';
@@ -100,7 +101,7 @@ exports.sanitizeServerErrorResponses = (req, res, next) => {
 exports.paginated = (res, data, page, limit, total) => {
   const totalPages = Math.ceil(total / limit);
 
-  return res.status(200).json({
+  return res.status(HTTP_STATUS.OK).json({
     success: true,
     data,
     pagination: {
