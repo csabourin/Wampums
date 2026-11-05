@@ -89,3 +89,44 @@ test.each(['create', 'update'])('%s accepts a category in the current unit', asy
   expect(res.status).toBe(method === 'create' ? 201 : 200);
   expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('WHERE id = $1 AND organization_id = $2'), [9, UNIT]);
 });
+
+const wroteRevenue = () => pool.query.mock.calls.some(([sql]) => /INSERT INTO budget_revenues|UPDATE budget_revenues/.test(sql));
+
+test.each([
+  ['an amount with a currency code', { amount: '12CAD' }],
+  ['an amount with a decimal comma', { amount: '12,50' }],
+  ['an amount with three decimals', { amount: '12.345' }],
+  ['a negative amount', { amount: -5 }],
+  ['an impossible date', { revenue_date: '2026-02-30' }],
+  ['a date in another format', { revenue_date: '11/04/2026' }],
+  ['a category id followed by letters', { budget_category_id: '7abc' }],
+  ['a category id beyond the integer range', { budget_category_id: 2147483648 }],
+])('a revenue with %s is refused without being recorded', async (_label, body) => {
+  const createResponse = await create(body);
+  const updateResponse = await update(body);
+  expect(createResponse.status).toBe(400);
+  expect(updateResponse.status).toBe(400);
+  expect(wroteRevenue()).toBe(false);
+});
+
+test.each([
+  ['a whole amount', { amount: 12 }],
+  ['an amount in cents', { amount: 12.5 }],
+  ['an amount written as text', { amount: '12.50' }],
+  ['a category id written as text', { budget_category_id: '9' }],
+])('a revenue with %s is still recorded', async (_label, body) => {
+  expect((await create(body)).status).toBe(201);
+});
+
+test('a revenue created with a text amount records exactly that amount', async () => {
+  expect((await create({ amount: '12.50' })).status).toBe(201);
+  const [, params] = pool.query.mock.calls.find(([sql]) => sql.includes('INSERT INTO budget_revenues'));
+  expect(params).toContain(12.5);
+  expect(params).not.toContain(12);
+});
+
+test('filtering revenues by a category id followed by letters is refused', async () => {
+  const res = await request(app).get('/api/v1/revenue/external?category_id=7abc')
+    .set('Authorization', `Bearer ${jwt.sign({ user_id: USER, organizationId: UNIT }, process.env.JWT_SECRET_KEY)}`);
+  expect(res.status).toBe(400);
+});

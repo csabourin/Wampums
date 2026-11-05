@@ -4,38 +4,12 @@ const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, user
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 
-function toNumeric(value) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
-}
-
-function validateMoney(value, fieldName) {
-  const numeric = Number.parseFloat(value);
-  if (!Number.isFinite(numeric) || numeric < 0) {
-    return { valid: false, message: `${fieldName} must be a non-negative number` };
-  }
-
-  return { valid: true, value: Math.round(numeric * 100) / 100 };
-}
-
-function validateDate(value, fieldName) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return { valid: false, message: `${fieldName} must be a valid date` };
-  }
-
-  return { valid: true };
-}
-
-function validatePositiveInteger(value, fieldName) {
-  const numeric = Number.parseInt(value, 10);
-
-  if (!Number.isInteger(numeric) || numeric <= 0) {
-    return { valid: false, message: `${fieldName} must be a positive integer` };
-  }
-
-  return { valid: true, value: numeric };
-}
+const {
+  toNumeric,
+  validateMoney,
+  validateDate,
+  validatePositiveInteger
+} = require('../utils/validation-helpers');
 
 function formatFeeRow(row) {
   const totalAmount = toNumeric(row.total_amount);
