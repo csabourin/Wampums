@@ -46,7 +46,7 @@ jest.mock('../../spa/indexedDB.js', () => ({
   deleteCachedData: jest.fn(),
 }));
 jest.mock('../../spa/api/api-ai.js', () => ({ aiParseReceipt: jest.fn() }));
-jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirmDestructive: jest.fn() }));
+jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirmDestructive: jest.fn(), hasActiveDialog: () => false }));
 jest.mock('../../spa/ajax-functions.js', () => ({
   getFeeDefinitions: jest.fn(),
   createFeeDefinition: jest.fn(),
@@ -341,6 +341,31 @@ describe('external revenue', () => {
     await new ExternalRevenue(makeApp()).init();
 
     expectErrorState('external_revenue');
+  });
+
+  test('saving a removed revenue explains the refusal, refreshes the list and restores focus', async () => {
+    loaded();
+    const app = makeApp();
+    const screen = new ExternalRevenue(app);
+    await screen.init();
+    page().querySelector('.edit-revenue-btn').focus();
+    screen.showRevenueModal(screen.revenues[0]);
+    const modal = document.getElementById('revenue-modal');
+    expect(modal.querySelector('img')).toBeNull();
+    expect(modal.querySelector('#revenue-description').value).toBe(HOSTILE);
+    expect((await axe.run(modal, AXE_OPTIONS)).violations).toEqual([]);
+    api.updateExternalRevenue.mockRejectedValueOnce(Object.assign(new Error('Internal English detail'), { status: 404 }));
+    answer(api.getExternalRevenue, []);
+
+    await screen.saveRevenue(4);
+
+    expect(app.showMessage).toHaveBeenCalledWith('api_error_not_found', 'error');
+    expect(app.showMessage).not.toHaveBeenCalledWith('external_revenue_updated', 'success');
+    expect(api.getExternalRevenue).toHaveBeenLastCalledWith(screen.filters, { forceRefresh: true });
+    expect(screen.revenues).toEqual([]);
+    expect(document.getElementById('revenue-modal')).toBeNull();
+    expect(document.activeElement.id).toBe('add-revenue-btn');
+    expect(await violations()).toEqual([]);
   });
 
   test('a deletion the server accepted is not reported as failed when the reload after it fails', async () => {

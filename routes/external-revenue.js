@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const HTTP_NOT_FOUND = 404;
 const { authenticate, blockDemoRoles, getOrganizationId, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
@@ -261,6 +262,10 @@ module.exports = (pool, logger) => {
       ]
     );
 
+    if (result.rows.length === 0) {
+      return error(res, 'External revenue entry not found', HTTP_NOT_FOUND);
+    }
+
     logger.info(`External revenue updated: ${id} for organization ${organizationId}`);
 
     const revenue = {
@@ -289,7 +294,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'External revenue entry not found', 404);
+      return error(res, 'External revenue entry not found', HTTP_NOT_FOUND);
     }
 
     logger.info(`External revenue deleted: ${id} for organization ${organizationId}`);

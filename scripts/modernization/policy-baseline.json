@@ -22,7 +22,7 @@
     "routes/calendars.js": 13,
     "routes/carpools.js": 62,
     "routes/dashboards.js": 5,
-    "routes/external-revenue.js": 38,
+    "routes/external-revenue.js": 37,
     "routes/familyLinks.js": 9,
     "routes/finance.js": 47,
     "routes/formBuilder.js": 52,
