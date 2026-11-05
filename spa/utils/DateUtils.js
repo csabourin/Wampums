@@ -10,7 +10,13 @@
 import { debugError } from './DebugUtils.js';
 import { getStorage } from './StorageUtils.js';
 import { CONFIG, getStorageKey } from '../config.js';
-import { DATE_PART_WIDTH } from './TimeUnits.js';
+import { DATE_PART_WIDTH, DAYS_PER_WEEK, HOURS_PER_DAY, MINUTES_PER_HOUR, MS_PER_SECOND, SECONDS_PER_MINUTE } from './TimeUnits.js';
+
+/** Any date: formatTime only needs a Date to carry the hour and minute. */
+const EPOCH_YEAR = 1970;
+const JANUARY = 0;
+/** From this hour on, today's meeting counts as over and the next one is next week. */
+const EVENING_CUTOFF_HOUR = 20;
 
 function getTimeFormatPreference() {
   const defaultFormat = CONFIG?.TIME_FORMAT?.DEFAULT || '24h';
@@ -167,7 +173,7 @@ export function isoToDateString(dateSource) {
  */
 export function formatTime(hours, minutes, lang = getLocale()) {
   const use24h = getTimeFormatPreference() === '24h';
-  const date = new Date(1970, 0, 1, Number(hours) || 0, Number(minutes) || 0);
+  const date = new Date(EPOCH_YEAR, JANUARY, 1, Number(hours) || 0, Number(minutes) || 0);
   return date.toLocaleTimeString(lang, {
     hour: use24h ? '2-digit' : 'numeric',
     minute: '2-digit',
@@ -184,8 +190,6 @@ export function formatTime(hours, minutes, lang = getLocale()) {
  */
 export function formatClockTime(value, lang = getLocale()) {
   const match = /^(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(String(value || ''));
-  const HOURS_PER_DAY = 24;
-  const MINUTES_PER_HOUR = 60;
   if (!match || Number(match[1]) >= HOURS_PER_DAY || Number(match[2]) >= MINUTES_PER_HOUR) {
     return '';
   }
@@ -198,8 +202,8 @@ export function formatClockTime(value, lang = getLocale()) {
  * @returns {string} Time string in HH:MM format
  */
 export function formatMinutesToHHMM(totalMinutes) {
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = totalMinutes % 60;
+  const hours = Math.floor(totalMinutes / MINUTES_PER_HOUR);
+  const mins = totalMinutes % MINUTES_PER_HOUR;
   return `${String(hours).padStart(DATE_PART_WIDTH, '0')}:${String(mins).padStart(DATE_PART_WIDTH, '0')}`;
 }
 
@@ -227,7 +231,7 @@ export function parseTime(timeString) {
  */
 export function timeToMinutes(timeString) {
   const { hours, minutes } = parseTime(timeString);
-  return (hours * 60) + minutes;
+  return (hours * MINUTES_PER_HOUR) + minutes;
 }
 
 /**
@@ -319,11 +323,11 @@ export function getNextDayOfWeek(dayName, fromDate = new Date()) {
   const todayIndex = today.getDay();
 
   // Calculate days until the next target day
-  let daysUntilNext = (targetDayIndex - todayIndex + 7) % 7;
+  let daysUntilNext = (targetDayIndex - todayIndex + DAYS_PER_WEEK) % DAYS_PER_WEEK;
 
   // If today is the target day and it's after 8 PM, set to next week
-  if (daysUntilNext === 0 && today.getHours() >= 20) {
-    daysUntilNext = 7;
+  if (daysUntilNext === 0 && today.getHours() >= EVENING_CUTOFF_HOUR) {
+    daysUntilNext = DAYS_PER_WEEK;
   }
 
   const nextDate = new Date(today);
@@ -384,12 +388,12 @@ export function getRelativeTime(date, lang = 'en') {
   const now = new Date();
   const target = new Date(date);
   const diffMs = target - now;
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
+  const diffSecs = Math.floor(diffMs / MS_PER_SECOND);
+  const diffMins = Math.floor(diffSecs / SECONDS_PER_MINUTE);
+  const diffHours = Math.floor(diffMins / MINUTES_PER_HOUR);
+  const diffDays = Math.floor(diffHours / HOURS_PER_DAY);
 
-  if (Math.abs(diffDays) > 7) {
+  if (Math.abs(diffDays) > DAYS_PER_WEEK) {
     return formatDate(target.toLocaleDateString('en-CA'), lang);
   }
 

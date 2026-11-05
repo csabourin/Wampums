@@ -118,7 +118,6 @@
     "spa/utils/BaseModule.js": 2,
     "spa/utils/ClientCleanupUtils.js": 1,
     "spa/utils/DashboardCacheManager.js": 1,
-    "spa/utils/DateUtils.js": 13,
     "spa/utils/DebugUtils.js": 9,
     "spa/utils/FiscalYearUtils.js": 8,
     "spa/utils/OfflineCacheKeys.js": 2,
