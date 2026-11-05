@@ -235,14 +235,14 @@ module.exports = (pool, logger) => {
 
     const result = await pool.query(
       `UPDATE budget_revenues
-      SET budget_category_id = COALESCE($1, budget_category_id),
+      SET budget_category_id = CASE WHEN $12 THEN $1 ELSE budget_category_id END,
           amount = COALESCE($2::numeric, amount),
           revenue_date = COALESCE($3, revenue_date),
           description = COALESCE($4, description),
-          payment_method = COALESCE($5, payment_method),
-          reference_number = COALESCE($6, reference_number),
-          receipt_url = COALESCE($7, receipt_url),
-          notes = COALESCE($8, notes),
+          payment_method = CASE WHEN $13 THEN $5 ELSE payment_method END,
+          reference_number = CASE WHEN $14 THEN $6 ELSE reference_number END,
+          receipt_url = CASE WHEN $15 THEN $7 ELSE receipt_url END,
+          notes = CASE WHEN $16 THEN $8 ELSE notes END,
           revenue_type = COALESCE($9, revenue_type),
           updated_at = NOW()
       WHERE id = $10 AND organization_id = $11
@@ -258,7 +258,12 @@ module.exports = (pool, logger) => {
         notes,
         revenue_type,
         id,
-        organizationId
+        organizationId,
+        Object.hasOwn(req.body, 'budget_category_id'),
+        Object.hasOwn(req.body, 'payment_method'),
+        Object.hasOwn(req.body, 'reference_number'),
+        Object.hasOwn(req.body, 'receipt_url'),
+        Object.hasOwn(req.body, 'notes')
       ]
     );
 
