@@ -3,7 +3,7 @@
 -- The camp permit lists the allergies of the camp's youth and adults, with the person to notify.
 -- Youth allergies already live in each youth's health form (fiche_sante). Adults had nowhere to say
 -- theirs: an adult may declare their own, voluntarily, and nobody else can write it for them. Only
--- the declaration is kept, in the unit where it was made.
+-- the declaration is kept, on the person, shared by every unit they belong to.
 --
 -- Reading allergies in the camp lists takes a permission of its own, given by default to the roles
 -- that already read health forms across the unit: those holding the health and medication reports
@@ -27,16 +27,15 @@ WHERE p.permission_key = 'camp_allergies.view' AND r.data_scope = 'organization'
               WHERE fp.role_id = r.id AND f.form_type = 'fiche_sante' AND fp.can_view))
 ON CONFLICT DO NOTHING;
 
--- What an adult says about their own allergies, in one unit. Written only by that adult.
+-- What an adult says about their own allergies. It belongs to the person, whatever their units,
+-- and only they write it. A unit reads it only for its active members on a camp's team.
 CREATE TABLE IF NOT EXISTS public.member_allergy_declarations (
-  organization_id INTEGER NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
   allergies TEXT NOT NULL CHECK (length(btrim(allergies)) BETWEEN 1 AND 1000),
   carries_epipen BOOLEAN NOT NULL DEFAULT FALSE,
   person_to_notify TEXT CHECK (person_to_notify IS NULL OR length(person_to_notify) <= 200),
-  declared_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (organization_id, user_id)
+  declared_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 COMMENT ON TABLE public.member_allergy_declarations IS
-  'Allergies an adult declared for themselves in one unit, written only by them. Read in a camp''s lists, for that camp''s active team members, by holders of camp_allergies.view.';
+  'Allergies a person declared for themselves, written only by them and shared by their units. Read in a camp''s lists, for that camp''s active team members, by holders of camp_allergies.view.';

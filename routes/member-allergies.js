@@ -2,7 +2,8 @@
  * Adults' allergies (#1319): what a member declares about their own allergies.
  *
  * Mounted at /api/v1/member-allergies. Only `/me` exists: any active member of the unit reads,
- * records or withdraws their own declaration, and nobody writes one for someone else. Reading
+ * records or withdraws their own declaration, and nobody writes one for someone else. It belongs
+ * to the person: every unit they belong to reads the same one. Reading
  * others' happens only in a camp's lists, behind `camp_allergies.view` (routes/camp-rosters.js).
  *
  * @module routes/member-allergies
@@ -43,8 +44,7 @@ module.exports = (pool) => {
   }));
 
   router.delete('/me', blockDemoRoles, requirePermission(), handle(async (req, res) => {
-    const organizationId = await getOrganizationId(req, pool);
-    await removeOwnDeclaration(pool, organizationId, req.user.id);
+    await removeOwnDeclaration(pool, req.user.id);
     return success(res, null, 'allergy_declaration_removed');
   }));
 

@@ -10,7 +10,7 @@
     { "key": "first_aid", "requirements": ["background_check", "first_aid_certificate"] },
     { "key": "other", "requirements": ["background_check"] }
   ],
-  "requirements": ["background_check", "safety_training", "first_aid_certificate", "driver_licence", "wilderness_first_aid", "winter_camping"],
+  "requirements": ["background_check", "safety_training", "first_aid_certificate", "driver_licence"],
   "validity_years": { "background_check": 3 },
   "expiring_soon_days": 60
 }

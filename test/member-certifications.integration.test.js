@@ -57,7 +57,15 @@ describe.skipIf(!DATABASE_URL)('Adult certifications in the camp lists', () => {
   const call = (method, path, user, unitId) => request(app)[method](`/api/v1${path}`).set(auth(user, unitId));
   const roster = async (meeting, user = ids.manager) => (await call('get', `/camp-rosters/${meeting}`, user)).body.data;
   const declare = (user, declared, unitId) => call('put', '/member-certifications/me', user, unitId).send({ declared });
-  const verify = (user, verified) => call('put', `/volunteer-shifts/requirements/${user}`, ids.volunteerManager).send({ verified });
+  /** Verify each named certification as declared (true), or withdraw it (false). */
+  const verify = async (user, keys, verified = true, by = ids.volunteerManager, unitId = ids.unit) => {
+    const responses = [];
+    for (const key of keys) {
+      // eslint-disable-next-line no-await-in-loop -- one certification at a time, as a manager ticks them
+      responses.push(await call('put', `/member-certifications/${user}/${key}/verification`, by, unitId).send({ verified }));
+    }
+    return responses;
+  };
   const name = (meeting, user) => call('put', `/camp-rosters/${meeting}/team/${user}`, ids.manager).send({ team_role: 'leader' });
 
   beforeAll(async () => {
@@ -113,10 +121,14 @@ describe.skipIf(!DATABASE_URL)('Adult certifications in the camp lists', () => {
     expect(data.team[0].certifications).toEqual({ verified: [], to_verify: ['first_aid_certificate'] });
 
     // Verified, but expiring during the camp: still blocking.
-    expect((await verify(ids.leader, { background_check: { checked_on: '2025-09-01' }, first_aid_certificate: { valid_until: '2031-07-08' } })).status).toBe(200);
+    await declare(ids.leader, { first_aid_certificate: { obtained_on: '2025-03-01', valid_until: '2031-07-08' } });
+    expect((await verify(ids.leader, ['first_aid_certificate']))[0].status).toBe(200);
     expect((await roster(meeting)).blocking_gaps).toEqual(['no_first_aider']);
 
-    await verify(ids.leader, { background_check: { checked_on: '2025-09-01' }, first_aid_certificate: { valid_until: '2032-03-01' } });
+    // New dates withdraw the verification; verified again, they count.
+    await declare(ids.leader, { first_aid_certificate: { obtained_on: '2025-03-01', valid_until: '2032-03-01' } });
+    expect((await roster(meeting)).gaps).toContain('certification_to_verify');
+    await verify(ids.leader, ['first_aid_certificate']);
     data = await roster(meeting);
     expect(data.blocking_gaps).toEqual([]);
     expect(data.gaps).not.toContain('no_first_aider');
@@ -128,9 +140,10 @@ describe.skipIf(!DATABASE_URL)('Adult certifications in the camp lists', () => {
     const aider = await member(ids.unit, ['volunteers.view'], 'Hedy Lamarr');
     const meeting = await camp(ids.unit, '2031-01-15', '2031-01-17');
     await name(meeting, aider);
-    await verify(aider, { winter_camping: { valid_until: null } });
+    await declare(aider, { winter_camping: { obtained_on: '2024-01-15' }, wilderness_first_aid: { obtained_on: '2025-05-01' } });
+    await verify(aider, ['winter_camping']);
     expect((await roster(meeting)).blocking_gaps).toEqual(['no_first_aider']);
-    await verify(aider, { winter_camping: { valid_until: null }, wilderness_first_aid: { valid_until: null } });
+    await verify(aider, ['wilderness_first_aid']);
     expect((await roster(meeting)).blocking_gaps).toEqual([]);
   });
 
@@ -138,7 +151,8 @@ describe.skipIf(!DATABASE_URL)('Adult certifications in the camp lists', () => {
     const leaving = await member(ids.unit, ['volunteers.view'], 'Dorothy Vaughan');
     const meeting = await camp(ids.unit, '2031-02-10', '2031-02-12');
     await name(meeting, leaving);
-    await verify(leaving, { first_aid_certificate: { valid_until: null } });
+    await declare(leaving, { first_aid_certificate: { obtained_on: '2025-01-01' } });
+    await verify(leaving, ['first_aid_certificate']);
     expect((await roster(meeting)).blocking_gaps).toEqual([]);
     await pool.query("UPDATE user_organizations SET status = 'inactive' WHERE organization_id = $1 AND user_id = $2", [ids.unit, leaving]);
     const data = await roster(meeting);
@@ -167,18 +181,29 @@ describe.skipIf(!DATABASE_URL)('Adult certifications in the camp lists', () => {
     expect((await call('get', `/member-certifications/${ids.leader}`, ids.outsider, ids.otherUnit)).status).toBe(404);
   });
 
-  test('what one unit declares and verifies stays in that unit', async () => {
+  test('a person declares once; verified in one unit, it counts in every unit they belong to', async () => {
     const both = await member(ids.unit, ['volunteers.view'], 'Frances Allen');
     const otherRole = await one("INSERT INTO roles (role_name, display_name, data_scope, organization_id) VALUES ('cert_' || gen_random_uuid(), 'Team', 'organization', $1) RETURNING id", [ids.otherUnit]);
     await pool.query('INSERT INTO user_organizations (organization_id, user_id, role_ids) VALUES ($1, $2, $3)', [ids.otherUnit, both, JSON.stringify([otherRole])]);
     await declare(both, { first_aid_certificate: { obtained_on: '2025-01-01' } }, ids.unit);
-    await verify(both, { first_aid_certificate: { valid_until: null } });
+    await verify(both, ['first_aid_certificate']);
     const elsewhere = (await call('get', '/member-certifications/me', both, ids.otherUnit)).body.data;
-    expect(elsewhere.every((row) => row.declared === null && row.verified === null)).toBe(true);
+    expect(elsewhere.find((row) => row.certification_key === 'first_aid_certificate').verified).not.toBeNull();
     const theirCamp = await camp(ids.otherUnit, '2031-04-01', '2031-04-02');
     await call('put', `/camp-rosters/${theirCamp}/team/${both}`, ids.outsider, ids.otherUnit).send({ team_role: 'leader' });
-    const theirs = (await call('get', `/camp-rosters/${theirCamp}`, ids.outsider, ids.otherUnit)).body.data;
-    expect(theirs.blocking_gaps).toEqual(['no_first_aider']);
+    expect((await call('get', `/camp-rosters/${theirCamp}`, ids.outsider, ids.otherUnit)).body.data.blocking_gaps).toEqual([]);
+  });
+
+  test('a manager verifies only members of their own unit, and only what was declared', async () => {
+    const [outsiders] = await verify(ids.leader, ['winter_camping'], true, ids.outsider, ids.otherUnit);
+    expect(outsiders.status).toBe(404);
+    await declare(ids.leader, {});
+    const [undeclared] = await verify(ids.leader, ['winter_camping']);
+    expect(undeclared.status).toBe(404);
+    expect(undeclared.body.message).toBe('certification_not_declared');
+    const refused = await call('put', `/member-certifications/${ids.leader}/winter_camping/verification`, ids.manager).send({ verified: true });
+    expect(refused.status).toBe(403);
+    expect(refused.body.missing).toEqual(['volunteers.manage']);
   });
 
   test('a camp that plans swimming lists its supervision to check, never as blocking', async () => {

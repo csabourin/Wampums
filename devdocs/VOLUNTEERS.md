@@ -52,12 +52,11 @@ the shift. Changing a shift's type or day re-evaluates its places. Only the fact
 stored (`volunteer_requirements`), never a document; a member reads their own record
 (`/requirements/me`), managers anyone's in the unit.
 
-The same record holds **adult certifications** for the camp lists (#1319, migration 073):
-`first_aid_certificate`, `wilderness_first_aid` and `winter_camping`. An adult declares them on their
-account (`member_certification_declarations`, `GET`/`PUT /api/v1/member-certifications/me`); the
-verify dialog shows what the person declared (`GET /api/v1/member-certifications/:userId`,
-`volunteers.manage`) and offers its expiry, but ticks nothing: only the manager's record counts. See
-`devdocs/CAMP_ROSTERS.md`.
+The verify dialog also lists the **certifications the person declared** (#1319, migration 073:
+first aid, wilderness first aid, winter camping), with their dates. They belong to the person, not to
+the unit: ticking one verifies it for every unit of theirs (`PUT /api/v1/member-certifications/:userId/:key/verification`),
+and the person changing its dates withdraws it. The unit requirement `first_aid_certificate` of a
+first-aid shift is still recorded per unit, as above. See `devdocs/CAMP_ROSTERS.md`.
 
 ## Rules (`services/volunteerShifts.js`)
 

@@ -20,7 +20,7 @@ const pool = { query: jest.fn((sql, params) => {
   if (sql.includes('SELECT 1 FROM user_organizations')) { return { rows: member ? [{ 1: 1 }] : [] }; }
   if (sql.includes('INSERT INTO member_allergy_declarations')) {
     writes.push(params);
-    return { rows: [{ allergies: params[2], carries_epipen: params[3], person_to_notify: params[4], declared_at: '2026-11-05T12:00:00Z' }] };
+    return { rows: [{ allergies: params[1], carries_epipen: params[2], person_to_notify: params[3], declared_at: '2026-11-05T12:00:00Z' }] };
   }
   if (sql.includes('DELETE FROM member_allergy_declarations')) { writes.push(params); return { rowCount: 1, rows: [] }; }
   return { rows: [] };
@@ -53,7 +53,7 @@ test('a member records their own declaration; a user id in the body is ignored',
   const response = await call('put', '/me', { allergies: ' Arachides ', carries_epipen: true, person_to_notify: 'Ada Lovelace, 555-0100', user_id: OTHER_ID });
   expect(response.status).toBe(200);
   expect(response.body.message).toBe('allergy_declaration_saved');
-  expect(writes[0]).toEqual([UNIT_ID, USER_ID, 'Arachides', true, 'Ada Lovelace, 555-0100']);
+  expect(writes[0]).toEqual([USER_ID, 'Arachides', true, 'Ada Lovelace, 555-0100']);
   expect(response.body.data).toMatchObject({ allergies: 'Arachides', carries_epipen: true });
 });
 
@@ -66,7 +66,7 @@ test('a member withdraws their own declaration', async () => {
   const response = await call('delete', '/me');
   expect(response.status).toBe(200);
   expect(response.body.message).toBe('allergy_declaration_removed');
-  expect(writes[0]).toEqual([UNIT_ID, USER_ID]);
+  expect(writes[0]).toEqual([USER_ID]);
 });
 
 test('a demo account cannot declare or withdraw', async () => {

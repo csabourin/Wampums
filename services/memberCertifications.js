@@ -2,10 +2,11 @@
 /**
  * Adult certifications (#1319, second slice): first aid, wilderness first aid, winter camping.
  *
- * - An adult **declares** their own from their account (`member_certification_declarations`):
- *   the day obtained and, when it has one, the expiry. A declaration never counts by itself.
- * - A manager of volunteers **verifies** it on /volunteers, as they verify a background check: the
- *   verified record is a `volunteer_requirements` row (services/volunteerShifts.js).
+ * - They belong to the person (`member_certifications`), not to a unit. An adult **declares** each
+ *   once from their account: the day obtained and, when it has one, the expiry. A declaration never
+ *   counts by itself.
+ * - A manager of volunteers of any unit the person belongs to **verifies** it (on /volunteers); the
+ *   verification then holds in every unit. Changing the dates withdraws it.
  * - The camp lists read both: a verified certification valid through the camp's last day counts;
  *   a declaration still unverified is listed to verify.
  *
@@ -99,51 +100,39 @@ async function assertMember(db, organizationId, userId, { lock = false } = {}) {
 }
 
 /**
- * Every certification, with what the person declared and what a manager verified in this unit.
+ * Every certification, with what the person declared and whether it was verified. Both belong to
+ * the person: a verification made in any of their units holds in all of them.
  *
  * @param {Object} db
- * @param {number} organizationId
+ * @param {number} organizationId - The unit reading them; the person must be its active member
  * @param {string} userId
  * @returns {Promise<Array<{certification_key: string,
  *   declared: {obtained_on: string, valid_until: string|null, declared_at: string}|null,
- *   verified: {checked_on: string|null, valid_until: string|null, verified_at: string}|null}>>}
+ *   verified: {valid_until: string|null, verified_at: string}|null}>>}
  */
 async function certificationsOf(db, organizationId, userId) {
   await assertMember(db, organizationId, userId);
-  const [declared, verified] = await Promise.all([
-    db.query(
-      `SELECT certification_key, obtained_on::text AS obtained_on, valid_until::text AS valid_until, declared_at
-         FROM member_certification_declarations
-        WHERE organization_id = $1 AND user_id = $2`,
-      [organizationId, userId]
-    ),
-    db.query(
-      `SELECT requirement_key, checked_on::text AS checked_on, valid_until::text AS valid_until, verified_at
-         FROM volunteer_requirements
-        WHERE organization_id = $1 AND user_id = $2 AND requirement_key = ANY($3::text[])`,
-      [organizationId, userId, CERTIFICATIONS]
-    ),
-  ]);
+  const rows = (await db.query(
+    `SELECT certification_key, obtained_on::text AS obtained_on, valid_until::text AS valid_until, declared_at, verified_at
+       FROM member_certifications WHERE user_id = $1`,
+    [userId]
+  )).rows;
   return CERTIFICATIONS.map((key) => {
-    const ownRow = declared.rows.find((row) => row.certification_key === key);
-    const verifiedRow = verified.rows.find((row) => row.requirement_key === key);
+    const row = rows.find((entry) => entry.certification_key === key);
     return {
       certification_key: key,
-      declared: ownRow
-        ? { obtained_on: ownRow.obtained_on, valid_until: ownRow.valid_until, declared_at: ownRow.declared_at }
-        : null,
-      verified: verifiedRow
-        ? { checked_on: verifiedRow.checked_on, valid_until: verifiedRow.valid_until, verified_at: verifiedRow.verified_at }
-        : null,
+      declared: row ? { obtained_on: row.obtained_on, valid_until: row.valid_until, declared_at: row.declared_at } : null,
+      verified: row?.verified_at ? { valid_until: row.valid_until, verified_at: row.verified_at } : null,
     };
   });
 }
 
 /**
- * Replace what a person declares for themselves in the unit. What a manager verified is untouched.
+ * Replace what a person declares. A declaration whose dates change loses its verification, so a
+ * verified certificate cannot be extended by editing it; one left as it was keeps it.
  *
  * @param {Object} pool
- * @param {number} organizationId
+ * @param {number} organizationId - The unit the person is signed in to
  * @param {string} userId - Always the authenticated person
  * @param {Object} input - Request body: { declared }
  * @returns {Promise<Array<Object>>} The person's certifications as they now are
@@ -154,18 +143,23 @@ function saveOwnDeclarations(pool, organizationId, userId, input) {
   return transaction(pool, async (db) => {
     await assertMember(db, organizationId, userId, { lock: true });
     await db.query(
-      `DELETE FROM member_certification_declarations
-        WHERE organization_id = $1 AND user_id = $2 AND NOT (certification_key = ANY($3::text[]))`,
-      [organizationId, userId, keys]
+      'DELETE FROM member_certifications WHERE user_id = $1 AND NOT (certification_key = ANY($2::text[]))',
+      [userId, keys]
     );
     if (keys.length) {
       await db.query(
-        `INSERT INTO member_certification_declarations (organization_id, user_id, certification_key, obtained_on, valid_until)
-         SELECT $1, $2, k.key, k.obtained_on, k.valid_until
-           FROM UNNEST($3::text[], $4::date[], $5::date[]) AS k(key, obtained_on, valid_until)
-         ON CONFLICT (organization_id, user_id, certification_key) DO UPDATE SET
-           obtained_on = EXCLUDED.obtained_on, valid_until = EXCLUDED.valid_until, declared_at = NOW()`,
-        [organizationId, userId, keys, keys.map((key) => declared[key].obtained_on), keys.map((key) => declared[key].valid_until)]
+        `INSERT INTO member_certifications AS c (user_id, certification_key, obtained_on, valid_until)
+         SELECT $1, k.key, k.obtained_on, k.valid_until
+           FROM UNNEST($2::text[], $3::date[], $4::date[]) AS k(key, obtained_on, valid_until)
+         ON CONFLICT (user_id, certification_key) DO UPDATE SET
+           obtained_on = EXCLUDED.obtained_on, valid_until = EXCLUDED.valid_until, declared_at = NOW(),
+           verified_at = CASE WHEN (c.obtained_on, c.valid_until) IS NOT DISTINCT FROM (EXCLUDED.obtained_on, EXCLUDED.valid_until)
+                              THEN c.verified_at END,
+           verified_by = CASE WHEN (c.obtained_on, c.valid_until) IS NOT DISTINCT FROM (EXCLUDED.obtained_on, EXCLUDED.valid_until)
+                              THEN c.verified_by END,
+           verified_in_organization_id = CASE WHEN (c.obtained_on, c.valid_until) IS NOT DISTINCT FROM (EXCLUDED.obtained_on, EXCLUDED.valid_until)
+                              THEN c.verified_in_organization_id END`,
+        [userId, keys, keys.map((key) => declared[key].obtained_on), keys.map((key) => declared[key].valid_until)]
       );
     }
     return certificationsOf(db, organizationId, userId);
@@ -173,47 +167,69 @@ function saveOwnDeclarations(pool, organizationId, userId, input) {
 }
 
 /**
+ * A manager of volunteers verifies a declared certification, or withdraws its verification. The
+ * person must be an active member of the manager's unit; the verification then holds everywhere.
+ *
+ * @param {Object} pool
+ * @param {number} organizationId - The manager's unit
+ * @param {string} managerId
+ * @param {string} userId - The person
+ * @param {string} key - Certification key
+ * @param {Object} input - Request body: { verified: boolean }
+ * @returns {Promise<Array<Object>>} The person's certifications as they now are
+ */
+function verifyCertification(pool, organizationId, managerId, userId, key, input) {
+  if (!CERTIFICATIONS.includes(key)) {
+    refuse('certification_unknown', HTTP_NOT_FOUND);
+  }
+  if (typeof input?.verified !== 'boolean') {
+    refuse('certification_invalid', HTTP_BAD_REQUEST, 'verified');
+  }
+  return transaction(pool, async (db) => {
+    await assertMember(db, organizationId, userId, { lock: true });
+    const updated = await db.query(
+      `UPDATE member_certifications SET
+         verified_at = CASE WHEN $3 THEN NOW() END,
+         verified_by = CASE WHEN $3 THEN $4::uuid END,
+         verified_in_organization_id = CASE WHEN $3 THEN $5::int END
+       WHERE user_id = $1 AND certification_key = $2`,
+      [userId, key, input.verified, managerId, organizationId]
+    );
+    if (!updated.rowCount) {
+      refuse('certification_not_declared', HTTP_NOT_FOUND);
+    }
+    return certificationsOf(db, organizationId, userId);
+  });
+}
+
+/**
  * Certifications of several people for a camp: those verified and valid through its last day,
- * and those declared, valid then, but not verified.
+ * and those declared, valid then, but not verified. The caller restricts the people to its unit.
  *
  * @param {Object} db
- * @param {number} organizationId
  * @param {Array<string>} userIds
  * @param {string} lastDay - YYYY-MM-DD, the camp's last day
  * @returns {Promise<Map<string, {verified: Array<string>, to_verify: Array<string>}>>}
  */
-async function certificationsForCamp(db, organizationId, userIds, lastDay) {
+async function certificationsForCamp(db, userIds, lastDay) {
   const byUser = new Map(userIds.map((id) => [id, { verified: [], to_verify: [] }]));
   if (!userIds.length) {
     return byUser;
   }
   const rows = (await db.query(
-    `SELECT u.user_id, k.key,
-            EXISTS (SELECT 1 FROM volunteer_requirements r
-                     WHERE r.organization_id = $1 AND r.user_id = u.user_id AND r.requirement_key = k.key
-                       AND (r.valid_until IS NULL OR r.valid_until >= $4::date)) AS verified,
-            EXISTS (SELECT 1 FROM member_certification_declarations d
-                     WHERE d.organization_id = $1 AND d.user_id = u.user_id AND d.certification_key = k.key
-                       AND (d.valid_until IS NULL OR d.valid_until >= $4::date)) AS declared
-       FROM UNNEST($2::uuid[]) AS u(user_id)
-      CROSS JOIN UNNEST($3::text[]) WITH ORDINALITY AS k(key, position)
-      ORDER BY u.user_id, k.position`,
-    [organizationId, userIds, CERTIFICATIONS, lastDay]
+    `SELECT user_id, certification_key, verified_at IS NOT NULL AS verified
+       FROM member_certifications
+      WHERE user_id = ANY($1::uuid[]) AND (valid_until IS NULL OR valid_until >= $2::date)`,
+    [userIds, lastDay]
   )).rows;
-  rows.forEach((row) => {
+  CERTIFICATIONS.forEach((key) => rows.filter((row) => row.certification_key === key).forEach((row) => {
     const entry = byUser.get(row.user_id);
-    if (!entry) {
-      return;
-    }
-    if (row.verified) {
-      entry.verified.push(row.key);
-    } else if (row.declared) {
-      entry.to_verify.push(row.key);
-    }
-  });
+    entry?.[row.verified ? 'verified' : 'to_verify'].push(key);
+  }));
   return byUser;
 }
 
 module.exports = {
-  CertificationError, CERTIFICATIONS, FIRST_AID, readDeclarations, certificationsOf, saveOwnDeclarations, certificationsForCamp,
+  CertificationError, CERTIFICATIONS, FIRST_AID, readDeclarations, certificationsOf, saveOwnDeclarations, verifyCertification,
+  certificationsForCamp,
 };

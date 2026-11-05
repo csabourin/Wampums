@@ -197,7 +197,7 @@ async function campVolunteers(db, organizationId, camp, { canSeeVolunteers }) {
  * them; they are attached to the members only for those who may see them.
  */
 async function withCertifications(db, organizationId, camp, team, { canSeeCertifications }) {
-  const certifications = await certificationsForCamp(db, organizationId, team.map((member) => member.user_id), camp.date_to);
+  const certifications = await certificationsForCamp(db, team.map((member) => member.user_id), camp.date_to);
   const members = team.map((member) => (canSeeCertifications
     ? { ...member, certifications: certifications.get(member.user_id) }
     : member));
@@ -309,7 +309,7 @@ async function readCampRoster(db, organizationId, meetingId, rights) {
   const [{ members, certifications }, healthForms, declarations] = await Promise.all([
     withCertifications(db, organizationId, camp, team, rights),
     youthHealthForms(db, organizationId, youth.youth, rights),
-    declarationsFor(db, organizationId, present),
+    declarationsFor(db, present),
   ]);
   const gaps = rosterGaps(youth, team, certifications, camp, healthForms, declarations);
   const allergies = rights.canSeeAllergies ? campAllergies(youth.youth, team, healthForms, declarations) : null;

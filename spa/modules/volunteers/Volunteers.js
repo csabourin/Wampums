@@ -31,7 +31,7 @@ import {
   getVolunteerShifts, getVolunteerShiftActivities, saveVolunteerShift, deleteVolunteerShift,
   signUpForShift, withdrawFromShift, removeVolunteer, getVolunteerRequirements, saveVolunteerRequirements, getTeamChecks,
 } from '../../api/api-volunteers.js';
-import { getMemberCertifications } from '../../api/api-member-certifications.js';
+import { getMemberCertifications, verifyMemberCertification } from '../../api/api-member-certifications.js';
 import styles from '../../../css/volunteers.css?url';
 
 /** Server field names, and the form controls that show their errors. */
@@ -369,6 +369,18 @@ export class Volunteers {
           aria-describedby="${own ? `volunteers-declared-${key} ` : ''}volunteers-until-help">`}
       </fieldset>`;
     }).join('');
+    // Certifications belong to the person: verified here, they hold in every unit of theirs.
+    const declaredCertifications = declared.filter((item) => item.declared);
+    const certificationRows = declaredCertifications.length ? `<fieldset class="volunteers__requirement">
+        <legend>${escapeHTML(translate('volunteers_certifications'))}</legend>
+        <p class="form-help" id="volunteers-certifications-help">${escapeHTML(translate('volunteers_certifications_help'))}</p>
+        ${declaredCertifications.map((item) => `<div class="checkbox-option">
+          <input type="checkbox" id="volunteers-cert-${item.certification_key}" name="cert_${item.certification_key}"
+            ${item.verified ? 'checked' : ''} aria-describedby="volunteers-cert-${item.certification_key}-declared volunteers-certifications-help">
+          <label for="volunteers-cert-${item.certification_key}">${escapeHTML(translate(`volunteer_requirement_${item.certification_key}`))}</label>
+        </div>
+        <p class="form-help" id="volunteers-cert-${item.certification_key}-declared">${escapeHTML(this.declaredText(item.declared))}</p>`).join('')}
+      </fieldset>` : '';
     const modal = openModal({
       id: 'volunteers-verify',
       title: escapeHTML(translate('volunteers_verify_title').replace('{name}', name)),
@@ -377,6 +389,7 @@ export class Volunteers {
       body: `<form id="volunteers-verify-form" class="volunteers__form" novalidate>
         <p>${escapeHTML(translate('volunteers_verify_intro'))}</p>
         ${rows}
+        ${certificationRows}
         <small class="form-help" id="volunteers-until-help">${escapeHTML(translate('volunteers_valid_until_help'))}</small>
         <p id="volunteers-verify-error" role="alert" tabindex="-1" hidden></p>
       </form>`,
@@ -422,8 +435,12 @@ export class Volunteers {
           return;
         }
         let result;
+        const changedCertifications = declaredCertifications
+          .filter((item) => form.elements[`cert_${item.certification_key}`].checked !== Boolean(item.verified));
         try {
           result = await saveVolunteerRequirements(userId, verified);
+          await Promise.all(changedCertifications.map((item) => verifyMemberCertification(
+            userId, item.certification_key, form.elements[`cert_${item.certification_key}`].checked)));
         } catch (err) {
           if (this.stale()) { return; }
           debugError('Failed to save requirements:', err);

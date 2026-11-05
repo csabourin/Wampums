@@ -149,7 +149,7 @@ describe.skipIf(!DATABASE_URL)('Allergies in the camp lists', () => {
     expect(managed.allergies).toBeNull();
   });
 
-  test('a team member’s allergies are those they declared themselves, in this unit, while still a member', async () => {
+  test('a team member’s allergies are those they declared themselves, shared by their units, while still a member', async () => {
     const meeting = await camp(ids.unit, '2031-05-01', '2031-05-03');
     await name(meeting, ids.leader);
     await name(meeting, ids.reader);
@@ -159,18 +159,21 @@ describe.skipIf(!DATABASE_URL)('Allergies in the camp lists', () => {
     expect(data.gaps).toContain('adult_allergies_not_declared');
 
     expect((await declare(ids.leader, { allergies: 'Pénicilline', carries_epipen: false, person_to_notify: 'Léa Tremblay, 555-0100' })).status).toBe(200);
-    // Declared in another unit: not this unit's.
-    await pool.query("INSERT INTO user_organizations (organization_id, user_id, role_ids) VALUES ($1, $2, '[]')", [ids.otherUnit, ids.reader]);
-    expect((await declare(ids.reader, { allergies: 'Latex' }, ids.otherUnit)).status).toBe(200);
     data = await roster(meeting);
     expect(data.allergies.adults).toEqual([expect.objectContaining({
       user_id: ids.leader, allergies: 'Pénicilline', person_to_notify: 'Léa Tremblay, 555-0100',
     })]);
     expect(data.allergies.adults_without_declaration).toBe(1);
+    // The declaration belongs to the person: made while signed in to another unit, it is the same one.
+    await pool.query("INSERT INTO user_organizations (organization_id, user_id, role_ids) VALUES ($1, $2, '[]')", [ids.otherUnit, ids.reader]);
+    expect((await declare(ids.reader, { allergies: 'Latex' }, ids.otherUnit)).status).toBe(200);
+    data = await roster(meeting);
+    expect(data.allergies.adults.map((row) => row.allergies).sort()).toEqual(['Latex', 'Pénicilline']);
+    expect(data.allergies.adults_without_declaration).toBe(0);
 
     await pool.query("UPDATE user_organizations SET status = 'inactive' WHERE organization_id = $1 AND user_id = $2", [ids.unit, ids.leader]);
     data = await roster(meeting);
-    expect(data.allergies.adults).toEqual([]);
+    expect(data.allergies.adults.map((row) => row.user_id)).toEqual([ids.reader]);
     await pool.query("UPDATE user_organizations SET status = 'active' WHERE organization_id = $1 AND user_id = $2", [ids.unit, ids.leader]);
   });
 

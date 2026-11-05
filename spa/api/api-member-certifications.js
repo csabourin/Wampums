@@ -27,3 +27,14 @@ export function saveMyCertifications(declared) {
 export function getMemberCertifications(userId) {
   return API.getNoCache(`v1/member-certifications/${encodeURIComponent(userId)}`);
 }
+
+/**
+ * Verify a declared certification, or withdraw its verification; it holds in every unit of the person.
+ * @param {string} userId - UUID of a member of the unit
+ * @param {string} key - Certification key
+ * @param {boolean} verified
+ * @returns {Promise<Object>} Their certifications as they now are
+ */
+export function verifyMemberCertification(userId, key, verified) {
+  return API.put(`v1/member-certifications/${encodeURIComponent(userId)}/${encodeURIComponent(key)}/verification`, { verified });
+}

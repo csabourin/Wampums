@@ -1,34 +1,27 @@
 -- Adult certifications for the camp lists (#1319, second slice).
 --
 -- The camp permit lists each adult's certifications (first aid, wilderness first aid, winter
--- camping). An adult declares their own from their account; a manager of the unit verifies them,
--- as they verify background checks (volunteer_requirements, #1251). Only a verified certification
--- counts: a camp whose team holds no verified first-aid certificate valid on the camp's dates shows
--- a blocking gap. Only the fact and the dates are kept, never the certificate itself.
--- Keys: config/certifications.json, a subset of config/volunteer_shifts.json requirements.
-
--- Verified certifications are requirements a manager records: two new keys join the list.
-ALTER TABLE public.volunteer_requirements
-  DROP CONSTRAINT IF EXISTS volunteer_requirements_requirement_key_check;
-ALTER TABLE public.volunteer_requirements
-  ADD CONSTRAINT volunteer_requirements_requirement_key_check
-  CHECK (requirement_key IN ('background_check', 'safety_training', 'first_aid_certificate', 'driver_licence', 'wilderness_first_aid', 'winter_camping'));
-
--- What the adult says they hold, before anyone verifies it. It never counts by itself.
-CREATE TABLE IF NOT EXISTS public.member_certification_declarations (
-  organization_id INTEGER NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+-- camping). They belong to the person, not to a unit: an adult declares each one once, with the
+-- day obtained and its expiry, and a manager of volunteers in any unit where the person is an
+-- active member verifies it. Once verified, it holds in every unit of that person. Changing the
+-- dates of a declaration withdraws its verification. Only the fact and the dates are kept, never
+-- the certificate itself. Keys: config/certifications.json.
+CREATE TABLE IF NOT EXISTS public.member_certifications (
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   certification_key VARCHAR(40) NOT NULL
     CHECK (certification_key IN ('first_aid_certificate', 'wilderness_first_aid', 'winter_camping')),
   obtained_on DATE NOT NULL,
   valid_until DATE,
   declared_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (organization_id, user_id, certification_key),
+  verified_at TIMESTAMPTZ,
+  verified_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  verified_in_organization_id INTEGER REFERENCES public.organizations(id) ON DELETE SET NULL,
+  PRIMARY KEY (user_id, certification_key),
   CHECK (valid_until IS NULL OR valid_until >= obtained_on)
 );
 
-COMMENT ON TABLE public.member_certification_declarations IS
-  'Certifications an adult declared for themselves in one unit, with the day obtained and the expiry. Unverified: only a manager''s record in volunteer_requirements counts. Visible to the person and to volunteer managers.';
+COMMENT ON TABLE public.member_certifications IS
+  'Certifications a person declared for themselves, with the day obtained and the expiry. Counts once verified (verified_at) by a volunteer manager of a unit the person belongs to; the verification holds in every unit. Read by the person, and by a unit only while they are its active member.';
 
 -- A camp that plans swimming asks the team to check who supervises it. Not a blocking gap.
 ALTER TABLE public.year_plan_meetings

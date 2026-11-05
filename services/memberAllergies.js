@@ -1,7 +1,7 @@
 'use strict';
 /**
- * Adults' allergies (#1319, third slice): what an adult declares about their own allergies, in one
- * unit. Voluntary, and written only by that adult: no route takes another person's id for a write.
+ * Adults' allergies (#1319, third slice): what an adult declares about their own allergies. It
+ * belongs to the person, shared by every unit they belong to. Voluntary, and written only by them: no route takes another person's id for a write.
  * A camp's lists show the declarations of its active team members to holders of
  * `camp_allergies.view` (services/campRoster.js). Youth allergies are read from their health forms.
  *
@@ -74,8 +74,8 @@ const COLUMNS = 'allergies, carries_epipen, person_to_notify, declared_at';
 async function readOwnDeclaration(db, organizationId, userId) {
   await assertMember(db, organizationId, userId);
   return (await db.query(
-    `SELECT ${COLUMNS} FROM member_allergy_declarations WHERE organization_id = $1 AND user_id = $2`,
-    [organizationId, userId]
+    `SELECT ${COLUMNS} FROM member_allergy_declarations WHERE user_id = $1`,
+    [userId]
   )).rows[0] || null;
 }
 
@@ -91,12 +91,12 @@ async function saveOwnDeclaration(db, organizationId, userId, input) {
   const declaration = readDeclaration(input);
   await assertMember(db, organizationId, userId);
   return (await db.query(
-    `INSERT INTO member_allergy_declarations (organization_id, user_id, allergies, carries_epipen, person_to_notify)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (organization_id, user_id) DO UPDATE SET allergies = EXCLUDED.allergies,
+    `INSERT INTO member_allergy_declarations (user_id, allergies, carries_epipen, person_to_notify)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (user_id) DO UPDATE SET allergies = EXCLUDED.allergies,
        carries_epipen = EXCLUDED.carries_epipen, person_to_notify = EXCLUDED.person_to_notify, declared_at = NOW()
      RETURNING ${COLUMNS}`,
-    [organizationId, userId, declaration.allergies, declaration.carries_epipen, declaration.person_to_notify]
+    [userId, declaration.allergies, declaration.carries_epipen, declaration.person_to_notify]
   )).rows[0];
 }
 
@@ -104,29 +104,24 @@ async function saveOwnDeclaration(db, organizationId, userId, input) {
  * Withdraw one's own declaration.
  * @returns {Promise<boolean>} Whether there was one
  */
-async function removeOwnDeclaration(db, organizationId, userId) {
-  const removed = await db.query(
-    'DELETE FROM member_allergy_declarations WHERE organization_id = $1 AND user_id = $2',
-    [organizationId, userId]
-  );
+async function removeOwnDeclaration(db, userId) {
+  const removed = await db.query('DELETE FROM member_allergy_declarations WHERE user_id = $1', [userId]);
   return removed.rowCount > 0;
 }
 
 /**
- * Declarations of several members of the unit.
+ * Declarations of several people. The caller restricts them to the unit's active members it may show.
  * @param {Object} db
- * @param {number} organizationId
  * @param {Array<string>} userIds
  * @returns {Promise<Map<string, Object>>} By user id; a member without a declaration is absent
  */
-async function declarationsFor(db, organizationId, userIds) {
+async function declarationsFor(db, userIds) {
   if (!userIds.length) {
     return new Map();
   }
   const rows = (await db.query(
-    `SELECT user_id, ${COLUMNS} FROM member_allergy_declarations
-      WHERE organization_id = $1 AND user_id = ANY($2::uuid[])`,
-    [organizationId, userIds]
+    `SELECT user_id, ${COLUMNS} FROM member_allergy_declarations WHERE user_id = ANY($1::uuid[])`,
+    [userIds]
   )).rows;
   return new Map(rows.map(({ user_id: userId, ...declaration }) => [userId, declaration]));
 }

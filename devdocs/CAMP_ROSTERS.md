@@ -63,18 +63,20 @@ opened from each camp of `/camp-plans`. It shows, in this order:
   `no_first_aider`, `certification_to_verify`, `swimming_supervision`; the screen adds `sisc_not_compared`.
   `blocking_gaps` lists those the camp cannot leave without: today `no_first_aider` only
   (`BLOCKING_GAPS` in `services/campRoster.js`). An empty list is a gap, never "nothing to report".
-- **Certifications** (migration 073, `services/memberCertifications.js`, keys in
+- **Certifications** (migration 073, `member_certifications`, `services/memberCertifications.js`, keys in
   `config/certifications.json`): first aid (`first_aid_certificate`), wilderness first aid and winter
-  camping. An adult **declares** their own under "My certifications" on `/account-info`
-  (`PUT /api/v1/member-certifications/me`, any active member; the complete set, the day obtained
-  required, not in the future, an optional expiry not before it). The section is offered to anyone
-  who is not only a parent. A declaration **never counts**: a manager of volunteers verifies it on
-  `/volunteers` (the requirement record of `devdocs/VOLUNTEERS.md`, which shows the declaration and
-  offers its expiry). A certification counts for a camp when it is verified and valid through the
-  camp's **last** day. `no_first_aider` holds while no active team member has a verified first aid or
-  wilderness first aid certification; volunteers of the camp's shifts do not count. A declaration valid
-  for the camp's dates but unverified is `certification_to_verify`. Declarations and verifications
-  belong to one unit: another unit sees neither.
+  camping. They **belong to the person**, not to a unit. An adult declares each **once** under
+  "My certifications" on `/account-info` (`PUT /api/v1/member-certifications/me`, the complete set; the
+  day obtained required, not in the future; an optional expiry not before it). The section is offered
+  to anyone who is not only a parent. A declaration **never counts** by itself: a manager of volunteers
+  of any unit where the person is an active member verifies it in the verify dialog of `/volunteers`
+  (`PUT /api/v1/member-certifications/:userId/:key/verification`, `volunteers.manage`), and the
+  verification then **holds in every unit** of that person. Changing a declaration's dates withdraws its
+  verification. A unit reads a person's certifications only while they are its active member. A
+  certification counts for a camp when it is verified and valid through the camp's **last** day.
+  `no_first_aider` holds while no active team member has a verified first aid or wilderness first aid
+  certification; volunteers of the camp's shifts do not count. A declaration valid for the camp's dates
+  but unverified is `certification_to_verify`.
 - **Allergies** (migration 074): reading them takes `camp_allergies.view` (category `camp_plan`). The
   migration gave it to every unit-wide role holding `reports.view`, `medication.view` or
   `medication.manage`, or allowed to view the unit's `fiche_sante` form; a role of `linked` scope never
@@ -84,7 +86,7 @@ opened from each camp of `/camp-plans`. It shows, in this order:
   allergy lists the youth). A youth without one is `youth_health_form_missing`, never "no allergy".
   **Adults**: `member_allergy_declarations`, written only by the adult under "My allergies" on
   `/account-info` (`GET`/`PUT`/`DELETE /api/v1/member-allergies/me`; no route takes another person's
-  id), in the unit where they declared it: allergies (required, up to 1,000 characters), auto-injector,
+  id). It belongs to the person, shared by every unit they belong to: allergies (required, up to 1,000 characters), auto-injector,
   person to notify (optional, up to 200). Only active team members' declarations are listed; any active
   member without one is `adult_allergies_not_declared`. Withdrawing a declaration removes it from every
   list at once.
@@ -98,8 +100,8 @@ opened from each camp of `/camp-plans`. It shows, in this order:
 
 `test/camp-roster.integration.test.js` (youth by enrollment and signed requests, a youth in two units,
 role scope, unit isolation, ages, volunteer names), `test/member-certifications.integration.test.js`
-(declared versus verified, validity through the last day, wilderness first aid, a member who left, who
-reads certifications, unit isolation, swimming), `test/camp-allergies.integration.test.js` (the default
+(declared versus verified, new dates withdrawing a verification, validity through the last day,
+wilderness first aid, a member who left, a verification holding in another unit, who verifies, swimming), `test/camp-allergies.integration.test.js` (the default
 grant, health forms of the camp's unit, declarations of active members only, withdrawal, who reads),
 `test/routes-member-allergies.test.js`, `test/spa/AllergyPanel.test.js`, `test/routes-camp-rosters.test.js`,
 `test/routes-member-certifications.test.js`, `test/spa/CampRoster.test.js` (axe, dialog keyboard,
