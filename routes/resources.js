@@ -486,7 +486,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error fetching equipment', err.statusCode || 500);
+        return error(res, err.message || 'Error fetching equipment', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -647,7 +647,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error saving equipment', err.statusCode || 500);
+        return error(res, err.message || 'Error saving equipment', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -859,7 +859,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error updating equipment', err.statusCode || 500);
+        return error(res, err.message || 'Error updating equipment', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -911,7 +911,7 @@ module.exports = (pool, logger) => {
         return error(
           res,
           err.message || 'equipment_photo_refresh_error',
-          err.statusCode || 500,
+          err.statusCode || HTTP_STATUS.INTERNAL_ERROR,
         );
       }
     }),
@@ -980,7 +980,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error deleting equipment', err.statusCode || 500);
+        return error(res, err.message || 'Error deleting equipment', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1098,7 +1098,7 @@ module.exports = (pool, logger) => {
             HTTP_STATUS.BAD_REQUEST,
           );
         }
-        return error(res, err.message || 'Error uploading photo', err.statusCode || 500);
+        return error(res, err.message || 'Error uploading photo', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1164,7 +1164,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error deleting photo', err.statusCode || 500);
+        return error(res, err.message || 'Error deleting photo', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1277,7 +1277,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error fetching reservations', err.statusCode || 500);
+        return error(res, err.message || 'Error fetching reservations', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1458,7 +1458,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error saving reservation', err.statusCode || 500);
+        return error(res, err.message || 'Error saving reservation', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1613,7 +1613,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error updating reservation', err.statusCode || 500);
+        return error(res, err.message || 'Error updating reservation', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1822,7 +1822,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error saving bulk reservations', err.statusCode || 500);
+        return error(res, err.message || 'Error saving bulk reservations', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1919,7 +1919,7 @@ module.exports = (pool, logger) => {
         return error(
           res,
           err.message || 'Error fetching permission slips',
-          err.statusCode || 500,
+          err.statusCode || HTTP_STATUS.INTERNAL_ERROR,
         );
       }
     }),
@@ -2236,7 +2236,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error sending emails', err.statusCode || 500);
+        return error(res, err.message || 'Error sending emails', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -2516,7 +2516,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error sending reminders', err.statusCode || 500);
+        return error(res, err.message || 'Error sending reminders', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -2828,7 +2828,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error saving permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error saving permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -2869,7 +2869,7 @@ module.exports = (pool, logger) => {
 
         return success(res, slipResult.rows[0]);
       } catch (err) {
-        return error(res, err.message || 'Error fetching permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error fetching permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -2932,7 +2932,7 @@ module.exports = (pool, logger) => {
           'Permission slip signed',
         );
       } catch (err) {
-        return error(res, err.message || 'Error signing permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error signing permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -2995,7 +2995,7 @@ module.exports = (pool, logger) => {
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {return;}
-        return error(res, err.message || 'Error declining permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error declining permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -3024,7 +3024,7 @@ module.exports = (pool, logger) => {
 
         return success(res, slipResult.rows[0]);
       } catch (err) {
-        return error(res, err.message || 'Error fetching permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error fetching permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -3077,7 +3077,7 @@ module.exports = (pool, logger) => {
           'Permission slip signed',
         );
       } catch (err) {
-        return error(res, err.message || 'Error signing permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error signing permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -3124,7 +3124,7 @@ module.exports = (pool, logger) => {
           'Permission slip declined',
         );
       } catch (err) {
-        return error(res, err.message || 'Error declining permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error declining permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -3166,7 +3166,7 @@ module.exports = (pool, logger) => {
         return error(
           res,
           err.message || 'Error archiving permission slip',
-          err.statusCode || 500,
+          err.statusCode || HTTP_STATUS.INTERNAL_ERROR,
         );
       }
     }),
@@ -3219,7 +3219,7 @@ module.exports = (pool, logger) => {
         return error(
           res,
           err.message || 'Error deleting permission slip',
-          err.statusCode || 500,
+          err.statusCode || HTTP_STATUS.INTERNAL_ERROR,
         );
       }
     }),
@@ -3316,7 +3316,7 @@ module.exports = (pool, logger) => {
         return error(
           res,
           err.message || 'Error loading resource dashboard',
-          err.statusCode || 500,
+          err.statusCode || HTTP_STATUS.INTERNAL_ERROR,
         );
       }
     }),

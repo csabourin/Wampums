@@ -10,6 +10,7 @@
 const express = require('express');
 const { eligibleActionParticipants } = require('../services/actionRoster');
 const { createHash } = require('node:crypto');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 
 // Import auth middleware
@@ -70,7 +71,7 @@ module.exports = (pool, logger) => {
     try {
       scoutYear = await getScoutYear(req, pool);
     } catch (err) {
-      return errorResponse(res, 'Unknown scout year for this organization', 400);
+      return errorResponse(res, 'Unknown scout year for this organization', HTTP_STATUS.BAD_REQUEST);
     }
     const rosterStatuses = rosterStatusesFor(scoutYear);
 

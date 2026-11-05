@@ -117,7 +117,7 @@ module.exports = (pool, logger) => {
       return success(res, result.rows);
     } catch (error) {
       logger.error('Error fetching form formats:', error);
-      return errorResponse(res, 'Failed to fetch form formats', 500);
+      return errorResponse(res, 'Failed to fetch form formats', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -155,13 +155,13 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return errorResponse(res, 'Form format not found', 404);
+        return errorResponse(res, 'Form format not found', HTTP_STATUS.NOT_FOUND);
       }
 
       return success(res, result.rows[0]);
     } catch (error) {
       logger.error('Error fetching form format:', error);
-      return errorResponse(res, 'Failed to fetch form format', 500);
+      return errorResponse(res, 'Failed to fetch form format', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -203,16 +203,16 @@ module.exports = (pool, logger) => {
 
       // Validate required fields
       if (!form_type || !form_structure) {
-        return errorResponse(res, 'form_type and form_structure are required', 400);
+        return errorResponse(res, 'form_type and form_structure are required', HTTP_STATUS.BAD_REQUEST);
       }
 
       // Validate form_structure has fields array
       if (!form_structure.fields || !Array.isArray(form_structure.fields)) {
-        return errorResponse(res, 'form_structure must have a fields array', 400);
+        return errorResponse(res, 'form_structure must have a fields array', HTTP_STATUS.BAD_REQUEST);
       }
       const textError = validateFieldTexts(form_structure);
       if (textError) {
-        return errorResponse(res, textError, 400);
+        return errorResponse(res, textError, HTTP_STATUS.BAD_REQUEST);
       }
       const reservedNames = findReservedFieldNames(form_structure);
       if (reservedNames.length > 0) {
@@ -227,7 +227,7 @@ module.exports = (pool, logger) => {
       );
 
       if (existingCheck.rows.length > 0) {
-        return errorResponse(res, 'Form type already exists for this organization', 409);
+        return errorResponse(res, 'Form type already exists for this organization', HTTP_STATUS.CONFLICT);
       }
 
       const result = await pool.query(
@@ -242,7 +242,7 @@ module.exports = (pool, logger) => {
       return success(res, result.rows[0], 'Form format created successfully', HTTP_STATUS.CREATED);
     } catch (error) {
       logger.error('Error creating form format:', error);
-      return errorResponse(res, 'Failed to create form format', 500);
+      return errorResponse(res, 'Failed to create form format', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -287,11 +287,11 @@ module.exports = (pool, logger) => {
       // Validate form_structure if provided
       if (form_structure) {
         if (!form_structure.fields || !Array.isArray(form_structure.fields)) {
-          return errorResponse(res, 'form_structure must have a fields array', 400);
+          return errorResponse(res, 'form_structure must have a fields array', HTTP_STATUS.BAD_REQUEST);
         }
         const textError = validateFieldTexts(form_structure);
         if (textError) {
-          return errorResponse(res, textError, 400);
+          return errorResponse(res, textError, HTTP_STATUS.BAD_REQUEST);
         }
       }
 
@@ -303,7 +303,7 @@ module.exports = (pool, logger) => {
       );
 
       if (existingCheck.rows.length === 0) {
-        return errorResponse(res, 'Form format not found', 404);
+        return errorResponse(res, 'Form format not found', HTTP_STATUS.NOT_FOUND);
       }
       const reservedNames = findReservedFieldNames(req.body.form_structure || { fields: [] }, existingCheck.rows[0].form_structure);
       if (reservedNames.length > 0) {
@@ -329,7 +329,7 @@ module.exports = (pool, logger) => {
       return success(res, result.rows[0], 'Form format updated successfully');
     } catch (error) {
       logger.error('Error updating form format:', error);
-      return errorResponse(res, 'Failed to update form format', 500);
+      return errorResponse(res, 'Failed to update form format', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -367,14 +367,14 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return errorResponse(res, 'Form format not found', 404);
+        return errorResponse(res, 'Form format not found', HTTP_STATUS.NOT_FOUND);
       }
 
       logger.info(`Form format deleted: ${formFormatId} for organization ${organizationId}`);
       return success(res, { id: formFormatId }, 'Form format deleted successfully');
     } catch (error) {
       logger.error('Error deleting form format:', error);
-      return errorResponse(res, 'Failed to delete form format', 500);
+      return errorResponse(res, 'Failed to delete form format', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -411,7 +411,7 @@ module.exports = (pool, logger) => {
       return success(res, result.rows);
     } catch (error) {
       logger.error('Error fetching user organizations:', error);
-      return errorResponse(res, 'Failed to fetch organizations', 500);
+      return errorResponse(res, 'Failed to fetch organizations', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -440,7 +440,7 @@ module.exports = (pool, logger) => {
       const { keys } = req.query;
 
       if (!keys) {
-        return errorResponse(res, 'keys parameter is required', 400);
+        return errorResponse(res, 'keys parameter is required', HTTP_STATUS.BAD_REQUEST);
       }
 
       const keyArray = keys.split(',').map(k => k.trim());
@@ -466,7 +466,7 @@ module.exports = (pool, logger) => {
       return success(res, translations);
     } catch (error) {
       logger.error('Error fetching translations:', error);
-      return errorResponse(res, 'Failed to fetch translations', 500);
+      return errorResponse(res, 'Failed to fetch translations', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -523,7 +523,7 @@ module.exports = (pool, logger) => {
       );
 
       if (sourceFormat.rows.length === 0) {
-        return errorResponse(res, 'Source form format not found', 404);
+        return errorResponse(res, 'Source form format not found', HTTP_STATUS.NOT_FOUND);
       }
 
       // Check if form type already exists in target organization
@@ -558,7 +558,7 @@ module.exports = (pool, logger) => {
       return success(res, result.rows[0], 'Form format copied successfully', HTTP_STATUS.CREATED);
     } catch (error) {
       logger.error('Error copying form format:', error);
-      return errorResponse(res, 'Failed to copy form format', 500);
+      return errorResponse(res, 'Failed to copy form format', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -608,11 +608,11 @@ module.exports = (pool, logger) => {
 
       // Validate form_structure
       if (!form_structure || !form_structure.fields || !Array.isArray(form_structure.fields)) {
-        return errorResponse(res, 'form_structure with fields array is required', 400);
+        return errorResponse(res, 'form_structure with fields array is required', HTTP_STATUS.BAD_REQUEST);
       }
       const textError = validateFieldTexts(form_structure);
       if (textError) {
-        return errorResponse(res, textError, 400);
+        return errorResponse(res, textError, HTTP_STATUS.BAD_REQUEST);
       }
 
       await client.query('BEGIN');
@@ -625,7 +625,7 @@ module.exports = (pool, logger) => {
 
       if (formCheck.rows.length === 0) {
         await client.query('ROLLBACK');
-        return errorResponse(res, 'Form format not found', 404);
+        return errorResponse(res, 'Form format not found', HTTP_STATUS.NOT_FOUND);
       }
       const reservedNames = findReservedFieldNames(form_structure, formCheck.rows[0].form_structure);
       if (reservedNames.length > 0) {
@@ -660,7 +660,7 @@ module.exports = (pool, logger) => {
     } catch (error) {
       await client.query('ROLLBACK');
       logger.error('Error creating form version:', error);
-      return errorResponse(res, 'Failed to create form version', 500);
+      return errorResponse(res, 'Failed to create form version', HTTP_STATUS.INTERNAL_ERROR);
     } finally {
       client.release();
     }
@@ -706,7 +706,7 @@ module.exports = (pool, logger) => {
 
       if (versionCheck.rows.length === 0) {
         await client.query('ROLLBACK');
-        return errorResponse(res, 'Version not found', 404);
+        return errorResponse(res, 'Version not found', HTTP_STATUS.NOT_FOUND);
       }
 
       const formType = versionCheck.rows[0].form_type;
@@ -722,7 +722,7 @@ module.exports = (pool, logger) => {
     } catch (error) {
       await client.query('ROLLBACK');
       logger.error('Error publishing form version:', error);
-      return errorResponse(res, 'Failed to publish form version', 500);
+      return errorResponse(res, 'Failed to publish form version', HTTP_STATUS.INTERNAL_ERROR);
     } finally {
       client.release();
     }
@@ -765,14 +765,14 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return errorResponse(res, 'Form format not found', 404);
+        return errorResponse(res, 'Form format not found', HTTP_STATUS.NOT_FOUND);
       }
 
       logger.info(`Form format ${formFormatId} archived`);
       return success(res, result.rows[0], 'Form archived successfully');
     } catch (error) {
       logger.error('Error archiving form format:', error);
-      return errorResponse(res, 'Failed to archive form format', 500);
+      return errorResponse(res, 'Failed to archive form format', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -809,7 +809,7 @@ module.exports = (pool, logger) => {
       );
 
       if (formCheck.rows.length === 0) {
-        return errorResponse(res, 'Form format not found', 404);
+        return errorResponse(res, 'Form format not found', HTTP_STATUS.NOT_FOUND);
       }
 
       const result = await pool.query(
@@ -834,7 +834,7 @@ module.exports = (pool, logger) => {
       return success(res, result.rows);
     } catch (error) {
       logger.error('Error fetching form versions:', error);
-      return errorResponse(res, 'Failed to fetch form versions', 500);
+      return errorResponse(res, 'Failed to fetch form versions', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 

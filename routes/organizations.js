@@ -590,7 +590,7 @@ module.exports = (pool, logger) => {
     const validation = validateOrganizationInfo(input);
 
     if (validation.errors.length > 0) {
-      return errorResponse(res, 'Invalid organization settings', 400, validation.errors);
+      return errorResponse(res, 'Invalid organization settings', HTTP_STATUS.BAD_REQUEST, validation.errors);
     }
 
     const client = await pool.connect();
@@ -607,7 +607,7 @@ module.exports = (pool, logger) => {
 
       if (organizationResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        return errorResponse(res, 'Organization not found', 404);
+        return errorResponse(res, 'Organization not found', HTTP_STATUS.NOT_FOUND);
       }
 
       const infoResult = await client.query(
@@ -657,7 +657,7 @@ module.exports = (pool, logger) => {
     const validation = validateUnitVocabulary(req.body);
 
     if (validation.errors.length > 0) {
-      return errorResponse(res, 'Invalid unit vocabulary', 400, validation.errors);
+      return errorResponse(res, 'Invalid unit vocabulary', HTTP_STATUS.BAD_REQUEST, validation.errors);
     }
 
     const programSection = getProgramSectionForProfile(validation.value.profile);
@@ -680,7 +680,7 @@ module.exports = (pool, logger) => {
       );
       if (organizationResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        return errorResponse(res, 'Organization not found', 404);
+        return errorResponse(res, 'Organization not found', HTTP_STATUS.NOT_FOUND);
       }
 
       await client.query(
@@ -913,7 +913,7 @@ module.exports = (pool, logger) => {
     const validation = validateDashboardConfiguration(req.body);
 
     if (validation.errors.length > 0) {
-      return errorResponse(res, 'Invalid dashboard configuration', 400, validation.errors);
+      return errorResponse(res, 'Invalid dashboard configuration', HTTP_STATUS.BAD_REQUEST, validation.errors);
     }
 
     await pool.query(
@@ -1225,7 +1225,7 @@ module.exports = (pool, logger) => {
       ...validationResult(req).array().map((problem) => ({ field: problem.path, msg: problem.msg })),
     ];
     if (errors.length > 0) {
-      return errorResponse(res, 'Invalid organization settings', 400, errors);
+      return errorResponse(res, 'Invalid organization settings', HTTP_STATUS.BAD_REQUEST, errors);
     }
 
     const orgInfo = validation.value;

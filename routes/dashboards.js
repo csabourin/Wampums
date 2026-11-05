@@ -389,7 +389,7 @@ document.addEventListener("DOMContentLoaded", function() {
         return;
       }
       logger.error('Error fetching parent dashboard:', error);
-      return errorResponse(res, 'internal_server_error', 500);
+      return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 

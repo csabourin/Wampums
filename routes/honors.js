@@ -370,14 +370,14 @@ module.exports = (pool, logger) => {
 
       // Validation
       if (!date && reason === undefined) {
-        return errorResponse(res, 'At least one field (date or reason) must be provided', 400);
+        return errorResponse(res, 'At least one field (date or reason) must be provided', HTTP_STATUS.BAD_REQUEST);
       }
 
       if (date) {
         // Validate date format (YYYY-MM-DD)
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
         if (!dateRegex.test(date) || isNaN(new Date(date).getTime())) {
-          return errorResponse(res, 'Invalid date format. Use YYYY-MM-DD', 400);
+          return errorResponse(res, 'Invalid date format. Use YYYY-MM-DD', HTTP_STATUS.BAD_REQUEST);
         }
       }
 
@@ -385,7 +385,7 @@ module.exports = (pool, logger) => {
         // Trim and validate reason length
         reason = String(reason).trim();
         if (reason.length > 1000) {
-          return errorResponse(res, 'Reason must be 1000 characters or less', 400);
+          return errorResponse(res, 'Reason must be 1000 characters or less', HTTP_STATUS.BAD_REQUEST);
         }
       }
 
@@ -406,7 +406,7 @@ module.exports = (pool, logger) => {
 
         if (checkResult.rows.length === 0) {
           await client.query('ROLLBACK');
-          return errorResponse(res, 'Honor not found', 404);
+          return errorResponse(res, 'Honor not found', HTTP_STATUS.NOT_FOUND);
         }
 
         const currentHonor = checkResult.rows[0];
@@ -512,7 +512,7 @@ module.exports = (pool, logger) => {
 
         if (checkResult.rows.length === 0) {
           await client.query('ROLLBACK');
-          return errorResponse(res, 'Honor not found', 404);
+          return errorResponse(res, 'Honor not found', HTTP_STATUS.NOT_FOUND);
         }
 
         const honor = checkResult.rows[0];

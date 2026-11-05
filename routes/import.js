@@ -7,6 +7,7 @@ const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { asyncHandler, error: errorResponse } = require('../middleware/response');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 const { ACCESS_SOURCE, grantParticipantAccess } = require('../services/participantAccess');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 module.exports = function (pool, logger) {
   const router = express.Router();
@@ -510,7 +511,7 @@ module.exports = function (pool, logger) {
         return;
       }
       logger.error('SISC import error:', error);
-      return errorResponse(res, 'internal_server_error', 500);
+      return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     } finally {
       client.release();
     }

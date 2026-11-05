@@ -1007,7 +1007,7 @@ module.exports = (pool, logger) => {
           return;
         }
         logger.error('Error requesting password reset:', error);
-        return errorResponse(res, 'internal_server_error', 500);
+        return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
       }
     }));
 
@@ -1037,7 +1037,7 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';
       if (!token) {
-        return errorResponse(res, 'token_not_found', 400);
+        return errorResponse(res, 'token_not_found', HTTP_STATUS.BAD_REQUEST);
       }
 
       const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
@@ -1048,7 +1048,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return errorResponse(res, 'invalid_or_expired_token', 400);
+        return errorResponse(res, 'invalid_or_expired_token', HTTP_STATUS.BAD_REQUEST);
       }
 
       return successResponse(res, { email: result.rows[0].email });
@@ -1123,7 +1123,7 @@ module.exports = (pool, logger) => {
           return;
         }
         logger.error('Error resetting password:', error);
-        return errorResponse(res, 'internal_server_error', 500);
+        return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
       }
     }));
 
@@ -1159,7 +1159,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error verifying session:', error);
-      return errorResponse(res, 'internal_server_error', 500);
+      return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 

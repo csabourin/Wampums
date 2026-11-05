@@ -1082,7 +1082,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
           return;
         }
         logger.error('Error creating announcement:', error);
-        return errorResponse(res, 'internal_server_error', 500);
+        return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1220,7 +1220,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
         return;
       }
       logger.error('Error fetching announcements:', error);
-      return errorResponse(res, 'internal_server_error', 500);
+      return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
