@@ -80,45 +80,152 @@ export function buildApiUrl(endpoint, params = {}) {
   return url.toString();
 }
 
+/** Prefix of the Authorization header that carries the session token. */
+const BEARER_PREFIX = 'Bearer ';
+
+/**
+ * The session token a request was sent with.
+ * @param {Object} headers - Request headers
+ * @returns {string|null} The token, or null for a request sent signed out
+ */
+export function requestSessionToken(headers = {}) {
+  const authorization = headers.Authorization || headers.authorization || '';
+  return authorization.startsWith(BEARER_PREFIX) ? authorization.slice(BEARER_PREFIX.length) : null;
+}
+
+/**
+ * Whether a response belongs to the session signed in now. A request sent
+ * under an earlier session (the person signed in again, or as someone else)
+ * must not end the new one. Once signed out, any session's refusal still
+ * sends the person to the sign-in page.
+ * @param {string|null|undefined} requestToken - Token the request was sent
+ *   with; undefined when the caller does not say, which counts as current
+ * @returns {boolean} Whether the response may act on the session
+ */
+function isCurrentSession(requestToken) {
+  if (requestToken === undefined) {
+    return true;
+  }
+  const currentToken = localStorage.getItem('jwtToken');
+  return currentToken === null || currentToken === requestToken;
+}
+
+/**
+ * End the session a 401 refused: clear what it left on the device, then
+ * send the person to sign in. Each step checks the session again, because
+ * loading the cleanup and clearing storage are asynchronous and someone may
+ * sign in meanwhile.
+ * @param {string|null|undefined} requestToken - Token the refused request carried
+ * @returns {Promise<void>} Resolves once handled
+ */
+async function endRefusedSession(requestToken) {
+  if (!isCurrentSession(requestToken)) {
+    debugWarn('[API] 401 from an earlier session ignored');
+    return;
+  }
+
+  if (localStorage.getItem('jwtToken')) {
+    try {
+      const { clearAllClientData } = await import('../utils/ClientCleanupUtils.js');
+      if (!isCurrentSession(requestToken)) {
+        return;
+      }
+      await clearAllClientData();
+    } catch (cleanupError) {
+      debugError('Failed to clear client data after 401:', cleanupError);
+      if (isCurrentSession(requestToken)) {
+        localStorage.removeItem('jwtToken');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('userFullName');
+        localStorage.removeItem('userId');
+      }
+    }
+  }
+
+  // Someone signed in while the device was being cleared: they stay.
+  if (!isCurrentSession(requestToken)) {
+    return;
+  }
+
+  // Only redirect when actually online to avoid redirect on offline cached responses
+  if (navigator.onLine) {
+    // '/permission-slip/' keeps its trailing slash so the staff
+    // dashboard at /permission-slips still redirects on 401.
+    const publicPages = ['/login', '/reset-password', '/register', '/permission-slip/', '/public/'];
+    const isPublicPage = publicPages.some(page => window.location.pathname.startsWith(page));
+
+    if (!isPublicPage) {
+      window.location.href = '/login';
+    } else {
+      debugWarn('[API] 401 error on public page, skipping automatic redirect');
+    }
+  } else {
+    debugWarn('[API] 401 while offline, deferring redirect until online');
+  }
+}
+
+/** Reads in flight for the session that sent them, aborted when it ends. */
+const sessionReads = { token: null, controllers: new Set() };
+
+/**
+ * Note the session a request is sent under. When a signed-in session gives
+ * way to another (or to none), the reads it still has in flight are aborted:
+ * their answers belong to someone no longer here. Writes are left to finish,
+ * since aborting one would not undo it on the server.
+ * @param {string|null} token - Session token of the request about to leave
+ */
+function noteRequestSession(token) {
+  if (token === sessionReads.token) {
+    return;
+  }
+  if (sessionReads.token !== null) {
+    sessionReads.controllers.forEach((controller) => controller.abort());
+  }
+  sessionReads.token = token;
+  sessionReads.controllers = new Set();
+}
+
+/**
+ * Give a read a signal aborted by its caller or by the end of its session.
+ * @param {AbortSignal|null} callerSignal - Signal the caller passed, if any
+ * @returns {{signal: AbortSignal, release: Function}} Signal to send, and the
+ *   function that forgets the read once it has finished
+ */
+function trackSessionRead(callerSignal) {
+  const controller = new AbortController();
+  const controllers = sessionReads.controllers;
+  const abort = () => controller.abort();
+  if (callerSignal?.aborted) {
+    controller.abort();
+  } else {
+    callerSignal?.addEventListener('abort', abort, { once: true });
+  }
+  controllers.add(controller);
+  return {
+    signal: controller.signal,
+    release: () => {
+      controllers.delete(controller);
+      callerSignal?.removeEventListener('abort', abort);
+    }
+  };
+}
+
 /**
  * Handle API response with error handling
+ * @param {Response} response - Fetch response
+ * @param {Object} [options] - Handling options
+ * @param {string|null} [options.requestToken] - Session token the request was
+ *   sent with; a 401 from an earlier session then leaves the current one alone
+ * @returns {Promise<Object>} Parsed response body
  */
-export async function handleResponse(response) {
+export async function handleResponse(response, { requestToken } = {}) {
   const getHeader = (name) => response.headers?.get?.(name) || null;
   const contentType = getHeader('content-type');
 
   if (!response.ok) {
     // Handle 401 Unauthorized specifically
     if (response.status === 401) {
-      const hadAuthenticatedSession = Boolean(localStorage.getItem('jwtToken'));
-      if (hadAuthenticatedSession) {
-        try {
-          const { clearAllClientData } = await import('../utils/ClientCleanupUtils.js');
-          await clearAllClientData();
-        } catch (cleanupError) {
-          debugError('Failed to clear client data after 401:', cleanupError);
-          localStorage.removeItem('jwtToken');
-          localStorage.removeItem('userRole');
-          localStorage.removeItem('userFullName');
-          localStorage.removeItem('userId');
-        }
-      }
-
-      // Only redirect when actually online to avoid redirect on offline cached responses
-      if (navigator.onLine) {
-        // '/permission-slip/' keeps its trailing slash so the staff
-        // dashboard at /permission-slips still redirects on 401.
-        const publicPages = ['/login', '/reset-password', '/register', '/permission-slip/', '/public/'];
-        const isPublicPage = publicPages.some(page => window.location.pathname.startsWith(page));
-
-        if (!isPublicPage) {
-          window.location.href = '/login';
-        } else {
-          debugWarn('[API] 401 error on public page, skipping automatic redirect');
-        }
-      } else {
-        debugWarn('[API] 401 while offline, deferring redirect until online');
-      }
+      await endRefusedSession(requestToken);
     }
 
     let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -305,6 +412,8 @@ async function sendApiRequest(endpoint, options = {}) {
     },
     signal
   };
+  const requestToken = requestSessionToken(requestConfig.headers);
+  noteRequestSession(requestToken);
 
   if (body && method !== 'GET') {
     if (isFormData) {
@@ -370,56 +479,64 @@ async function sendApiRequest(endpoint, options = {}) {
 
   let lastError;
   const startTime = performance.now();
+  const sessionRead = method === 'GET' ? trackSessionRead(signal) : null;
+  if (sessionRead) {
+    requestConfig.signal = sessionRead.signal;
+  }
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      debugLog(`API Request (attempt ${attempt + 1}):`, method, url);
-      debugLog('Request config:', {
-        method: requestConfig.method,
-        hasAuthorization: Boolean(requestConfig.headers.Authorization),
-        hasBody: Boolean(requestConfig.body)
-      });
+  try {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        debugLog(`API Request (attempt ${attempt + 1}):`, method, url);
+        debugLog('Request config:', {
+          method: requestConfig.method,
+          hasAuthorization: Boolean(requestConfig.headers.Authorization),
+          hasBody: Boolean(requestConfig.body)
+        });
 
-      const response = await fetch(url, requestConfig);
-      const result = await handleResponse(response);
+        const response = await fetch(url, requestConfig);
+        const result = await handleResponse(response, { requestToken });
 
-      // Log API call performance
-      const duration = performance.now() - startTime;
-      PerformanceMonitor.logAPICall(endpoint, duration, false);
+        // Log API call performance
+        const duration = performance.now() - startTime;
+        PerformanceMonitor.logAPICall(endpoint, duration, false);
 
-      debugLog('API response received:', {
-        success: result?.success,
-        queued: result?.queued,
-      });
+        debugLog('API response received:', {
+          success: result?.success,
+          queued: result?.queued,
+        });
 
-      // A write invalidates whatever the screens cached for this
-      // resource, so the next read reflects the change immediately.
-      if (method !== 'GET' && result?.success) {
-        await invalidateCachedResource(endpoint);
-      }
+        // A write invalidates whatever the screens cached for this
+        // resource, so the next read reflects the change immediately.
+        if (method !== 'GET' && result?.success) {
+          await invalidateCachedResource(endpoint);
+        }
 
-      return result;
+        return result;
 
-    } catch (error) {
-      lastError = error;
-      debugError(`API request failed (attempt ${attempt + 1}):`, error);
+      } catch (error) {
+        lastError = error;
+        debugError(`API request failed (attempt ${attempt + 1}):`, error);
 
-      // Only retry idempotent GETs, and only for transient failures
-      // (network errors or 5xx). Retrying writes can duplicate them
-      // (e.g. timeout after the server processed the request), and
-      // retrying 4xx responses just delays user-facing feedback.
-      const isTransient = !error.status || error.status >= 500;
-      const isRetryable = method === 'GET' && isTransient && error.name !== 'AbortError';
+        // Only retry idempotent GETs, and only for transient failures
+        // (network errors or 5xx). Retrying writes can duplicate them
+        // (e.g. timeout after the server processed the request), and
+        // retrying 4xx responses just delays user-facing feedback.
+        const isTransient = !error.status || error.status >= 500;
+        const isRetryable = method === 'GET' && isTransient && error.name !== 'AbortError';
 
-      if (!isRetryable) {
-        break;
-      }
+        if (!isRetryable) {
+          break;
+        }
 
-      if (attempt < retries) {
-        // Wait before retry with exponential backoff
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+        if (attempt < retries) {
+          // Wait before retry with exponential backoff
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+        }
       }
     }
+  } finally {
+    sessionRead?.release();
   }
 
   const isNetworkError = Boolean(

@@ -10,7 +10,7 @@
 import { CONFIG } from './config.js';
 import { debugError } from './utils/DebugUtils.js';
 import { getAuthHeader, getCurrentOrganizationId } from './api/api-helpers.js';
-import { handleResponse, makeApiRequest } from './api/api-core.js';
+import { handleResponse, makeApiRequest, requestSessionToken } from './api/api-core.js';
 
 // Re-export core API functionality
 export {
@@ -99,7 +99,7 @@ export async function ajax({ url, method = 'GET', body = null, headers = {} }) {
   }
 
   const response = await fetch(url, requestConfig);
-  return handleResponse(response);
+  return handleResponse(response, { requestToken: requestSessionToken(requestConfig.headers) });
 }
 
 // Re-export all endpoint functions
