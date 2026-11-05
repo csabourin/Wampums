@@ -80,6 +80,8 @@ export const CONFIG = {
     'camp-plans',
     // A camp's team is named now, against the unit's members as they are; never replayed later.
     'camp-rosters',
+    // A declared certification is listed to verify now; a later replay could undo a newer one.
+    'member-certifications',
   ],
   /**
      * Cache Duration Settings

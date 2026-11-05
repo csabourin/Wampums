@@ -105,7 +105,7 @@ describe.skipIf(!DATABASE_URL)('Camp lists', () => {
     expect(roster.consent.requested).toBe(false);
     expect(names(roster.youth)).toEqual(['Rosalind']);
     expect(roster.youth[0].age_at_camp).toBe(11);
-    expect(roster.gaps).toEqual(['no_lead']);
+    expect(roster.gaps).toEqual(['no_lead', 'no_first_aider']);
   });
 
   test('a youth registered after a camp ended never joins that camp’s list; one registered during it does', async () => {

@@ -21,6 +21,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(
 jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirmDestructive: jest.fn(), hasActiveDialog: jest.fn(() => false) }));
 jest.mock('../../spa/api/api-camp-rosters.js', () => ({
   getCampRoster: jest.fn(), getCampTeamCandidates: jest.fn(), saveCampTeamMember: jest.fn(), removeCampTeamMember: jest.fn(),
+  saveCampActivities: jest.fn(),
 }));
 
 const api = require('../../spa/api/api-camp-rosters.js');
@@ -76,6 +77,7 @@ beforeEach(() => {
   ] });
   api.saveCampTeamMember.mockReset().mockResolvedValue({ success: true, data: { team: [] } });
   api.removeCampTeamMember.mockReset().mockResolvedValue({ success: true, data: { team: [] } });
+  api.saveCampActivities.mockReset().mockResolvedValue({ success: true, data: { swimming_planned: true } });
   confirmDestructive.mockReset();
 });
 
@@ -126,6 +128,74 @@ test('team members show their role and their age on the camp’s dates in words'
   expect(members[0].textContent).toContain('camp_roster_role_lead');
   expect(members[1].textContent).toContain('camp_roster_role_camp_aide');
   expect(members[1].textContent).toContain('camp_roster_age_status_unknown');
+});
+
+test('a blocking gap comes first and says it is blocking in words, not by colour alone', async () => {
+  api.getCampRoster.mockResolvedValue({ success: true, data: roster({
+    gaps: ['aide_age_unknown', 'no_first_aider', 'swimming_supervision'], blocking_gaps: ['no_first_aider'],
+  }) });
+  await open();
+  const gaps = Array.from(document.querySelectorAll('.camp-roster__gaps li')).map((item) => item.textContent);
+  expect(gaps).toEqual([
+    'camp_roster_blocking camp_roster_gap_no_first_aider',
+    'camp_roster_gap_aide_age_unknown',
+    'camp_roster_gap_swimming_supervision',
+    'camp_roster_gap_sisc_not_compared',
+  ]);
+});
+
+test('team members show the certifications verified for the camp, and those still to verify', async () => {
+  api.getCampRoster.mockResolvedValue({ success: true, data: roster({
+    team: [
+      { ...roster().team[0], certifications: { verified: ['wilderness_first_aid'], to_verify: ['winter_camping'] } },
+      { ...roster().team[1], certifications: { verified: [], to_verify: [] } },
+    ],
+  }) });
+  await open();
+  const members = Array.from(document.querySelectorAll('.camp-roster__member[data-member]'));
+  expect(members[0].textContent).toContain('camp_roster_certifications_verified');
+  expect(members[0].textContent).toContain('camp_roster_certifications_to_verify');
+  expect(members[1].textContent).toContain('camp_roster_certifications_none');
+  expect(members[1].textContent).not.toContain('camp_roster_certifications_to_verify');
+});
+
+test('without the right to see them, no certification line is drawn', async () => {
+  await open();
+  expect(document.querySelector('.camp-roster__certifications')).toBeNull();
+});
+
+test('a manager says the camp plans swimming; the box is disabled while saving', async () => {
+  await open();
+  const box = $('#camp-roster-swimming');
+  expect(box.checked).toBe(false);
+  expect(box.getAttribute('aria-describedby')).toBe('camp-roster-swimming-help');
+  box.checked = true;
+  box.dispatchEvent(new Event('change'));
+  expect(box.disabled).toBe(true);
+  await flush();
+  expect(api.saveCampActivities).toHaveBeenCalledWith(12, { swimming_planned: true });
+  expect(app.showMessage).toHaveBeenCalledWith('camp_roster_activities_saved', 'success');
+});
+
+test('a refused swimming change goes back to what is recorded and explains itself', async () => {
+  api.saveCampActivities.mockRejectedValue(Object.assign(new Error('refused'), { status: 409 }));
+  await open();
+  const box = $('#camp-roster-swimming');
+  box.checked = true;
+  box.dispatchEvent(new Event('change'));
+  await flush();
+  expect(box.checked).toBe(false);
+  expect(box.disabled).toBe(false);
+  expect(app.showMessage).toHaveBeenCalledWith(expect.any(String), 'error');
+  expect(app.showMessage).not.toHaveBeenCalledWith(expect.anything(), 'success');
+});
+
+test('without meetings.manage, the camp’s swimming is read, not offered for change', async () => {
+  hasPermission.mockImplementation((key) => key !== 'meetings.manage');
+  api.getCampRoster.mockResolvedValue({ success: true, data: roster({ camp: { ...roster().camp, swimming_planned: true } }) });
+  await open();
+  expect($('#camp-roster-swimming')).toBeNull();
+  expect(document.querySelector('#camp-roster-activities').parentElement.textContent).toContain('camp_roster_swimming_yes');
 });
 
 test('volunteers are named only when the server names them', async () => {
@@ -298,6 +368,10 @@ test('a response arriving after leaving the screen draws nothing', async () => {
 });
 
 test('the lists and the team dialog meet WCAG A/AA', async () => {
+  api.getCampRoster.mockResolvedValue({ success: true, data: roster({
+    gaps: ['no_first_aider'], blocking_gaps: ['no_first_aider'],
+    team: [{ ...roster().team[0], certifications: { verified: ['first_aid_certificate'], to_verify: [] } }],
+  }) });
   await open();
   expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
   $('#camp-roster-add').click();

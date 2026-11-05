@@ -1,0 +1,5 @@
+{
+  "certifications": ["first_aid_certificate", "wilderness_first_aid", "winter_camping"],
+  "first_aid": ["first_aid_certificate", "wilderness_first_aid"],
+  "oldest_years": 60
+}

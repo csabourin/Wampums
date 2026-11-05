@@ -3,9 +3,11 @@
  * the volunteers of its shifts, as the camp permit asks for them.
  *
  * Reading takes `meetings.view` and `participants.view` with a unit-wide
- * scope; naming the team takes `meetings.manage`. Nothing here says the camp
- * is compliant: what the lists cannot vouch for, including the comparison with
- * the SISC, is listed under "To check".
+ * scope; naming the team, and saying the camp plans swimming, takes
+ * `meetings.manage`. Team members' certifications are shown to whoever manages
+ * the camp or its volunteers. Nothing here says the camp is compliant: what the
+ * lists cannot vouch for, including the comparison with the SISC, is listed
+ * under "To check", blocking gaps first and named as such.
  *
  * @module spa/modules/camp-plan/CampRoster
  */
@@ -23,7 +25,7 @@ import { openModal } from '../../utils/ModalUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { volunteerTypeLabel } from '../../utils/VolunteerTypeUtils.js';
 import {
-  getCampRoster, getCampTeamCandidates, saveCampTeamMember, removeCampTeamMember,
+  getCampRoster, getCampTeamCandidates, saveCampTeamMember, removeCampTeamMember, saveCampActivities,
 } from '../../api/api-camp-rosters.js';
 import rules from '../../../config/camp_team.json';
 import styles from '../../../css/camp-plan.css?url';
@@ -107,13 +109,53 @@ export class CampRoster {
       : shown;
   }
 
-  /** @returns {string} What the lists cannot vouch for; the SISC comparison is always among them for now */
+  /**
+   * @returns {string} What the lists cannot vouch for, blocking gaps first and named as such
+   *   in words; the SISC comparison is always among them for now
+   */
   gapsMarkup() {
-    const items = [...this.data.gaps, 'sisc_not_compared'];
+    const blocking = Array.isArray(this.data.blocking_gaps) ? this.data.blocking_gaps : [];
+    const others = [...this.data.gaps.filter((gap) => !blocking.includes(gap)), 'sisc_not_compared'];
+    const items = [
+      ...blocking.map((gap) => `<li class="camp-roster__gap--blocking"><strong>${escapeHTML(translate('camp_roster_blocking'))}</strong> ${escapeHTML(translate(`camp_roster_gap_${gap}`))}</li>`),
+      ...others.map((gap) => `<li>${escapeHTML(translate(`camp_roster_gap_${gap}`))}</li>`),
+    ];
     return `<section class="camp-roster__section" aria-labelledby="camp-roster-gaps">
         <h2 id="camp-roster-gaps">${escapeHTML(translate('camp_roster_to_check'))}</h2>
-        <ul class="camp-roster__gaps">${items.map((gap) => `<li>${escapeHTML(translate(`camp_roster_gap_${gap}`))}</li>`).join('')}</ul>
+        <ul class="camp-roster__gaps">${items.join('')}</ul>
       </section>`;
+  }
+
+  /** @returns {string} What the camp plans that changes its lists: whether it plans swimming */
+  activitiesMarkup() {
+    const planned = Boolean(this.data.camp.swimming_planned);
+    const body = this.canEditTeam()
+      ? `<div class="checkbox-option">
+          <input type="checkbox" id="camp-roster-swimming" ${planned ? 'checked' : ''} aria-describedby="camp-roster-swimming-help">
+          <label for="camp-roster-swimming">${escapeHTML(translate('camp_roster_swimming_planned'))}</label>
+        </div>
+        <p class="form-help" id="camp-roster-swimming-help">${escapeHTML(translate('camp_roster_swimming_help'))}</p>`
+      : `<p>${escapeHTML(translate(planned ? 'camp_roster_swimming_yes' : 'camp_roster_swimming_no'))}</p>`;
+    return `<section class="camp-roster__section" aria-labelledby="camp-roster-activities">
+        <h2 id="camp-roster-activities">${escapeHTML(translate('camp_roster_activities'))}</h2>
+        ${body}
+      </section>`;
+  }
+
+  /** @returns {string} A member's certifications for the camp, when the reader may see them */
+  certificationsText(member) {
+    const held = member.certifications;
+    if (!held) {
+      return '';
+    }
+    const names = (keys) => keys.map((key) => translate(`volunteer_requirement_${key}`)).join(', ');
+    const lines = [held.verified.length
+      ? translate('camp_roster_certifications_verified').replace('{list}', names(held.verified))
+      : translate('camp_roster_certifications_none')];
+    if (held.to_verify.length) {
+      lines.push(translate('camp_roster_certifications_to_verify').replace('{list}', names(held.to_verify)));
+    }
+    return lines.map((line) => `<p class="camp-roster__certifications">${escapeHTML(line)}</p>`).join('');
   }
 
   /** @returns {string} How the youth list was drawn up */
@@ -181,6 +223,7 @@ export class CampRoster {
     return `<li class="camp-roster__member" data-member="${escapeAttribute(member.user_id)}">
         <p class="camp-roster__member-name"><strong>${escapeHTML(name)}</strong></p>
         <p>${escapeHTML(translate(`camp_roster_role_${member.team_role}`))} · ${escapeHTML(this.ageStatusText(member))}</p>
+        ${this.certificationsText(member)}
         ${left}
         ${actions}
       </li>`;
@@ -242,6 +285,7 @@ export class CampRoster {
         ${cancelled}
         <p class="camp-plan__intro">${escapeHTML(translate('camp_roster_intro'))}</p>
         ${this.gapsMarkup()}
+        ${this.activitiesMarkup()}
         ${this.youthMarkup()}
         ${this.teamMarkup()}
         ${this.volunteersMarkup()}
@@ -252,6 +296,7 @@ export class CampRoster {
   bind() {
     const root = this.root();
     root.querySelector('#camp-roster-add')?.addEventListener('click', () => this.openMemberForm(null));
+    root.querySelector('#camp-roster-swimming')?.addEventListener('change', (event) => this.saveSwimming(event.target));
     root.querySelectorAll('[data-edit-member]').forEach((button) => {
       button.addEventListener('click', () => this.openMemberForm(button.dataset.editMember));
     });
@@ -393,6 +438,32 @@ export class CampRoster {
       if (!fieldError || !this.showFieldError(form, fields[fieldError.path], message)) {
         this.app.showMessage(message, 'error');
       }
+    }
+  }
+
+  /**
+   * Say whether the camp plans swimming. The box stays disabled while saving and goes back to
+   * what is recorded when the save fails.
+   * @param {HTMLInputElement} box
+   */
+  async saveSwimming(box) {
+    const planned = box.checked;
+    box.disabled = true;
+    try {
+      await saveCampActivities(this.meetingId, { swimming_planned: planned });
+      if (this.destroyed) {
+        return;
+      }
+      this.app.showMessage(translate('camp_roster_activities_saved'), 'success');
+      await this.init();
+    } catch (err) {
+      debugError('Failed to save the camp activities:', err);
+      if (this.destroyed) {
+        return;
+      }
+      box.checked = !planned;
+      box.disabled = false;
+      this.app.showMessage(apiErrorMessage(err, 'camp_roster_activities_failed'), 'error');
     }
   }
 

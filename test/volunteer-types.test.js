@@ -8,10 +8,13 @@ const config = require('../config/volunteer_shifts.json');
 const en = require('../lang/en.json');
 const fr = require('../lang/fr.json');
 
-const migration = fs.readFileSync(path.join(__dirname, '../migrations/069_volunteer_shifts.sql'), 'utf8');
-/** @returns {Array<string>} The keys a CHECK (column IN (...)) lists in the migration */
+// Later migrations replace a check; the last one listing a column's keys is the one in force.
+const migrations = ['069_volunteer_shifts.sql', '073_member_certifications.sql']
+  .map((file) => fs.readFileSync(path.join(__dirname, '../migrations', file), 'utf8'));
+/** @returns {Array<string>} The keys the latest CHECK (column IN (...)) lists */
 const checked = (column) => {
-  const match = migration.match(new RegExp(`CHECK \\(${column} IN \\(([^)]*)\\)\\)`));
+  const pattern = new RegExp(`CHECK \\(${column} IN \\(([^)]*)\\)\\)`);
+  const match = migrations.map((sql) => sql.match(pattern)).filter(Boolean).pop();
   return match[1].split(',').map((item) => item.trim().replace(/'/g, ''));
 };
 
