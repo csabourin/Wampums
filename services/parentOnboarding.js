@@ -33,6 +33,7 @@ const { ensureActiveScoutYear } = require('./scoutYear');
 const { ACCESS_SOURCE, grantParticipantAccess } = require('./participantAccess');
 const { getOrganizationName } = require('./alumni');
 const { DETECTED_VIA, flagDuplicatesAmong } = require('./duplicateCandidates');
+const { ISO_DATE_LENGTH } = require('../utils/time-units');
 
 /**
  * Advisory-lock namespace for child creation, so it cannot collide with the
@@ -108,7 +109,7 @@ function validateChild({ firstName, lastName, dateOfBirth }, now = new Date()) {
     return 'date_of_birth_required';
   }
   const birth = new Date(`${dateOfBirth}T00:00:00Z`);
-  if (Number.isNaN(birth.getTime()) || birth.toISOString().slice(0, 10) !== dateOfBirth) {
+  if (Number.isNaN(birth.getTime()) || birth.toISOString().slice(0, ISO_DATE_LENGTH) !== dateOfBirth) {
     return 'date_of_birth_invalid';
   }
   if (birth.getTime() > now.getTime()) {

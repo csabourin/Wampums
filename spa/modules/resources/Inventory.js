@@ -27,6 +27,7 @@ import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
+import { ISO_DATE_LENGTH } from '../../utils/TimeUnits.js';
 
 // Maximum photo file size (original, before client-side optimization)
 const MAX_PHOTO_SIZE = CONFIG.PHOTO_UPLOAD.MAX_ORIGINAL_SIZE_BYTES;
@@ -1756,7 +1757,7 @@ export class Inventory {
     document.getElementById('modal_equipment_quantity_total').value = equipment.quantity_total ?? 1;
     document.getElementById('modal_equipment_quantity_available').value = equipment.quantity_available ?? '';
     document.getElementById('modal_equipment_item_value').value = equipment.item_value || '';
-    document.getElementById('modal_equipment_acquisition_date').value = equipment.acquisition_date ? equipment.acquisition_date.slice(0, 10) : '';
+    document.getElementById('modal_equipment_acquisition_date').value = equipment.acquisition_date ? equipment.acquisition_date.slice(0, ISO_DATE_LENGTH) : '';
     document.getElementById('modal_equipment_condition_note').value = equipment.condition_note || '';
     document.getElementById('modal_equipment_description').value = equipment.description || '';
     document.getElementById('modal_equipment_location_type').value = equipment.location_type || LOCATION_TYPES[0].value;

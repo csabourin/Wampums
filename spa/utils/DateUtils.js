@@ -10,6 +10,7 @@
 import { debugError } from './DebugUtils.js';
 import { getStorage } from './StorageUtils.js';
 import { CONFIG, getStorageKey } from '../config.js';
+import { DATE_PART_WIDTH } from './TimeUnits.js';
 
 function getTimeFormatPreference() {
   const defaultFormat = CONFIG?.TIME_FORMAT?.DEFAULT || '24h';
@@ -199,7 +200,7 @@ export function formatClockTime(value, lang = getLocale()) {
 export function formatMinutesToHHMM(totalMinutes) {
   const hours = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
-  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  return `${String(hours).padStart(DATE_PART_WIDTH, '0')}:${String(mins).padStart(DATE_PART_WIDTH, '0')}`;
 }
 
 /**

@@ -3,6 +3,7 @@
  * Enforces strict monthly budget cap for AI features.
  */
 const { pool } = require('../config/database');
+const { DATE_PART_WIDTH } = require('../utils/time-units');
 
 const BUDGET_CAP_USD = 5.00;
 
@@ -12,7 +13,7 @@ const BUDGET_CAP_USD = 5.00;
 function getCurrentMonthKey() {
   const now = new Date();
   const year = now.getUTCFullYear();
-  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const month = String(now.getUTCMonth() + 1).padStart(DATE_PART_WIDTH, '0');
   return `${year}-${month}`;
 }
 

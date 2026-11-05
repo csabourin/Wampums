@@ -14,6 +14,7 @@ const { renderBlogIndex, renderBlogPost } = require('../services/blogPages');
 const { landingLimiter, blogRefreshLimiter } = require('../config/rate-limit');
 const { redirectUnassignedUnitHost } = require('./unit-host');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { ISO_DATE_LENGTH } = require('../utils/time-units');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const REQUEST_BODY_LIMIT = '20mb';
@@ -249,7 +250,7 @@ module.exports = (app) => {
 
   // Dynamic sitemap.xml
   app.get('/sitemap.xml', (req, res) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, ISO_DATE_LENGTH);
     const blog = getBlogService();
     const blogPosts = blog ? blog.getAllPosts() : [];
 

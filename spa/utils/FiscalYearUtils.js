@@ -12,6 +12,7 @@
  */
 
 import { debugError } from './DebugUtils.js';
+import { DATE_PART_WIDTH } from './TimeUnits.js';
 
 /**
  * Calculate the end date for a fiscal year given its start date
@@ -26,8 +27,8 @@ function calculateFiscalYearEndDate(fiscalYearStart, month, _day) {
   const endMonth = month === 1 ? 12 : month - 1;
   const endYear = month === 1 ? fiscalYearStart : fiscalYearStart + 1;
   const endDay = endMonth === 12 ? 31 : new Date(endYear, endMonth, 0).getDate();
-  const endMonthStr = String(endMonth).padStart(2, '0');
-  const endDayStr = String(endDay).padStart(2, '0');
+  const endMonthStr = String(endMonth).padStart(DATE_PART_WIDTH, '0');
+  const endDayStr = String(endDay).padStart(DATE_PART_WIDTH, '0');
   return `${endYear}-${endMonthStr}-${endDayStr}`;
 }
 
@@ -100,8 +101,8 @@ export function calculateFiscalYear(dateArg, organizationSettings) {
   }
   
   // Build ISO date strings
-  const monthStr = String(month).padStart(2, '0');
-  const dayStr = String(day).padStart(2, '0');
+  const monthStr = String(month).padStart(DATE_PART_WIDTH, '0');
+  const dayStr = String(day).padStart(DATE_PART_WIDTH, '0');
   
   const startDate = `${fiscalYearStart}-${monthStr}-${dayStr}`;
   const endDateStr = calculateFiscalYearEndDate(fiscalYearStart, month, day);
@@ -144,8 +145,8 @@ export function getFiscalYearOptions(organizationSettings, yearsBack = 3, yearsA
     const startYear = year;
     const endYear = startYear + 1;
     
-    const monthStr = String(month).padStart(2, '0');
-    const dayStr = String(day).padStart(2, '0');
+    const monthStr = String(month).padStart(DATE_PART_WIDTH, '0');
+    const dayStr = String(day).padStart(DATE_PART_WIDTH, '0');
     const startDate = `${startYear}-${monthStr}-${dayStr}`;
     const endDate = calculateFiscalYearEndDate(startYear, month, day);
     
@@ -166,8 +167,8 @@ export function getFiscalYearOptions(organizationSettings, yearsBack = 3, yearsA
     const startYear = year;
     const endYear = startYear + 1;
     
-    const monthStr = String(month).padStart(2, '0');
-    const dayStr = String(day).padStart(2, '0');
+    const monthStr = String(month).padStart(DATE_PART_WIDTH, '0');
+    const dayStr = String(day).padStart(DATE_PART_WIDTH, '0');
     const startDate = `${startYear}-${monthStr}-${dayStr}`;
     const endDate = calculateFiscalYearEndDate(startYear, month, day);
     

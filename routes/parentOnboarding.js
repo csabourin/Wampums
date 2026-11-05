@@ -32,6 +32,7 @@ const {
   completeOnboarding,
 } = require('../services/parentOnboarding');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { ISO_DATE_LENGTH } = require('../utils/time-units');
 
 /**
  * Read a boolean that may arrive as JSON `true` or as a form string.
@@ -94,7 +95,7 @@ module.exports = (pool, logger) => {
         organizationId,
         firstName: req.body.first_name,
         lastName: req.body.last_name,
-        dateOfBirth: String(req.body.date_naissance).slice(0, 10),
+        dateOfBirth: String(req.body.date_naissance).slice(0, ISO_DATE_LENGTH),
         inscriptionDate: req.body.inscription_date || null,
         confirmSimilar: isConfirmed(req.body.confirm_similar),
       });

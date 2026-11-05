@@ -16,6 +16,14 @@ const MS_PER_HOUR = MINUTES_PER_HOUR * MS_PER_MINUTE;
 const MS_PER_DAY = HOURS_PER_DAY * MS_PER_HOUR;
 const MS_PER_WEEK = DAYS_PER_WEEK * MS_PER_DAY;
 
+/** Lengths of ISO 8601 text: 2026-11-04, 2026-11, 2026-11-04T18:30, 18:30. */
+const ISO_DATE_LENGTH = 10;
+const ISO_MONTH_LENGTH = 7;
+const ISO_MINUTE_LENGTH = 16;
+const TIME_HH_MM_LENGTH = 5;
+/** Width of a zero-padded month, day, hour or minute. */
+const DATE_PART_WIDTH = 2;
+
 module.exports = {
   MS_PER_SECOND,
   SECONDS_PER_MINUTE,
@@ -29,4 +37,9 @@ module.exports = {
   MS_PER_HOUR,
   MS_PER_DAY,
   MS_PER_WEEK,
+  ISO_DATE_LENGTH,
+  ISO_MONTH_LENGTH,
+  ISO_MINUTE_LENGTH,
+  TIME_HH_MM_LENGTH,
+  DATE_PART_WIDTH,
 };

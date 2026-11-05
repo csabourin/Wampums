@@ -26,6 +26,7 @@ const {
 } = require('../services/fundraiserCampaigns');
 const { listFamilyFundraisers } = require('../services/familyFundraisers');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { ISO_DATE_LENGTH } = require('../utils/time-units');
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_NAME_LENGTH = 255;
@@ -47,7 +48,7 @@ function toIsoDate(value) {
   }
   // Reject calendar-invalid dates such as 2026-02-31.
   const parsed = new Date(`${datePart}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== datePart) {
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, ISO_DATE_LENGTH) !== datePart) {
     return null;
   }
   return datePart;
@@ -504,7 +505,7 @@ module.exports = (pool, logger) => {
       );
       if (currentResult.rows.length > 0) {
         const current = currentResult.rows[0];
-        const toIso = (value) => (value instanceof Date ? value.toISOString().slice(0, 10) : String(value ?? '').slice(0, 10));
+        const toIso = (value) => (value instanceof Date ? value.toISOString().slice(0, ISO_DATE_LENGTH) : String(value ?? '').slice(0, ISO_DATE_LENGTH));
         const startDate = values.start_date || toIso(current.start_date);
         const endDate = values.end_date || toIso(current.end_date);
         if (startDate && endDate && endDate < startDate) {

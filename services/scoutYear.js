@@ -1,3 +1,4 @@
+const { ISO_DATE_LENGTH } = require('../utils/time-units');
 /**
  * Scout Year Service
  *
@@ -33,7 +34,7 @@ const TRANSITION_HISTORY_LIMIT = 20;
  * @returns {string} ISO calendar date
  */
 function toIsoDate(date) {
-  return date.toISOString().slice(0, 10);
+  return date.toISOString().slice(0, ISO_DATE_LENGTH);
 }
 
 /**
@@ -46,7 +47,7 @@ function toUtcDate(value) {
   if (value instanceof Date) {
     return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
   }
-  const [year, month, day] = String(value).slice(0, 10).split('-').map(Number);
+  const [year, month, day] = String(value).slice(0, ISO_DATE_LENGTH).split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day));
 }
 

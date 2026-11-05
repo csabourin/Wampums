@@ -23,6 +23,7 @@
 
 const express = require('express');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { TIME_HH_MM_LENGTH } = require('../utils/time-units');
 const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
@@ -362,7 +363,7 @@ module.exports = (pool, logger) => {
 
       const a = activity.rows[0];
       const timeStr = a.activity_start_time
-        ? a.activity_start_time.toString().substring(0, 5)
+        ? a.activity_start_time.toString().substring(0, TIME_HH_MM_LENGTH)
         : '';
 
       const prefill = {

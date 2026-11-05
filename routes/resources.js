@@ -3,6 +3,7 @@
 const express = require('express');
 const { check, param, query } = require('express-validator');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { ISO_DATE_LENGTH } = require('../utils/time-units');
 const router = express.Router();
 const multer = require('multer');
 
@@ -78,7 +79,7 @@ function parseDate(dateString) {
   const parsed = new Date(dateString);
   return Number.isNaN(parsed.getTime())
     ? null
-    : parsed.toISOString().slice(0, 10);
+    : parsed.toISOString().slice(0, ISO_DATE_LENGTH);
 }
 
 /**

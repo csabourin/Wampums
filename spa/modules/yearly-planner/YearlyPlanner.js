@@ -49,6 +49,7 @@ import {
   deleteDistributionRule
 } from '../../api/api-yearly-planner.js';
 import { HTTP_STATUS } from '../../utils/HttpStatus.js';
+import { ISO_DATE_LENGTH } from '../../utils/TimeUnits.js';
 
 const VIEW = {
   LIST: 'list',
@@ -579,8 +580,8 @@ export class YearlyPlanner extends BaseModule {
           <label class="form-group">
             <span>${escapeHTML(translate('yearly_planner_start_date'))}</span>
             <input type="date" id="yp-date-start"
-                   min="${escapeHTML(String(plan?.start_date || '').slice(0, 10))}"
-                   max="${escapeHTML(String(plan?.end_date || '').slice(0, 10))}" required>
+                   min="${escapeHTML(String(plan?.start_date || '').slice(0, ISO_DATE_LENGTH))}"
+                   max="${escapeHTML(String(plan?.end_date || '').slice(0, ISO_DATE_LENGTH))}" required>
           </label>
           <label class="form-group" id="yp-date-end-group" hidden>
             <span>${escapeHTML(translate('yearly_planner_end_date'))}</span>
@@ -912,7 +913,7 @@ export class YearlyPlanner extends BaseModule {
       'prepared', 'activity_count', 'objective_count'
     ];
     const rows = (this.currentPlan.meetings || []).map(meeting => [
-      String(meeting.meeting_date).slice(0, 10),
+      String(meeting.meeting_date).slice(0, ISO_DATE_LENGTH),
       meeting.meeting_kind || 'regular',
       meeting.theme || '',
       meeting.location || '',

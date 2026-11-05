@@ -15,6 +15,7 @@
  */
 
 const express = require('express');
+const { ISO_DATE_LENGTH } = require('../utils/time-units');
 const HTTP_STATUS = { OK: 200, CREATED: 201, BAD_REQUEST: 400, FORBIDDEN: 403, NOT_FOUND: 404, CONFLICT: 409, INTERNAL_ERROR: 500 };
 const { body, param } = require('express-validator');
 
@@ -181,7 +182,7 @@ module.exports = (pool, logger) => {
         adminId: req.user.id,
         firstName: req.body.first_name,
         lastName: req.body.last_name,
-        dateOfBirth: String(req.body.date_naissance).slice(0, 10),
+        dateOfBirth: String(req.body.date_naissance).slice(0, ISO_DATE_LENGTH),
         parentEmail: normalizeEmailValue(req.body.parent_email),
         language: context.language,
         deactivationOverrideReason: context.deactivationOverrideReason,

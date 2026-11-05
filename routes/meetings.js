@@ -26,6 +26,7 @@ const {
   withMaterialItems
 } = require('../services/equipmentCatalog');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { DATE_PART_WIDTH, TIME_HH_MM_LENGTH } = require('../utils/time-units');
 
 const MINUTES_PER_HOUR = 60;
 const UNPROCESSED_MEETINGS_LIMIT = 10;
@@ -50,7 +51,7 @@ function toShortTime(value) {
   if (!value) {
     return null;
   }
-  return String(value).substring(0, 5);
+  return String(value).substring(0, TIME_HH_MM_LENGTH);
 }
 
 /**
@@ -65,7 +66,7 @@ function minutesToDuration(minutes) {
   const total = Number(minutes);
   const hours = Math.floor(total / MINUTES_PER_HOUR);
   const mins = total % MINUTES_PER_HOUR;
-  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  return `${String(hours).padStart(DATE_PART_WIDTH, '0')}:${String(mins).padStart(DATE_PART_WIDTH, '0')}`;
 }
 
 /**

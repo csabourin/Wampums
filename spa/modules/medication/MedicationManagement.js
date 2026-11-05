@@ -31,7 +31,7 @@ import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { offlineManager } from '../OfflineManager.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
-import { MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE } from '../../utils/TimeUnits.js';
+import { DATE_PART_WIDTH, ISO_DATE_LENGTH, ISO_MINUTE_LENGTH, MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE } from '../../utils/TimeUnits.js';
 
 /**
  * Medication management module
@@ -822,7 +822,7 @@ export class MedicationManagement {
     if (Number.isNaN(hour) || Number.isNaN(minute)) {
       return null;
     }
-    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    return `${String(hour).padStart(DATE_PART_WIDTH, '0')}:${String(minute).padStart(DATE_PART_WIDTH, '0')}`;
   }
 
   getMealSlots() {
@@ -894,7 +894,7 @@ export class MedicationManagement {
     const cutoff = new Date(anchor.getTime() + MS_PER_DAY);
     let cursor = new Date(anchor);
     while (cursor < cutoff && times.length < 12) {
-      times.push(`${String(cursor.getHours()).padStart(2, '0')}:${String(cursor.getMinutes()).padStart(2, '0')}`);
+      times.push(`${String(cursor.getHours()).padStart(DATE_PART_WIDTH, '0')}:${String(cursor.getMinutes()).padStart(DATE_PART_WIDTH, '0')}`);
       cursor = new Date(cursor.getTime() + hours * MS_PER_HOUR);
     }
     return Array.from(new Set(times));
@@ -1059,7 +1059,7 @@ export class MedicationManagement {
 
     const today = getTodayISO();
     const now = new Date();
-    const timeValue = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const timeValue = `${String(now.getHours()).padStart(DATE_PART_WIDTH, '0')}:${String(now.getMinutes()).padStart(DATE_PART_WIDTH, '0')}`;
 
     const requirementOptions = this.requirements
       .map((req) => {
@@ -1309,7 +1309,7 @@ export class MedicationManagement {
             </label>
             <label class="field-group">
               <span>${escapeHTML(translate('medication_auth_sign_date'))}</span>
-              <input type="date" name="date_signature" value="${ta?.date_signature ? ta.date_signature.substring(0, 10) : getTodayISO()}"
+              <input type="date" name="date_signature" value="${ta?.date_signature ? ta.date_signature.substring(0, ISO_DATE_LENGTH) : getTodayISO()}"
                 style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;" required />
             </label>
           </div>
@@ -1387,7 +1387,7 @@ export class MedicationManagement {
             </label>
             <label class="field-group">
               <span>${escapeHTML(translate('medication_auth_sign_date'))}</span>
-              <input type="date" name="date_signature" value="${aa?.date_signature ? aa.date_signature.substring(0, 10) : getTodayISO()}"
+              <input type="date" name="date_signature" value="${aa?.date_signature ? aa.date_signature.substring(0, ISO_DATE_LENGTH) : getTodayISO()}"
                 style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;" required />
             </label>
           </div>
@@ -1587,7 +1587,7 @@ export class MedicationManagement {
    */
   toLocalTimeString(dateValue) {
     const d = new Date(dateValue);
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return `${String(d.getHours()).padStart(DATE_PART_WIDTH, '0')}:${String(d.getMinutes()).padStart(DATE_PART_WIDTH, '0')}`;
   }
 
   /**
@@ -2016,7 +2016,7 @@ export class MedicationManagement {
         if (scheduledAt < recentWindow || scheduledAt > windowLimit) {
           return;
         }
-        const slotKey = scheduledAt.toISOString().slice(0, 16);
+        const slotKey = scheduledAt.toISOString().slice(0, ISO_MINUTE_LENGTH);
         if (!grouped.has(slotKey)) {
           grouped.set(slotKey, {
             slotKey,

@@ -41,6 +41,7 @@ const {
 } = require('../services/campDuplication');
 const { TaskError } = require('../services/activityTasks');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { ISO_MONTH_LENGTH, TIME_HH_MM_LENGTH } = require('../utils/time-units');
 
 /**
  * Kinds of dated block on the planner calendar.
@@ -147,7 +148,7 @@ function buildActivityEventPlan(meeting, body = {}, defaults = {}) {
   }
 
   const startTimeRaw = body.meeting_time || (meeting.start_time
-    ? String(meeting.start_time).substring(0, 5)
+    ? String(meeting.start_time).substring(0, TIME_HH_MM_LENGTH)
     : defaults.meetingTime);
   const startTime = computeEndTime(startTimeRaw, 0);
   const departureTimeRaw = body.departure_time
@@ -2659,7 +2660,7 @@ module.exports = (pool, logger) => {
             const key = distribution_scope === 'year'
               ? 'year'
               : distribution_scope === 'month'
-                ? meeting.meeting_date.slice(0, 7)
+                ? meeting.meeting_date.slice(0, ISO_MONTH_LENGTH)
                 : meeting.period_id ? `period:${meeting.period_id}` : null;
             if (!key) {
               continue;

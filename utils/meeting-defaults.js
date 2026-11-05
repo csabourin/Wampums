@@ -1,3 +1,4 @@
+const { DATE_PART_WIDTH } = require('./time-units');
 /**
  * Shared organization meeting defaults.
  *
@@ -118,7 +119,7 @@ function computeEndTime(startTime, durationMinutes) {
   const total = ((hours || 0) * MINUTES_PER_HOUR + (minutes || 0) + (durationMinutes || 0));
   const endHours = Math.floor(total / MINUTES_PER_HOUR) % HOURS_PER_DAY;
   const endMinutes = total % MINUTES_PER_HOUR;
-  return `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+  return `${String(endHours).padStart(DATE_PART_WIDTH, '0')}:${String(endMinutes).padStart(DATE_PART_WIDTH, '0')}`;
 }
 
 /**
@@ -128,8 +129,8 @@ function computeEndTime(startTime, durationMinutes) {
  */
 function formatLocalDate(date) {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(DATE_PART_WIDTH, '0');
+  const day = String(date.getDate()).padStart(DATE_PART_WIDTH, '0');
   return `${year}-${month}-${day}`;
 }
 

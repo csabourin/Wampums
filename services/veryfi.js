@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { checkAndReserveBudget, recordUsage, releaseBudget } = require('./ai-budget');
+const { ISO_DATE_LENGTH } = require('../utils/time-units');
 
 // Initialize Veryfi client (lazy-init to avoid noise in test environment)
 let veryfiClient = null;
@@ -103,7 +104,7 @@ async function parseReceipt(fileBuffer, originalFilename, userContext) {
     // Helper to format date as YYYY-MM-DD
     const formatDate = (dateStr) => {
       if (!dateStr) {return null;}
-      return dateStr.substring(0, 10);
+      return dateStr.substring(0, ISO_DATE_LENGTH);
     };
 
     const data = {

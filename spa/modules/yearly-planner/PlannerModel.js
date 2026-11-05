@@ -1,3 +1,4 @@
+import { ISO_DATE_LENGTH, ISO_MONTH_LENGTH } from '../../utils/TimeUnits.js';
 // PlannerModel.js
 // Pure transformation of a year plan payload into the shape the year-at-a-glance
 // view renders. No DOM, no translation, no API: everything here is testable in
@@ -45,7 +46,7 @@ export function daySpan(startDate, endDate) {
 
 /** Month key (YYYY-MM) a date belongs to. */
 function monthKey(dateString) {
-  return String(dateString).slice(0, 7);
+  return String(dateString).slice(0, ISO_MONTH_LENGTH);
 }
 
 /**
@@ -132,7 +133,7 @@ export function buildYearModel(plan, options = {}) {
  * @returns {Object} Chip descriptor
  */
 function buildChip(meeting, event, today) {
-  const date = String(meeting.meeting_date).slice(0, 10);
+  const date = String(meeting.meeting_date).slice(0, ISO_DATE_LENGTH);
   const spanEnd = meeting.span_end_date || event?.end_date || date;
   const spanDays = Number(meeting.span_days) || daySpan(date, spanEnd);
   const parsed = parseLocalDate(date);
@@ -177,7 +178,7 @@ function buildChip(meeting, event, today) {
  * @returns {Object} Chip descriptor for an outing with no planned meeting
  */
 function buildEventOnlyChip(event, today) {
-  const date = String(event.start_date).slice(0, 10);
+  const date = String(event.start_date).slice(0, ISO_DATE_LENGTH);
   const spanDays = daySpan(date, event.end_date || date);
   const parsed = parseLocalDate(date);
 
@@ -200,7 +201,7 @@ function buildEventOnlyChip(event, today) {
     seriesIds: [],
     series: [],
     spanDays,
-    spanEndDate: spanDays > 1 ? String(event.end_date).slice(0, 10) : null,
+    spanEndDate: spanDays > 1 ? String(event.end_date).slice(0, ISO_DATE_LENGTH) : null,
     location: event.location || null,
     isPast: Boolean(today) && date < today,
     isToday: Boolean(today) && date === today,

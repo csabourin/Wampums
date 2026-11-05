@@ -57,6 +57,7 @@ import {
   UNIT_CUSTOMIZATION_CONFIG,
 } from '../../utils/UnitVocabularyUtils.js';
 import { HTTP_STATUS } from '../../utils/HttpStatus.js';
+import { TIME_HH_MM_LENGTH } from '../../utils/TimeUnits.js';
 
 /** Languages e-mails may be written in: every interface language. */
 const SUPPORTED_LANGUAGES = INTERFACE_LANGS.map((code) => ({ code, label: nativeLanguageName(code) }));
@@ -356,7 +357,7 @@ export class UnitSettings extends BaseModule {
             <div class="form-group">
               <label for="unit-meeting-time">${translate('unit_settings_meeting_time')}</label>
               <input type="time" id="unit-meeting-time" name="meeting_time" class="form-control"
-                value="${escapeHTML(String(info.meeting_time || DEFAULT_MEETING_TIME).slice(0, 5))}" required ${disabled}>
+                value="${escapeHTML(String(info.meeting_time || DEFAULT_MEETING_TIME).slice(0, TIME_HH_MM_LENGTH))}" required ${disabled}>
             </div>
 
             <div class="form-group">

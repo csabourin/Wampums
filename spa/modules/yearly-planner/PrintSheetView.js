@@ -8,6 +8,7 @@
 import { translate } from '../../app.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
+import { ISO_DATE_LENGTH, ISO_MONTH_LENGTH } from '../../utils/TimeUnits.js';
 
 const MS_PER_DAY = 86400000;
 
@@ -38,7 +39,7 @@ function formatRange(start, end, lang, withMonth) {
   if (!end || end === start) {
     return formatDate(start, lang, withMonth ? dayMonth : dayOnly);
   }
-  const sameMonth = start.slice(0, 7) === end.slice(0, 7);
+  const sameMonth = start.slice(0, ISO_MONTH_LENGTH) === end.slice(0, ISO_MONTH_LENGTH);
   const startText = formatDate(start, lang, sameMonth ? dayOnly : dayMonth);
   const endText = formatDate(end, lang, withMonth || !sameMonth ? dayMonth : dayOnly);
   return `${startText} – ${endText}`;
@@ -61,8 +62,8 @@ function multiline(text) {
  */
 function collectEntries(plan) {
   const meetings = (plan.meetings || []).map(meeting => ({
-    date: String(meeting.meeting_date).slice(0, 10),
-    endDate: meeting.span_end_date ? String(meeting.span_end_date).slice(0, 10) : null,
+    date: String(meeting.meeting_date).slice(0, ISO_DATE_LENGTH),
+    endDate: meeting.span_end_date ? String(meeting.span_end_date).slice(0, ISO_DATE_LENGTH) : null,
     kind: meeting.meeting_kind || 'regular',
     theme: meeting.theme || '',
     notes: meeting.notes || '',
@@ -72,8 +73,8 @@ function collectEntries(plan) {
   const outings = (plan.activity_events || [])
     .filter(event => !event.linked_meeting_id)
     .map(event => ({
-      date: String(event.start_date).slice(0, 10),
-      endDate: event.end_date ? String(event.end_date).slice(0, 10) : null,
+      date: String(event.start_date).slice(0, ISO_DATE_LENGTH),
+      endDate: event.end_date ? String(event.end_date).slice(0, ISO_DATE_LENGTH) : null,
       kind: 'weekend',
       theme: event.name || '',
       notes: '',
@@ -121,7 +122,7 @@ export function renderPrintSheet(plan, options = {}) {
 
   const monthGroups = [];
   buildRows(collectEntries(plan)).forEach(row => {
-    const monthKey = row.entry.date.slice(0, 7);
+    const monthKey = row.entry.date.slice(0, ISO_MONTH_LENGTH);
     const last = monthGroups[monthGroups.length - 1];
     if (last && last.key === monthKey) {
       last.rows.push(row);
