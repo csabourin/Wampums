@@ -702,7 +702,7 @@ describe('DELETE /api/v1/fundraisers/:id', () => {
       .delete(`/api/v1/fundraisers/${FUNDRAISER_ID}`)
       .set('Authorization', `Bearer ${token()}`);
 
-    const check = client_lastRecordedQuery(statements);
+    const check = clientLastRecordedQuery(statements);
     expect(check).toBeDefined();
   });
 
@@ -710,7 +710,7 @@ describe('DELETE /api/v1/fundraisers/:id', () => {
    * @param {string[]} statements - Executed statement heads
    * @returns {string|undefined} The emptiness check, if it ran
    */
-  function client_lastRecordedQuery(statements) {
+  function clientLastRecordedQuery(statements) {
     return statements.find((statement) => statement.includes('SELECT COUNT(*)::int AS recorded'));
   }
 });
