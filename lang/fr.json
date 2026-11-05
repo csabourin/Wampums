@@ -5643,7 +5643,7 @@
   "allergy_declaration_save": "Enregistrer mes allergies",
   "allergy_declaration_remove": "Retirer ma déclaration",
   "allergy_declaration_remove_title": "Retirer votre déclaration d’allergies?",
-  "allergy_declaration_remove_confirm": "Vos allergies n’apparaîtront plus dans aucune liste de camp de cette unité.",
+  "allergy_declaration_remove_confirm": "Vos allergies n’apparaîtront plus dans aucune liste de camp, dans aucune de vos unités.",
   "allergy_declaration_saved": "Allergies enregistrées.",
   "allergy_declaration_removed": "Déclaration d’allergies retirée.",
   "allergy_declaration_load_failed": "Votre déclaration d’allergies n’a pas pu être chargée.",

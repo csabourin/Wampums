@@ -5643,7 +5643,7 @@
   "allergy_declaration_save": "Save my allergies",
   "allergy_declaration_remove": "Withdraw my declaration",
   "allergy_declaration_remove_title": "Withdraw your allergy declaration?",
-  "allergy_declaration_remove_confirm": "Your allergies will no longer appear in any camp list of this unit.",
+  "allergy_declaration_remove_confirm": "Your allergies will no longer appear in any camp list, in any of your units.",
   "allergy_declaration_saved": "Allergies saved.",
   "allergy_declaration_removed": "Allergy declaration withdrawn.",
   "allergy_declaration_load_failed": "Your allergy declaration could not be loaded.",
