@@ -146,7 +146,6 @@
     "test/role-grants.integration.test.js": 1,
     "test/routes-access-surface.test.js": 1,
     "test/routes-finance.test.js": 1,
-    "test/routes-forms.test.js": 2,
     "test/routes-fundraiser-campaigns.test.js": 10,
     "test/routes-fundraiser-contract.test.js": 3,
     "test/routes-google-chat.test.js": 1,

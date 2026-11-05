@@ -97,7 +97,7 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
     ['youth details', '/api/v1/participants/details'],
     ['medication requirements', '/api/v1/medication/requirements'],
     ['health declarations', '/api/v1/medication/fiche-declarations'],
-    ['submitted forms', '/api/v1/forms'],
+    ['submitted forms', '/api/v1/forms/submissions/list?form_type=fiche_sante'],
   ])('a volunteer is refused %s', async (_label, path) => {
     const response = await as(ids.cook).get(path);
     expect(response.status).toBe(403);
