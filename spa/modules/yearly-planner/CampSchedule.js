@@ -20,6 +20,7 @@ import {
   deleteMeetingActivity
 } from '../../api/api-yearly-planner.js';
 import { CampDuplication } from './CampDuplication.js';
+import { DATE_PART_WIDTH, TIME_HH_MM_LENGTH } from '../../utils/TimeUnits.js';
 
 /** Add minutes to an HH:MM time without crossing beyond one day. */
 function addMinutes(time, duration) {
@@ -28,12 +29,12 @@ function addMinutes(time, duration) {
     return '';
   }
   const total = Math.min(1439, (Number(match[1]) * 60) + Number(match[2]) + (Number(duration) || 0));
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  return `${String(Math.floor(total / 60)).padStart(DATE_PART_WIDTH, '0')}:${String(total % 60).padStart(DATE_PART_WIDTH, '0')}`;
 }
 
 /** Format a database time as HH:MM. */
 function shortTime(value) {
-  return value ? String(value).slice(0, 5) : '';
+  return value ? String(value).slice(0, TIME_HH_MM_LENGTH) : '';
 }
 
 export class CampSchedule extends BaseModule {

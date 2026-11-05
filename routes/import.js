@@ -7,6 +7,7 @@ const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { asyncHandler, error: errorResponse } = require('../middleware/response');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 const { ACCESS_SOURCE, grantParticipantAccess } = require('../services/participantAccess');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 module.exports = function (pool, logger) {
   const router = express.Router();
@@ -175,7 +176,6 @@ module.exports = function (pool, logger) {
           const lastName = get('nom');
           const firstName = get('prenom');
           const birthDate = parseDate(get('naissance'));
-          const sex = get('sexe')?.toUpperCase() === 'H' ? 'M' : get('sexe')?.toUpperCase() === 'F' ? 'F' : null;
           const situation = get('situation')?.toLowerCase();
 
           if (!lastName || !firstName) {
@@ -510,7 +510,7 @@ module.exports = function (pool, logger) {
         return;
       }
       logger.error('SISC import error:', error);
-      return errorResponse(res, 'internal_server_error', 500);
+      return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     } finally {
       client.release();
     }

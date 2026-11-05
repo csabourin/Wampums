@@ -3,6 +3,7 @@
 // calendar (year_plan_meetings) is authoritative; these helpers are used to
 // pick within a known date list and as a fallback when no plan exists yet.
 import { isoToDateString } from './DateUtils.js';
+import { DATE_PART_WIDTH } from './TimeUnits.js';
 
 export const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -53,8 +54,8 @@ export function firstUpcomingMeetingDate(meetings, { meetingTime = null, now = n
  */
 export function toLocalDateString(date) {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(DATE_PART_WIDTH, '0');
+  const day = String(date.getDate()).padStart(DATE_PART_WIDTH, '0');
   return `${year}-${month}-${day}`;
 }
 

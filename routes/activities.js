@@ -1,5 +1,6 @@
 const { createHash } = require('node:crypto');
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { toBool } = require('../utils');
@@ -136,7 +137,7 @@ module.exports = (pool) => {
 
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${calendarFilename}"; filename*=UTF-8''${encodeURIComponent(calendarFilename)}`);
-    return res.status(200).send(body);
+    return res.status(HTTP_STATUS.OK).send(body);
   }));
 
   /**
@@ -155,7 +156,7 @@ module.exports = (pool) => {
     );
 
     if (activityCheck.rows.length === 0) {
-      return error(res, 'Activity not found', 404);
+      return error(res, 'Activity not found', HTTP_STATUS.NOT_FOUND);
     }
 
     // A family sees its own children, not the unit's roster and contacts.
@@ -239,7 +240,7 @@ module.exports = (pool) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Activity not found', 404);
+      return error(res, 'Activity not found', HTTP_STATUS.NOT_FOUND);
     }
 
     // The list of invited children is for those who organize the activity
@@ -415,7 +416,7 @@ module.exports = (pool) => {
     }
 
     if (missingFields.length > 0) {
-      return error(res, `Missing required fields: ${missingFields.join(', ')}`, 400);
+      return error(res, `Missing required fields: ${missingFields.join(', ')}`, HTTP_STATUS.BAD_REQUEST);
     }
 
     const invalidFields = [
@@ -425,7 +426,7 @@ module.exports = (pool) => {
         .filter((field) => optionalText(req.body[field]) !== null && normalizeTime(req.body[field]) === null)
     ];
     if (invalidFields.length > 0) {
-      return error(res, `Invalid values: ${invalidFields.join(', ')}`, 400);
+      return error(res, `Invalid values: ${invalidFields.join(', ')}`, HTTP_STATUS.BAD_REQUEST);
     }
 
     const activity = {
@@ -451,7 +452,7 @@ module.exports = (pool) => {
 
     const scheduleError = validateSchedule(activity);
     if (scheduleError) {
-      return error(res, scheduleError, 400);
+      return error(res, scheduleError, HTTP_STATUS.BAD_REQUEST);
     }
 
     const invitation = readInvitation(req.body, { isCreate: true });
@@ -607,7 +608,7 @@ module.exports = (pool) => {
 
       if (existingResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        return error(res, 'Activity not found', 404);
+        return error(res, 'Activity not found', HTTP_STATUS.NOT_FOUND);
       }
 
       const existing = existingResult.rows[0];
@@ -691,13 +692,13 @@ module.exports = (pool) => {
           ...(missingFields.length > 0 ? [`Missing required fields: ${missingFields.join(', ')}`] : []),
           ...(invalidFields.length > 0 ? [`Invalid values: ${invalidFields.join(', ')}`] : [])
         ];
-        return error(res, problems.join('; '), 400);
+        return error(res, problems.join('; '), HTTP_STATUS.BAD_REQUEST);
       }
 
       const scheduleError = validateSchedule(activity);
       if (scheduleError) {
         await client.query('ROLLBACK');
-        return error(res, scheduleError, 400);
+        return error(res, scheduleError, HTTP_STATUS.BAD_REQUEST);
       }
 
       const invitation = readInvitation(body);
@@ -888,7 +889,7 @@ module.exports = (pool) => {
     );
 
     if (activityCheck.rows.length === 0) {
-      return error(res, 'Activity not found', 404);
+      return error(res, 'Activity not found', HTTP_STATUS.NOT_FOUND);
     }
 
     // Explicit opt-in, as for updates: deleting also removes mistakes. The

@@ -9,11 +9,13 @@
 
 const express = require('express');
 const { asyncHandler, success: successResponse, error: errorResponse } = require('../middleware/response');
+const { HTTP_STATUS } = require('../utils/http-status');
+const { MS_PER_HOUR, MS_PER_MINUTE } = require('../utils/time-units');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { body, validationResult } = require('express-validator');
+const { body } = require('express-validator');
 
 // Import middleware
 const { authenticate, dataScopeOfRoles, holdsFamilyRoleOf } = require('../middleware/auth');
@@ -27,7 +29,6 @@ const {
   validateToken,
   validateFullName,
   checkValidation,
-  normalizeEmailInput,
   normalizeEmailValue
 } = require('../middleware/validation');
 
@@ -71,7 +72,7 @@ const emailTranslations = {
 };
 
 function getEmailTranslations(req) {
-  const preferredLanguage = (req.headers['accept-language'] || '').split(',')[0]?.slice(0, 2);
+  const preferredLanguage = (req.headers['accept-language'] || '').split(',')[0]?.slice(0, LANGUAGE_CODE_LENGTH);
   return emailTranslations[preferredLanguage] || emailTranslations.en;
 }
 
@@ -119,19 +120,36 @@ function mapRequestedRole(userType) {
 // Validate JWT secret at startup
 requireJWTSecret();
 
-// Rate limiters
+// Rate limiters. Outside production, tests and local runs get a far higher ceiling.
 const isProduction = process.env.NODE_ENV === 'production';
+const LOGIN_WINDOW_MINUTES = 15;
+const LOGIN_ATTEMPTS_PER_WINDOW = 6;
+const RESET_REQUESTS_PER_HOUR = 5;
+const RESET_LOOKUPS_PER_HOUR = 30;
+const DEVELOPMENT_ATTEMPTS_PER_WINDOW = 100;
+const DEVELOPMENT_RESET_LOOKUPS_PER_HOUR = 300;
+/** bcrypt cost factor for new password hashes. */
+const BCRYPT_SALT_ROUNDS = 10;
+/** Length of the `$2y$` prefix PHP wrote on legacy hashes. */
+const BCRYPT_PREFIX_LENGTH = 4;
+/** Digits in an emailed two-factor code. */
+const TWO_FACTOR_CODE_LENGTH = 6;
+/** Random bytes in a password reset token. */
+const RESET_TOKEN_BYTES = 32;
+/** Two-letter language code at the start of Accept-Language. */
+const LANGUAGE_CODE_LENGTH = 2;
+
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isProduction ? 6 : 100, // 6 attempts per window in production, 100 in test/dev
+  windowMs: LOGIN_WINDOW_MINUTES * MS_PER_MINUTE,
+  max: isProduction ? LOGIN_ATTEMPTS_PER_WINDOW : DEVELOPMENT_ATTEMPTS_PER_WINDOW,
   message: { success: false, message: 'too_many_login_attempts' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 const passwordResetLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: isProduction ? 5 : 100, // 5 attempts per hour in production, 100 in development
+  windowMs: MS_PER_HOUR, // 1 hour
+  max: isProduction ? RESET_REQUESTS_PER_HOUR : DEVELOPMENT_ATTEMPTS_PER_WINDOW,
   message: { success: false, message: 'too_many_reset_requests' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -140,8 +158,8 @@ const passwordResetLimiter = rateLimit({
 // Looking up which account a reset link belongs to happens on every page load
 // of the link, so it must not spend the few attempts the reset itself allows.
 const passwordResetLookupLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: isProduction ? 30 : 300,
+  windowMs: MS_PER_HOUR, // 1 hour
+  max: isProduction ? RESET_LOOKUPS_PER_HOUR : DEVELOPMENT_RESET_LOOKUPS_PER_HOUR,
   message: { success: false, message: 'too_many_reset_requests' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -353,7 +371,7 @@ module.exports = (pool, logger) => {
         const user = userResult.rows[0];
 
         if (!user) {
-          return res.status(401).json({
+          return res.status(HTTP_STATUS.UNAUTHORIZED).json({
             success: false,
             message: 'invalid_email_or_password'
           });
@@ -363,20 +381,20 @@ module.exports = (pool, logger) => {
         // Convert $2y$ to $2a$ for compatibility with legacy PHP hashes
         let storedHash = user.password;
         if (storedHash && storedHash.startsWith('$2y$')) {
-          storedHash = `$2a$${  storedHash.substring(4)}`;
+          storedHash = `$2a$${storedHash.substring(BCRYPT_PREFIX_LENGTH)}`;
         }
 
         const passwordValid = await bcrypt.compare(trimmedPassword, storedHash);
 
         if (!passwordValid) {
-          return res.status(401).json({
+          return res.status(HTTP_STATUS.UNAUTHORIZED).json({
             success: false,
             message: 'invalid_email_or_password'
           });
         }
 
         if (!user.is_verified) {
-          return res.status(403).json({
+          return res.status(HTTP_STATUS.FORBIDDEN).json({
             success: false,
             message: 'account_not_verified_login'
           });
@@ -390,7 +408,7 @@ module.exports = (pool, logger) => {
             organizationId,
             membershipStatus: user.membership_status
           });
-          return res.status(403).json({
+          return res.status(HTTP_STATUS.FORBIDDEN).json({
             success: false,
             message: inactiveMembershipMessage(user),
             membershipStatus: user.membership_status
@@ -460,7 +478,7 @@ module.exports = (pool, logger) => {
             await send2FAEmail(normalizedEmail, code, user.full_name, organizationId, pool);
 
             // Return response indicating 2FA is required
-            return res.status(200).json({
+            return res.status(HTTP_STATUS.OK).json({
               success: true,
               requires_2fa: true,
               message: '2fa_code_sent',
@@ -477,7 +495,7 @@ module.exports = (pool, logger) => {
           return;
         }
         logger.error('Login error:', error);
-        res.status(500).json({
+        res.status(HTTP_STATUS.INTERNAL_ERROR).json({
           success: false,
           message: 'internal_server_error'
         });
@@ -621,8 +639,8 @@ module.exports = (pool, logger) => {
         const { email, code } = req.body;
         const normalizedEmail = normalizeEmailValue(email);
 
-        if (!code || code.length !== 6) {
-          return res.status(400).json({
+        if (!code || code.length !== TWO_FACTOR_CODE_LENGTH) {
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({
             success: false,
             message: 'invalid_2fa_code'
           });
@@ -641,7 +659,7 @@ module.exports = (pool, logger) => {
         const user = userResult.rows[0];
 
         if (!user) {
-          return res.status(401).json({
+          return res.status(HTTP_STATUS.UNAUTHORIZED).json({
             success: false,
             message: 'invalid_email'
           });
@@ -653,7 +671,7 @@ module.exports = (pool, logger) => {
             organizationId,
             membershipStatus: user.membership_status
           });
-          return res.status(403).json({
+          return res.status(HTTP_STATUS.FORBIDDEN).json({
             success: false,
             message: inactiveMembershipMessage(user),
             membershipStatus: user.membership_status
@@ -664,7 +682,7 @@ module.exports = (pool, logger) => {
         const isValid = await verify2FACode(pool, user.id, organizationId, code);
 
         if (!isValid) {
-          return res.status(401).json({
+          return res.status(HTTP_STATUS.UNAUTHORIZED).json({
             success: false,
             message: 'invalid_or_expired_2fa_code'
           });
@@ -682,7 +700,7 @@ module.exports = (pool, logger) => {
           return;
         }
         logger.error('2FA verification error:', error);
-        res.status(500).json({
+        res.status(HTTP_STATUS.INTERNAL_ERROR).json({
           success: false,
           message: 'internal_server_error'
         });
@@ -747,13 +765,13 @@ module.exports = (pool, logger) => {
 
         const refusal = await checkRegistrationEligibility(client, normalizedEmail, organizationId);
         if (refusal) {
-          return res.status(400).json({ success: false, message: refusal.message });
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: refusal.message });
         }
 
         await client.query('BEGIN');
 
         // Hash password
-        const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
+        const hashedPassword = await bcrypt.hash(trimmedPassword, BCRYPT_SALT_ROUNDS);
 
         // Insert user
         // Parent role users are auto-verified, animation role requires admin approval
@@ -814,7 +832,7 @@ module.exports = (pool, logger) => {
           );
         }
 
-        res.status(201).json({
+        res.status(HTTP_STATUS.CREATED).json({
           success: true,
           data: createdUser,
           message: 'registration_successful_await_verification'
@@ -827,7 +845,7 @@ module.exports = (pool, logger) => {
         logger.error('Error registering user:', error);
 
         if (error.code === 'USER_CREATE_NO_ROWS') {
-          return res.status(400).json({
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({
             success: false,
             message: 'registration_error'
           });
@@ -835,13 +853,13 @@ module.exports = (pool, logger) => {
 
         // Handle duplicate email error (PostgreSQL error code 23505)
         if (error.code === '23505' && error.constraint === 'users_email_key') {
-          return res.status(400).json({
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({
             success: false,
             message: 'account_already_exists'
           });
         }
 
-        res.status(500).json({ success: false, message: 'registration_error' });
+        res.status(HTTP_STATUS.INTERNAL_ERROR).json({ success: false, message: 'registration_error' });
       } finally {
         client.release();
       }
@@ -907,7 +925,7 @@ module.exports = (pool, logger) => {
         const organizationId = user.rows[0].organization_id;
 
         // Generate a strong reset token and hash it before storage
-        const rawResetToken = crypto.randomBytes(32).toString('hex');
+        const rawResetToken = crypto.randomBytes(RESET_TOKEN_BYTES).toString('hex');
         const hashedToken = crypto.createHash('sha256').update(rawResetToken).digest('hex');
 
         // Persist reset token securely
@@ -927,7 +945,7 @@ module.exports = (pool, logger) => {
 
         if (tokenUpdate.rowCount === 0) {
           logger.error(`Failed to persist reset token for user ID ${user.rows[0].id}`);
-          return res.status(500).json({ success: false, message: 'reset_token_not_saved' });
+          return res.status(HTTP_STATUS.INTERNAL_ERROR).json({ success: false, message: 'reset_token_not_saved' });
         }
 
         if (!isProduction) {
@@ -1006,7 +1024,7 @@ module.exports = (pool, logger) => {
           return;
         }
         logger.error('Error requesting password reset:', error);
-        return errorResponse(res, 'internal_server_error', 500);
+        return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
       }
     }));
 
@@ -1036,7 +1054,7 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';
       if (!token) {
-        return errorResponse(res, 'token_not_found', 400);
+        return errorResponse(res, 'token_not_found', HTTP_STATUS.BAD_REQUEST);
       }
 
       const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
@@ -1047,7 +1065,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return errorResponse(res, 'invalid_or_expired_token', 400);
+        return errorResponse(res, 'invalid_or_expired_token', HTTP_STATUS.BAD_REQUEST);
       }
 
       return successResponse(res, { email: result.rows[0].email });
@@ -1079,7 +1097,7 @@ module.exports = (pool, logger) => {
 
         if (!token) {
           logger.warn('Password reset attempt without token');
-          return res.status(400).json({ success: false, message: 'token_not_found' });
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'token_not_found' });
         }
 
         logger.info('Password reset submission received', { hasToken: !!token });
@@ -1095,14 +1113,14 @@ module.exports = (pool, logger) => {
 
         if (tokenResult.rows.length === 0) {
           logger.warn('Invalid or expired password reset token');
-          return res.status(400).json({ success: false, message: 'invalid_or_expired_token' });
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'invalid_or_expired_token' });
         }
 
         const userId = tokenResult.rows[0].id;
         const userEmail = tokenResult.rows[0].email;
 
         // Hash new password
-        const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
+        const hashedPassword = await bcrypt.hash(trimmedPassword, BCRYPT_SALT_ROUNDS);
 
         // Update password and clear reset token for the user
         // We use ID here for precision, as we've already identified the user by their valid token
@@ -1122,7 +1140,7 @@ module.exports = (pool, logger) => {
           return;
         }
         logger.error('Error resetting password:', error);
-        return errorResponse(res, 'internal_server_error', 500);
+        return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
       }
     }));
 
@@ -1158,7 +1176,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error verifying session:', error);
-      return errorResponse(res, 'internal_server_error', 500);
+      return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 

@@ -1,5 +1,6 @@
 // RESTful routes for groups
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const winston = require('winston');
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
@@ -107,7 +108,7 @@ module.exports = (pool) => {
     );
 
     if (groupResult.rows.length === 0) {
-      return error(res, 'Group not found', 404);
+      return error(res, 'Group not found', HTTP_STATUS.NOT_FOUND);
     }
 
     // Get members
@@ -161,7 +162,7 @@ module.exports = (pool) => {
     const normalizedName = typeof name === 'string' ? name.trim() : '';
 
     if (!normalizedName) {
-      return error(res, 'Group name is required', 400);
+      return error(res, 'Group name is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     const organizationId = await getOrganizationId(req, pool);
@@ -175,7 +176,7 @@ module.exports = (pool) => {
       [normalizedName, organizationId]
     );
 
-    return success(res, result.rows[0], 'Group created successfully', 201);
+    return success(res, result.rows[0], 'Group created successfully', HTTP_STATUS.CREATED);
   }));
 
   /**
@@ -204,11 +205,11 @@ module.exports = (pool) => {
     const normalizedName = name !== undefined ? String(name).trim() : undefined;
 
     if (normalizedName === undefined) {
-      return error(res, 'At least one field to update is required', 400);
+      return error(res, 'At least one field to update is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (!normalizedName) {
-      return error(res, 'Group name is required', 400);
+      return error(res, 'Group name is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     const result = await pool.query(
@@ -220,7 +221,7 @@ module.exports = (pool) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Group not found', 404);
+      return error(res, 'Group not found', HTTP_STATUS.NOT_FOUND);
     }
 
     return success(res, result.rows[0], 'Group updated successfully');
@@ -256,7 +257,7 @@ module.exports = (pool) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Group not found', 404);
+      return error(res, 'Group not found', HTTP_STATUS.NOT_FOUND);
     }
 
     return success(res, null, 'Group deleted successfully');

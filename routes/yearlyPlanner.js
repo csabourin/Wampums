@@ -10,7 +10,7 @@
 const express = require('express');
 const { randomUUID } = require('crypto');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, userHasPermission } = require('../middleware/auth');
-const { success, error, paginated, asyncHandler } = require('../middleware/response');
+const { success, error, asyncHandler } = require('../middleware/response');
 const { check } = require('express-validator');
 const { checkValidation, validateIdParam, validateIdBody } = require('../middleware/validation');
 const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');
@@ -40,6 +40,8 @@ const {
   copySchedule
 } = require('../services/campDuplication');
 const { TaskError } = require('../services/activityTasks');
+const { HTTP_STATUS } = require('../utils/http-status');
+const { ISO_MONTH_LENGTH, TIME_HH_MM_LENGTH } = require('../utils/time-units');
 
 /**
  * Kinds of dated block on the planner calendar.
@@ -146,7 +148,7 @@ function buildActivityEventPlan(meeting, body = {}, defaults = {}) {
   }
 
   const startTimeRaw = body.meeting_time || (meeting.start_time
-    ? String(meeting.start_time).substring(0, 5)
+    ? String(meeting.start_time).substring(0, TIME_HH_MM_LENGTH)
     : defaults.meetingTime);
   const startTime = computeEndTime(startTimeRaw, 0);
   const departureTimeRaw = body.departure_time
@@ -549,7 +551,7 @@ module.exports = (pool, logger) => {
         const fullPlan = planResult.rows[0];
         fullPlan.meeting_count = meetings.filter(m => !m.is_cancelled).length;
 
-        return success(res, fullPlan, 'Year plan created', 201);
+        return success(res, fullPlan, 'Year plan created', HTTP_STATUS.CREATED);
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;
@@ -587,7 +589,7 @@ module.exports = (pool, logger) => {
         return error(res, 'Year plan not found', HTTP_NOT_FOUND);
       }
       if ((blackout_dates || anchors) && regenerate !== true) {
-        return error(res, 'regenerate_meetings must be true when calendar rules change', 400);
+        return error(res, 'regenerate_meetings must be true when calendar rules change', HTTP_STATUS.BAD_REQUEST);
       }
 
       const previous = check_result.rows[0];
@@ -834,7 +836,7 @@ module.exports = (pool, logger) => {
         [result.rows[0].id, planId, organizationId, start_date, end_date]
       );
 
-      return success(res, result.rows[0], 'Period created', 201);
+      return success(res, result.rows[0], 'Period created', HTTP_STATUS.CREATED);
     })
   );
 
@@ -979,7 +981,7 @@ module.exports = (pool, logger) => {
         ]
       );
 
-      return success(res, result.rows[0], 'Objective created', 201);
+      return success(res, result.rows[0], 'Objective created', HTTP_STATUS.CREATED);
     })
   );
 
@@ -1089,7 +1091,7 @@ module.exports = (pool, logger) => {
           [meetingId, organizationId]
         );
         if (processed.rows.length > 0) {
-          return error(res, 'meeting_already_processed', 409);
+          return error(res, 'meeting_already_processed', HTTP_STATUS.CONFLICT);
         }
       }
 
@@ -1108,7 +1110,7 @@ module.exports = (pool, logger) => {
           value = JSON.stringify(value || {});
         }
         if (field === 'meeting_kind' && !MEETING_KINDS.includes(value)) {
-          return error(res, `meeting_kind must be one of: ${MEETING_KINDS.join(', ')}`, 400);
+          return error(res, `meeting_kind must be one of: ${MEETING_KINDS.join(', ')}`, HTTP_STATUS.BAD_REQUEST);
         }
         updates.push(`${field} = $${updates.length + 3}`);
         values.push(value);
@@ -1219,7 +1221,7 @@ module.exports = (pool, logger) => {
       const meeting = meetingResult.rows[0];
 
       if (meeting.activity_id) {
-        return error(res, 'Meeting is already linked to an activity', 409);
+        return error(res, 'Meeting is already linked to an activity', HTTP_STATUS.CONFLICT);
       }
 
       const defaults = await getMeetingDefaults(pool, organizationId);
@@ -1227,7 +1229,7 @@ module.exports = (pool, logger) => {
       try {
         plan = buildActivityEventPlan(meeting, req.body, defaults);
       } catch (err) {
-        return error(res, err.message, 400);
+        return error(res, err.message, HTTP_STATUS.BAD_REQUEST);
       }
 
       const client = await pool.connect();
@@ -1243,7 +1245,7 @@ module.exports = (pool, logger) => {
         });
 
         await client.query('COMMIT');
-        return success(res, activity, 'Activity created from meeting', 201);
+        return success(res, activity, 'Activity created from meeting', HTTP_STATUS.CREATED);
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;
@@ -1322,7 +1324,7 @@ module.exports = (pool, logger) => {
       const kind = req.body.kind || 'regular';
 
       if (end_date && end_date < meeting_date) {
-        return error(res, 'end_date must be on or after meeting_date', 400);
+        return error(res, 'end_date must be on or after meeting_date', HTTP_STATUS.BAD_REQUEST);
       }
       if (req.body.end_date && isTooLong(req.body.meeting_date, req.body.end_date)) {
         return error(res, 'activity_too_long', HTTP_BAD_REQUEST);
@@ -1415,7 +1417,7 @@ module.exports = (pool, logger) => {
             );
           } catch (err) {
             await client.query('ROLLBACK');
-            return error(res, err.message, 400);
+            return error(res, err.message, HTTP_STATUS.BAD_REQUEST);
           }
           const activity = await insertActivityEventForMeeting(client, {
             organizationId,
@@ -1444,7 +1446,7 @@ module.exports = (pool, logger) => {
           res,
           wasInserted ? meeting : { ...meeting, adopted: true },
           wasInserted ? 'Meeting created' : 'Existing date adopted into the plan',
-          wasInserted ? 201 : 200
+          wasInserted ? HTTP_STATUS.CREATED : HTTP_STATUS.OK
         );
       } catch (err) {
         await client.query('ROLLBACK');
@@ -1485,7 +1487,7 @@ module.exports = (pool, logger) => {
         [organizationId, meeting.meeting_date]
       );
       if (attendance.rows.length > 0) {
-        return error(res, 'meeting_has_attendance', 409);
+        return error(res, 'meeting_has_attendance', HTTP_STATUS.CONFLICT);
       }
 
       const client = await pool.connect();
@@ -1679,7 +1681,7 @@ module.exports = (pool, logger) => {
         return error(res, 'Meeting not found', HTTP_NOT_FOUND);
       }
       if (!isDayInSpan(dayOffset, context)) {
-        return error(res, 'day_offset is outside the meeting span', 400);
+        return error(res, 'day_offset is outside the meeting span', HTTP_STATUS.BAD_REQUEST);
       }
 
       const result = await pool.query(
@@ -1851,7 +1853,7 @@ module.exports = (pool, logger) => {
       } = req.body;
       const dayOffset = day_offset == null ? 0 : parseInt(day_offset, 10);
       if (!isDayInSpan(dayOffset, context)) {
-        return error(res, 'day_offset is outside the meeting span', 400);
+        return error(res, 'day_offset is outside the meeting span', HTTP_STATUS.BAD_REQUEST);
       }
 
       const materialItems = req.body.material_items === undefined
@@ -1895,7 +1897,7 @@ module.exports = (pool, logger) => {
         );
       }
 
-      return success(res, created, 'Activity added to meeting', 201);
+      return success(res, created, 'Activity added to meeting', HTTP_STATUS.CREATED);
     })
   );
 
@@ -1931,7 +1933,7 @@ module.exports = (pool, logger) => {
       if (Object.prototype.hasOwnProperty.call(req.body, 'day_offset')) {
         const context = await getScheduleContext(pool, existing.rows[0].meeting_id, organizationId);
         if (!context || !isDayInSpan(Number(req.body.day_offset), context)) {
-          return error(res, 'day_offset is outside the meeting span', 400);
+          return error(res, 'day_offset is outside the meeting span', HTTP_STATUS.BAD_REQUEST);
         }
       }
 
@@ -2070,7 +2072,7 @@ module.exports = (pool, logger) => {
         .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date));
 
       if (targets.length === 0) {
-        return error(res, 'no_eligible_meetings', 400);
+        return error(res, 'no_eligible_meetings', HTTP_STATUS.BAD_REQUEST);
       }
 
       const seriesId = asSeries === true ? randomUUID() : null;
@@ -2130,7 +2132,7 @@ module.exports = (pool, logger) => {
           res,
           { created: inserted.rows, skipped, series_id: seriesId },
           'Activity placed',
-          201
+          HTTP_STATUS.CREATED
         );
       } catch (err) {
         await client.query('ROLLBACK');
@@ -2200,7 +2202,7 @@ module.exports = (pool, logger) => {
       }
 
       if (updates.length === 0) {
-        return error(res, 'At least one editable series field is required', 400);
+        return error(res, 'At least one editable series field is required', HTTP_STATUS.BAD_REQUEST);
       }
 
       if (Object.prototype.hasOwnProperty.call(req.body, 'name')) {
@@ -2318,7 +2320,7 @@ module.exports = (pool, logger) => {
         ]
       );
 
-      return success(res, result.rows[0], 'Activity added to library', 201);
+      return success(res, result.rows[0], 'Activity added to library', HTTP_STATUS.CREATED);
     })
   );
 
@@ -2462,7 +2464,7 @@ module.exports = (pool, logger) => {
       const { objective_id, participant_ids, meeting_id, achieved_date, attribution_source, notes } = req.body;
 
       if (!objective_id || !participant_ids || !Array.isArray(participant_ids) || participant_ids.length === 0) {
-        return error(res, 'objective_id and participant_ids array required', 400);
+        return error(res, 'objective_id and participant_ids array required', HTTP_STATUS.BAD_REQUEST);
       }
 
       const inserted = [];
@@ -2491,7 +2493,7 @@ module.exports = (pool, logger) => {
         }
       }
 
-      return success(res, inserted, `${inserted.length} achievements granted`, 201);
+      return success(res, inserted, `${inserted.length} achievements granted`, HTTP_STATUS.CREATED);
     })
   );
 
@@ -2658,7 +2660,7 @@ module.exports = (pool, logger) => {
             const key = distribution_scope === 'year'
               ? 'year'
               : distribution_scope === 'month'
-                ? meeting.meeting_date.slice(0, 7)
+                ? meeting.meeting_date.slice(0, ISO_MONTH_LENGTH)
                 : meeting.period_id ? `period:${meeting.period_id}` : null;
             if (!key) {
               continue;
@@ -2727,7 +2729,7 @@ module.exports = (pool, logger) => {
         }
 
         await client.query('COMMIT');
-        return success(res, { rule, series_id: seriesId, created }, 'Distribution rule created', 201);
+        return success(res, { rule, series_id: seriesId, created }, 'Distribution rule created', HTTP_STATUS.CREATED);
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;
@@ -2810,7 +2812,7 @@ module.exports = (pool, logger) => {
         ]
       );
 
-      return success(res, result.rows[0], 'Reminder scheduled', 201);
+      return success(res, result.rows[0], 'Reminder scheduled', HTTP_STATUS.CREATED);
     })
   );
 

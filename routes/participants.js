@@ -1,5 +1,6 @@
 // RESTful routes for participants
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, getUserDataScope, withScoutYear } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
@@ -345,7 +346,7 @@ module.exports = (pool) => {
       });
 
       // Remove form_submissions from output
-      const { form_submissions, ...participantData } = p;
+      const { form_submissions: _formSubmissions, ...participantData } = p;
 
       return {
         ...participantData,
@@ -425,7 +426,7 @@ module.exports = (pool) => {
   */
   router.post('/', authenticate, blockDemoRoles, requirePermission('participants.create'), asyncHandler(async (req, res) => {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+      return error(res, 'Invalid request body. Expected JSON object payload.', HTTP_STATUS.BAD_REQUEST);
     }
 
     const { first_name, last_name, group_id } = req.body;
@@ -434,7 +435,7 @@ module.exports = (pool) => {
 
     // Validate required fields
     if (!first_name || !last_name) {
-      return error(res, 'First name and last name are required', 400);
+      return error(res, 'First name and last name are required', HTTP_STATUS.BAD_REQUEST);
     }
 
     let groupContext = null;
@@ -443,7 +444,7 @@ module.exports = (pool) => {
       groupContext = await getGroupForOrganization(pool, group_id, organizationId);
 
       if (!groupContext) {
-        return error(res, 'Group not found in this organization', 404);
+        return error(res, 'Group not found in this organization', HTTP_STATUS.NOT_FOUND);
       }
     }
 
@@ -461,7 +462,7 @@ module.exports = (pool) => {
       // Verify participant was created
       if (!participantResult.rows[0]) {
         await client.query('ROLLBACK');
-        return error(res, 'Failed to create participant', 500);
+        return error(res, 'Failed to create participant', HTTP_STATUS.INTERNAL_ERROR);
       }
 
       const participantId = participantResult.rows[0].id;
@@ -490,7 +491,7 @@ module.exports = (pool) => {
 
       await client.query('COMMIT');
 
-      return success(res, participantResult.rows[0], 'Participant created successfully', 201);
+      return success(res, participantResult.rows[0], 'Participant created successfully', HTTP_STATUS.CREATED);
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -541,7 +542,7 @@ module.exports = (pool) => {
    */
   router.patch('/:id/group-membership', authenticate, blockDemoRoles, requirePermission('participants.edit'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     if (!isPlainBodyObject(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+      return error(res, 'Invalid request body. Expected JSON object payload.', HTTP_STATUS.BAD_REQUEST);
     }
 
     const { id } = req.params;
@@ -554,7 +555,7 @@ module.exports = (pool) => {
       groupContext = await getGroupForOrganization(pool, group_id, organizationId);
 
       if (!groupContext) {
-        return error(res, 'Group not found in this organization', 404);
+        return error(res, 'Group not found in this organization', HTTP_STATUS.NOT_FOUND);
       }
     }
 
@@ -567,7 +568,7 @@ module.exports = (pool) => {
     );
 
     if (participantCheck.rows.length === 0) {
-      return error(res, 'Participant not found in this organization', 404);
+      return error(res, 'Participant not found in this organization', HTTP_STATUS.NOT_FOUND);
     }
 
     const client = await pool.connect();
@@ -661,7 +662,7 @@ module.exports = (pool) => {
       if (result.rows.length > 0) {
         return success(res, { participant: result.rows[0] });
       } else {
-        return error(res, 'Participant not found', 404);
+        return error(res, 'Participant not found', HTTP_STATUS.NOT_FOUND);
       }
     } else {
       const result = await pool.query(
@@ -729,7 +730,7 @@ module.exports = (pool) => {
   router.post('/save', authenticate, blockDemoRoles, requirePermission((req) =>
     req.body?.group_id !== undefined ? ['participants.create', 'participants.edit'] : ['participants.create']), asyncHandler(async (req, res) => {
     if (!isPlainBodyObject(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+      return error(res, 'Invalid request body. Expected JSON object payload.', HTTP_STATUS.BAD_REQUEST);
     }
 
     const organizationId = await getOrganizationId(req, pool);
@@ -740,7 +741,7 @@ module.exports = (pool) => {
     }
 
     if (!first_name || !last_name) {
-      return error(res, 'First name and last name are required', 400);
+      return error(res, 'First name and last name are required', HTTP_STATUS.BAD_REQUEST);
     }
 
     // participants.create is what the parent registration form runs under, so
@@ -750,7 +751,7 @@ module.exports = (pool) => {
     const canEditAnyParticipant = req.userPermissions.includes('participants.edit');
 
     if (id && !/^\d+$/.test(String(id))) {
-      return error(res, 'Invalid participant ID', 400);
+      return error(res, 'Invalid participant ID', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (id) {
@@ -775,7 +776,7 @@ module.exports = (pool) => {
       // One answer for "not in your unit" and "not your child", so the route
       // cannot be used to learn which ids exist.
       if (!inUnit || (!canEditAnyParticipant && !linked)) {
-        return error(res, 'Participant not found', 404);
+        return error(res, 'Participant not found', HTTP_STATUS.NOT_FOUND);
       }
     }
 
@@ -785,7 +786,7 @@ module.exports = (pool) => {
       groupContext = await getGroupForOrganization(pool, group_id, organizationId);
 
       if (!groupContext) {
-        return error(res, 'Group not found in this organization', 404);
+        return error(res, 'Group not found in this organization', HTTP_STATUS.NOT_FOUND);
       }
     }
 
@@ -805,7 +806,7 @@ module.exports = (pool) => {
 
         if (updateResult.rows.length === 0) {
           await client.query('ROLLBACK');
-          return error(res, 'Participant not found', 404);
+          return error(res, 'Participant not found', HTTP_STATUS.NOT_FOUND);
         }
 
         participantId = id;
@@ -823,7 +824,7 @@ module.exports = (pool) => {
 
         if (duplicateCheck.rows.length > 0) {
           await client.query('ROLLBACK');
-          return error(res, 'A participant with this name and date of birth already exists', 409);
+          return error(res, 'A participant with this name and date of birth already exists', HTTP_STATUS.CONFLICT);
         }
 
         // Create new participant
@@ -956,7 +957,7 @@ module.exports = (pool) => {
    */
   router.post('/group-membership', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     if (!isPlainBodyObject(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+      return error(res, 'Invalid request body. Expected JSON object payload.', HTTP_STATUS.BAD_REQUEST);
     }
 
     const organizationId = await getOrganizationId(req, pool);
@@ -964,7 +965,7 @@ module.exports = (pool) => {
     const { participant_id, group_id, first_leader, second_leader, roles } = req.body;
 
     if (!participant_id) {
-      return error(res, 'Participant ID is required', 400);
+      return error(res, 'Participant ID is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     let groupContext = null;
@@ -973,7 +974,7 @@ module.exports = (pool) => {
       groupContext = await getGroupForOrganization(pool, group_id, organizationId);
 
       if (!groupContext) {
-        return error(res, 'Group not found in this organization', 404);
+        return error(res, 'Group not found in this organization', HTTP_STATUS.NOT_FOUND);
       }
     }
 
@@ -1019,13 +1020,13 @@ module.exports = (pool) => {
    */
   router.post('/link-organization', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     if (!isPlainBodyObject(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+      return error(res, 'Invalid request body. Expected JSON object payload.', HTTP_STATUS.BAD_REQUEST);
     }
 
     const { participant_id, inscription_date } = req.body;
 
     if (participant_id === undefined || participant_id === null || participant_id === '') {
-      return error(res, 'Participant ID is required', 400);
+      return error(res, 'Participant ID is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     const participantId = typeof participant_id === 'string' && /^\d+$/.test(participant_id.trim())
@@ -1033,7 +1034,7 @@ module.exports = (pool) => {
       : participant_id;
     const maxParticipantId = 2147483647;
     if (!Number.isSafeInteger(participantId) || participantId <= 0 || participantId > maxParticipantId) {
-      return error(res, 'Invalid participant identifier', 400);
+      return error(res, 'Invalid participant identifier', HTTP_STATUS.BAD_REQUEST);
     }
 
     const organizationId = await getOrganizationId(req, pool);
@@ -1129,12 +1130,13 @@ module.exports = (pool) => {
     req.body?.user_id && req.body.user_id !== req.user.id
       ? ['participants.edit', 'users.assign_roles'] : ['participants.edit']), asyncHandler(async (req, res) => {
     if (!isPlainBodyObject(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+      return error(res, 'Invalid request body. Expected JSON object payload.', HTTP_STATUS.BAD_REQUEST);
     }
 
     const organizationId = await getOrganizationId(req, pool);
 
-    let { user_id, participant_ids } = req.body;
+    let { user_id } = req.body;
+    const { participant_ids } = req.body;
 
     // If no user_id provided, use the current user (self-linking)
     if (!user_id) {
@@ -1142,7 +1144,7 @@ module.exports = (pool) => {
     }
 
     if (!participant_ids || !Array.isArray(participant_ids)) {
-      return error(res, 'participant_ids array is required', 400);
+      return error(res, 'participant_ids array is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Verify target user belongs to this organization
@@ -1152,7 +1154,7 @@ module.exports = (pool) => {
     );
 
     if (userCheck.rows.length === 0) {
-      return error(res, 'User not found in this organization', 404);
+      return error(res, 'User not found in this organization', HTTP_STATUS.NOT_FOUND);
     }
 
     const client = await pool.connect();
@@ -1243,7 +1245,7 @@ module.exports = (pool) => {
     const { participant_id } = req.query;
 
     if (!participant_id) {
-      return error(res, 'Participant ID is required', 400);
+      return error(res, 'Participant ID is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     const organizationId = await getOrganizationId(req, pool);
@@ -1318,7 +1320,7 @@ module.exports = (pool) => {
    */
   router.post('/associate-user', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     if (!isPlainBodyObject(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+      return error(res, 'Invalid request body. Expected JSON object payload.', HTTP_STATUS.BAD_REQUEST);
     }
 
     const organizationId = await getOrganizationId(req, pool);
@@ -1326,14 +1328,14 @@ module.exports = (pool) => {
     const { user_id, participant_id } = req.body;
 
     if (!user_id || !participant_id) {
-      return error(res, 'User ID and participant ID are required', 400);
+      return error(res, 'User ID and participant ID are required', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Both ends must belong to the caller's unit. This route used to check
     // neither, so an administrator of one unit could attach any account to any
     // child in any other.
     if (!await isAssociationInUnit(pool, { organizationId, participantId: participant_id, userId: user_id })) {
-      return error(res, 'Participant or user not found in this organization', 404);
+      return error(res, 'Participant or user not found in this organization', HTTP_STATUS.NOT_FOUND);
     }
 
     await grantParticipantAccess(pool, {
@@ -1385,7 +1387,7 @@ module.exports = (pool) => {
     );
 
     if (!scopeCheck.rows[0].participant_in_org || !scopeCheck.rows[0].user_in_org) {
-      return error(res, 'Association not found', 404);
+      return error(res, 'Association not found', HTTP_STATUS.NOT_FOUND);
     }
 
     // Every reason this person had to see this child goes, family links
@@ -1393,76 +1395,10 @@ module.exports = (pool) => {
     const removed = await revokeAllAccessForPair(pool, { participantId, userId });
 
     if (!removed) {
-      return error(res, 'Association not found', 404);
+      return error(res, 'Association not found', HTTP_STATUS.NOT_FOUND);
     }
 
     return success(res, null, 'Parent unlinked from participant');
-  }));
-
-  /**
-   * POST /api/link-parent-participant
-   * Link a parent to a participant (child)
-   * Requires admin or animation role
-   */
-  router.post('/link-parent', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
-    if (!isPlainBodyObject(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
-    }
-
-    const organizationId = await getOrganizationId(req, pool);
-
-    const { parent_id, participant_id, relationship } = req.body;
-
-    if (!parent_id || !participant_id) {
-      return error(res, 'Parent ID and participant ID are required', 400);
-    }
-
-    await pool.query(
-      `INSERT INTO guardians (participant_id, guardian_id, relationship)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (participant_id, guardian_id)
-       DO UPDATE SET relationship = EXCLUDED.relationship`,
-      [participant_id, parent_id, relationship || 'parent']
-    );
-
-    return success(res, null, 'Parent linked to participant successfully');
-  }));
-
-  /**
-   * POST /api/v1/participants/remove-guardians
-   * Remove guardians from participant
-   * Requires admin or animation role
-   */
-  router.post('/remove-guardians', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
-    if (!isPlainBodyObject(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
-    }
-
-    const { participant_id, guardian_ids } = req.body;
-
-    if (!participant_id || !Array.isArray(guardian_ids) || guardian_ids.length === 0) {
-      return error(res, 'Participant ID and an array of guardian IDs are required', 400);
-    }
-
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      await client.query(
-        `DELETE FROM guardians
-         WHERE participant_id = $1 AND guardian_id = ANY($2::int[])`,
-        [participant_id, guardian_ids]
-      );
-
-      await client.query('COMMIT');
-
-      return success(res, null, 'Guardians removed successfully');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
   }));
 
   /**
@@ -1483,7 +1419,7 @@ module.exports = (pool) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Participant group assignment not found', 404);
+      return error(res, 'Participant group assignment not found', HTTP_STATUS.NOT_FOUND);
     }
 
     return success(res, null, 'Participant removed from group successfully');
@@ -1533,7 +1469,7 @@ module.exports = (pool) => {
     );
 
     if (participantResult.rows.length === 0) {
-      return error(res, 'Participant not found in this organization', 404);
+      return error(res, 'Participant not found in this organization', HTTP_STATUS.NOT_FOUND);
     }
 
     const participant = participantResult.rows[0];
@@ -1544,7 +1480,7 @@ module.exports = (pool) => {
     // irreversible deletion, so it is checked on the server, not just in the
     // dialog.
     if (confirmation.toLowerCase() !== expectedName.toLowerCase()) {
-      return error(res, 'Confirmation does not match the participant name', 400);
+      return error(res, 'Confirmation does not match the participant name', HTTP_STATUS.BAD_REQUEST);
     }
 
     const client = await pool.connect();
@@ -1563,7 +1499,7 @@ module.exports = (pool) => {
         return error(
           res,
           'erasure_awaiting_organization_approvals',
-          409,
+          HTTP_STATUS.CONFLICT,
           summary.organizations.map(org => ({ organization_id: org.id, organization_name: org.name }))
         );
       }
@@ -1648,7 +1584,7 @@ module.exports = (pool) => {
     const result = await pool.query(query, params);
 
     if (result.rows.length === 0) {
-      return error(res, 'Participant not found or access denied', 404);
+      return error(res, 'Participant not found or access denied', HTTP_STATUS.NOT_FOUND);
     }
 
     // Transform form_submissions into has_* flags
@@ -1661,7 +1597,7 @@ module.exports = (pool) => {
     });
 
     // Remove form_submissions from output
-    const { form_submissions, ...participantData } = participant;
+    const { form_submissions: _formSubmissions, ...participantData } = participant;
 
     return success(res, {
       ...participantData,
@@ -1727,7 +1663,7 @@ module.exports = (pool) => {
 
   router.put('/:id', authenticate, blockDemoRoles, requirePermission('participants.edit'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
     if (!isPlainBodyObject(req.body)) {
-      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+      return error(res, 'Invalid request body. Expected JSON object payload.', HTTP_STATUS.BAD_REQUEST);
     }
 
     const { id } = req.params;
@@ -1741,7 +1677,7 @@ module.exports = (pool) => {
       groupContext = await getGroupForOrganization(pool, group_id, organizationId);
 
       if (!groupContext) {
-        return error(res, 'Group not found in this organization', 404);
+        return error(res, 'Group not found in this organization', HTTP_STATUS.NOT_FOUND);
       }
     }
 
@@ -1766,7 +1702,7 @@ module.exports = (pool) => {
 
       if (result.rows.length === 0) {
         await client.query('ROLLBACK');
-        return error(res, 'Participant not found', 404);
+        return error(res, 'Participant not found', HTTP_STATUS.NOT_FOUND);
       }
 
       // Update group if provided
@@ -1841,7 +1777,7 @@ module.exports = (pool) => {
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Participant not found', 404);
+      return error(res, 'Participant not found', HTTP_STATUS.NOT_FOUND);
     }
 
     return success(res, result.rows[0], 'Participant removed from the current scout year');

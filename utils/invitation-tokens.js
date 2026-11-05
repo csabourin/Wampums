@@ -29,6 +29,7 @@
  */
 
 const { randomBytes, createHash } = require('crypto');
+const { MS_PER_DAY } = require('./time-units');
 
 /**
  * 256 bits, which is the point past which guessing stops being a strategy.
@@ -49,7 +50,7 @@ const TOKEN_DIGEST_LENGTH = 64;
  */
 const DEFAULT_TOKEN_TTL_DAYS = 7;
 
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+const MILLISECONDS_PER_DAY = MS_PER_DAY;
 
 /**
  * Mint a link token and the digest to store beside it.

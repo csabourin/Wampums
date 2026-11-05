@@ -16,6 +16,7 @@ const { findRolesInUnit } = require('../services/roleAssignment');
 // Import utilities
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { FORM_READ_PERMISSIONS, resolveFormSubmission, requireFormPermission } = require('../middleware/formAuthorization');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 /** Largest value of a PostgreSQL integer column. */
 const MAX_INTEGER_ID = 2147483647;
@@ -155,7 +156,7 @@ module.exports = (pool, logger) => {
       })), 'Forms loaded');
     } catch (err) {
       logger.error('Error loading forms list:', err);
-      return error(res, 'Unable to load forms', 500);
+      return error(res, 'Unable to load forms', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -193,7 +194,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form types:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -203,11 +204,11 @@ module.exports = (pool, logger) => {
       const { name, type, schema } = req.body || {};
 
       if (!name || !type) {
-        return error(res, 'Name and type are required', 400);
+        return error(res, 'Name and type are required', HTTP_STATUS.BAD_REQUEST);
       }
 
       if (schema !== undefined && (typeof schema !== 'object' || Array.isArray(schema))) {
-        return error(res, 'Schema must be a JSON object', 400);
+        return error(res, 'Schema must be a JSON object', HTTP_STATUS.BAD_REQUEST);
       }
 
       const result = await pool.query(
@@ -224,10 +225,10 @@ module.exports = (pool, logger) => {
       return success(res, {
         ...result.rows[0],
         schema: parseFormSchema(result.rows[0].schema)
-      }, 'Form created', 201);
+      }, 'Form created', HTTP_STATUS.CREATED);
     } catch (err) {
       logger.error('Error creating form:', err);
-      return error(res, 'Unable to create form', 500);
+      return error(res, 'Unable to create form', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -305,7 +306,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form formats:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -350,7 +351,7 @@ module.exports = (pool, logger) => {
       const participant_id = parseIntegerId(req.query.participant_id);
 
       if (!participant_id || !form_type || typeof form_type !== 'string') {
-        return res.status(400).json({ success: false, message: 'Participant ID and form_type are required' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Participant ID and form_type are required' });
       }
 
       if (!(await mayReachParticipant(req, participant_id))) {
@@ -419,7 +420,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form submission:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -542,7 +543,7 @@ module.exports = (pool, logger) => {
     const submissionId = parseIntegerId(req.params.submissionId);
 
     if (!submissionId) {
-      return error(res, 'Invalid submission identifier', 400);
+      return error(res, 'Invalid submission identifier', HTTP_STATUS.BAD_REQUEST);
     }
 
     const { participant_id: participantId } = req.formSubmission;
@@ -577,7 +578,7 @@ module.exports = (pool, logger) => {
       const participant_id = parseIntegerId(req.body.participant_id);
 
       if (!participant_id || !form_type || !submission_data) {
-        return res.status(400).json({ success: false, message: 'Participant ID, form_type, and submission_data are required' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Participant ID, form_type, and submission_data are required' });
       }
 
       // The right to fill a form type is not a right over every child's copy:
@@ -674,7 +675,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error saving form submission:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -696,7 +697,7 @@ module.exports = (pool, logger) => {
       const participant_id = parseIntegerId(req.query.participant_id || req.body?.participant_id);
 
       if (!participant_id || !form_type) {
-        return res.status(400).json({ success: false, message: 'Participant ID and form_type are required' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Participant ID and form_type are required' });
       }
 
       if (!(await mayReachParticipant(req, participant_id))) {
@@ -731,7 +732,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error deleting form submission:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -768,7 +769,7 @@ module.exports = (pool, logger) => {
       const { form_type } = req.params;
 
       if (!form_type) {
-        return res.status(400).json({ success: false, message: 'Form type is required' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Form type is required' });
       }
 
       const organizationId = await getOrganizationId(req, pool);
@@ -779,7 +780,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Form structure not found' });
+        return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Form structure not found' });
       }
 
       res.json({
@@ -793,7 +794,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form structure:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -834,10 +835,10 @@ module.exports = (pool, logger) => {
       const participant_id = hasParticipant ? parseIntegerId(req.query.participant_id) : null;
 
       if (!form_type || typeof form_type !== 'string') {
-        return res.status(400).json({ success: false, message: 'Form type is required' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Form type is required' });
       }
       if (hasParticipant && !participant_id) {
-        return res.status(400).json({ success: false, message: 'Invalid participant ID' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Invalid participant ID' });
       }
 
       const organizationId = await getOrganizationId(req, pool);
@@ -853,7 +854,7 @@ module.exports = (pool, logger) => {
         );
 
         if (result.rows.length === 0) {
-          return res.status(404).json({ success: false, message: 'No submission data found' });
+          return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'No submission data found' });
         }
 
         const submissionData = result.rows[0].submission_data;
@@ -897,7 +898,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form submissions:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -932,11 +933,11 @@ module.exports = (pool, logger) => {
     try {
       const participantId = Number(req.query.participant_id);
       if (!Number.isSafeInteger(participantId) || participantId <= 0) {
-        return res.status(400).json({ success: false, message: 'Participant ID is required' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Participant ID is required' });
       }
 
       const access = await resolveParticipantFormAccess(req, participantId);
-      if (!access) {return error(res, 'Risk acceptance not found', 404);}
+      if (!access) {return error(res, 'Risk acceptance not found', HTTP_STATUS.NOT_FOUND);}
 
       const result = await pool.query(
         `SELECT submission_data
@@ -949,7 +950,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Risk acceptance not found' });
+        return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Risk acceptance not found' });
       }
 
       res.json({
@@ -961,7 +962,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching risk acceptance:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -1029,11 +1030,11 @@ module.exports = (pool, logger) => {
 
       const participantId = Number(participant_id);
       if (!Number.isSafeInteger(participantId) || participantId <= 0) {
-        return res.status(400).json({ success: false, message: 'Participant ID is required' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Participant ID is required' });
       }
 
       const access = await resolveParticipantFormAccess(req, participantId);
-      if (!access) {return error(res, 'Risk acceptance not found', 404);}
+      if (!access) {return error(res, 'Risk acceptance not found', HTTP_STATUS.NOT_FOUND);}
 
       const submissionData = {
         participant_id: participantId,
@@ -1069,7 +1070,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error saving risk acceptance:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -1102,7 +1103,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getOrganizationId(req, pool);
       const submissionId = parseIntegerId(req.params.submissionId);
       if (!submissionId) {
-        return res.status(400).json({ success: false, message: 'Invalid submission ID' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Invalid submission ID' });
       }
 
       // Verify user belongs to this organization
@@ -1136,7 +1137,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching submission history:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -1182,18 +1183,18 @@ module.exports = (pool, logger) => {
       const { submission_id, status, review_notes } = req.body;
 
       if (!submission_id || !status) {
-        return res.status(400).json({ success: false, message: 'submission_id and status are required' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'submission_id and status are required' });
       }
 
       // Validate status
       const validStatuses = ['draft', 'submitted', 'reviewed', 'approved', 'rejected'];
       if (!validStatuses.includes(status)) {
-        return res.status(400).json({ success: false, message: 'Invalid status value' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Invalid status value' });
       }
 
       const submissionId = parseIntegerId(submission_id);
       if (!submissionId) {
-        return res.status(400).json({ success: false, message: 'Invalid submission ID' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Invalid submission ID' });
       }
 
       const { participant_id: participantId } = req.formSubmission;
@@ -1214,7 +1215,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Submission not found' });
+        return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Submission not found' });
       }
 
       logger.info(`Form submission ${submission_id} status changed to ${status} by ${req.user.id}`);
@@ -1230,7 +1231,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error updating submission status:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -1292,7 +1293,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form versions:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -1354,7 +1355,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form permissions:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -1402,7 +1403,7 @@ module.exports = (pool, logger) => {
       const { form_format_id, display_context } = req.body;
 
       if (!form_format_id || !Array.isArray(display_context)) {
-        return res.status(400).json({
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
           message: 'form_format_id and display_context array are required'
         });
@@ -1412,7 +1413,7 @@ module.exports = (pool, logger) => {
       const validContexts = ['participant', 'organization', 'admin_panel', 'public', 'form_builder'];
       const invalidContexts = display_context.filter(ctx => !validContexts.includes(ctx));
       if (invalidContexts.length > 0) {
-        return res.status(400).json({
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
           message: `Invalid context values: ${invalidContexts.join(', ')}`
         });
@@ -1425,7 +1426,7 @@ module.exports = (pool, logger) => {
       );
 
       if (formCheck.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Form not found' });
+        return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Form not found' });
       }
 
       if (formCheck.rows[0].organization_id !== organizationId) {
@@ -1453,7 +1454,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error updating form display context:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -1506,7 +1507,7 @@ module.exports = (pool, logger) => {
       const { form_format_id, role_id, can_view, can_submit, can_edit, can_approve } = req.body;
 
       if (!form_format_id || !role_id) {
-        return res.status(400).json({
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
           message: 'form_format_id and role_id are required'
         });
@@ -1519,7 +1520,7 @@ module.exports = (pool, logger) => {
       );
 
       if (formCheck.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Form not found' });
+        return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Form not found' });
       }
 
       if (formCheck.rows[0].organization_id !== organizationId) {
@@ -1528,7 +1529,7 @@ module.exports = (pool, logger) => {
 
       // The role must be one this unit may use.
       if ((await findRolesInUnit(pool, [role_id], organizationId)).length === 0) {
-        return res.status(404).json({ success: false, message: 'Role not found' });
+        return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Role not found' });
       }
 
       // Upsert the permission
@@ -1557,7 +1558,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error updating form permissions:', err);
-      return error(res, 'internal_server_error', 500);
+      return error(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -1576,7 +1577,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Form not found', 404);
+        return error(res, 'Form not found', HTTP_STATUS.NOT_FOUND);
       }
 
       return success(res, {
@@ -1585,7 +1586,7 @@ module.exports = (pool, logger) => {
       }, 'Form loaded');
     } catch (err) {
       logger.error('Error loading form:', err);
-      return error(res, 'Unable to load form', 500);
+      return error(res, 'Unable to load form', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -1596,7 +1597,7 @@ module.exports = (pool, logger) => {
       const { participant_id, data } = req.body || {};
 
       if (!participant_id || !data || typeof data !== 'object' || Array.isArray(data)) {
-        return error(res, 'participant_id and data are required', 400);
+        return error(res, 'participant_id and data are required', HTTP_STATUS.BAD_REQUEST);
       }
 
       const formResult = await pool.query(
@@ -1605,14 +1606,14 @@ module.exports = (pool, logger) => {
       );
 
       if (formResult.rows.length === 0) {
-        return error(res, 'Form not found', 404);
+        return error(res, 'Form not found', HTTP_STATUS.NOT_FOUND);
       }
 
       const schema = parseFormSchema(formResult.rows[0].schema);
       const requiredFields = (schema.fields || []).filter((field) => field.required).map((field) => field.name);
       const missing = requiredFields.filter((fieldName) => !Object.prototype.hasOwnProperty.call(data, fieldName));
       if (missing.length > 0) {
-        return error(res, `Missing required fields: ${missing.join(', ')}`, 400);
+        return error(res, `Missing required fields: ${missing.join(', ')}`, HTTP_STATUS.BAD_REQUEST);
       }
 
       // Without a unit-wide role, only a child linked to the account
@@ -1634,10 +1635,10 @@ module.exports = (pool, logger) => {
         [formId, participant_id, organizationId, JSON.stringify(data), req.user.id]
       );
 
-      return success(res, result.rows[0], 'Form submitted', 201);
+      return success(res, result.rows[0], 'Form submitted', HTTP_STATUS.CREATED);
     } catch (err) {
       logger.error('Error submitting form:', err);
-      return error(res, 'Unable to submit form', 500);
+      return error(res, 'Unable to submit form', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -1668,7 +1669,7 @@ module.exports = (pool, logger) => {
       })), 'Form submissions loaded');
     } catch (err) {
       logger.error('Error loading form submissions:', err);
-      return error(res, 'Unable to load submissions', 500);
+      return error(res, 'Unable to load submissions', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -1687,13 +1688,13 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Submission not found', 404);
+        return error(res, 'Submission not found', HTTP_STATUS.NOT_FOUND);
       }
 
       return success(res, result.rows[0], 'Submission approved');
     } catch (err) {
       logger.error('Error approving form submission:', err);
-      return error(res, 'Unable to approve submission', 500);
+      return error(res, 'Unable to approve submission', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 

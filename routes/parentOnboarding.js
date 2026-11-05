@@ -31,6 +31,8 @@ const {
   getOnboardingContext,
   completeOnboarding,
 } = require('../services/parentOnboarding');
+const { HTTP_STATUS } = require('../utils/http-status');
+const { ISO_DATE_LENGTH } = require('../utils/time-units');
 
 /**
  * Read a boolean that may arrive as JSON `true` or as a form string.
@@ -93,7 +95,7 @@ module.exports = (pool, logger) => {
         organizationId,
         firstName: req.body.first_name,
         lastName: req.body.last_name,
-        dateOfBirth: String(req.body.date_naissance).slice(0, 10),
+        dateOfBirth: String(req.body.date_naissance).slice(0, ISO_DATE_LENGTH),
         inscriptionDate: req.body.inscription_date || null,
         confirmSimilar: isConfirmed(req.body.confirm_similar),
       });
@@ -104,13 +106,13 @@ module.exports = (pool, logger) => {
             organizationId,
             participantId: outcome.participant_id,
           });
-          return success(res, outcome, 'Child registered', 201);
+          return success(res, outcome, 'Child registered', HTTP_STATUS.CREATED);
         case CHILD_RESULT.REENROLLED:
           return success(res, outcome, 'Child re-enrolled for this year');
         case CHILD_RESULT.ENROLLED_EXISTING:
           return success(res, outcome, 'Child already known from another unit, now enrolled in this one');
         case CHILD_RESULT.DUPLICATE:
-          return res.status(409).json({
+          return res.status(HTTP_STATUS.CONFLICT).json({
             success: false,
             code: CHILD_RESULT.DUPLICATE,
             message: 'This child is already registered for this year',
@@ -118,7 +120,7 @@ module.exports = (pool, logger) => {
             timestamp: new Date().toISOString(),
           });
         case CHILD_RESULT.SIMILAR:
-          return res.status(409).json({
+          return res.status(HTTP_STATUS.CONFLICT).json({
             success: false,
             code: CHILD_RESULT.SIMILAR,
             message: 'A child with this name is already in your family. Confirm if this is a different child.',
@@ -126,7 +128,7 @@ module.exports = (pool, logger) => {
             timestamp: new Date().toISOString(),
           });
         case CHILD_RESULT.INVALID:
-          return error(res, outcome.error, 400, [{ path: 'child', msg: outcome.error }]);
+          return error(res, outcome.error, HTTP_STATUS.BAD_REQUEST, [{ path: 'child', msg: outcome.error }]);
         default:
           throw new Error(`Unhandled child creation result: ${outcome.result}`);
       }

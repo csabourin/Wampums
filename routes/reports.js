@@ -8,6 +8,7 @@
  */
 
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 
 // Import auth middleware
@@ -15,7 +16,6 @@ const { authenticate, requirePermission, getOrganizationId, getUserDataScope, wi
 const { asyncHandler } = require('../middleware/response');
 
 // Import utilities
-const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const {
   isAffirmative,
   allergyText,
@@ -1106,7 +1106,7 @@ module.exports = (pool, _logger) => {
 
     const participantSummary = participantsResult.rows.find((p) => p.id === participantId);
     if (!participantSummary) {
-      return res.status(404).json({ success: false, message: 'Participant not found in organization' });
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Participant not found in organization' });
     }
 
     const attendanceResult = await pool.query(

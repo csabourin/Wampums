@@ -6,6 +6,7 @@
 const crypto = require('crypto');
 const winston = require('winston');
 const { sendEmail, getUserEmailLanguage, getTranslationsByCode } = require('./index');
+const { MS_PER_DAY, MS_PER_MINUTE } = require('./time-units');
 
 // Configure logger
 const logger = winston.createLogger({
@@ -95,7 +96,7 @@ function parseDeviceName(userAgent) {
  */
 async function store2FACode(pool, userId, organizationId, code, ipAddress, userAgent) {
   const codeHash = hash2FACode(code);
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  const expiresAt = new Date(Date.now() + 10 * MS_PER_MINUTE); // 10 minutes
 
   try {
     const result = await pool.query(
@@ -197,7 +198,7 @@ async function createTrustedDevice(pool, userId, organizationId, userAgent) {
   const deviceToken = generateDeviceToken();
   const deviceFingerprint = createDeviceFingerprint(userAgent, userId);
   const deviceName = parseDeviceName(userAgent);
-  const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000); // 90 days
+  const expiresAt = new Date(Date.now() + 90 * MS_PER_DAY); // 90 days
 
   try {
     await pool.query(

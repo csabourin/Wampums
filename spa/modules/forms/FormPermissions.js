@@ -23,6 +23,7 @@ import { setContent } from '../../utils/DOMUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
+import { HTTP_STATUS } from '../../utils/HttpStatus.js';
 
 /** The rights a role may hold on a form, in column order. */
 const FORM_RIGHTS = ['can_view', 'can_submit', 'can_edit', 'can_approve'];
@@ -197,7 +198,7 @@ export class FormPermissionsManager {
    * @returns {Promise<void>}
    */
   async handleStaleForm(error, fallbackMessageKey) {
-    if (error?.status !== 404) {
+    if (error?.status !== HTTP_STATUS.NOT_FOUND) {
       this.app.showMessage(translate(fallbackMessageKey), 'error');
       return;
     }

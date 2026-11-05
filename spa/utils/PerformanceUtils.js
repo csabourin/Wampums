@@ -3,6 +3,7 @@
  */
 import { debugLog } from './DebugUtils.js';
 import { setButtonLoading } from './SkeletonUtils.js';
+import { HTTP_STATUS } from './HttpStatus.js';
 
 
 /**
@@ -125,7 +126,7 @@ export async function retryWithBackoff(asyncFn, options = {}) {
       lastError = error;
 
       // Don't retry on client errors (4xx)
-      if (error.status >= 400 && error.status < 500) {
+      if (error.status >= HTTP_STATUS.BAD_REQUEST && error.status < HTTP_STATUS.INTERNAL_ERROR) {
         throw error;
       }
 

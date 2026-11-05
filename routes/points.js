@@ -10,6 +10,8 @@
 const express = require('express');
 const { eligibleActionParticipants } = require('../services/actionRoster');
 const { createHash } = require('node:crypto');
+const { HTTP_STATUS } = require('../utils/http-status');
+const { rowPlaceholders } = require('../utils/sql-placeholders');
 const router = express.Router();
 
 // Import auth middleware
@@ -19,7 +21,6 @@ const { asyncHandler } = require('../middleware/response');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 
 // Import utilities and middleware
-const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { success, error: errorResponse } = require('../middleware/response');
 
 const LEGACY_INDIVIDUAL_TYPE = 'participant';
@@ -71,7 +72,7 @@ module.exports = (pool, logger) => {
     try {
       scoutYear = await getScoutYear(req, pool);
     } catch (err) {
-      return errorResponse(res, 'Unknown scout year for this organization', 400);
+      return errorResponse(res, 'Unknown scout year for this organization', HTTP_STATUS.BAD_REQUEST);
     }
     const rosterStatuses = rosterStatusesFor(scoutYear);
 
@@ -335,9 +336,8 @@ module.exports = (pool, logger) => {
           const memberTotals = [];
           if (memberIds.length > 0) {
             // Build VALUES clause for batch insert
-            const valuesClauses = memberIds.map((_, idx) =>
-              `($${idx * 5 + 1}, $${idx * 5 + 2}, $${idx * 5 + 3}, $${idx * 5 + 4}, $${idx * 5 + 5})`
-            ).join(', ');
+            const MEMBER_POINT_COLUMNS = 5;
+            const valuesClauses = memberIds.map((_, idx) => `(${rowPlaceholders(idx, MEMBER_POINT_COLUMNS)})`).join(', ');
 
             const insertValues = memberIds.flatMap(memberId =>
               [memberId, groupId, organizationId, activeScoutYear.id, value]

@@ -1,3 +1,4 @@
+const { ISO_DATE_LENGTH } = require('../utils/time-units');
 /**
  * Program Progress Service
  *
@@ -206,7 +207,7 @@ async function insertBadgeProgressMirror({ client, organizationId, participantId
   );
 
   const participantSection = participantSectionResult.rows[0]?.section || 'general';
-  const achievedDate = badgeData.date_obtention || new Date().toISOString().slice(0, 10);
+  const achievedDate = badgeData.date_obtention || new Date().toISOString().slice(0, ISO_DATE_LENGTH);
   const status = badgeData.status === 'approved' ? 'approved' : 'pending';
 
   const result = await client.query(

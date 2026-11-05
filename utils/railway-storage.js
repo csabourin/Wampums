@@ -12,18 +12,22 @@ const {
 } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const sharp = require('sharp');
+const { SECONDS_PER_DAY, SECONDS_PER_HOUR } = require('./time-units');
 
 // Lazy-loaded to avoid adding HEIC conversion overhead when not needed.
 let heicConvert = null;
 
-const MAX_FILE_SIZE = 30 * 1024 * 1024;
+const BYTES_PER_KB = 1024;
+const BYTES_PER_MB = BYTES_PER_KB * BYTES_PER_KB;
+const MAX_FILE_SIZE_MB = 30;
+const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * BYTES_PER_MB;
 const OUTPUT_MIME_TYPE = 'image/webp';
 const PHOTO_MAX_WIDTH = 640;
 const PHOTO_MAX_HEIGHT = 480;
 const PHOTO_WEBP_QUALITY = 82;
 const WEBP_EXTENSION = OUTPUT_MIME_TYPE.split('/')[1];
-const DEFAULT_SIGNED_URL_TTL_SECONDS = 60 * 60;
-const MAX_SIGNED_URL_TTL_SECONDS = 7 * 24 * 60 * 60;
+const DEFAULT_SIGNED_URL_TTL_SECONDS = SECONDS_PER_HOUR;
+const MAX_SIGNED_URL_TTL_SECONDS = 7 * SECONDS_PER_DAY;
 
 const ALLOWED_MIME_TYPES = [
   'image/jpeg',
@@ -196,7 +200,7 @@ function validateFile(file) {
   if (file.size > MAX_FILE_SIZE) {
     return {
       isValid: false,
-      error: `File size exceeds maximum allowed (${MAX_FILE_SIZE / 1024 / 1024}MB)`,
+      error: `File size exceeds maximum allowed (${MAX_FILE_SIZE_MB}MB)`,
     };
   }
 
@@ -519,6 +523,7 @@ function isStorageConfigured(config = getStorageConfig()) {
 module.exports = {
   ALLOWED_MIME_TYPES,
   MAX_FILE_SIZE,
+  MAX_FILE_SIZE_MB,
   OUTPUT_MIME_TYPE,
   PHOTO_MAX_HEIGHT,
   PHOTO_MAX_WIDTH,

@@ -17,7 +17,6 @@
  */
 
 const request = require('supertest');
-const jwt = require('jsonwebtoken');
 const { closeServerResources } = require('./test-helpers');
 
 // Mock pg module before requiring app
@@ -39,7 +38,6 @@ jest.mock('pg', () => {
   };
 });
 
-const { Pool } = require('pg');
 const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 let app;
 
@@ -530,7 +528,7 @@ describe('checkValidation middleware', () => {
       return undefined;
     });
 
-    const res = await request(app)
+    await request(app)
       .post('/public/login')
       .send({
         email: 'valid@example.com',

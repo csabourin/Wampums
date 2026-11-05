@@ -41,7 +41,6 @@ jest.mock('pg', () => {
   };
 });
 
-const { Pool } = require('pg');
 const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 let app;
 
@@ -890,7 +889,7 @@ describe('Guardian Permission Enforcement', () => {
       return undefined;
     });
 
-    const res = await request(app)
+    await request(app)
       .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${maliciousToken}`);
@@ -930,14 +929,14 @@ describe('Guardian Multi-Tenant Isolation', () => {
       return undefined;
     });
 
-    const res1 = await request(app)
+    await request(app)
       .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${org1Token}`);
 
     expect(lastQueryOrgId).toBe(1);
 
-    const res2 = await request(app)
+    await request(app)
       .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${org2Token}`);

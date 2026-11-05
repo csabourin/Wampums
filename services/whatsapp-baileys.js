@@ -15,14 +15,15 @@ const makeWASocket = require('@whiskeysockets/baileys').default;
 const {
   DisconnectReason,
   fetchLatestBaileysVersion,
-  makeCacheableSignalKeyStore,
-  makeInMemoryStore
+  makeCacheableSignalKeyStore
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const qrcodeTerminal = require('qrcode-terminal');
 const winston = require('winston');
 const { useDatabaseAuthState } = require('./whatsapp-database-auth');
 const util = require('util');
+const { HTTP_STATUS } = require('../utils/http-status');
+const { MS_PER_MINUTE } = require('../utils/time-units');
 
 const WHATSAPP_LOG_LEVEL = process.env.WHATSAPP_LOG_LEVEL || 'info';
 const WHATSAPP_LOG_FILE = process.env.WHATSAPP_LOG_FILE || 'whatsapp-baileys.log';
@@ -284,7 +285,7 @@ class WhatsAppBaileysService {
       const isTemporaryError = statusCode === 515;
 
       // Error 401 (Connection Failure) means credentials are unauthorized - clear credentials
-      const credentialRejection = statusCode === 401;
+      const credentialRejection = statusCode === HTTP_STATUS.UNAUTHORIZED;
 
       // Error 440 (conflict/replaced) means another session has replaced this one
       // Do NOT auto-reconnect - this creates an infinite reconnection loop
@@ -313,7 +314,7 @@ class WhatsAppBaileysService {
         const timeSinceLastAttempt = now - reconnectInfo.lastAttempt;
 
         // Reset counter if it's been more than 5 minutes since last attempt
-        if (timeSinceLastAttempt > 5 * 60 * 1000) {
+        if (timeSinceLastAttempt > 5 * MS_PER_MINUTE) {
           reconnectInfo.count = 0;
         }
 

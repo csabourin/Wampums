@@ -28,6 +28,7 @@ const {
   previewTransfer,
   transferParticipant
 } = require('../services/transfer');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 /** Why a transfer was refused, and the status that says so. */
 const BLOCKED_STATUS = {
@@ -78,7 +79,7 @@ module.exports = (pool, logger) => {
       const targetOrganizationId = readTargetOrganizationId(req.body);
 
       if (!Number.isInteger(participantId) || targetOrganizationId === null) {
-        return error(res, 'participant_id and target_organization_id are required', 400);
+        return error(res, 'participant_id and target_organization_id are required', HTTP_STATUS.BAD_REQUEST);
       }
 
       const preview = await previewTransfer(pool, {
@@ -111,10 +112,10 @@ module.exports = (pool, logger) => {
       const note = typeof req.body?.note === 'string' ? req.body.note.slice(0, 500) : null;
 
       if (!Number.isInteger(participantId) || targetOrganizationId === null) {
-        return error(res, 'participant_id and target_organization_id are required', 400);
+        return error(res, 'participant_id and target_organization_id are required', HTTP_STATUS.BAD_REQUEST);
       }
       if (organizationId === targetOrganizationId) {
-        return error(res, 'same_organization', 400);
+        return error(res, 'same_organization', HTTP_STATUS.BAD_REQUEST);
       }
       if (!(await areSiblings(pool, organizationId, targetOrganizationId))) {
         return forbidden(res, 'not_a_sibling_unit', [], []);

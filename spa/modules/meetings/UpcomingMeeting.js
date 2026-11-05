@@ -13,6 +13,7 @@ import { getUpcomingBirthdays } from '../../utils/BirthdayUtils.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
+import { MS_PER_DAY } from '../../utils/TimeUnits.js';
 
 export class UpcomingMeeting {
   constructor(app, options = {}) {
@@ -321,7 +322,7 @@ export class UpcomingMeeting {
       meeting.setHours(0, 0, 0, 0);
 
       const diffTime = meeting - today;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const diffDays = Math.ceil(diffTime / MS_PER_DAY);
 
       if (diffDays === 0) {
         return translate('today');

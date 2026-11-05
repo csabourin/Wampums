@@ -10,6 +10,7 @@
 const { authenticate, blockDemoRoles, requirePermission, getOrganizationId } = require('../middleware/auth');
 const express = require('express');
 const { asyncHandler, error: errorResponse } = require('../middleware/response');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const {
   handleOrganizationResolutionError,
@@ -55,7 +56,7 @@ module.exports = (pool, logger, whatsappService) => {
         return;
       }
       logger.error('Error initiating WhatsApp connection:', error);
-      return errorResponse(res, 'internal_server_error', 500);
+      return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -80,7 +81,7 @@ module.exports = (pool, logger, whatsappService) => {
         return;
       }
       logger.error('Error disconnecting WhatsApp:', error);
-      return errorResponse(res, 'internal_server_error', 500);
+      return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -110,7 +111,7 @@ module.exports = (pool, logger, whatsappService) => {
         return;
       }
       logger.error('Error getting WhatsApp status:', error);
-      return errorResponse(res, 'internal_server_error', 500);
+      return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -126,7 +127,7 @@ module.exports = (pool, logger, whatsappService) => {
       const { phoneNumber, message } = req.body;
 
       if (!phoneNumber || !message) {
-        return res.status(400).json({
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
           message: 'Phone number and message are required',
         });
@@ -146,7 +147,7 @@ module.exports = (pool, logger, whatsappService) => {
         return;
       }
       logger.error('Error sending test WhatsApp message:', error);
-      return errorResponse(res, 'internal_server_error', 500);
+      return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 

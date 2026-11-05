@@ -24,6 +24,7 @@ const {
   hasCampaignModelColumns,
   toNullableNumber,
 } = require('../services/fundraiserCampaigns');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 /**
  * Export route factory function
@@ -67,7 +68,7 @@ module.exports = (pool, _logger) => {
       const fundraiserId = req.query.fundraiser_id;
 
       if (!fundraiserId) {
-        return error(res, 'fundraiser_id is required', 400);
+        return error(res, 'fundraiser_id is required', HTTP_STATUS.BAD_REQUEST);
       }
 
       const extended = await hasCampaignModelColumns(pool);
@@ -79,7 +80,7 @@ module.exports = (pool, _logger) => {
       );
 
       if (fundraiserCheck.rows.length === 0) {
-        return error(res, 'Fundraiser not found', 404);
+        return error(res, 'Fundraiser not found', HTTP_STATUS.NOT_FOUND);
       }
 
       const result = await pool.query(
@@ -161,7 +162,7 @@ module.exports = (pool, _logger) => {
       });
 
       if (measureErrors.length > 0) {
-        return error(res, 'Invalid fundraiser entry data', 400, measureErrors);
+        return error(res, 'Invalid fundraiser entry data', HTTP_STATUS.BAD_REQUEST, measureErrors);
       }
 
       const extended = await hasCampaignModelColumns(pool);
@@ -174,7 +175,7 @@ module.exports = (pool, _logger) => {
       );
 
       if (verifyResult.rows.length === 0) {
-        return error(res, 'Fundraiser entry not found', 404);
+        return error(res, 'Fundraiser entry not found', HTTP_STATUS.NOT_FOUND);
       }
 
       // `quantity` mirrors the legacy `amount` column so pre-migration rows and
@@ -273,7 +274,7 @@ module.exports = (pool, _logger) => {
       const { amount_paid } = req.body;
 
       if (amount_paid === undefined) {
-        return error(res, 'Amount paid is required', 400);
+        return error(res, 'Amount paid is required', HTTP_STATUS.BAD_REQUEST);
       }
 
       const extended = await hasCampaignModelColumns(pool);
@@ -287,7 +288,7 @@ module.exports = (pool, _logger) => {
       );
 
       if (currentResult.rows.length === 0) {
-        return error(res, 'Fundraiser entry not found', 404);
+        return error(res, 'Fundraiser entry not found', HTTP_STATUS.NOT_FOUND);
       }
 
       const amountDue = parseFloat(currentResult.rows[0].entry_amount) || 0;
@@ -338,7 +339,7 @@ module.exports = (pool, _logger) => {
       const { participant_id } = req.query;
 
       if (!participant_id) {
-        return error(res, 'Participant ID is required', 400);
+        return error(res, 'Participant ID is required', HTTP_STATUS.BAD_REQUEST);
       }
 
       const organizationId = await getOrganizationId(req, pool);

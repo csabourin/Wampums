@@ -4,6 +4,7 @@
  * Centralizes all route registrations and mounting.
  */
 const logger = require('../config/logger');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 // Middleware
 const legacyApiDeprecationLogger = (req, res, next) => {
@@ -25,7 +26,7 @@ const createLegacyApiDeprecationResponder = (replacementPrefix = '/api/v1') => (
     ? normalizedPath.replace(/^\/api\//, `${replacementPrefix}/`)
     : `${replacementPrefix}${normalizedPath}`;
 
-  return res.status(410).json({
+  return res.status(HTTP_STATUS.GONE).json({
     success: false,
     message: 'legacy_api_deprecated',
     deprecated_endpoint: normalizedPath,

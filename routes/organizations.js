@@ -8,6 +8,8 @@
  */
 
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
+const { MS_PER_MINUTE } = require('../utils/time-units');
 const router = express.Router();
 const meetingSectionDefaults = require('../config/meeting_sections.json');
 
@@ -148,7 +150,7 @@ const PUBLIC_ORGANIZATION_SETTING_KEYS = [
 // PERFORMANCE OPTIMIZATION: In-memory cache for organization settings
 // Settings rarely change, so caching them significantly improves response time
 const orgSettingsCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+const CACHE_TTL = 5 * MS_PER_MINUTE; // 5 minutes cache
 
 const ORGANIZATION_INFO_LIMITS = Object.freeze({
   shortText: 255,
@@ -371,7 +373,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Organization not found' });
+        return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Organization not found' });
       }
 
       return res.json({ success: true, data: result.rows[0] });
@@ -423,7 +425,7 @@ module.exports = (pool, logger) => {
     }
 
     if (!organizationId) {
-      return res.status(400).json({
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
         message: 'Organization ID is required'
       });
@@ -545,7 +547,7 @@ module.exports = (pool, logger) => {
       }
 
       logger.error('Error fetching public organization settings:', error);
-      return res.status(500).json({
+      return res.status(HTTP_STATUS.INTERNAL_ERROR).json({
         success: false,
         message: 'Error fetching organization settings'
       });
@@ -568,7 +570,7 @@ module.exports = (pool, logger) => {
       }
 
       logger.error('Error fetching organization settings:', error);
-      return res.status(500).json({
+      return res.status(HTTP_STATUS.INTERNAL_ERROR).json({
         success: false,
         message: 'Error fetching organization settings'
       });
@@ -588,7 +590,7 @@ module.exports = (pool, logger) => {
     const validation = validateOrganizationInfo(input);
 
     if (validation.errors.length > 0) {
-      return errorResponse(res, 'Invalid organization settings', 400, validation.errors);
+      return errorResponse(res, 'Invalid organization settings', HTTP_STATUS.BAD_REQUEST, validation.errors);
     }
 
     const client = await pool.connect();
@@ -605,7 +607,7 @@ module.exports = (pool, logger) => {
 
       if (organizationResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        return errorResponse(res, 'Organization not found', 404);
+        return errorResponse(res, 'Organization not found', HTTP_STATUS.NOT_FOUND);
       }
 
       const infoResult = await client.query(
@@ -655,7 +657,7 @@ module.exports = (pool, logger) => {
     const validation = validateUnitVocabulary(req.body);
 
     if (validation.errors.length > 0) {
-      return errorResponse(res, 'Invalid unit vocabulary', 400, validation.errors);
+      return errorResponse(res, 'Invalid unit vocabulary', HTTP_STATUS.BAD_REQUEST, validation.errors);
     }
 
     const programSection = getProgramSectionForProfile(validation.value.profile);
@@ -678,7 +680,7 @@ module.exports = (pool, logger) => {
       );
       if (organizationResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        return errorResponse(res, 'Organization not found', 404);
+        return errorResponse(res, 'Organization not found', HTTP_STATUS.NOT_FOUND);
       }
 
       await client.query(
@@ -911,7 +913,7 @@ module.exports = (pool, logger) => {
     const validation = validateDashboardConfiguration(req.body);
 
     if (validation.errors.length > 0) {
-      return errorResponse(res, 'Invalid dashboard configuration', 400, validation.errors);
+      return errorResponse(res, 'Invalid dashboard configuration', HTTP_STATUS.BAD_REQUEST, validation.errors);
     }
 
     await pool.query(
@@ -991,7 +993,7 @@ module.exports = (pool, logger) => {
     const { setting_key, setting_value } = req.body || {};
 
     if (!setting_key) {
-      return res.status(400).json({ success: false, message: 'setting_key is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'setting_key is required' });
     }
 
     if (DEDICATED_SETTING_KEYS.has(req.body.setting_key)) {
@@ -1053,14 +1055,14 @@ module.exports = (pool, logger) => {
 
     // Validate language code
     if (!language) {
-      return res.status(400).json({
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
         message: 'Language is required'
       });
     }
 
     if (!supportedLanguages.includes(language)) {
-      return res.status(400).json({
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
         message: `Invalid language code. Supported languages: ${supportedLanguages.join(', ')}`
       });
@@ -1223,7 +1225,7 @@ module.exports = (pool, logger) => {
       ...validationResult(req).array().map((problem) => ({ field: problem.path, msg: problem.msg })),
     ];
     if (errors.length > 0) {
-      return errorResponse(res, 'Invalid organization settings', 400, errors);
+      return errorResponse(res, 'Invalid organization settings', HTTP_STATUS.BAD_REQUEST, errors);
     }
 
     const orgInfo = validation.value;
@@ -1415,7 +1417,7 @@ module.exports = (pool, logger) => {
     const organizationId = Number(req.body?.organization_id);
 
     if (!Number.isInteger(organizationId) || organizationId <= 0) {
-      return res.status(400).json({ success: false, message: 'Organization ID is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Organization ID is required' });
     }
 
     // Verify user is an active member of this organization

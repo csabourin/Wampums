@@ -13,6 +13,8 @@ const { LANDING_HOSTS, LANDING_BASE_URL, LANDING_STATIC_PAGES } = require('../co
 const { renderBlogIndex, renderBlogPost } = require('../services/blogPages');
 const { landingLimiter, blogRefreshLimiter } = require('../config/rate-limit');
 const { redirectUnassignedUnitHost } = require('./unit-host');
+const { HTTP_STATUS } = require('../utils/http-status');
+const { ISO_DATE_LENGTH } = require('../utils/time-units');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const REQUEST_BODY_LIMIT = '20mb';
@@ -97,7 +99,6 @@ function sitemapUrl({ loc, enPath, frPath, lastmod, changefreq = 'monthly', prio
 }
 
 module.exports = (app) => {
-  const requestBodyLimit = process.env.REQUEST_BODY_LIMIT || '20mb';
 
   // Trust proxy - use 1 (trust first proxy hop) instead of true
   // to avoid express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY warning
@@ -248,7 +249,7 @@ module.exports = (app) => {
 
   // Dynamic sitemap.xml
   app.get('/sitemap.xml', (req, res) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, ISO_DATE_LENGTH);
     const blog = getBlogService();
     const blogPosts = blog ? blog.getAllPosts() : [];
 
@@ -280,11 +281,11 @@ module.exports = (app) => {
     const secret = process.env.BLOG_REFRESH_SECRET;
     const provided = req.headers['x-refresh-secret'];
     if (secret && provided !== secret) {
-      return res.status(401).json({ success: false, message: 'unauthorized' });
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json({ success: false, message: 'unauthorized' });
     }
     const blog = getBlogService();
     if (!blog) {
-      return res.status(503).json({ success: false, message: 'blog_service_unavailable' });
+      return res.status(HTTP_STATUS.SERVICE_UNAVAILABLE).json({ success: false, message: 'blog_service_unavailable' });
     }
     blog.rebuild();
     const indexNow = require('../services/indexNow');
@@ -350,7 +351,7 @@ module.exports = (app) => {
     if (enBlogIndex || frBlogIndex || enBlogPost || frBlogPost) {
       const blog = getBlogService();
       if (!blog) {
-        return res.status(503).send('Blog service unavailable');
+        return res.status(HTTP_STATUS.SERVICE_UNAVAILABLE).send('Blog service unavailable');
       }
 
       try {
@@ -434,7 +435,7 @@ module.exports = (app) => {
 
   // Health check
   app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.status(HTTP_STATUS.OK).json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
   logger.info('✅ Global middleware initialized');

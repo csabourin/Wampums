@@ -6,6 +6,7 @@
  */
 
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 
 const {
@@ -249,11 +250,11 @@ module.exports = (pool, logger) => {
     const badgeData = req.body.badge_data || null;
 
     if (!programType || !PROGRAM_TABLE_CONFIG[programType]) {
-      return errorResponse(res, 'program_type is required and must be supported', 400);
+      return errorResponse(res, 'program_type is required and must be supported', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (!programData || typeof programData !== 'object' || Array.isArray(programData)) {
-      return errorResponse(res, 'program_data must be an object', 400);
+      return errorResponse(res, 'program_data must be an object', HTTP_STATUS.BAD_REQUEST);
     }
 
     try {
@@ -267,13 +268,13 @@ module.exports = (pool, logger) => {
         user: req.user
       });
 
-      return success(res, result, 'Program progression recorded', 201);
+      return success(res, result, 'Program progression recorded', HTTP_STATUS.CREATED);
     } catch (err) {
       if (err.message === 'Participant not found in organization') {
-        return errorResponse(res, err.message, 404);
+        return errorResponse(res, err.message, HTTP_STATUS.NOT_FOUND);
       }
       if (err.message === 'Unsupported program_type' || err.message === 'No valid program data provided' || err.message === 'Badge template not found') {
-        return errorResponse(res, err.message, 400);
+        return errorResponse(res, err.message, HTTP_STATUS.BAD_REQUEST);
       }
 
       logger.error('Failed to record program progression', {
@@ -283,7 +284,7 @@ module.exports = (pool, logger) => {
         error: err.message
       });
 
-      return errorResponse(res, 'Failed to record program progression', 500);
+      return errorResponse(res, 'Failed to record program progression', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 

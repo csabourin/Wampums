@@ -2,6 +2,8 @@
 // Provides RESTful endpoints for equipment inventory, reservations, and guardian approvals
 const express = require('express');
 const { check, param, query } = require('express-validator');
+const { HTTP_STATUS } = require('../utils/http-status');
+const { ISO_DATE_LENGTH } = require('../utils/time-units');
 const router = express.Router();
 const multer = require('multer');
 
@@ -32,6 +34,7 @@ const { findUninvitedParticipants } = require('../services/activityInvitations')
 const { CampMaterialError, reserveCampMaterial } = require('../services/campMaterialList');
 const {
   MAX_FILE_SIZE,
+  MAX_FILE_SIZE_MB,
   OUTPUT_MIME_TYPE,
   validateFile,
   isAllowedImageType,
@@ -77,7 +80,7 @@ function parseDate(dateString) {
   const parsed = new Date(dateString);
   return Number.isNaN(parsed.getTime())
     ? null
-    : parsed.toISOString().slice(0, 10);
+    : parsed.toISOString().slice(0, ISO_DATE_LENGTH);
 }
 
 /**
@@ -377,7 +380,7 @@ module.exports = (pool, logger) => {
   async function verifyEquipmentAccess(equipmentId, organizationId) {
     if (!await isEquipmentAccessible(pool, organizationId, equipmentId)) {
       const accessError = new Error('Equipment not accessible for organization');
-      accessError.statusCode = 403;
+      accessError.statusCode = HTTP_STATUS.FORBIDDEN;
       throw accessError;
     }
   }
@@ -484,7 +487,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error fetching equipment', err.statusCode || 500);
+        return error(res, err.message || 'Error fetching equipment', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -577,7 +580,7 @@ module.exports = (pool, logger) => {
           photoOrganizationId !== null &&
           photoOrganizationId !== organizationId
         ) {
-          return error(res, 'equipment_photo_organization_mismatch', 400);
+          return error(res, 'equipment_photo_organization_mismatch', HTTP_STATUS.BAD_REQUEST);
         }
         if (photoOrganizationId !== null) {
           storedPhotoReference = extractPathFromUrl(photo_url);
@@ -638,14 +641,14 @@ module.exports = (pool, logger) => {
           res,
           { equipment },
           'Equipment saved',
-          201,
+          HTTP_STATUS.CREATED,
         );
       } catch (err) {
         if (err instanceof OwnershipError) { return error(res, err.message, err.status); }
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error saving equipment', err.statusCode || 500);
+        return error(res, err.message || 'Error saving equipment', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -708,7 +711,7 @@ module.exports = (pool, logger) => {
         );
 
         if (existingEquipment.rows.length === 0) {
-          return error(res, 'Equipment not found', 404);
+          return error(res, 'Equipment not found', HTTP_STATUS.NOT_FOUND);
         }
 
         const ownerOrganizationId = existingEquipment.rows[0].organization_id;
@@ -725,7 +728,7 @@ module.exports = (pool, logger) => {
             photoOrganizationId !== null &&
             photoOrganizationId !== ownerOrganizationId
           ) {
-            return error(res, 'equipment_photo_organization_mismatch', 400);
+            return error(res, 'equipment_photo_organization_mismatch', HTTP_STATUS.BAD_REQUEST);
           }
           if (photoOrganizationId !== null) {
             req.body.photo_url = extractPathFromUrl(req.body.photo_url);
@@ -833,7 +836,7 @@ module.exports = (pool, logger) => {
         const result = await pool.query(queryText, [equipmentId, ...values, organizationId]);
 
         if (result.rows.length === 0) {
-          return error(res, 'Equipment not found', 404);
+          return error(res, 'Equipment not found', HTTP_STATUS.NOT_FOUND);
         }
 
         const shareWithLocalGroup = resolveShareWithLocalGroup(
@@ -857,7 +860,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error updating equipment', err.statusCode || 500);
+        return error(res, err.message || 'Error updating equipment', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -890,7 +893,7 @@ module.exports = (pool, logger) => {
         );
         const equipment = result.rows[0];
         if (!equipment?.photo_url) {
-          return error(res, 'equipment_photo_not_found', 404);
+          return error(res, 'equipment_photo_not_found', HTTP_STATUS.NOT_FOUND);
         }
 
         const photoUrl = await getSignedPhotoUrl(
@@ -898,7 +901,7 @@ module.exports = (pool, logger) => {
           equipment.organization_id,
         );
         if (!photoUrl) {
-          return error(res, 'equipment_photo_not_found', 404);
+          return error(res, 'equipment_photo_not_found', HTTP_STATUS.NOT_FOUND);
         }
 
         return success(res, { photo_url: photoUrl });
@@ -909,7 +912,7 @@ module.exports = (pool, logger) => {
         return error(
           res,
           err.message || 'equipment_photo_refresh_error',
-          err.statusCode || 500,
+          err.statusCode || HTTP_STATUS.INTERNAL_ERROR,
         );
       }
     }),
@@ -943,7 +946,7 @@ module.exports = (pool, logger) => {
           return error(
             res,
             'Cannot delete equipment with active reservations',
-            400,
+            HTTP_STATUS.BAD_REQUEST,
           );
         }
 
@@ -957,7 +960,7 @@ module.exports = (pool, logger) => {
         );
 
         if (result.rows.length === 0) {
-          return error(res, 'Equipment not found', 404);
+          return error(res, 'Equipment not found', HTTP_STATUS.NOT_FOUND);
         }
 
         // Delete photo from storage if exists
@@ -978,7 +981,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error deleting equipment', err.statusCode || 500);
+        return error(res, err.message || 'Error deleting equipment', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1001,7 +1004,7 @@ module.exports = (pool, logger) => {
           return error(
             res,
             'Photo storage is not configured. Connect the Railway bucket to this service and inject its S3 credentials.',
-            503,
+            HTTP_STATUS.SERVICE_UNAVAILABLE,
           );
         }
 
@@ -1018,13 +1021,13 @@ module.exports = (pool, logger) => {
         );
 
         if (equipmentCheck.rows.length === 0) {
-          return error(res, 'Equipment not found', 404);
+          return error(res, 'Equipment not found', HTTP_STATUS.NOT_FOUND);
         }
 
         // Validate file
         const validation = validateFile(req.file);
         if (!validation.isValid) {
-          return error(res, validation.error, 400);
+          return error(res, validation.error, HTTP_STATUS.BAD_REQUEST);
         }
 
         // Resize and convert to WebP before upload
@@ -1035,7 +1038,7 @@ module.exports = (pool, logger) => {
             originalFilename: req.file.originalname,
           });
         } catch (processingError) {
-          return error(res, 'Unable to process image upload', 400);
+          return error(res, 'Unable to process image upload', HTTP_STATUS.BAD_REQUEST);
         }
 
         const oldPhotoUrl = equipmentCheck.rows[0].photo_url;
@@ -1057,7 +1060,7 @@ module.exports = (pool, logger) => {
           return error(
             res,
             uploadResult.error || 'Failed to upload photo',
-            500,
+            HTTP_STATUS.INTERNAL_ERROR,
           );
         }
 
@@ -1092,11 +1095,11 @@ module.exports = (pool, logger) => {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return error(
             res,
-            `File size exceeds maximum allowed (${MAX_FILE_SIZE / 1024 / 1024}MB)`,
-            400,
+            `File size exceeds maximum allowed (${MAX_FILE_SIZE_MB}MB)`,
+            HTTP_STATUS.BAD_REQUEST,
           );
         }
-        return error(res, err.message || 'Error uploading photo', err.statusCode || 500);
+        return error(res, err.message || 'Error uploading photo', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1124,7 +1127,7 @@ module.exports = (pool, logger) => {
         );
 
         if (equipmentCheck.rows.length === 0) {
-          return error(res, 'Equipment not found', 404);
+          return error(res, 'Equipment not found', HTTP_STATUS.NOT_FOUND);
         }
 
         const photoUrl = equipmentCheck.rows[0].photo_url;
@@ -1162,7 +1165,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error deleting photo', err.statusCode || 500);
+        return error(res, err.message || 'Error deleting photo', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1275,7 +1278,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error fetching reservations', err.statusCode || 500);
+        return error(res, err.message || 'Error fetching reservations', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1327,14 +1330,14 @@ module.exports = (pool, logger) => {
           normalizedDate = normalizedDateFrom; // Use date_from as meeting_date for backward compatibility
 
           if (!normalizedDateFrom || !normalizedDateTo) {
-            return error(res, 'Invalid date range', 400);
+            return error(res, 'Invalid date range', HTTP_STATUS.BAD_REQUEST);
           }
 
           if (normalizedDateFrom > normalizedDateTo) {
             return error(
               res,
               'date_from must be before or equal to date_to',
-              400,
+              HTTP_STATUS.BAD_REQUEST,
             );
           }
         } else if (meeting_date) {
@@ -1343,13 +1346,13 @@ module.exports = (pool, logger) => {
           normalizedDateTo = normalizedDate;
 
           if (!normalizedDate) {
-            return error(res, 'Invalid meeting date', 400);
+            return error(res, 'Invalid meeting date', HTTP_STATUS.BAD_REQUEST);
           }
         } else {
           return error(
             res,
             'Either meeting_date or date_from/date_to is required',
-            400,
+            HTTP_STATUS.BAD_REQUEST,
           );
         }
 
@@ -1363,7 +1366,7 @@ module.exports = (pool, logger) => {
           );
 
           if (equipmentResult.rows.length === 0) {
-            return { rollback: true, send: () => error(res, 'Equipment not found', 404) };
+            return { rollback: true, send: () => error(res, 'Equipment not found', HTTP_STATUS.NOT_FOUND) };
           }
 
           const { name: equipmentName, quantity_total: quantityTotal } =
@@ -1409,7 +1412,7 @@ module.exports = (pool, logger) => {
               send: () => error(
                 res,
                 `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${reserved_quantity}).`,
-                400,
+                HTTP_STATUS.BAD_REQUEST,
               ),
             };
           }
@@ -1447,7 +1450,7 @@ module.exports = (pool, logger) => {
               res,
               { reservation: insertResult.rows[0] },
               'Reservation saved',
-              201,
+              HTTP_STATUS.CREATED,
             ),
           };
         });
@@ -1456,7 +1459,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error saving reservation', err.statusCode || 500);
+        return error(res, err.message || 'Error saving reservation', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1514,7 +1517,7 @@ module.exports = (pool, logger) => {
             );
 
             if (currentReservation.rows.length === 0) {
-              return { rollback: true, send: () => error(res, 'Reservation not found', 404) };
+              return { rollback: true, send: () => error(res, 'Reservation not found', HTTP_STATUS.NOT_FOUND) };
             }
 
             const reservation = currentReservation.rows[0];
@@ -1530,7 +1533,7 @@ module.exports = (pool, logger) => {
               );
 
               if (equipmentResult.rows.length === 0) {
-                return { rollback: true, send: () => error(res, 'Equipment not found', 404) };
+                return { rollback: true, send: () => error(res, 'Equipment not found', HTTP_STATUS.NOT_FOUND) };
               }
 
               const { name: equipmentName, quantity_total: quantityTotal } =
@@ -1577,7 +1580,7 @@ module.exports = (pool, logger) => {
                   send: () => error(
                     res,
                     `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${requestedQuantity}).`,
-                    400,
+                    HTTP_STATUS.BAD_REQUEST,
                   ),
                 };
               }
@@ -1595,7 +1598,7 @@ module.exports = (pool, logger) => {
           ]);
 
           if (result.rows.length === 0) {
-            return { rollback: true, send: () => error(res, 'Reservation not found', 404) };
+            return { rollback: true, send: () => error(res, 'Reservation not found', HTTP_STATUS.NOT_FOUND) };
           }
 
           return {
@@ -1611,7 +1614,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error updating reservation', err.statusCode || 500);
+        return error(res, err.message || 'Error updating reservation', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1676,7 +1679,6 @@ module.exports = (pool, logger) => {
 
         let normalizedDateFrom;
         let normalizedDateTo;
-        let activityName;
 
         // If activity_id is provided, fetch activity details and use its date
         if (activity_id) {
@@ -1687,18 +1689,17 @@ module.exports = (pool, logger) => {
           );
 
           if (activityResult.rows.length === 0) {
-            return error(res, 'Activity not found or not accessible', 404);
+            return error(res, 'Activity not found or not accessible', HTTP_STATUS.NOT_FOUND);
           }
 
           const activity = activityResult.rows[0];
-          activityName = activity.name;
           // The whole activity, as the picker counts availability for it.
           normalizedDateFrom = parseDate(activity.activity_start_date || activity.activity_date);
           normalizedDateTo = parseDate(activity.activity_end_date || activity.activity_date || activity.activity_start_date);
         } else {
           // If no activity_id, dates are required
           if (!date_from || !date_to) {
-            return error(res, 'Either activity_id or both date_from and date_to must be provided', 400);
+            return error(res, 'Either activity_id or both date_from and date_to must be provided', HTTP_STATUS.BAD_REQUEST);
           }
 
           normalizedDateFrom = parseDate(date_from);
@@ -1706,14 +1707,14 @@ module.exports = (pool, logger) => {
         }
 
         if (!normalizedDateFrom || !normalizedDateTo) {
-          return error(res, 'Invalid date range', 400);
+          return error(res, 'Invalid date range', HTTP_STATUS.BAD_REQUEST);
         }
 
         if (normalizedDateFrom > normalizedDateTo) {
           return error(
             res,
             'date_from must be before or equal to date_to',
-            400,
+            HTTP_STATUS.BAD_REQUEST,
           );
         }
 
@@ -1736,7 +1737,7 @@ module.exports = (pool, logger) => {
               [equipmentId],
             );
             if (equipmentResult.rows.length === 0) {
-              return { rollback: true, send: () => error(res, `Equipment not found`, 404) };
+              return { rollback: true, send: () => error(res, `Equipment not found`, HTTP_STATUS.NOT_FOUND) };
             }
             lockedItems.set(equipmentId, equipmentResult.rows[0]);
           }
@@ -1775,7 +1776,7 @@ module.exports = (pool, logger) => {
                 send: () => error(
                   res,
                   `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${item.quantity}).`,
-                  400,
+                  HTTP_STATUS.BAD_REQUEST,
                 ),
               };
             }
@@ -1811,7 +1812,7 @@ module.exports = (pool, logger) => {
                 count: createdReservations.length,
               },
               'Bulk reservations saved',
-              201,
+              HTTP_STATUS.CREATED,
             ),
           };
         });
@@ -1820,7 +1821,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error saving bulk reservations', err.statusCode || 500);
+        return error(res, err.message || 'Error saving bulk reservations', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -1917,7 +1918,7 @@ module.exports = (pool, logger) => {
         return error(
           res,
           err.message || 'Error fetching permission slips',
-          err.statusCode || 500,
+          err.statusCode || HTTP_STATUS.INTERNAL_ERROR,
         );
       }
     }),
@@ -1949,12 +1950,12 @@ module.exports = (pool, logger) => {
 
         // Require either activity_id or meeting_date
         if (!activity_id && !meeting_date) {
-          return error(res, 'Either activity_id or meeting_date must be provided', 400);
+          return error(res, 'Either activity_id or meeting_date must be provided', HTTP_STATUS.BAD_REQUEST);
         }
 
         const normalizedDate = meeting_date ? parseDate(meeting_date) : null;
         if (meeting_date && !normalizedDate) {
-          return error(res, 'Invalid meeting date', 400);
+          return error(res, 'Invalid meeting date', HTTP_STATUS.BAD_REQUEST);
         }
 
         // The slips this request is about, counted by email status; shared with the leaders' retry below
@@ -2145,8 +2146,6 @@ module.exports = (pool, logger) => {
 
           const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
           const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
-          const webSignLink = signLink; // Web link (legacy compatibility)
-          const mobileSignLink = `wampums://permission-slip/${slip.access_token}`;
 
           // Send to ALL recipients
           let slipSentCount = 0;
@@ -2234,7 +2233,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error sending emails', err.statusCode || 500);
+        return error(res, err.message || 'Error sending emails', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -2267,12 +2266,12 @@ module.exports = (pool, logger) => {
 
         // Require either activity_id or meeting_date
         if (!activity_id && !meeting_date) {
-          return error(res, 'Either activity_id or meeting_date must be provided', 400);
+          return error(res, 'Either activity_id or meeting_date must be provided', HTTP_STATUS.BAD_REQUEST);
         }
 
         const normalizedDate = meeting_date ? parseDate(meeting_date) : null;
         if (meeting_date && !normalizedDate) {
-          return error(res, 'Invalid meeting date', 400);
+          return error(res, 'Invalid meeting date', HTTP_STATUS.BAD_REQUEST);
         }
 
         // First, check if there are any pending (unsigned) permission slips at all
@@ -2437,8 +2436,6 @@ module.exports = (pool, logger) => {
 
           const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
           const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
-          const webSignLink = signLink; // Web link (legacy compatibility)
-          const mobileSignLink = `wampums://permission-slip/${slip.access_token}`;
 
           // Send to ALL recipients
           let slipSentCount = 0;
@@ -2514,7 +2511,7 @@ module.exports = (pool, logger) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error sending reminders', err.statusCode || 500);
+        return error(res, err.message || 'Error sending reminders', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -2673,7 +2670,7 @@ module.exports = (pool, logger) => {
           return error(
             res,
             'At least one participant_id or participant_ids array is required',
-            400,
+            HTTP_STATUS.BAD_REQUEST,
           );
         }
 
@@ -2692,7 +2689,7 @@ module.exports = (pool, logger) => {
           );
 
           if (activityResult.rows.length === 0) {
-            return error(res, 'Activity not found', 404);
+            return error(res, 'Activity not found', HTTP_STATUS.NOT_FOUND);
           }
 
           // A slip is for a child the activity invites
@@ -2723,7 +2720,7 @@ module.exports = (pool, logger) => {
             return error(
               res,
               'Either activity_id or meeting_date must be provided',
-              400
+              HTTP_STATUS.BAD_REQUEST
             );
           }
         }
@@ -2734,7 +2731,7 @@ module.exports = (pool, logger) => {
 
         const normalizedDate = parseDate(finalMeetingDate);
         if (!normalizedDate) {
-          return error(res, 'Invalid meeting date', 400);
+          return error(res, 'Invalid meeting date', HTTP_STATUS.BAD_REQUEST);
         }
 
         const normalizedDeadline = deadline_date
@@ -2820,13 +2817,13 @@ module.exports = (pool, logger) => {
             answered_participant_ids: answeredParticipantIds,
           },
           'Permission slip(s) saved',
-          201,
+          HTTP_STATUS.CREATED,
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || 'Error saving permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error saving permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -2853,7 +2850,7 @@ module.exports = (pool, logger) => {
         );
 
         if (slipResult.rows.length === 0) {
-          return error(res, 'Permission slip not found', 404);
+          return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
         }
         if (
           !(await canAccessPermissionSlip(
@@ -2867,7 +2864,7 @@ module.exports = (pool, logger) => {
 
         return success(res, slipResult.rows[0]);
       } catch (err) {
-        return error(res, err.message || 'Error fetching permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error fetching permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -2896,11 +2893,11 @@ module.exports = (pool, logger) => {
         );
 
         if (slipResult.rows.length === 0) {
-          return error(res, 'Permission slip not found', 404);
+          return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
         }
 
         if (slipResult.rows[0].status !== 'pending') {
-          return error(res, 'Permission slip has already been answered', 409);
+          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
         }
 
         const participantId = slipResult.rows[0].participant_id;
@@ -2921,7 +2918,7 @@ module.exports = (pool, logger) => {
         );
 
         if (updateResult.rows.length === 0) {
-          return error(res, 'Permission slip has already been answered', 409);
+          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
         }
 
         return success(
@@ -2930,7 +2927,7 @@ module.exports = (pool, logger) => {
           'Permission slip signed',
         );
       } catch (err) {
-        return error(res, err.message || 'Error signing permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error signing permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -2962,10 +2959,10 @@ module.exports = (pool, logger) => {
         );
 
         if (slipResult.rows.length === 0) {
-          return error(res, 'Permission slip not found', 404);
+          return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
         }
         if (slipResult.rows[0].status !== 'pending') {
-          return error(res, 'Permission slip has already been answered', 409);
+          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
         }
         if (!(await isOwnChild(req.user.id, organizationId, slipResult.rows[0].participant_id))) {
           // A translation key: the screen shows it as is
@@ -2984,7 +2981,7 @@ module.exports = (pool, logger) => {
         );
 
         if (updateResult.rows.length === 0) {
-          return error(res, 'Permission slip has already been answered', 409);
+          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
         }
         return success(
           res,
@@ -2993,7 +2990,7 @@ module.exports = (pool, logger) => {
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {return;}
-        return error(res, err.message || 'Error declining permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error declining permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -3017,12 +3014,12 @@ module.exports = (pool, logger) => {
         );
 
         if (slipResult.rows.length === 0) {
-          return error(res, 'Permission slip not found', 404);
+          return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
         }
 
         return success(res, slipResult.rows[0]);
       } catch (err) {
-        return error(res, err.message || 'Error fetching permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error fetching permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -3047,11 +3044,11 @@ module.exports = (pool, logger) => {
         );
 
         if (slipResult.rows.length === 0) {
-          return error(res, 'Permission slip not found', 404);
+          return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
         }
 
         if (slipResult.rows[0].status !== 'pending') {
-          return error(res, 'Permission slip has already been answered', 409);
+          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
         }
 
         const updateResult = await pool.query(
@@ -3066,7 +3063,7 @@ module.exports = (pool, logger) => {
         );
 
         if (updateResult.rows.length === 0) {
-          return error(res, 'Permission slip has already been answered', 409);
+          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
         }
 
         return success(
@@ -3075,7 +3072,7 @@ module.exports = (pool, logger) => {
           'Permission slip signed',
         );
       } catch (err) {
-        return error(res, err.message || 'Error signing permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error signing permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -3111,9 +3108,9 @@ module.exports = (pool, logger) => {
             [token],
           );
           if (slipResult.rows.length === 0) {
-            return error(res, 'Permission slip not found', 404);
+            return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
           }
-          return error(res, 'Permission slip has already been answered', 409);
+          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
         }
 
         return success(
@@ -3122,7 +3119,7 @@ module.exports = (pool, logger) => {
           'Permission slip declined',
         );
       } catch (err) {
-        return error(res, err.message || 'Error declining permission slip', err.statusCode || 500);
+        return error(res, err.message || 'Error declining permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -3149,7 +3146,7 @@ module.exports = (pool, logger) => {
         );
 
         if (updateResult.rows.length === 0) {
-          return error(res, 'Permission slip not found', 404);
+          return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
         }
 
         return success(
@@ -3164,7 +3161,7 @@ module.exports = (pool, logger) => {
         return error(
           res,
           err.message || 'Error archiving permission slip',
-          err.statusCode || 500,
+          err.statusCode || HTTP_STATUS.INTERNAL_ERROR,
         );
       }
     }),
@@ -3191,12 +3188,12 @@ module.exports = (pool, logger) => {
         );
 
         if (slipResult.rows.length === 0) {
-          return error(res, 'Permission slip not found', 404);
+          return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
         }
 
         // Prevent deletion if email has been sent
         if (slipResult.rows[0].email_sent) {
-          return error(res, 'Cannot delete permission slip after email has been sent. Please archive instead.', 400);
+          return error(res, 'Cannot delete permission slip after email has been sent. Please archive instead.', HTTP_STATUS.BAD_REQUEST);
         }
 
         // Delete the slip
@@ -3217,7 +3214,7 @@ module.exports = (pool, logger) => {
         return error(
           res,
           err.message || 'Error deleting permission slip',
-          err.statusCode || 500,
+          err.statusCode || HTTP_STATUS.INTERNAL_ERROR,
         );
       }
     }),
@@ -3314,7 +3311,7 @@ module.exports = (pool, logger) => {
         return error(
           res,
           err.message || 'Error loading resource dashboard',
-          err.statusCode || 500,
+          err.statusCode || HTTP_STATUS.INTERNAL_ERROR,
         );
       }
     }),

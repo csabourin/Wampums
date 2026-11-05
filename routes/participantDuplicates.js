@@ -27,6 +27,7 @@ const {
   listDuplicateCandidates,
   resolveDuplicateCandidate,
 } = require('../services/duplicateCandidates');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 /** Longest an administrator's note on a decision may be. */
 const MAX_NOTE_LENGTH = 1000;
@@ -73,7 +74,7 @@ module.exports = (pool) => {
       });
 
       if (!resolved) {
-        return error(res, 'No pending duplicate with this id in this organization', 404);
+        return error(res, 'No pending duplicate with this id in this organization', HTTP_STATUS.NOT_FOUND);
       }
       return success(res, resolved, 'Decision recorded');
     })

@@ -1,3 +1,4 @@
+const { MS_PER_MINUTE } = require('../utils/time-units');
 /**
  * Unit email sender identity.
  *
@@ -69,7 +70,7 @@ function getPlatformSenderEmail() {
 
 const BREVO_DOMAINS_URL = 'https://api.brevo.com/v3/senders/domains';
 const PROVIDER_DOMAINS_TTL_MS = 600000; // 10 minutes
-const PROVIDER_DOMAINS_RETRY_MS = 60000; // 1 minute
+const PROVIDER_DOMAINS_RETRY_MS = MS_PER_MINUTE; // 1 minute
 const PROVIDER_REQUEST_TIMEOUT_MS = 5000;
 
 let providerDomainsCache = { domains: new Set(), expiresAt: 0 };

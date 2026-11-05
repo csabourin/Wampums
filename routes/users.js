@@ -34,7 +34,7 @@ const { param, body } = require('express-validator');
 const { checkValidation } = require('../middleware/validation');
 
 // Import utilities
-const { handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 /**
  * Export route factory function
@@ -96,7 +96,7 @@ module.exports = (pool, logger) => {
       );
       if (membership.rows.length === 0) {
         await client.query('ROLLBACK');
-        return error(res, 'User not found in this organization', 404);
+        return error(res, 'User not found in this organization', HTTP_STATUS.NOT_FOUND);
       }
 
       // A built-in role the unit hid is kept by those who hold it, never granted anew.
@@ -403,7 +403,7 @@ module.exports = (pool, logger) => {
     const { user_id } = req.body;
 
     if (!user_id) {
-      return error(res, 'User ID is required', 400);
+      return error(res, 'User ID is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Verify target user exists and belongs to this organization
@@ -415,7 +415,7 @@ module.exports = (pool, logger) => {
     );
 
     if (userCheck.rows.length === 0) {
-      return error(res, 'User not found in this organization', 404);
+      return error(res, 'User not found in this organization', HTTP_STATUS.NOT_FOUND);
     }
 
     // Update user verification status
@@ -465,7 +465,7 @@ module.exports = (pool, logger) => {
     const { user_id, role } = req.body;
 
     if (!user_id || !role) {
-      return error(res, 'User ID and role are required', 400);
+      return error(res, 'User ID and role are required', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Map old role names to new role names for backwards compatibility
@@ -488,12 +488,12 @@ module.exports = (pool, logger) => {
     const requestedRole = rolesResult.rows.find((r) => r.role_name === mappedRole);
 
     if (!requestedRole) {
-      return error(res, `Invalid role. Valid roles: ${rolesResult.rows.map((r) => r.role_name).join(', ')}`, 400);
+      return error(res, `Invalid role. Valid roles: ${rolesResult.rows.map((r) => r.role_name).join(', ')}`, HTTP_STATUS.BAD_REQUEST);
     }
 
     // Prevent users from changing their own role
     if (user_id === req.user.id) {
-      return error(res, 'Cannot change your own role', 400);
+      return error(res, 'Cannot change your own role', HTTP_STATUS.BAD_REQUEST);
     }
 
     return replaceMemberRoles(req, res, {
@@ -536,7 +536,7 @@ module.exports = (pool, logger) => {
     );
 
     if (userCheck.rows.length === 0) {
-      return error(res, 'User not found in this organization', 404);
+      return error(res, 'User not found in this organization', HTTP_STATUS.NOT_FOUND);
     }
 
     const roleIds = userCheck.rows[0].role_ids || [];
@@ -738,24 +738,24 @@ module.exports = (pool, logger) => {
     const { roleIds } = req.body;
 
     if (!Array.isArray(roleIds) || roleIds.length === 0) {
-      return error(res, 'roleIds must be a non-empty array', 400);
+      return error(res, 'roleIds must be a non-empty array', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Prevent users from changing their own roles (compare as strings since both are UUIDs)
     if (userId === String(req.user.id)) {
-      return error(res, 'Cannot change your own roles', 400);
+      return error(res, 'Cannot change your own roles', HTTP_STATUS.BAD_REQUEST);
     }
 
     const requestedRoleIds = normalizeRoleIds(roleIds);
     if (requestedRoleIds.length !== new Set(roleIds.map(String)).size) {
-      return error(res, 'One or more invalid role IDs', 400);
+      return error(res, 'One or more invalid role IDs', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Every role must exist and be one this unit may use.
     const unitRoles = await findRolesInUnit(pool, requestedRoleIds, organizationId);
 
     if (unitRoles.length !== requestedRoleIds.length) {
-      return error(res, 'One or more invalid role IDs', 400);
+      return error(res, 'One or more invalid role IDs', HTTP_STATUS.BAD_REQUEST);
     }
 
     return replaceMemberRoles(req, res, { organizationId, userId, roleIds: requestedRoleIds });
@@ -795,7 +795,8 @@ module.exports = (pool, logger) => {
    */
   router.post('/link-participants', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    let { user_id, participant_ids } = req.body;
+    let { user_id } = req.body;
+    const { participant_ids } = req.body;
 
     // If no user_id provided, use the current user (self-linking)
     if (!user_id) {
@@ -813,7 +814,7 @@ module.exports = (pool, logger) => {
     }
 
     if (!participant_ids || !Array.isArray(participant_ids)) {
-      return error(res, 'participant_ids array is required', 400);
+      return error(res, 'participant_ids array is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Verify target user belongs to this organization
@@ -823,7 +824,7 @@ module.exports = (pool, logger) => {
     );
 
     if (userCheck.rows.length === 0) {
-      return error(res, 'User not found in this organization', 404);
+      return error(res, 'User not found in this organization', HTTP_STATUS.NOT_FOUND);
     }
 
     const client = await pool.connect();
@@ -908,20 +909,20 @@ module.exports = (pool, logger) => {
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
     if (!user_id || !participant_id) {
-      return error(res, 'User ID and participant ID are required', 400);
+      return error(res, 'User ID and participant ID are required', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (!uuidPattern.test(userId)) {
-      return error(res, 'Invalid user ID', 400);
+      return error(res, 'Invalid user ID', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (!Number.isInteger(participantId) || participantId <= 0) {
-      return error(res, 'Invalid participant ID', 400);
+      return error(res, 'Invalid participant ID', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Both ends must belong to the caller's unit; this route used to check neither.
     if (!await isAssociationInUnit(pool, { organizationId, participantId, userId })) {
-      return error(res, 'Participant or user not found in this organization', 404);
+      return error(res, 'Participant or user not found in this organization', HTTP_STATUS.NOT_FOUND);
     }
 
     await grantParticipantAccess(pool, {

@@ -20,13 +20,14 @@
 
 import { CONFIG } from '../../config.js';
 import { debugLog, debugError, debugWarn } from '../../utils/DebugUtils.js';
+import { MS_PER_MINUTE } from '../../utils/TimeUnits.js';
 
 /** Build id this client booted with. */
 const BUILD_ID_KEY = 'wampums.client.buildId';
 /** Marks that a recovery reload already happened; prevents reload loops. */
 const RECOVERY_FLAG_KEY = 'wampums.client.recovering';
 /** How long a single recovery attempt stays "in progress", in milliseconds. */
-const RECOVERY_WINDOW_MS = 60 * 1000;
+const RECOVERY_WINDOW_MS = MS_PER_MINUTE;
 /** Give up on the version probe rather than delaying boot indefinitely. */
 const VERSION_PROBE_TIMEOUT_MS = 8000;
 

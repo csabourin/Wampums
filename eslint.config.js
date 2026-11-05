@@ -104,7 +104,9 @@ module.exports = [
       // ============================================
       // STYLE (warnings only)
       // ============================================
-      'camelcase': ['warn', { properties: 'never', ignoreDestructuring: true }],
+      // snake_case names mirror database columns and API fields (participant_id);
+      // mixed forms such as userId_x are still reported.
+      'camelcase': ['warn', { properties: 'never', ignoreDestructuring: true, allow: ['^[a-z][a-z0-9]*(_[a-z0-9]+)+$'] }],
       'indent': ['warn', 2, { SwitchCase: 1 }],
       'linebreak-style': ['warn', 'unix'],
       'quotes': ['warn', 'single', { avoidEscape: true, allowTemplateLiterals: true }],
@@ -133,7 +135,8 @@ module.exports = [
     rules: { 'no-console': 'off', 'no-magic-numbers': 'off' },
   },
   {
-    files: ['config/**/*.js', '*.config.js', '*.config.mjs'],
+    // Configuration files are where values get their names.
+    files: ['config/**/*.js', '*.config.js', '*.config.mjs', 'spa/config.js', 'spa/config/**/*.js'],
     rules: { 'no-magic-numbers': 'off' },
   },
 

@@ -11,6 +11,7 @@ const path = require('path');
 const matter = require('gray-matter');
 const { marked } = require('marked');
 const logger = require('../config/logger');
+const { ISO_DATE_LENGTH } = require('../utils/time-units');
 
 const BLOG_DIR = path.join(process.cwd(), 'content', 'blog');
 
@@ -99,8 +100,8 @@ function parseFile(filepath, lang) {
     return {
       slug: data.slug,
       title: data.title,
-      date: data.date || new Date().toISOString().slice(0, 10),
-      updated: data.updated || data.date || new Date().toISOString().slice(0, 10),
+      date: data.date || new Date().toISOString().slice(0, ISO_DATE_LENGTH),
+      updated: data.updated || data.date || new Date().toISOString().slice(0, ISO_DATE_LENGTH),
       lang: data.lang || lang,
       alternate: data.alternate || '',
       description: data.description || '',

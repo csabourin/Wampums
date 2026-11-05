@@ -1,5 +1,7 @@
 // RESTful routes for attendance
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
+const { rowPlaceholders } = require('../utils/sql-placeholders');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, allowDemoSandbox, withScoutYear } = require('../middleware/auth');
 const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
@@ -7,7 +9,7 @@ const { allEnrolledInUnit, lockParticipantsInUnit } = require('../services/unitP
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateDate, validateAttendanceStatus, checkValidation, validateIdQuery, validateDateOptional } = require('../middleware/validation');
 const { getPointSystemRules } = require('../utils');
-const { calculateAttendancePoints, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { calculateAttendancePoints } = require('../utils/api-helpers');
 
 // Longest activity date range (in days) expanded into selectable attendance dates
 const MAX_ACTIVITY_SPAN_DAYS = 31;
@@ -253,7 +255,7 @@ module.exports = (pool, logger) => {
           ...result.rows[0],
           previous_status: previousStatus
         };
-        return success(res, responseData, 'Attendance marked successfully', 201);
+        return success(res, responseData, 'Attendance marked successfully', HTTP_STATUS.CREATED);
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;
@@ -315,11 +317,11 @@ module.exports = (pool, logger) => {
       const { fromDate, toDate } = req.body;
 
       if (!fromDate || !toDate) {
-        return error(res, 'fromDate and toDate are required', 400);
+        return error(res, 'fromDate and toDate are required', HTTP_STATUS.BAD_REQUEST);
       }
 
       if (fromDate === toDate) {
-        return error(res, 'fromDate and toDate must be different', 400);
+        return error(res, 'fromDate and toDate must be different', HTTP_STATUS.BAD_REQUEST);
       }
 
       const client = await pool.connect();
@@ -357,8 +359,9 @@ module.exports = (pool, logger) => {
 
         // Batch insert the attendance records for target date. A carried day
         // grants no attendance points, and records that it granted none.
+        const CARRIED_ATTENDANCE_COLUMNS = 4;
         const valuesClauses = toCarryForward.map((_, idx) =>
-          `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4}, 0)`
+          `(${rowPlaceholders(idx, CARRIED_ATTENDANCE_COLUMNS)}, 0)`
         ).join(', ');
 
         const insertParams = toCarryForward.flatMap(row =>
@@ -413,7 +416,7 @@ module.exports = (pool, logger) => {
       const date = req.query.date || req.body?.date;
 
       if (!date) {
-        return error(res, 'Date is required', 400);
+        return error(res, 'Date is required', HTTP_STATUS.BAD_REQUEST);
       }
 
       const client = await pool.connect();
@@ -604,7 +607,7 @@ module.exports = (pool, logger) => {
 
       // Validate participant IDs
       if (participantIds.length === 0 || participantIds.some(id => !Number.isInteger(Number(id)) || Number(id) < 1)) {
-        return res.status(400).json({ success: false, message: 'At least one valid participant ID (positive integer) is required' });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'At least one valid participant ID (positive integer) is required' });
       }
       if (!await allEnrolledInUnit(pool, organizationId, participantIds)) {
         return error(res, 'Participant not found', HTTP_NOT_FOUND);
@@ -681,9 +684,8 @@ module.exports = (pool, logger) => {
 
         // Batch insert all points if any adjustments needed
         if (pointsToInsert.length > 0) {
-          const pointsValues = pointsToInsert.map((_, idx) =>
-            `($${idx * 5 + 1}, $${idx * 5 + 2}, $${idx * 5 + 3}, $${idx * 5 + 4}, $${idx * 5 + 5})`
-          ).join(', ');
+          const POINT_COLUMNS = 5;
+          const pointsValues = pointsToInsert.map((_, idx) => `(${rowPlaceholders(idx, POINT_COLUMNS)})`).join(', ');
 
           const pointsParams = pointsToInsert.flatMap(p =>
             [p.participant_id, p.group_id, organizationId, p.points, date]

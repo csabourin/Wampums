@@ -1,4 +1,5 @@
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, userHasPermission } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
@@ -53,7 +54,7 @@ module.exports = (pool, _logger) => {
       return error(
         res,
         regValidation.message || membershipValidation.message || yearStartValidation.message || yearEndValidation.message,
-        400
+        HTTP_STATUS.BAD_REQUEST
       );
     }
 
@@ -89,7 +90,7 @@ module.exports = (pool, _logger) => {
       );
 
       await client.query('COMMIT');
-      return success(res, feeDefinition, 'Fee definition created and assigned to all participants', 201);
+      return success(res, feeDefinition, 'Fee definition created and assigned to all participants', HTTP_STATUS.CREATED);
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -113,7 +114,7 @@ module.exports = (pool, _logger) => {
       return error(
         res,
         regValidation.message || membershipValidation.message || yearStartValidation.message || yearEndValidation.message,
-        400
+        HTTP_STATUS.BAD_REQUEST
       );
     }
 
@@ -123,7 +124,7 @@ module.exports = (pool, _logger) => {
     );
 
     if (existing.rows.length === 0) {
-      return error(res, 'Fee definition not found', 404);
+      return error(res, 'Fee definition not found', HTTP_STATUS.NOT_FOUND);
     }
 
     const updateResult = await pool.query(
@@ -151,7 +152,7 @@ module.exports = (pool, _logger) => {
     );
 
     if (existing.rows.length === 0) {
-      return error(res, 'Fee definition not found', 404);
+      return error(res, 'Fee definition not found', HTTP_STATUS.NOT_FOUND);
     }
 
     await pool.query('DELETE FROM fee_definitions WHERE id = $1 AND organization_id = $2', [id, organizationId]);
@@ -200,14 +201,14 @@ module.exports = (pool, _logger) => {
     } = req.body;
 
     if (!participant_id || !fee_definition_id) {
-      return error(res, 'Participant and fee definition are required', 400);
+      return error(res, 'Participant and fee definition are required', HTTP_STATUS.BAD_REQUEST);
     }
 
     const registrationValidation = validateMoney(total_registration_fee, 'total_registration_fee');
     const membershipValidation = validateMoney(total_membership_fee, 'total_membership_fee');
 
     if (!registrationValidation.valid || !membershipValidation.valid) {
-      return error(res, registrationValidation.message || membershipValidation.message, 400);
+      return error(res, registrationValidation.message || membershipValidation.message, HTTP_STATUS.BAD_REQUEST);
     }
 
     const participantCheck = await pool.query(
@@ -216,7 +217,7 @@ module.exports = (pool, _logger) => {
     );
 
     if (participantCheck.rows.length === 0) {
-      return error(res, 'Participant is not part of this organization', 400);
+      return error(res, 'Participant is not part of this organization', HTTP_STATUS.BAD_REQUEST);
     }
 
     const feeDefinitionCheck = await pool.query(
@@ -225,7 +226,7 @@ module.exports = (pool, _logger) => {
     );
 
     if (feeDefinitionCheck.rows.length === 0) {
-      return error(res, 'Fee definition not found for this organization', 404);
+      return error(res, 'Fee definition not found for this organization', HTTP_STATUS.NOT_FOUND);
     }
 
     const insertResult = await pool.query(
@@ -250,7 +251,7 @@ module.exports = (pool, _logger) => {
       ]
     );
 
-    return success(res, formatFeeRow(insertResult.rows[0]), 'Participant fee created', 201);
+    return success(res, formatFeeRow(insertResult.rows[0]), 'Participant fee created', HTTP_STATUS.CREATED);
   }));
 
   router.put('/v1/finance/participant-fees/:id', authenticate, blockDemoRoles, requirePermission('finance.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
@@ -270,7 +271,7 @@ module.exports = (pool, _logger) => {
     );
 
     if (existing.rows.length === 0) {
-      return error(res, 'Participant fee not found', 404);
+      return error(res, 'Participant fee not found', HTTP_STATUS.NOT_FOUND);
     }
 
     const base = existing.rows[0];
@@ -282,7 +283,7 @@ module.exports = (pool, _logger) => {
       : { valid: true, value: base.total_membership_fee };
 
     if (!registrationValidation.valid || !membershipValidation.valid) {
-      return error(res, registrationValidation.message || membershipValidation.message, 400);
+      return error(res, registrationValidation.message || membershipValidation.message, HTTP_STATUS.BAD_REQUEST);
     }
 
     const updateResult = await pool.query(
@@ -316,7 +317,7 @@ module.exports = (pool, _logger) => {
     );
 
     if (feeRow.rows.length === 0) {
-      return error(res, 'Participant fee not found', 404);
+      return error(res, 'Participant fee not found', HTTP_STATUS.NOT_FOUND);
     }
 
     const payments = await pool.query(
@@ -342,14 +343,14 @@ module.exports = (pool, _logger) => {
     );
 
     if (feeRow.rows.length === 0) {
-      return error(res, 'Participant fee not found', 404);
+      return error(res, 'Participant fee not found', HTTP_STATUS.NOT_FOUND);
     }
 
     const amountValidation = validateMoney(amount, 'amount');
     const dateValidation = validateDate(payment_date, 'payment_date');
 
     if (!amountValidation.valid || !dateValidation.valid) {
-      return error(res, amountValidation.message || dateValidation.message, 400);
+      return error(res, amountValidation.message || dateValidation.message, HTTP_STATUS.BAD_REQUEST);
     }
 
     const client = await pool.connect();
@@ -377,7 +378,7 @@ module.exports = (pool, _logger) => {
       );
 
       await client.query('COMMIT');
-      return success(res, insertResult.rows[0], 'Payment recorded', 201);
+      return success(res, insertResult.rows[0], 'Payment recorded', HTTP_STATUS.CREATED);
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -396,7 +397,7 @@ module.exports = (pool, _logger) => {
     const dateValidation = validateDate(payment_date, 'payment_date');
 
     if (!amountValidation.valid || !dateValidation.valid) {
-      return error(res, amountValidation.message || dateValidation.message, 400);
+      return error(res, amountValidation.message || dateValidation.message, HTTP_STATUS.BAD_REQUEST);
     }
 
     const paymentRow = await pool.query(
@@ -409,7 +410,7 @@ module.exports = (pool, _logger) => {
 
     // Another unit's payment reads as missing: saying it exists would leak it.
     if (paymentRow.rows.length === 0 || paymentRow.rows[0].organization_id !== organizationId) {
-      return error(res, 'Payment not found', 404);
+      return error(res, 'Payment not found', HTTP_STATUS.NOT_FOUND);
     }
 
     const client = await pool.connect();
@@ -461,7 +462,7 @@ module.exports = (pool, _logger) => {
     );
 
     if (feeRow.rows.length === 0) {
-      return error(res, 'Participant fee not found', 404);
+      return error(res, 'Participant fee not found', HTTP_STATUS.NOT_FOUND);
     }
 
     const plans = await pool.query(
@@ -487,7 +488,7 @@ module.exports = (pool, _logger) => {
     );
 
     if (feeRow.rows.length === 0) {
-      return error(res, 'Participant fee not found', 404);
+      return error(res, 'Participant fee not found', HTTP_STATUS.NOT_FOUND);
     }
 
     const paymentsValidation = validatePositiveInteger(number_of_payments, 'number_of_payments');
@@ -498,7 +499,7 @@ module.exports = (pool, _logger) => {
       return error(
         res,
         paymentsValidation.message || amountValidation.message || startDateValidation.message || 'frequency is required',
-        400
+        HTTP_STATUS.BAD_REQUEST
       );
     }
 
@@ -509,7 +510,7 @@ module.exports = (pool, _logger) => {
       [id, paymentsValidation.value, amountValidation.value, start_date, frequency, notes || null]
     );
 
-    return success(res, insertResult.rows[0], 'Payment plan created', 201);
+    return success(res, insertResult.rows[0], 'Payment plan created', HTTP_STATUS.CREATED);
   }));
 
   router.put('/v1/finance/payment-plans/:planId', authenticate, blockDemoRoles, requirePermission('finance.manage'), validateIdParam('planId'), checkValidation, asyncHandler(async (req, res) => {
@@ -526,7 +527,7 @@ module.exports = (pool, _logger) => {
       return error(
         res,
         paymentsValidation.message || amountValidation.message || startDateValidation.message || 'frequency is required',
-        400
+        HTTP_STATUS.BAD_REQUEST
       );
     }
 
@@ -540,7 +541,7 @@ module.exports = (pool, _logger) => {
 
     // Another unit's plan reads as missing: saying it exists would leak it.
     if (existing.rows.length === 0 || existing.rows[0].organization_id !== organizationId) {
-      return error(res, 'Payment plan not found', 404);
+      return error(res, 'Payment plan not found', HTTP_STATUS.NOT_FOUND);
     }
 
     const updated = await pool.query(
@@ -573,7 +574,7 @@ module.exports = (pool, _logger) => {
 
     // Another unit's plan reads as missing: saying it exists would leak it.
     if (existing.rows.length === 0 || existing.rows[0].organization_id !== organizationId) {
-      return error(res, 'Payment plan not found', 404);
+      return error(res, 'Payment plan not found', HTTP_STATUS.NOT_FOUND);
     }
 
     await pool.query('DELETE FROM payment_plans WHERE id = $1', [planId]);
@@ -693,7 +694,7 @@ module.exports = (pool, _logger) => {
     );
 
     if (participantRow.rows.length === 0) {
-      return error(res, 'Participant not found in this organization', 404);
+      return error(res, 'Participant not found in this organization', HTTP_STATUS.NOT_FOUND);
     }
 
     // Read from the database, not the JWT: a finance permission taken away

@@ -17,9 +17,10 @@
 
 const { getTranslationsByCode } = require('../utils/index');
 const { getVapidKeys, recordPushOutcomes } = require('../utils/web-push');
+const { MS_PER_MINUTE } = require('../utils/time-units');
 
 const REMINDER_WINDOW_MINUTES = 15; // notify this many minutes before a dose is due
-const POLL_INTERVAL_MS = 60_000;    // check every 60 seconds
+const POLL_INTERVAL_MS = MS_PER_MINUTE;    // check every 60 seconds
 
 class MedicationReminderService {
   /**
@@ -190,7 +191,7 @@ class MedicationReminderService {
       // ---------------------------------------------------------------- //
       for (const dist of distributions) {
         const scheduledAt = new Date(dist.scheduled_for);
-        const minutesUntil = Math.round((scheduledAt - Date.now()) / 60_000);
+        const minutesUntil = Math.round((scheduledAt - Date.now()) / MS_PER_MINUTE);
         const participantName = `${dist.first_name} ${dist.last_name}`.trim();
 
         const sendResults = await Promise.allSettled(

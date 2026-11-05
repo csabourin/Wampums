@@ -25,6 +25,7 @@ const {
   sendAlumniInvitations
 } = require('../services/alumni');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 module.exports = (pool, logger) => {
   const router = express.Router();
@@ -71,7 +72,7 @@ module.exports = (pool, logger) => {
       const { membership_ids: membershipIds } = req.body || {};
 
       if (membershipIds !== undefined && !Array.isArray(membershipIds)) {
-        return error(res, 'membership_ids must be an array', 400);
+        return error(res, 'membership_ids must be an array', HTTP_STATUS.BAD_REQUEST);
       }
 
       const outcome = await sendAlumniInvitations(pool, logger, {

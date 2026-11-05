@@ -73,6 +73,7 @@ import {
 import { programmeMoment } from '../../utils/ProgrammeTimeline.js';
 import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { offlineManager } from '../OfflineManager.js';
+import { MS_PER_DAY, MS_PER_WEEK } from '../../utils/TimeUnits.js';
 
 /**
  * On a meeting day the primary action follows the evening: attendance first
@@ -682,7 +683,7 @@ export class Dashboard extends BaseModule {
   async refreshDashboardCounters() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const dayOut = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const dayOut = new Date(today.getTime() + MS_PER_WEEK);
 
     const canSeeMedication = this._isFeatureEnabled('medication_dispensing')
       && hasAnyPermission('medication.manage', 'medication.view');
@@ -1332,7 +1333,7 @@ export class Dashboard extends BaseModule {
     const parts = String(dateStr).slice(0, 10).split('-').map(Number);
     if (parts.length !== 3 || parts.some(Number.isNaN)) {return dateStr;}
     const meetingDate = new Date(parts[0], parts[1] - 1, parts[2]);
-    const dayDiff = Math.round((meetingDate - today) / (1000 * 60 * 60 * 24));
+    const dayDiff = Math.round((meetingDate - today) / MS_PER_DAY);
 
     const formatted = formatDate(String(dateStr).slice(0, 10), lang, {
       weekday: 'long',

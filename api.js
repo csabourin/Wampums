@@ -1,3 +1,4 @@
+const { MS_PER_MINUTE } = require('./utils/time-units');
 require('dotenv').config();
 const createApp = require('./config/app');
 const logger = require('./config/logger');
@@ -61,7 +62,7 @@ if (require.main === module) {
       } catch (err) {
         logger.error('Incident email queue processing failed:', err.message);
       }
-    }, 60000);
+    }, MS_PER_MINUTE);
 
     // Announce the marketing pages this deploy changed (INDEXNOW_ENABLED only)
     const { scheduleIndexNowSync } = require('./services/indexNow');

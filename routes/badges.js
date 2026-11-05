@@ -8,6 +8,7 @@
  */
 
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 
 // Import utilities
@@ -169,7 +170,7 @@ module.exports = (pool, logger) => {
     const participantId = req.query.participant_id;
 
     if (!participantId) {
-      return res.status(400).json({ success: false, message: 'Participant ID is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Participant ID is required' });
     }
 
     const result = await pool.query(
@@ -300,7 +301,7 @@ module.exports = (pool, logger) => {
     const validStarType = ['proie', 'battue'].includes(star_type) ? star_type : 'proie';
 
     if (!participant_id || !badge_template_id) {
-      return res.status(400).json({ success: false, message: 'Participant ID and badge_template_id are required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Participant ID and badge_template_id are required' });
     }
 
     const client = await pool.connect();
@@ -313,13 +314,13 @@ module.exports = (pool, logger) => {
       );
       if (participantOrg.rowCount === 0) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ success: false, message: 'Participant not found in organization' });
+        return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Participant not found in organization' });
       }
 
       const template = await fetchTemplate(client, parseInt(badge_template_id, 10), organizationId);
       if (!template) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ success: false, message: 'Badge template not found' });
+        return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Badge template not found' });
       }
 
       const participantSection = await getParticipantSection(client, participant_id, organizationId);
@@ -330,7 +331,7 @@ module.exports = (pool, logger) => {
         template.section !== participantSection
       ) {
         await client.query('ROLLBACK');
-        return res.status(400).json({
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
           message: 'Badge template section does not match participant section'
         });
@@ -349,12 +350,12 @@ module.exports = (pool, logger) => {
         nextLevel = determineNextLevel(existingLevelsResult.rows, templateLevelCount, requestedLevel);
       } catch (validationError) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ success: false, message: validationError.message });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: validationError.message });
       }
 
       if (!nextLevel) {
         await client.query('ROLLBACK');
-        return res.status(400).json({
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
           message: 'All levels for this badge have already been recorded'
         });
@@ -566,12 +567,11 @@ module.exports = (pool, logger) => {
    *         description: Badge not found
    */
   router.post('/approve', authenticate, blockDemoRoles, requirePermission('badges.approve'), asyncHandler(async (req, res) => {
-    const userId = req.user.id;
     const organizationId = await getOrganizationId(req, pool);
     const { badge_id } = req.body;
 
     if (!badge_id) {
-      return res.status(400).json({ success: false, message: 'Badge ID is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Badge ID is required' });
     }
 
     const client = await pool.connect();
@@ -586,7 +586,7 @@ module.exports = (pool, logger) => {
 
       if (badgeResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ success: false, message: 'Badge not found' });
+        return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Badge not found' });
       }
 
       const badge = badgeResult.rows[0];
@@ -650,12 +650,11 @@ module.exports = (pool, logger) => {
    *         description: Badge not found
    */
   router.post('/reject', authenticate, blockDemoRoles, requirePermission('badges.approve'), asyncHandler(async (req, res) => {
-    const userId = req.user.id;
     const organizationId = await getOrganizationId(req, pool);
     const { badge_id } = req.body;
 
     if (!badge_id) {
-      return res.status(400).json({ success: false, message: 'Badge ID is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Badge ID is required' });
     }
 
     const result = await pool.query(
@@ -667,7 +666,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Badge not found' });
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Badge not found' });
     }
 
     logger.info(`[badge] Badge ${badge_id} rejected`);
@@ -743,7 +742,7 @@ module.exports = (pool, logger) => {
     const participantId = req.query.participant_id;
 
     if (!participantId) {
-      return res.status(400).json({ success: false, message: 'Participant ID is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Participant ID is required' });
     }
 
     const result = await pool.query(
@@ -795,7 +794,7 @@ module.exports = (pool, logger) => {
     const territoireName = req.query.territoire;
 
     if (!participantId) {
-      return res.status(400).json({ success: false, message: 'Participant ID is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Participant ID is required' });
     }
 
     const client = await pool.connect();
@@ -820,7 +819,7 @@ module.exports = (pool, logger) => {
 
       if (!template) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ success: false, message: 'Badge template not found' });
+        return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Badge template not found' });
       }
 
       const countsResult = await client.query(
@@ -957,7 +956,6 @@ module.exports = (pool, logger) => {
    *         description: Badge progress not found
    */
   router.put('/badge-progress/:id', authenticate, blockDemoRoles, requirePermission('badges.manage'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
-    const userId = req.user.id; // Set by authenticate middleware
     const organizationId = await getOrganizationId(req, pool);
     const badgeId = Number(req.params.id);
     const {
@@ -972,7 +970,7 @@ module.exports = (pool, logger) => {
     } = req.body;
 
     if (!badgeId) {
-      return res.status(400).json({ success: false, message: 'Badge ID is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Badge ID is required' });
     }
 
     if (
@@ -985,11 +983,11 @@ module.exports = (pool, logger) => {
       fierte === undefined &&
       raison === undefined
     ) {
-      return res.status(400).json({ success: false, message: 'No update fields provided' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'No update fields provided' });
     }
 
     if (status && !['approved', 'rejected', 'pending'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Invalid status value' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Invalid status value' });
     }
 
     const client = await pool.connect();
@@ -1007,7 +1005,7 @@ module.exports = (pool, logger) => {
 
       if (existingResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ success: false, message: 'Badge progress not found' });
+        return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Badge progress not found' });
       }
 
       const existingBadge = existingResult.rows[0];
@@ -1034,7 +1032,7 @@ module.exports = (pool, logger) => {
         targetLevel = parseInt(etoiles, 10) || 0;
         if (targetLevel < 1 || targetLevel > templateLevelCount) {
           await client.query('ROLLBACK');
-          return res.status(400).json({ success: false, message: 'Invalid level for this badge' });
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Invalid level for this badge' });
         }
 
         const conflictCheck = await client.query(
@@ -1045,7 +1043,7 @@ module.exports = (pool, logger) => {
 
         if (conflictCheck.rowCount > 0) {
           await client.query('ROLLBACK');
-          return res.status(409).json({ success: false, message: 'Level already exists for this badge' });
+          return res.status(HTTP_STATUS.CONFLICT).json({ success: false, message: 'Level already exists for this badge' });
         }
 
         updateFields.push(`etoiles = $${valueIndex++}`);
@@ -1224,7 +1222,7 @@ module.exports = (pool, logger) => {
     const { badge_id } = req.body;
 
     if (!badge_id) {
-      return res.status(400).json({ success: false, message: 'Badge ID is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Badge ID is required' });
     }
 
     // Check if delivered_at column exists
@@ -1234,7 +1232,7 @@ module.exports = (pool, logger) => {
     );
 
     if (columnCheck.rows.length === 0) {
-      return res.status(400).json({ success: false, message: 'Delivery tracking not enabled. Run migrations.' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Delivery tracking not enabled. Run migrations.' });
     }
 
     const result = await pool.query(
@@ -1246,7 +1244,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Badge not found or not approved' });
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Badge not found or not approved' });
     }
 
     logger.info(`[badge] Badge ${badge_id} marked as delivered`);
@@ -1286,7 +1284,7 @@ module.exports = (pool, logger) => {
     const { badge_ids } = req.body;
 
     if (!Array.isArray(badge_ids) || badge_ids.length === 0) {
-      return res.status(400).json({ success: false, message: 'Badge IDs array is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Badge IDs array is required' });
     }
 
     // Check if delivered_at column exists
@@ -1296,7 +1294,7 @@ module.exports = (pool, logger) => {
     );
 
     if (columnCheck.rows.length === 0) {
-      return res.status(400).json({ success: false, message: 'Delivery tracking not enabled. Run migrations.' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Delivery tracking not enabled. Run migrations.' });
     }
 
     const result = await pool.query(

@@ -18,7 +18,6 @@ const { authenticate, blockDemoRoles, getOrganizationId, dataScopeOfRoles, holds
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 const {
   validateEmail,
-  validatePassword,
   checkValidation,
   normalizeEmailInput,
   validateCurrentPassword,
@@ -30,7 +29,7 @@ const { RATE_LIMITS } = require('../config/constants');
 const { renameAccount, syncAccountNames } = require('../services/accountNames');
 const { ALL_INTERFACE_LANGUAGES } = require('../utils/interfaceLanguages');
 
-const HTTP_STATUS = { BAD_REQUEST: 400, NOT_FOUND: 404 };
+const { HTTP_STATUS } = require('../utils/http-status');
 
 /** Longest name the profile accepts, in each field. */
 const PROFILE_NAME_MAX_LENGTH = 100;
@@ -240,7 +239,7 @@ module.exports = (pool, logger) => {
     );
 
     if (result.rows.length === 0) {
-      return errorResponse(res, 'User not found', 404);
+      return errorResponse(res, 'User not found', HTTP_STATUS.NOT_FOUND);
     }
 
     return success(res, result.rows[0], 'User information retrieved successfully');
@@ -326,11 +325,11 @@ module.exports = (pool, logger) => {
     const profile = await buildGuardianProfile(pool, userId, organizationId);
 
     if (!profile.userEmail) {
-      return errorResponse(res, 'User not found', 404);
+      return errorResponse(res, 'User not found', HTTP_STATUS.NOT_FOUND);
     }
 
     if (profile.participantIds.length === 0) {
-      return errorResponse(res, 'No linked participants found for guardian profile', 400);
+      return errorResponse(res, 'No linked participants found for guardian profile', HTTP_STATUS.BAD_REQUEST);
     }
 
     return success(res, profile, 'Guardian profile retrieved successfully');
@@ -388,7 +387,7 @@ module.exports = (pool, logger) => {
       );
 
       if (userCheck.rows.length === 0) {
-        return errorResponse(res, 'User not found', 404);
+        return errorResponse(res, 'User not found', HTTP_STATUS.NOT_FOUND);
       }
 
       // A family member's own contact record carries their name too; both
@@ -486,11 +485,11 @@ module.exports = (pool, logger) => {
 
       // Validate language code
       if (!languagePreference) {
-        return errorResponse(res, 'Language preference is required', 400);
+        return errorResponse(res, 'Language preference is required', HTTP_STATUS.BAD_REQUEST);
       }
 
       if (!supportedLanguages.includes(languagePreference)) {
-        return errorResponse(res, `Invalid language code. Supported languages: ${supportedLanguages.join(', ')}`, 400);
+        return errorResponse(res, `Invalid language code. Supported languages: ${supportedLanguages.join(', ')}`, HTTP_STATUS.BAD_REQUEST);
       }
 
       // Verify user belongs to organization
@@ -502,7 +501,7 @@ module.exports = (pool, logger) => {
       );
 
       if (userCheck.rows.length === 0) {
-        return errorResponse(res, 'User not found', 404);
+        return errorResponse(res, 'User not found', HTTP_STATUS.NOT_FOUND);
       }
 
       // Update language preference
@@ -575,7 +574,7 @@ module.exports = (pool, logger) => {
         );
 
         if (userCheck.rows.length === 0) {
-          return errorResponse(res, 'User not found in this organization', 404);
+          return errorResponse(res, 'User not found in this organization', HTTP_STATUS.NOT_FOUND);
         }
       }
 
@@ -591,7 +590,7 @@ module.exports = (pool, logger) => {
         if (!e164Regex.test(trimmedPhone)) {
           return errorResponse(res,
             'Invalid phone number format. Please use E.164 format (e.g., +1234567890)',
-            400
+            HTTP_STATUS.BAD_REQUEST
           );
         }
 
@@ -682,11 +681,11 @@ module.exports = (pool, logger) => {
     const trimmedRelationship = relationshipValue ? relationshipValue.slice(0, 120) : null;
 
     if (!trimmedFirstName || !trimmedLastName) {
-      return errorResponse(res, 'First and last name are required to update guardian info', 400);
+      return errorResponse(res, 'First and last name are required to update guardian info', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (trimmedFirstName.length > 120 || trimmedLastName.length > 120) {
-      return errorResponse(res, 'Names must be 120 characters or fewer', 400);
+      return errorResponse(res, 'Names must be 120 characters or fewer', HTTP_STATUS.BAD_REQUEST);
     }
 
     const homeValidation = validateGuardianPhone(homePhone);
@@ -694,19 +693,19 @@ module.exports = (pool, logger) => {
     const mobileValidation = validateGuardianPhone(mobilePhone);
 
     if (!homeValidation.isValid || !workValidation.isValid || !mobileValidation.isValid) {
-      return errorResponse(res, 'Please provide phone numbers using digits, spaces, plus, dash, parentheses, or periods only', 400);
+      return errorResponse(res, 'Please provide phone numbers using digits, spaces, plus, dash, parentheses, or periods only', HTTP_STATUS.BAD_REQUEST);
     }
 
     const participantIds = await getLinkedParticipantIds(pool, userId, organizationId);
 
     if (participantIds.length === 0) {
-      return errorResponse(res, 'No linked participants found for guardian profile', 400);
+      return errorResponse(res, 'No linked participants found for guardian profile', HTTP_STATUS.BAD_REQUEST);
     }
 
     const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
 
     if (userResult.rows.length === 0) {
-      return errorResponse(res, 'User not found', 404);
+      return errorResponse(res, 'User not found', HTTP_STATUS.NOT_FOUND);
     }
 
     const userEmail = userResult.rows[0].email;
@@ -809,7 +808,7 @@ module.exports = (pool, logger) => {
     } catch (error) {
       await client.query('ROLLBACK');
       logger.error('Error updating guardian profile:', error);
-      return errorResponse(res, 'Failed to update guardian profile', 500);
+      return errorResponse(res, 'Failed to update guardian profile', HTTP_STATUS.INTERNAL_ERROR);
     } finally {
       client.release();
     }
@@ -864,7 +863,7 @@ module.exports = (pool, logger) => {
       );
 
       if (userCheck.rows.length === 0) {
-        return errorResponse(res, 'User not found', 404);
+        return errorResponse(res, 'User not found', HTTP_STATUS.NOT_FOUND);
       }
 
       // Check if email already exists for another user in this organization
@@ -878,7 +877,7 @@ module.exports = (pool, logger) => {
       );
 
       if (emailCheck.rows.length > 0) {
-        return errorResponse(res, 'Email address already in use by another user in this organization', 400);
+        return errorResponse(res, 'Email address already in use by another user in this organization', HTTP_STATUS.BAD_REQUEST);
       }
 
       // Update email
@@ -941,7 +940,7 @@ module.exports = (pool, logger) => {
 
       // Validate required fields
       if (!currentPassword || !newPassword) {
-        return errorResponse(res, 'Current password and new password are required', 400);
+        return errorResponse(res, 'Current password and new password are required', HTTP_STATUS.BAD_REQUEST);
       }
 
       // Verify user belongs to organization and get current password hash
@@ -953,7 +952,7 @@ module.exports = (pool, logger) => {
       );
 
       if (userResult.rows.length === 0) {
-        return errorResponse(res, 'User not found', 404);
+        return errorResponse(res, 'User not found', HTTP_STATUS.NOT_FOUND);
       }
 
       const user = userResult.rows[0];
@@ -962,7 +961,7 @@ module.exports = (pool, logger) => {
       const passwordMatch = await bcrypt.compare(currentPassword, user.password);
       if (!passwordMatch) {
         logger.warn(`Failed password change attempt for user ${userId} - incorrect current password`);
-        return errorResponse(res, 'Current password is incorrect', 400);
+        return errorResponse(res, 'Current password is incorrect', HTTP_STATUS.BAD_REQUEST);
       }
 
       // Hash new password

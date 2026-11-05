@@ -27,6 +27,7 @@ const {
 } = require('../middleware/auth');
 const { validateIdQuery, checkValidation } = require('../middleware/validation');
 const GoogleChatService = require('../services/google-chat');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 const DEFAULT_HISTORY_LIMIT = 50;
 
@@ -112,7 +113,7 @@ module.exports = (pool, logger) => {
         return success(res, result.rows[0], 'Google Chat configuration saved successfully');
       } catch (routeError) {
         logger.error('Error configuring Google Chat:', routeError);
-        return errorResponse(res, 'internal_server_error', 500);
+        return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
       }
     }));
 
@@ -154,7 +155,7 @@ module.exports = (pool, logger) => {
       return success(res, { configured: true, config: result.rows[0] });
     } catch (routeError) {
       logger.error('Error fetching Google Chat configuration:', routeError);
-      return errorResponse(res, 'internal_server_error', 500);
+      return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -253,7 +254,7 @@ module.exports = (pool, logger) => {
         return success(res, result.rows[0], 'Space registered successfully');
       } catch (routeError) {
         logger.error('Error registering Google Chat space:', routeError);
-        return errorResponse(res, 'internal_server_error', 500);
+        return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
       }
     }));
 
@@ -287,7 +288,7 @@ module.exports = (pool, logger) => {
       return success(res, result.rows);
     } catch (routeError) {
       logger.error('Error fetching Google Chat spaces:', routeError);
-      return errorResponse(res, 'internal_server_error', 500);
+      return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 
@@ -385,7 +386,7 @@ module.exports = (pool, logger) => {
           logger.error('Error logging failed message:', logError);
         }
 
-        return errorResponse(res, 'internal_server_error', 500);
+        return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
       }
     }));
 
@@ -441,7 +442,7 @@ module.exports = (pool, logger) => {
         return success(res, response, 'Broadcast sent successfully');
       } catch (routeError) {
         logger.error('Error sending Google Chat broadcast:', routeError);
-        return errorResponse(res, 'internal_server_error', 500);
+        return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
       }
     }));
 
@@ -488,7 +489,7 @@ module.exports = (pool, logger) => {
       return success(res, result.rows);
     } catch (routeError) {
       logger.error('Error fetching Google Chat messages:', routeError);
-      return errorResponse(res, 'internal_server_error', 500);
+      return errorResponse(res, 'internal_server_error', HTTP_STATUS.INTERNAL_ERROR);
     }
   }));
 

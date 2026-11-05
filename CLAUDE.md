@@ -135,6 +135,8 @@ return paginated(res, items, page, limit, total);
 ```
 
 #### HTTP Status Codes
+Name them with `HTTP_STATUS` from `utils/http-status.js` (`HTTP_STATUS.NOT_FOUND`), not a bare number.
+
 - `200` - OK (successful GET, PUT, PATCH)
 - `201` - Created (successful POST)
 - `204` - No Content (successful DELETE)
@@ -758,7 +760,7 @@ The project enforces ESLint 9 rules. **Errors block CI; warnings must be resolve
 - `no-param-reassign` — don't reassign function parameters
 - `no-return-await` — don't `return await` inside async functions
 - `no-await-in-loop` — avoid `await` inside loops; prefer `Promise.all()`
-- `camelcase` — use camelCase for variable names (property names exempt)
+- `camelcase` — use camelCase for variable names (property names and all-lowercase snake_case names that mirror database or API fields, such as `participant_id`, are exempt)
 - `curly` — always use curly braces for control structures (`if`, `for`, etc.)
 - `consistent-return` — all code paths must either all return a value or none
 - `require-await` — async functions must contain `await`
@@ -771,7 +773,7 @@ The project enforces ESLint 9 rules. **Errors block CI; warnings must be resolve
 **Override exceptions:**
 - `routes/`, `middleware/`, `services/`, `scripts/` — `no-console` is off (use `console.log` freely)
 - `*.test.js`, `*.spec.js` — `no-magic-numbers`, `no-console` and `no-script-url` are off
-- `migrations/`, `config/` — `no-magic-numbers` is off
+- `migrations/`, `config/`, `spa/config.js`, `spa/config/` — `no-magic-numbers` is off (configuration is where values are named)
 - Backend files are parsed as CommonJS; `spa/` and the shared `config/roles.js` / `config/meeting_sections.js` as ES modules
 
 ### 11) Automated Lint Scripts

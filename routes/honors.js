@@ -10,6 +10,8 @@
 
 const express = require('express');
 const { eligibleActionParticipants } = require('../services/actionRoster');
+const { HTTP_STATUS } = require('../utils/http-status');
+const { rowPlaceholders } = require('../utils/sql-placeholders');
 const router = express.Router();
 
 // Import utilities and middleware
@@ -61,7 +63,6 @@ module.exports = (pool, logger) => {
     withScoutYear(pool),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const requestedDate = req.query.date;
       const { id: scoutYearId, start_date: yearStart, end_date: yearEnd } = req.scoutYear;
 
       // Get the participants enrolled that year
@@ -247,11 +248,11 @@ module.exports = (pool, logger) => {
 
         // Batch insert new honors
         if (newHonors.length > 0) {
-          const createdByPlaceholderIndex = (newHonors.length * 4) + 1;
-          const honorValues = newHonors.map((_, idx) => {
-            const base = idx * 4;
-            return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${createdByPlaceholderIndex}, NOW())`;
-          }).join(', ');
+          const HONOR_COLUMNS = 4; // participant, date, unit, reason
+          const createdByPlaceholderIndex = (newHonors.length * HONOR_COLUMNS) + 1;
+          const honorValues = newHonors.map((_, idx) =>
+            `(${rowPlaceholders(idx, HONOR_COLUMNS)}, $${createdByPlaceholderIndex}, NOW())`
+          ).join(', ');
           
           const honorParams = [
             ...newHonors.flatMap(h => [h.participantId, h.honorDate, organizationId, h.reason]),
@@ -265,25 +266,7 @@ module.exports = (pool, logger) => {
             honorParams
           );
 
-          // Batch insert points for all honors
-          const pointValues = honorResult.rows.map((_, idx) => {
-            const base = idx * 5;
-            return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $6)`;
-          }).join(', ');
-          
-          const pointParams = [
-            ...honorResult.rows.flatMap(row => [
-              row.participant_id,
-              groupsMap.get(row.participant_id) || null,
-              honorPoints,
-              row.date,
-              organizationId
-            ]),
-            honorResult.rows[0].id // honor_id - using first honor's ID for batch
-          ];
-
-          // Note: We need to insert points with correct honor_id for each row
-          // Let's do this in a better way using a CTE
+          // Each honor's points name that honor.
           const pointInserts = honorResult.rows.map(row => ({
             participantId: row.participant_id,
             groupId: groupsMap.get(row.participant_id) || null,
@@ -312,7 +295,7 @@ module.exports = (pool, logger) => {
         }
 
         await client.query('COMMIT');
-        return success(res, { results }, 'Honor(s) awarded successfully', 200);
+        return success(res, { results }, 'Honor(s) awarded successfully', HTTP_STATUS.OK);
       } catch (error) {
         await client.query('ROLLBACK');
         if (error.status) { return errorResponse(res, error.message, error.status); }
@@ -364,18 +347,19 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const honorId = Number(req.params.id);
-      let { date, reason } = req.body;
+      const { date } = req.body;
+      let { reason } = req.body;
 
       // Validation
       if (!date && reason === undefined) {
-        return errorResponse(res, 'At least one field (date or reason) must be provided', 400);
+        return errorResponse(res, 'At least one field (date or reason) must be provided', HTTP_STATUS.BAD_REQUEST);
       }
 
       if (date) {
         // Validate date format (YYYY-MM-DD)
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
         if (!dateRegex.test(date) || isNaN(new Date(date).getTime())) {
-          return errorResponse(res, 'Invalid date format. Use YYYY-MM-DD', 400);
+          return errorResponse(res, 'Invalid date format. Use YYYY-MM-DD', HTTP_STATUS.BAD_REQUEST);
         }
       }
 
@@ -383,7 +367,7 @@ module.exports = (pool, logger) => {
         // Trim and validate reason length
         reason = String(reason).trim();
         if (reason.length > 1000) {
-          return errorResponse(res, 'Reason must be 1000 characters or less', 400);
+          return errorResponse(res, 'Reason must be 1000 characters or less', HTTP_STATUS.BAD_REQUEST);
         }
       }
 
@@ -404,7 +388,7 @@ module.exports = (pool, logger) => {
 
         if (checkResult.rows.length === 0) {
           await client.query('ROLLBACK');
-          return errorResponse(res, 'Honor not found', 404);
+          return errorResponse(res, 'Honor not found', HTTP_STATUS.NOT_FOUND);
         }
 
         const currentHonor = checkResult.rows[0];
@@ -510,7 +494,7 @@ module.exports = (pool, logger) => {
 
         if (checkResult.rows.length === 0) {
           await client.query('ROLLBACK');
-          return errorResponse(res, 'Honor not found', 404);
+          return errorResponse(res, 'Honor not found', HTTP_STATUS.NOT_FOUND);
         }
 
         const honor = checkResult.rows[0];

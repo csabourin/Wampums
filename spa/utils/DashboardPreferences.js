@@ -15,6 +15,28 @@ const STORAGE_KEY = 'wampums.dashboard.prefs.v1';
 const LIGHT_TEXT = '#ffffff';
 const DARK_TEXT = '#000000';
 
+/** sRGB channels run from 0 to 255 and are written as two hexadecimal digits. */
+const CHANNEL_MAX = 255;
+const HEX_RADIX = 16;
+const HEX_CHANNEL_WIDTH = 2;
+
+/** WCAG 2.x relative luminance (sRGB linearisation and channel weights). */
+const SRGB_LINEAR_THRESHOLD = 0.04045;
+const SRGB_LINEAR_DIVISOR = 12.92;
+const SRGB_GAMMA_OFFSET = 0.055;
+const SRGB_GAMMA_DIVISOR = 1.055;
+const SRGB_GAMMA = 2.4;
+const LUMINANCE_WEIGHT_RED = 0.2126;
+const LUMINANCE_WEIGHT_GREEN = 0.7152;
+const LUMINANCE_WEIGHT_BLUE = 0.0722;
+const RED = 0;
+const GREEN = 1;
+const BLUE = 2;
+/** WCAG contrast ratio flare term, and the luminance of white and black. */
+const CONTRAST_FLARE = 0.05;
+const WHITE_LUMINANCE = 1;
+const BLACK_LUMINANCE = 0;
+
 /** WCAG 2.1 AA minimum contrast for normal-size text. */
 const MIN_CONTRAST_AA = 4.5;
 /** How far the hover tone moves away from the resting tile colour. */
@@ -105,8 +127,8 @@ function parseHexColor(color) {
 function toHexColor(channels) {
   return `#${channels
     .map((channel) => {
-      const clamped = Math.max(0, Math.min(255, Math.round(channel)));
-      return clamped.toString(16).padStart(2, '0');
+      const clamped = Math.max(0, Math.min(CHANNEL_MAX, Math.round(channel)));
+      return clamped.toString(HEX_RADIX).padStart(HEX_CHANNEL_WIDTH, '0');
     })
     .join('')}`;
 }
@@ -119,14 +141,16 @@ function toHexColor(channels) {
  */
 function relativeLuminance(channels) {
   const linear = channels
-    .map((channel) => channel / 255)
+    .map((channel) => channel / CHANNEL_MAX)
     .map((channel) =>
-      channel <= 0.04045
-        ? channel / 12.92
-        : ((channel + 0.055) / 1.055) ** 2.4,
+      channel <= SRGB_LINEAR_THRESHOLD
+        ? channel / SRGB_LINEAR_DIVISOR
+        : ((channel + SRGB_GAMMA_OFFSET) / SRGB_GAMMA_DIVISOR) ** SRGB_GAMMA,
     );
 
-  return (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2]);
+  return (LUMINANCE_WEIGHT_RED * linear[RED])
+    + (LUMINANCE_WEIGHT_GREEN * linear[GREEN])
+    + (LUMINANCE_WEIGHT_BLUE * linear[BLUE]);
 }
 
 /**
@@ -139,7 +163,7 @@ function relativeLuminance(channels) {
 function contrastRatio(a, b) {
   const lighter = Math.max(a, b);
   const darker = Math.min(a, b);
-  return (lighter + 0.05) / (darker + 0.05);
+  return (lighter + CONTRAST_FLARE) / (darker + CONTRAST_FLARE);
 }
 
 /**
@@ -155,8 +179,8 @@ function getAccessibleForeground(backgroundColor) {
   if (!channels) {return LIGHT_TEXT;}
 
   const luminance = relativeLuminance(channels);
-  const lightContrast = 1.05 / (luminance + 0.05);
-  const darkContrast = (luminance + 0.05) / 0.05;
+  const lightContrast = contrastRatio(WHITE_LUMINANCE, luminance);
+  const darkContrast = contrastRatio(luminance, BLACK_LUMINANCE);
 
   return lightContrast >= darkContrast ? LIGHT_TEXT : DARK_TEXT;
 }
@@ -188,7 +212,7 @@ function deriveHoverTone(backgroundColor) {
   for (let step = 0; step <= MAX_HOVER_SHIFT_STEPS; step += 1) {
     candidate = channels.map((channel) =>
       lighten
-        ? channel + ((255 - channel) * shift)
+        ? channel + ((CHANNEL_MAX - channel) * shift)
         : channel * (1 - shift),
     );
 

@@ -8,6 +8,7 @@ import { memberDisplayName } from '../../utils/DisplayNameUtils.js';
 import { AchievementModal } from '../AchievementModal.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { MaterialItemsField, renderMaterialItemsList } from '../equipment-catalog/MaterialItemsField.js';
+import { DATE_PART_WIDTH } from '../../utils/TimeUnits.js';
 
 /**
  * What the description dialog shows for a library activity: its summary, then
@@ -618,7 +619,7 @@ export class ActivityManager {
   formatMinutesToHHMM(minutes) {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+    return `${String(hours).padStart(DATE_PART_WIDTH, '0')}:${String(mins).padStart(DATE_PART_WIDTH, '0')}`;
   }
 
   /**
@@ -633,7 +634,7 @@ export class ActivityManager {
          * Format time back into HH:MM
          */
   formatTime(hours, minutes) {
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    return `${String(hours).padStart(DATE_PART_WIDTH, '0')}:${String(minutes).padStart(DATE_PART_WIDTH, '0')}`;
   }
 
   /**

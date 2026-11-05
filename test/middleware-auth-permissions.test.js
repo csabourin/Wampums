@@ -33,7 +33,6 @@ jest.mock('pg', () => {
   };
 });
 
-const { Pool } = require('pg');
 const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 let app;
 let requireAnyPermission;
@@ -348,7 +347,7 @@ describe('requirePermission middleware', () => {
       return Promise.resolve({ rows: [] });
     });
 
-    const res = await request(app)
+    await request(app)
       .get('/api/v1/users')
       .set('Authorization', `Bearer ${token}`);
 

@@ -155,9 +155,6 @@ export {
   saveParent,
   saveGuardian,
   saveGuardianFormSubmission,
-  linkParentToParticipant,
-  linkGuardianToParticipant,
-  removeGuardians,
   fetchParents,
   getParentUsers,
   getParentDashboard,
@@ -233,7 +230,6 @@ export {
 
   // Calendar
   getCalendars,
-  updateCalendar,
   getParticipantCalendar,
 
   // Fundraisers

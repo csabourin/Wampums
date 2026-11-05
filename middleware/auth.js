@@ -7,7 +7,7 @@ const { isHarmlessDemoWrite } = require('./demoSandbox');
 
 /** Why a demo account's change was refused; the SPA explains it (`demo_read_only`). */
 const DEMO_READ_ONLY_CODE = 'demo_read_only';
-const HTTP_STATUS = { UNAUTHORIZED: 401, NOT_FOUND: 404, INTERNAL_ERROR: 500 };
+const { HTTP_STATUS } = require('../utils/http-status');
 const scoutYearService = require('../services/scoutYear');
 const calendarFeeds = require('../services/calendarFeeds');
 
@@ -277,7 +277,7 @@ exports.withScoutYear = (pool) => async (req, res, next) => {
     req.rosterStatuses = exports.rosterStatusesFor(req.scoutYear);
     return next();
   } catch (err) {
-    return res.status(400).json({
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
       success: false,
       message: 'Unknown scout year for this organization',
       timestamp: new Date().toISOString()
@@ -427,7 +427,7 @@ function demoWriteGate(policy) {
   return async (req, res, next) => {
     try {
       if (!req.user || !req.user.id) {
-        return res.status(401).json({
+        return res.status(HTTP_STATUS.UNAUTHORIZED).json({
           success: false,
           message: 'Authentication required'
         });
@@ -437,7 +437,7 @@ function demoWriteGate(policy) {
       const pool = req.app.locals.pool;
       if (!pool) {
         logger.error('Database pool not available in blockDemoRoles middleware');
-        return res.status(500).json({
+        return res.status(HTTP_STATUS.INTERNAL_ERROR).json({
           success: false,
           message: 'Server configuration error'
         });
@@ -472,7 +472,7 @@ function demoWriteGate(policy) {
       }
 
       logger.error('Error in blockDemoRoles middleware:', error);
-      return res.status(500).json({
+      return res.status(HTTP_STATUS.INTERNAL_ERROR).json({
         success: false,
         message: 'Authorization check failed'
       });

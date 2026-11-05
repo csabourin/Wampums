@@ -1,5 +1,6 @@
 // RESTful routes for carpool offers and assignments
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
@@ -108,18 +109,18 @@ module.exports = (pool) => {
 
     // Validation
     if (!activity_id || !vehicle_make || !vehicle_color || !total_seats_available || !trip_direction) {
-      return error(res, 'Missing required fields: activity_id, vehicle_make, vehicle_color, total_seats_available, trip_direction', 400);
+      return error(res, 'Missing required fields: activity_id, vehicle_make, vehicle_color, total_seats_available, trip_direction', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Validate trip direction
     const validDirections = ['both', 'to_activity', 'from_activity'];
     if (!validDirections.includes(trip_direction)) {
-      return error(res, 'Invalid trip_direction. Must be one of: both, to_activity, from_activity', 400);
+      return error(res, 'Invalid trip_direction. Must be one of: both, to_activity, from_activity', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Validate seat count
     if (total_seats_available < 1 || total_seats_available > 8) {
-      return error(res, 'total_seats_available must be between 1 and 8', 400);
+      return error(res, 'total_seats_available must be between 1 and 8', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Check if activity exists and belongs to organization
@@ -129,7 +130,7 @@ module.exports = (pool) => {
     );
 
     if (activityCheck.rows.length === 0) {
-      return error(res, 'Activity not found', 404);
+      return error(res, 'Activity not found', HTTP_STATUS.NOT_FOUND);
     }
 
     // Check if user already has an offer for this activity with the same direction
@@ -141,7 +142,7 @@ module.exports = (pool) => {
     );
 
     if (existingOffer.rows.length > 0) {
-      return error(res, 'You already have an active carpool offer for this activity and direction', 400);
+      return error(res, 'You already have an active carpool offer for this activity and direction', HTTP_STATUS.BAD_REQUEST);
     }
 
     const result = await pool.query(
@@ -158,7 +159,7 @@ module.exports = (pool) => {
       ]
     );
 
-    return success(res, result.rows[0], 'Carpool offer created successfully', 201);
+    return success(res, result.rows[0], 'Carpool offer created successfully', HTTP_STATUS.CREATED);
   }));
 
   /**
@@ -169,7 +170,6 @@ module.exports = (pool) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
-    const userRole = req.user.role;
 
     const {
       vehicle_make,
@@ -186,7 +186,7 @@ module.exports = (pool) => {
     );
 
     if (offerCheck.rows.length === 0) {
-      return error(res, 'Carpool offer not found', 404);
+      return error(res, 'Carpool offer not found', HTTP_STATUS.NOT_FOUND);
     }
 
     // Check permission: owner or user with carpools.manage
@@ -201,13 +201,13 @@ module.exports = (pool) => {
     if (trip_direction) {
       const validDirections = ['both', 'to_activity', 'from_activity'];
       if (!validDirections.includes(trip_direction)) {
-        return error(res, 'Invalid trip_direction. Must be one of: both, to_activity, from_activity', 400);
+        return error(res, 'Invalid trip_direction. Must be one of: both, to_activity, from_activity', HTTP_STATUS.BAD_REQUEST);
       }
     }
 
     // Validate seat count if provided
     if (total_seats_available && (total_seats_available < 1 || total_seats_available > 8)) {
-      return error(res, 'total_seats_available must be between 1 and 8', 400);
+      return error(res, 'total_seats_available must be between 1 and 8', HTTP_STATUS.BAD_REQUEST);
     }
 
     // If reducing seats, check if current assignments exceed new capacity
@@ -217,7 +217,7 @@ module.exports = (pool) => {
         [id]
       );
       if (parseInt(assignmentCount.rows[0].count) > total_seats_available) {
-        return error(res, `Cannot reduce seats to ${total_seats_available}. Currently ${assignmentCount.rows[0].count} participants are assigned`, 400);
+        return error(res, `Cannot reduce seats to ${total_seats_available}. Currently ${assignmentCount.rows[0].count} participants are assigned`, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
@@ -245,7 +245,6 @@ module.exports = (pool) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
-    const userRole = req.user.role;
     const { reason } = req.body;
 
     // Check if offer exists and user has permission
@@ -257,7 +256,7 @@ module.exports = (pool) => {
     );
 
     if (offerCheck.rows.length === 0) {
-      return error(res, 'Carpool offer not found', 404);
+      return error(res, 'Carpool offer not found', HTTP_STATUS.NOT_FOUND);
     }
 
     // Check permission: owner or user with carpools.manage
@@ -336,13 +335,13 @@ module.exports = (pool) => {
 
     // Validation
     if (!carpool_offer_id || !participant_id || !trip_direction) {
-      return error(res, 'Missing required fields: carpool_offer_id, participant_id, trip_direction', 400);
+      return error(res, 'Missing required fields: carpool_offer_id, participant_id, trip_direction', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Validate trip direction
     const validDirections = ['both', 'to_activity', 'from_activity'];
     if (!validDirections.includes(trip_direction)) {
-      return error(res, 'Invalid trip_direction. Must be one of: both, to_activity, from_activity', 400);
+      return error(res, 'Invalid trip_direction. Must be one of: both, to_activity, from_activity', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Check if carpool offer exists and is active
@@ -355,7 +354,7 @@ module.exports = (pool) => {
     );
 
     if (offerCheck.rows.length === 0) {
-      return error(res, 'Carpool offer not found or is not active', 404);
+      return error(res, 'Carpool offer not found or is not active', HTTP_STATUS.NOT_FOUND);
     }
 
     const offer = offerCheck.rows[0];
@@ -380,7 +379,7 @@ module.exports = (pool) => {
     );
 
     if (participantCheck.rows.length === 0) {
-      return error(res, 'Participant not found in this organization', 404);
+      return error(res, 'Participant not found in this organization', HTTP_STATUS.NOT_FOUND);
     }
 
     // A ride is for a child the activity invites
@@ -406,7 +405,7 @@ module.exports = (pool) => {
     );
 
     if (existingAssignment.rows.length > 0) {
-      return error(res, 'Participant is already assigned to a carpool for this trip direction', 400);
+      return error(res, 'Participant is already assigned to a carpool for this trip direction', HTTP_STATUS.BAD_REQUEST);
     }
 
     // The database trigger will handle seat availability validation
@@ -423,13 +422,13 @@ module.exports = (pool) => {
       return success(res, {
         ...result.rows[0],
         driver_name: offer.driver_name
-      }, 'Participant assigned to carpool successfully', 201);
+      }, 'Participant assigned to carpool successfully', HTTP_STATUS.CREATED);
     } catch (err) {
       if (err.message.includes('No available seats')) {
-        return error(res, err.message, 400);
+        return error(res, err.message, HTTP_STATUS.BAD_REQUEST);
       }
       if (err.message.includes('Cannot assign')) {
-        return error(res, err.message, 400);
+        return error(res, err.message, HTTP_STATUS.BAD_REQUEST);
       }
       throw err; // Let asyncHandler deal with unexpected errors
     }
@@ -453,7 +452,7 @@ module.exports = (pool) => {
     );
 
     if (assignmentCheck.rows.length === 0) {
-      return error(res, 'Assignment not found', 404);
+      return error(res, 'Assignment not found', HTTP_STATUS.NOT_FOUND);
     }
 
     const assignment = assignmentCheck.rows[0];

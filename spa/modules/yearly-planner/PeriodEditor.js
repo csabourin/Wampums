@@ -7,6 +7,7 @@ import { openModal } from '../../utils/ModalUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { updatePeriod } from '../../api/api-yearly-planner.js';
 import { periodColor, PERIOD_FALLBACK_COLORS } from './PlannerModel.js';
+import { ISO_DATE_LENGTH } from '../../utils/TimeUnits.js';
 
 export class PeriodEditor extends BaseModule {
   constructor(app, { period, onSaved }) {
@@ -28,11 +29,11 @@ export class PeriodEditor extends BaseModule {
           </label>
           <label class="form-group">
             <span>${escapeHTML(translate('yearly_planner_start_date'))}</span>
-            <input type="date" id="yp-period-edit-start" value="${escapeHTML(String(this.period.start_date).slice(0, 10))}" required>
+            <input type="date" id="yp-period-edit-start" value="${escapeHTML(String(this.period.start_date).slice(0, ISO_DATE_LENGTH))}" required>
           </label>
           <label class="form-group">
             <span>${escapeHTML(translate('yearly_planner_end_date'))}</span>
-            <input type="date" id="yp-period-edit-end" value="${escapeHTML(String(this.period.end_date).slice(0, 10))}" required>
+            <input type="date" id="yp-period-edit-end" value="${escapeHTML(String(this.period.end_date).slice(0, ISO_DATE_LENGTH))}" required>
           </label>
           <fieldset class="yp-period-editor__colors">
             <legend>${escapeHTML(translate('yearly_planner_period_color'))}</legend>

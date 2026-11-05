@@ -1,6 +1,7 @@
 'use strict';
 const { isCalendarDate } = require('../utils/calendar-date');
 const { findReplacedMeetings } = require('./meetingReplacement');
+const { HTTP_STATUS } = require('../utils/http-status');
 
 /** Roster snapshots shared by attendance, points, honors and offline preparation. */
 async function getActionRoster(db, organizationId, startDate, endDate = startDate) {
@@ -50,14 +51,14 @@ async function getActionRoster(db, organizationId, startDate, endDate = startDat
  */
 async function eligibleActionParticipants(db, organizationId, { date, activity_id: activityId, include_all: includeAll } = {}) {
   if (includeAll !== undefined && typeof includeAll !== 'boolean') {
-    throw Object.assign(new Error('Invalid roster override'), { status: 400 });
+    throw Object.assign(new Error('Invalid roster override'), { status: HTTP_STATUS.BAD_REQUEST });
   }
   if (activityId !== undefined && activityId !== null &&
       (!Number.isSafeInteger(activityId) || activityId <= 0)) {
-    throw Object.assign(new Error('Invalid activity'), { status: 400 });
+    throw Object.assign(new Error('Invalid activity'), { status: HTTP_STATUS.BAD_REQUEST });
   }
   if (!isCalendarDate(date)) {
-    throw Object.assign(new Error('Invalid roster date'), { status: 400 });
+    throw Object.assign(new Error('Invalid roster date'), { status: HTTP_STATUS.BAD_REQUEST });
   }
   let allowed = null;
   if (activityId !== null && activityId !== undefined) {
@@ -72,7 +73,7 @@ async function eligibleActionParticipants(db, organizationId, { date, activity_i
       [organizationId, activityId, date]
     );
     const activityRow = activity.rows[0];
-    if (!activityRow) { throw Object.assign(new Error('action_roster_activity_unavailable'), { status: 409 }); }
+    if (!activityRow) { throw Object.assign(new Error('action_roster_activity_unavailable'), { status: HTTP_STATUS.CONFLICT }); }
     if (activityRow.requires_permission) { allowed = new Set(activityRow.signed_participant_ids.map(Number)); }
   }
   // Even an exception must name a real activity belonging to the current unit.

@@ -22,6 +22,8 @@
  */
 
 const express = require('express');
+const { HTTP_STATUS } = require('../utils/http-status');
+const { TIME_HH_MM_LENGTH } = require('../utils/time-units');
 const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
@@ -254,7 +256,7 @@ module.exports = (pool, logger) => {
       );
 
       if (participant.rows.length === 0) {
-        return error(res, 'Participant not found', 404);
+        return error(res, 'Participant not found', HTTP_STATUS.NOT_FOUND);
       }
 
       // Get primary guardian
@@ -317,7 +319,7 @@ module.exports = (pool, logger) => {
       );
 
       if (user.rows.length === 0) {
-        return error(res, 'User not found', 404);
+        return error(res, 'User not found', HTTP_STATUS.NOT_FOUND);
       }
 
       const u = user.rows[0];
@@ -356,12 +358,12 @@ module.exports = (pool, logger) => {
       );
 
       if (activity.rows.length === 0) {
-        return error(res, 'Activity not found', 404);
+        return error(res, 'Activity not found', HTTP_STATUS.NOT_FOUND);
       }
 
       const a = activity.rows[0];
       const timeStr = a.activity_start_time
-        ? a.activity_start_time.toString().substring(0, 5)
+        ? a.activity_start_time.toString().substring(0, TIME_HH_MM_LENGTH)
         : '';
 
       const prefill = {
@@ -414,7 +416,7 @@ module.exports = (pool, logger) => {
       const { email, name, role_description } = req.body;
 
       if (!email || !email.includes('@')) {
-        return error(res, 'Valid email is required', 400);
+        return error(res, 'Valid email is required', HTTP_STATUS.BAD_REQUEST);
       }
 
       const result = await pool.query(
@@ -425,7 +427,7 @@ module.exports = (pool, logger) => {
         [organizationId, email.trim(), name?.trim() || null, role_description?.trim() || null]
       );
 
-      return success(res, result.rows[0], 'Escalation contact added', 201);
+      return success(res, result.rows[0], 'Escalation contact added', HTTP_STATUS.CREATED);
     })
   );
 
@@ -456,7 +458,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Escalation contact not found', 404);
+        return error(res, 'Escalation contact not found', HTTP_STATUS.NOT_FOUND);
       }
 
       return success(res, result.rows[0], 'Escalation contact updated');
@@ -484,7 +486,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Escalation contact not found', 404);
+        return error(res, 'Escalation contact not found', HTTP_STATUS.NOT_FOUND);
       }
 
       return success(res, null, 'Escalation contact removed');
@@ -570,7 +572,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return error(res, 'Incident report not found', 404);
+        return error(res, 'Incident report not found', HTTP_STATUS.NOT_FOUND);
       }
 
       return success(res, result.rows[0]);
@@ -646,7 +648,7 @@ module.exports = (pool, logger) => {
         );
 
         await client.query('COMMIT');
-        return success(res, incident.rows[0], 'Incident report created', 201);
+        return success(res, incident.rows[0], 'Incident report created', HTTP_STATUS.CREATED);
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;
@@ -692,12 +694,12 @@ module.exports = (pool, logger) => {
 
         if (existing.rows.length === 0) {
           await client.query('ROLLBACK');
-          return error(res, 'Incident report not found', 404);
+          return error(res, 'Incident report not found', HTTP_STATUS.NOT_FOUND);
         }
 
         if (existing.rows[0].status !== 'draft') {
           await client.query('ROLLBACK');
-          return error(res, 'Cannot edit a submitted report', 409);
+          return error(res, 'Cannot edit a submitted report', HTTP_STATUS.CONFLICT);
         }
 
         // Update form_submissions if form_data provided
@@ -775,11 +777,11 @@ module.exports = (pool, logger) => {
       );
 
       if (existing.rows.length === 0) {
-        return error(res, 'Incident report not found', 404);
+        return error(res, 'Incident report not found', HTTP_STATUS.NOT_FOUND);
       }
 
       if (existing.rows[0].status !== 'draft') {
-        return error(res, 'Cannot delete a submitted report', 409);
+        return error(res, 'Cannot delete a submitted report', HTTP_STATUS.CONFLICT);
       }
 
       const client = await pool.connect();
@@ -840,12 +842,12 @@ module.exports = (pool, logger) => {
 
         if (existing.rows.length === 0) {
           await client.query('ROLLBACK');
-          return error(res, 'Incident report not found', 404);
+          return error(res, 'Incident report not found', HTTP_STATUS.NOT_FOUND);
         }
 
         if (existing.rows[0].status !== 'draft') {
           await client.query('ROLLBACK');
-          return error(res, 'Report already submitted', 409);
+          return error(res, 'Report already submitted', HTTP_STATUS.CONFLICT);
         }
 
         const now = new Date();

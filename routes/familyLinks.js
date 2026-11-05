@@ -35,6 +35,8 @@ const {
   listFamilyLinks,
   endFamilyLink,
 } = require('../services/familyLinks');
+const { HTTP_STATUS } = require('../utils/http-status');
+const { MS_PER_HOUR } = require('../utils/time-units');
 
 /** Human-readable reasons for the refusals a parent can fix. */
 const REFUSAL_MESSAGES = {
@@ -60,7 +62,7 @@ const FAMILY_LINK_REQUESTS_PER_HOUR = 10;
  */
 function createFamilyLinkRequestLimiter() {
   return rateLimit({
-    windowMs: 60 * 60 * 1000,
+    windowMs: MS_PER_HOUR,
     max: FAMILY_LINK_REQUESTS_PER_HOUR,
     keyGenerator: (req) => `family-link:${req.user.id}`,
     message: { success: false, message: 'too_many_family_link_requests' },
@@ -115,7 +117,7 @@ module.exports = (pool, logger) => {
       });
 
       if (!created.ok) {
-        const status = created.reason === 'self' || created.reason === 'no_children' ? 400 : 409;
+        const status = created.reason === 'self' || created.reason === 'no_children' ? HTTP_STATUS.BAD_REQUEST : HTTP_STATUS.CONFLICT;
         return res.status(status).json({
           success: false,
           code: created.reason,
@@ -134,7 +136,7 @@ module.exports = (pool, logger) => {
         res,
         { ...serializeRequest(created.request), email_sent: emailSent },
         emailSent ? 'Request sent' : 'Request created, but the email could not be sent',
-        201
+        HTTP_STATUS.CREATED
       );
     })
   );
@@ -158,7 +160,7 @@ module.exports = (pool, logger) => {
       });
 
       if (!resent.ok) {
-        return error(res, 'Request not found', 404);
+        return error(res, 'Request not found', HTTP_STATUS.NOT_FOUND);
       }
 
       const emailSent = await deliverFamilyRequest(pool, {
@@ -189,7 +191,7 @@ module.exports = (pool, logger) => {
       });
 
       if (!withdrawn) {
-        return error(res, 'Request not found', 404);
+        return error(res, 'Request not found', HTTP_STATUS.NOT_FOUND);
       }
       return success(res, null, 'Request withdrawn');
     })
@@ -213,7 +215,7 @@ module.exports = (pool, logger) => {
       });
 
       if (!ended.ok) {
-        return error(res, 'Family link not found', 404);
+        return error(res, 'Family link not found', HTTP_STATUS.NOT_FOUND);
       }
       return success(res, { revoked_grants: ended.revoked }, 'Family link ended');
     })

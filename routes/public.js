@@ -9,6 +9,8 @@
 
 const express = require('express');
 const { asyncHandler } = require('../middleware/response');
+const { HTTP_STATUS } = require('../utils/http-status');
+const { MS_PER_HOUR } = require('../utils/time-units');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs').promises;
@@ -90,7 +92,7 @@ function escapeHtml(text) {
  * Prevents spam and abuse
  */
 const contactFormLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: MS_PER_HOUR, // 1 hour
   max: 10, // 3 requests per hour per IP
   message: 'Too many contact form submissions from this IP, please try again after an hour.',
   standardHeaders: true,
@@ -132,7 +134,7 @@ module.exports = (pool, logger) => {
       res.json(Object.fromEntries(translations));
     } catch (error) {
       logger.error('Error loading translations:', error);
-      res.status(500).json({ error: 'Failed to load translations' });
+      res.status(HTTP_STATUS.INTERNAL_ERROR).json({ error: 'Failed to load translations' });
     }
   }));
 
@@ -240,7 +242,7 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching news:', error);
-      res.status(500).json({ error: 'Failed to fetch news' });
+      res.status(HTTP_STATUS.INTERNAL_ERROR).json({ error: 'Failed to fetch news' });
     }
   }));
 
@@ -354,7 +356,7 @@ module.exports = (pool, logger) => {
         // Validate input
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
-          return res.status(400).json({
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({
             success: false,
             errors: errors.array().map(err => ({
               field: err.path,
@@ -469,7 +471,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
             email,
             organization
           });
-          return res.status(500).json({
+          return res.status(HTTP_STATUS.INTERNAL_ERROR).json({
             success: false,
             message: 'Failed to send demo request. Please try again later.'
           });
@@ -488,7 +490,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
         });
       } catch (error) {
         logger.error('Error processing contact form:', error);
-        res.status(500).json({
+        res.status(HTTP_STATUS.INTERNAL_ERROR).json({
           success: false,
           message: 'An error occurred while processing your request'
         });
@@ -511,7 +513,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
    * neither the reader nor the page needs the distinction.
    */
   const alumniLinkLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
+    windowMs: MS_PER_HOUR,
     max: 30,
     message: 'Too many requests, please try again later.',
     standardHeaders: true,
@@ -567,7 +569,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
    * would be an oracle for probing tokens.
    */
   const reactivationRequestLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
+    windowMs: MS_PER_HOUR,
     max: 5,
     message: { success: false, message: 'too_many_reactivation_requests' },
     standardHeaders: true,
@@ -575,7 +577,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
   });
 
   const reactivationLinkLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
+    windowMs: MS_PER_HOUR,
     max: 30,
     message: { success: false, message: 'too_many_reactivation_requests' },
     standardHeaders: true,
@@ -660,7 +662,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
    * such invitation" would be an oracle for probing tokens.
    */
   const invitationLinkLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
+    windowMs: MS_PER_HOUR,
     max: 30,
     message: { success: false, message: 'too_many_invitation_requests' },
     standardHeaders: true,
@@ -724,7 +726,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
       // The one refusal that is the caller's to fix, so it gets a 4xx rather
       // than a state the page would have to special-case anyway.
       if (result.error === 'password_required' || result.error === 'name_required') {
-        return res.status(400).json({ success: false, message: result.error, data: result });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: result.error, data: result });
       }
 
       return res.json({ success: true, data: result });
@@ -782,7 +784,7 @@ User Agent: ${req.headers['user-agent'] || 'Unknown'}
       );
 
       if (result.error === 'password_required' || result.error === 'name_required') {
-        return res.status(400).json({ success: false, message: result.error, data: result });
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: result.error, data: result });
       }
 
       return res.json({ success: true, data: result });
