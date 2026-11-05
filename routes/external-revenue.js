@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const HTTP_NOT_FOUND = 404;
+const HTTP_BAD_REQUEST = 400;
 const { authenticate, blockDemoRoles, getOrganizationId, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
@@ -11,6 +12,15 @@ const {
 } = require('../utils/validation-helpers');
 
 module.exports = (pool, logger) => {
+  /** A revenue can only refer to a budget category in its authenticated unit. */
+  async function categoryBelongsToUnit(categoryId, organizationId) {
+    const result = await pool.query(
+      'SELECT 1 FROM budget_categories WHERE id = $1 AND organization_id = $2',
+      [categoryId, organizationId]
+    );
+    return result.rows.length > 0;
+  }
+
   /**
    * GET /api/v1/revenue/external
    * List external revenue entries (donations, sponsorships, grants, other)
@@ -51,7 +61,7 @@ module.exports = (pool, logger) => {
         br.created_at,
         br.updated_at
       FROM budget_revenues br
-      LEFT JOIN budget_categories bc ON br.budget_category_id = bc.id
+      LEFT JOIN budget_categories bc ON br.budget_category_id = bc.id AND bc.organization_id = br.organization_id
       LEFT JOIN users u ON br.created_by = u.id
       WHERE br.organization_id = $1
     `;
@@ -139,6 +149,10 @@ module.exports = (pool, logger) => {
           return error(res, 'budget_category_id must be a valid positive integer or null', 400);
         }
         normalizedCategoryId = categoryId;
+      }
+
+      if (normalizedCategoryId !== null && !await categoryBelongsToUnit(normalizedCategoryId, organizationId)) {
+        return error(res, 'Budget category not found in this organization', HTTP_BAD_REQUEST);
       }
 
       const result = await pool.query(
@@ -233,6 +247,11 @@ module.exports = (pool, logger) => {
       normalizedCategoryId = null;
     }
 
+    if (normalizedCategoryId !== undefined && normalizedCategoryId !== null
+      && !await categoryBelongsToUnit(normalizedCategoryId, organizationId)) {
+      return error(res, 'Budget category not found in this organization', HTTP_BAD_REQUEST);
+    }
+
     const result = await pool.query(
       `UPDATE budget_revenues
       SET budget_category_id = CASE WHEN $12 THEN $1 ELSE budget_category_id END,
@@ -324,7 +343,7 @@ module.exports = (pool, logger) => {
         COUNT(*) as entry_count,
         SUM(br.amount) as total_amount
       FROM budget_revenues br
-      LEFT JOIN budget_categories bc ON br.budget_category_id = bc.id
+      LEFT JOIN budget_categories bc ON br.budget_category_id = bc.id AND bc.organization_id = br.organization_id
       WHERE br.organization_id = $1
     `;
     const params = [organizationId];
