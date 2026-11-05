@@ -203,15 +203,17 @@ function verifyCertification(pool, organizationId, managerId, userId, key, input
 }
 
 /**
- * Certifications of several people for a camp: those verified and valid through its last day,
- * and those declared, valid then, but not verified. The caller restricts the people to its unit.
+ * Certifications of several people for a camp: those obtained by its first day, verified and valid
+ * through its last day, and those declared, valid then, but not verified. The caller restricts the
+ * people to its unit's active members.
  *
  * @param {Object} db
  * @param {Array<string>} userIds
+ * @param {string} firstDay - YYYY-MM-DD, the camp's first day
  * @param {string} lastDay - YYYY-MM-DD, the camp's last day
  * @returns {Promise<Map<string, {verified: Array<string>, to_verify: Array<string>}>>}
  */
-async function certificationsForCamp(db, userIds, lastDay) {
+async function certificationsForCamp(db, userIds, firstDay, lastDay) {
   const byUser = new Map(userIds.map((id) => [id, { verified: [], to_verify: [] }]));
   if (!userIds.length) {
     return byUser;
@@ -219,8 +221,8 @@ async function certificationsForCamp(db, userIds, lastDay) {
   const rows = (await db.query(
     `SELECT user_id, certification_key, verified_at IS NOT NULL AS verified
        FROM member_certifications
-      WHERE user_id = ANY($1::uuid[]) AND (valid_until IS NULL OR valid_until >= $2::date)`,
-    [userIds, lastDay]
+      WHERE user_id = ANY($1::uuid[]) AND obtained_on <= $2::date AND (valid_until IS NULL OR valid_until >= $3::date)`,
+    [userIds, firstDay, lastDay]
   )).rows;
   CERTIFICATIONS.forEach((key) => rows.filter((row) => row.certification_key === key).forEach((row) => {
     const entry = byUser.get(row.user_id);

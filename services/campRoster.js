@@ -197,8 +197,10 @@ async function campVolunteers(db, organizationId, camp, { canSeeVolunteers }) {
  * them; they are attached to the members only for those who may see them.
  */
 async function withCertifications(db, organizationId, camp, team, { canSeeCertifications }) {
-  const certifications = await certificationsForCamp(db, team.map((member) => member.user_id), camp.date_to);
-  const members = team.map((member) => (canSeeCertifications
+  // A member who left the unit is still listed, but their person-wide record is no longer this unit's to read.
+  const present = team.filter((member) => member.active_member).map((member) => member.user_id);
+  const certifications = await certificationsForCamp(db, present, camp.date_from, camp.date_to);
+  const members = team.map((member) => (canSeeCertifications && member.active_member
     ? { ...member, certifications: certifications.get(member.user_id) }
     : member));
   return { members, certifications };

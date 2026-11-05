@@ -73,7 +73,8 @@ opened from each camp of `/camp-plans`. It shows, in this order:
   (`PUT /api/v1/member-certifications/:userId/:key/verification`, `volunteers.manage`), and the
   verification then **holds in every unit** of that person. Changing a declaration's dates withdraws its
   verification. A unit reads a person's certifications only while they are its active member. A
-  certification counts for a camp when it is verified and valid through the camp's **last** day.
+  certification counts for a camp when it was obtained by the camp's **first** day, is verified, and is
+  valid through its **last** day. A team member who left the unit stays listed without their certifications.
   `no_first_aider` holds while no active team member has a verified first aid or wilderness first aid
   certification; volunteers of the camp's shifts do not count. A declaration valid for the camp's dates
   but unverified is `certification_to_verify`.

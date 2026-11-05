@@ -158,6 +158,20 @@ describe.skipIf(!DATABASE_URL)('Adult certifications in the camp lists', () => {
     const data = await roster(meeting);
     expect(data.blocking_gaps).toEqual(['no_first_aider']);
     expect(data.gaps).toContain('member_left_unit');
+    // Still listed, but their person-wide certifications are no longer this unit's to read.
+    expect(data.team.find((row) => row.user_id === leaving)).not.toHaveProperty('certifications');
+  });
+
+  test('a certification obtained after the camp began does not cover that camp', async () => {
+    const late = await member(ids.unit, ['volunteers.view'], 'Barbara Liskov');
+    const meeting = await camp(ids.unit, '2025-07-04', '2025-07-11');
+    await name(meeting, late);
+    await declare(late, { first_aid_certificate: { obtained_on: '2025-07-06' } });
+    await verify(late, ['first_aid_certificate']);
+    expect((await roster(meeting)).blocking_gaps).toEqual(['no_first_aider']);
+    await declare(late, { first_aid_certificate: { obtained_on: '2025-07-04' } });
+    await verify(late, ['first_aid_certificate']);
+    expect((await roster(meeting)).blocking_gaps).toEqual([]);
   });
 
   test('certifications go to whoever manages the camp or its volunteers; a reader sees only the gaps', async () => {
