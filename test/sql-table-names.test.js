@@ -20,12 +20,8 @@ const NOT_TABLES = new Set([
   'jsonb_object_keys', 'regexp_split_to_table', 'string_to_table', 'information_schema', 'pg_catalog', 'values',
   'select', 'set', 'only', 'excluded',
 ]);
-/**
- * Known gaps, each awaiting a decision. Shrinks only.
- * routes/forms.js: GET/POST /api/v1/forms, /:id, /:id/submit, /:id/submissions and the approve
- * route read and write a `forms` table no schema or migration creates. Nothing calls them.
- */
-const KNOWN_MISSING = new Set(['routes/forms.js: forms']);
+/** Known gaps, each awaiting a decision. Shrinks only. */
+const KNOWN_MISSING = new Set();
 /** A string reads as SQL when it starts like a statement. */
 const LOOKS_LIKE_SQL = /^\s*(?:WITH|SELECT|INSERT|UPDATE|DELETE)\b/i;
 /** Characters read before FROM to tell a function argument from a table. */
