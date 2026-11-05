@@ -4,7 +4,7 @@ import { API, makeApiRequestWithCache } from './api-core.js';
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
 import { CONFIG } from '../config.js';
 import { fetchPublic, getCurrentOrganizationId, getAuthHeader } from './api-helpers.js';
-import { handleResponse } from './api-core.js';
+import { handleResponse, requestSessionToken } from './api-core.js';
 import {
   clearGroupRelatedCaches,
   clearBudgetCaches,
@@ -320,13 +320,14 @@ export async function uploadEquipmentPhoto(equipmentId, file) {
   formData.append('photo', file);
 
   const url = new URL(`/api/v1/resources/equipment/${equipmentId}/photo`, CONFIG.API_BASE_URL);
+  const headers = getAuthHeader();
   const response = await fetch(url.toString(), {
     method: 'POST',
-    headers: getAuthHeader(),
+    headers,
     body: formData
   });
 
-  return handleResponse(response);
+  return handleResponse(response, { requestToken: requestSessionToken(headers) });
 }
 
 /**
