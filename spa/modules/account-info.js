@@ -17,6 +17,8 @@ import { nativeLanguageName } from '../utils/InterfaceLanguageUtils.js';
 import { apiErrorMessage } from '../utils/ApiErrorUtils.js';
 import { canViewActivities, holdsFamilyRole, isDemoUser, isParent } from '../utils/PermissionUtils.js';
 import { CALENDAR_FEED_ANCHOR, CalendarFeedPanel } from './calendar-feed/CalendarFeedPanel.js';
+import { CERTIFICATIONS_ANCHOR, CertificationsPanel } from './certifications/CertificationsPanel.js';
+import { ALLERGY_ANCHOR, AllergyPanel } from './member-allergies/AllergyPanel.js';
 import { setContent, loadStylesheet, withFormBusy } from '../utils/DOMUtils.js';
 import { updateMyNickname } from '../api/api-members.js';
 import { confirm as confirmDialog } from '../utils/DialogUtils.js';
@@ -41,11 +43,16 @@ export class AccountInfoModule {
     this.pushSupported = false;
     // The calendar link serves the unit's activities: offered to those who see them.
     this.calendarFeedPanel = canViewActivities() ? new CalendarFeedPanel(app) : null;
+    // Certifications are those of the unit's adults (team, volunteers), not of a parent who is only a parent.
+    this.certificationsPanel = isParent() ? null : new CertificationsPanel(app);
+    this.allergyPanel = isParent() ? null : new AllergyPanel(app);
   }
 
   /** Called by the router when the person leaves this screen. */
   destroy() {
     this.calendarFeedPanel?.destroy();
+    this.certificationsPanel?.destroy();
+    this.allergyPanel?.destroy();
   }
 
   /**
@@ -471,6 +478,14 @@ export class AccountInfoModule {
         <section class="account-section calendar-feed" id="${CALENDAR_FEED_ANCHOR}" aria-labelledby="calendar-feed-heading"></section>
         ` : ''}
 
+        ${this.certificationsPanel ? `
+        <section class="account-section" id="${CERTIFICATIONS_ANCHOR}" aria-labelledby="certifications-heading"></section>
+        ` : ''}
+
+        ${this.allergyPanel ? `
+        <section class="account-section" id="${ALLERGY_ANCHOR}" aria-labelledby="allergy-declaration-heading"></section>
+        ` : ''}
+
         <!-- Account Actions -->
         <section class="account-section">
           <button class="button button--danger" id="logout-btn">
@@ -488,6 +503,8 @@ export class AccountInfoModule {
     if (appContainer) {
       setContent(appContainer, content);
       this.calendarFeedPanel?.mount(document.getElementById(CALENDAR_FEED_ANCHOR));
+      this.certificationsPanel?.mount(document.getElementById(CERTIFICATIONS_ANCHOR));
+      this.allergyPanel?.mount(document.getElementById(ALLERGY_ANCHOR));
     } else {
       debugError('App container not found');
     }

@@ -5,7 +5,10 @@
  * `participants.view` with a unit-wide data scope, since the lists name
  * youth; naming the team, and reading a member's birth date, takes
  * `meetings.manage`, as planning the camp does. Volunteers' names go only to
- * holders of `volunteers.manage` (devdocs/VOLUNTEERS.md).
+ * holders of `volunteers.manage` (devdocs/VOLUNTEERS.md). Team members'
+ * certifications go to holders of either `meetings.manage` or
+ * `volunteers.manage`; the gaps they cause are shown to every reader.
+ * Allergies (youth and adults) go only to holders of `camp_allergies.view`.
  *
  * @module routes/camp-rosters
  */
@@ -15,7 +18,7 @@ const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, user
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 const {
-  CampRosterError, readCampRoster, listTeamCandidates, saveTeamMember, removeTeamMember,
+  CampRosterError, readCampRoster, listTeamCandidates, saveTeamMember, removeTeamMember, saveCampActivities,
 } = require('../services/campRoster');
 
 /** Answer known refusals with their translation key, naming the field when there is one. */
@@ -46,11 +49,26 @@ module.exports = (pool) => {
     checkValidation,
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const [canManage, canSeeVolunteers] = await Promise.all([
+      const [canManage, canSeeVolunteers, canSeeAllergies] = await Promise.all([
         userHasPermission(req, pool, organizationId, 'meetings.manage'),
         userHasPermission(req, pool, organizationId, 'volunteers.manage'),
+        userHasPermission(req, pool, organizationId, 'camp_allergies.view'),
       ]);
-      return success(res, await readCampRoster(pool, organizationId, Number(req.params.meetingId), { canManage, canSeeVolunteers }));
+      const canSeeCertifications = canManage || canSeeVolunteers;
+      return success(res, await readCampRoster(pool, organizationId, Number(req.params.meetingId),
+        { canManage, canSeeVolunteers, canSeeCertifications, canSeeAllergies }));
+    }));
+
+  // What the camp plans that changes its lists: today, whether it plans swimming.
+  router.patch('/:meetingId',
+    blockDemoRoles,
+    requirePermission(MANAGE),
+    validateIdParam('meetingId'),
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      return success(res, await saveCampActivities(pool, organizationId, Number(req.params.meetingId), req.body),
+        'camp_roster_activities_saved');
     }));
 
   router.get('/:meetingId/team-candidates',

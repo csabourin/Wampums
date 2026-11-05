@@ -3,9 +3,12 @@
  * the volunteers of its shifts, as the camp permit asks for them.
  *
  * Reading takes `meetings.view` and `participants.view` with a unit-wide
- * scope; naming the team takes `meetings.manage`. Nothing here says the camp
- * is compliant: what the lists cannot vouch for, including the comparison with
- * the SISC, is listed under "To check".
+ * scope; naming the team, and saying the camp plans swimming, takes
+ * `meetings.manage`. Team members' certifications are shown to whoever manages
+ * the camp or its volunteers; allergies, to holders of `camp_allergies.view`
+ * (the server sends them to no one else). Nothing here says the camp is compliant: what the
+ * lists cannot vouch for, including the comparison with the SISC, is listed
+ * under "To check", blocking gaps first and named as such.
  *
  * @module spa/modules/camp-plan/CampRoster
  */
@@ -23,12 +26,14 @@ import { openModal } from '../../utils/ModalUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { volunteerTypeLabel } from '../../utils/VolunteerTypeUtils.js';
 import {
-  getCampRoster, getCampTeamCandidates, saveCampTeamMember, removeCampTeamMember,
+  getCampRoster, getCampTeamCandidates, saveCampTeamMember, removeCampTeamMember, saveCampActivities,
 } from '../../api/api-camp-rosters.js';
 import rules from '../../../config/camp_team.json';
 import styles from '../../../css/camp-plan.css?url';
 
 const BACK_HREF = '/camp-plans';
+/** Where a youth's health form opens, with the person to notify. */
+const HEALTH_FORM_HREF = '/dynamic-form/fiche_sante/';
 const MODAL_ID = 'camp-roster-modal';
 const FORM_ID = 'camp-roster-member-form';
 
@@ -107,13 +112,53 @@ export class CampRoster {
       : shown;
   }
 
-  /** @returns {string} What the lists cannot vouch for; the SISC comparison is always among them for now */
+  /**
+   * @returns {string} What the lists cannot vouch for, blocking gaps first and named as such
+   *   in words; the SISC comparison is always among them for now
+   */
   gapsMarkup() {
-    const items = [...this.data.gaps, 'sisc_not_compared'];
+    const blocking = Array.isArray(this.data.blocking_gaps) ? this.data.blocking_gaps : [];
+    const others = [...this.data.gaps.filter((gap) => !blocking.includes(gap)), 'sisc_not_compared'];
+    const items = [
+      ...blocking.map((gap) => `<li class="camp-roster__gap--blocking"><strong>${escapeHTML(translate('camp_roster_blocking'))}</strong> ${escapeHTML(translate(`camp_roster_gap_${gap}`))}</li>`),
+      ...others.map((gap) => `<li>${escapeHTML(translate(`camp_roster_gap_${gap}`))}</li>`),
+    ];
     return `<section class="camp-roster__section" aria-labelledby="camp-roster-gaps">
         <h2 id="camp-roster-gaps">${escapeHTML(translate('camp_roster_to_check'))}</h2>
-        <ul class="camp-roster__gaps">${items.map((gap) => `<li>${escapeHTML(translate(`camp_roster_gap_${gap}`))}</li>`).join('')}</ul>
+        <ul class="camp-roster__gaps">${items.join('')}</ul>
       </section>`;
+  }
+
+  /** @returns {string} What the camp plans that changes its lists: whether it plans swimming */
+  activitiesMarkup() {
+    const planned = Boolean(this.data.camp.swimming_planned);
+    const body = this.canEditTeam()
+      ? `<div class="checkbox-option">
+          <input type="checkbox" id="camp-roster-swimming" ${planned ? 'checked' : ''} aria-describedby="camp-roster-swimming-help">
+          <label for="camp-roster-swimming">${escapeHTML(translate('camp_roster_swimming_planned'))}</label>
+        </div>
+        <p class="form-help" id="camp-roster-swimming-help">${escapeHTML(translate('camp_roster_swimming_help'))}</p>`
+      : `<p>${escapeHTML(translate(planned ? 'camp_roster_swimming_yes' : 'camp_roster_swimming_no'))}</p>`;
+    return `<section class="camp-roster__section" aria-labelledby="camp-roster-activities">
+        <h2 id="camp-roster-activities">${escapeHTML(translate('camp_roster_activities'))}</h2>
+        ${body}
+      </section>`;
+  }
+
+  /** @returns {string} A member's certifications for the camp, when the reader may see them */
+  certificationsText(member) {
+    const held = member.certifications;
+    if (!held) {
+      return '';
+    }
+    const names = (keys) => keys.map((key) => translate(`volunteer_requirement_${key}`)).join(', ');
+    const lines = [held.verified.length
+      ? translate('camp_roster_certifications_verified').replace('{list}', names(held.verified))
+      : translate('camp_roster_certifications_none')];
+    if (held.to_verify.length) {
+      lines.push(translate('camp_roster_certifications_to_verify').replace('{list}', names(held.to_verify)));
+    }
+    return lines.map((line) => `<p class="camp-roster__certifications">${escapeHTML(line)}</p>`).join('');
   }
 
   /** @returns {string} How the youth list was drawn up */
@@ -181,6 +226,7 @@ export class CampRoster {
     return `<li class="camp-roster__member" data-member="${escapeAttribute(member.user_id)}">
         <p class="camp-roster__member-name"><strong>${escapeHTML(name)}</strong></p>
         <p>${escapeHTML(translate(`camp_roster_role_${member.team_role}`))} · ${escapeHTML(this.ageStatusText(member))}</p>
+        ${this.certificationsText(member)}
         ${left}
         ${actions}
       </li>`;
@@ -199,6 +245,80 @@ export class CampRoster {
         <h2 id="camp-roster-team">${escapeHTML(translate('camp_roster_team'))}</h2>
         ${list}
         ${add}
+      </section>`;
+  }
+
+  /** @returns {string} A yes or no in words */
+  yesNo(value) {
+    return translate(value ? 'camp_roster_yes' : 'camp_roster_no');
+  }
+
+  /** @returns {string} Youth whose health form declares an allergy, with what to do */
+  youthAllergiesMarkup(allergies) {
+    const missing = Number(allergies.youth_without_health_form) || 0;
+    const missingText = missing
+      ? `<p class="camp-roster__warning">${escapeHTML(translate('camp_roster_allergies_youth_no_form').replace('{count}', this.number(missing)))}</p>`
+      : '';
+    if (!allergies.youth.length) {
+      return `<h3 id="camp-roster-allergies-youth">${escapeHTML(translate('camp_roster_allergies_youth'))}</h3>
+        <p class="camp-plan__empty">${escapeHTML(translate('camp_roster_allergies_youth_empty'))}</p>${missingText}`;
+    }
+    const label = (key) => escapeAttribute(translate(key));
+    const rows = allergies.youth.map((person) => {
+      const name = this.personName(`${person.first_name || ''} ${person.last_name || ''}`.trim(), person.nickname);
+      const response = [person.reaction, person.action, person.emergency_medication].filter(Boolean).join(' · ');
+      const href = `${HEALTH_FORM_HREF}${encodeURIComponent(person.participant_id)}`;
+      return `<tr>
+          <td data-label="${label('camp_roster_column_name')}">${escapeHTML(name)}</td>
+          <td data-label="${label('camp_roster_column_allergies')}">${escapeHTML(person.allergies || translate('camp_roster_allergies_unspecified'))}</td>
+          <td data-label="${label('camp_roster_column_epipen')}">${escapeHTML(this.yesNo(person.epipen))}</td>
+          <td data-label="${label('camp_roster_column_response')}">${escapeHTML(response || '—')}</td>
+          <td data-label="${label('camp_roster_column_notify')}"><a href="${escapeAttribute(href)}">${escapeHTML(translate('camp_roster_health_form'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a></td>
+        </tr>`;
+    }).join('');
+    return `<h3 id="camp-roster-allergies-youth">${escapeHTML(translate('camp_roster_allergies_youth'))}</h3>
+      <table class="mobile-labeled-table camp-roster__table">
+        <caption class="sr-only">${escapeHTML(translate('camp_roster_allergies_youth'))}</caption>
+        <thead><tr>
+          <th scope="col">${escapeHTML(translate('camp_roster_column_name'))}</th>
+          <th scope="col">${escapeHTML(translate('camp_roster_column_allergies'))}</th>
+          <th scope="col">${escapeHTML(translate('camp_roster_column_epipen'))}</th>
+          <th scope="col">${escapeHTML(translate('camp_roster_column_response'))}</th>
+          <th scope="col">${escapeHTML(translate('camp_roster_column_notify'))}</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>${missingText}`;
+  }
+
+  /** @returns {string} Team members' allergies, as each declared them */
+  adultAllergiesMarkup(allergies) {
+    const silent = Number(allergies.adults_without_declaration) || 0;
+    const silentText = silent
+      ? `<p class="camp-roster__warning">${escapeHTML(translate('camp_roster_allergies_adults_silent').replace('{count}', this.number(silent)))}</p>`
+      : '';
+    const list = allergies.adults.length
+      ? `<ul class="camp-roster__list">${allergies.adults.map((person) => `<li class="camp-roster__member">
+            <p><strong>${escapeHTML(this.personName(person.name, person.nickname))}</strong></p>
+            <p>${escapeHTML(person.allergies)}</p>
+            <p>${escapeHTML(translate('camp_roster_epipen_line').replace('{answer}', this.yesNo(person.carries_epipen)))}</p>
+            <p>${escapeHTML(translate('camp_roster_notify_line').replace('{person}', () => person.person_to_notify || translate('camp_roster_notify_not_given')))}</p>
+          </li>`).join('')}</ul>`
+      : `<p class="camp-plan__empty">${escapeHTML(translate('camp_roster_allergies_adults_empty'))}</p>`;
+    return `<h3 id="camp-roster-allergies-adults">${escapeHTML(translate('camp_roster_allergies_adults'))}</h3>
+      <p class="form-help">${escapeHTML(translate('camp_roster_allergies_adults_help'))}</p>
+      ${list}${silentText}`;
+  }
+
+  /** @returns {string} The camp's allergies, for whoever may read them; nothing otherwise */
+  allergiesMarkup() {
+    const { allergies } = this.data;
+    if (!allergies || !Array.isArray(allergies.youth) || !Array.isArray(allergies.adults)) {
+      return '';
+    }
+    return `<section class="camp-roster__section" aria-labelledby="camp-roster-allergies">
+        <h2 id="camp-roster-allergies">${escapeHTML(translate('camp_roster_allergies'))}</h2>
+        ${this.youthAllergiesMarkup(allergies)}
+        ${this.adultAllergiesMarkup(allergies)}
       </section>`;
   }
 
@@ -242,8 +362,10 @@ export class CampRoster {
         ${cancelled}
         <p class="camp-plan__intro">${escapeHTML(translate('camp_roster_intro'))}</p>
         ${this.gapsMarkup()}
+        ${this.activitiesMarkup()}
         ${this.youthMarkup()}
         ${this.teamMarkup()}
+        ${this.allergiesMarkup()}
         ${this.volunteersMarkup()}
       </section>`);
     this.bind();
@@ -252,6 +374,7 @@ export class CampRoster {
   bind() {
     const root = this.root();
     root.querySelector('#camp-roster-add')?.addEventListener('click', () => this.openMemberForm(null));
+    root.querySelector('#camp-roster-swimming')?.addEventListener('change', (event) => this.saveSwimming(event.target));
     root.querySelectorAll('[data-edit-member]').forEach((button) => {
       button.addEventListener('click', () => this.openMemberForm(button.dataset.editMember));
     });
@@ -393,6 +516,32 @@ export class CampRoster {
       if (!fieldError || !this.showFieldError(form, fields[fieldError.path], message)) {
         this.app.showMessage(message, 'error');
       }
+    }
+  }
+
+  /**
+   * Say whether the camp plans swimming. The box stays disabled while saving and goes back to
+   * what is recorded when the save fails.
+   * @param {HTMLInputElement} box
+   */
+  async saveSwimming(box) {
+    const planned = box.checked;
+    box.disabled = true;
+    try {
+      await saveCampActivities(this.meetingId, { swimming_planned: planned });
+      if (this.destroyed) {
+        return;
+      }
+      this.app.showMessage(translate('camp_roster_activities_saved'), 'success');
+      await this.init();
+    } catch (err) {
+      debugError('Failed to save the camp activities:', err);
+      if (this.destroyed) {
+        return;
+      }
+      box.checked = !planned;
+      box.disabled = false;
+      this.app.showMessage(apiErrorMessage(err, 'camp_roster_activities_failed'), 'error');
     }
   }
 

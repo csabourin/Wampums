@@ -17,6 +17,7 @@ jest.mock('../../spa/api/api-volunteers.js', () => ({
   deleteVolunteerShift: jest.fn(), signUpForShift: jest.fn(), withdrawFromShift: jest.fn(), removeVolunteer: jest.fn(),
   getVolunteerRequirements: jest.fn(), saveVolunteerRequirements: jest.fn(), getTeamChecks: jest.fn(),
 }));
+jest.mock('../../spa/api/api-member-certifications.js', () => ({ getMemberCertifications: jest.fn(), verifyMemberCertification: jest.fn() }));
 jest.mock('../../spa/utils/DialogUtils.js', () => ({
   confirmDestructive: jest.fn(() => Promise.resolve(true)),
   hasActiveDialog: jest.fn(() => false),
@@ -26,6 +27,7 @@ import {
   getVolunteerShifts, getVolunteerShiftActivities, saveVolunteerShift, signUpForShift, withdrawFromShift, removeVolunteer,
   getVolunteerRequirements, saveVolunteerRequirements, getTeamChecks,
 } from '../../spa/api/api-volunteers.js';
+import { getMemberCertifications, verifyMemberCertification } from '../../spa/api/api-member-certifications.js';
 import { Volunteers } from '../../spa/modules/volunteers/Volunteers.js';
 import { closeAllModals } from '../../spa/utils/ModalUtils.js';
 
@@ -57,6 +59,7 @@ async function open() {
 }
 
 beforeEach(() => {
+  getMemberCertifications.mockReset().mockResolvedValue({ data: [] });
   jest.clearAllMocks();
   document.body.innerHTML = '<main id="app"></main>';
   mockPermissions.clear();
@@ -357,6 +360,91 @@ describe('types and what they require', () => {
       background_check: { checked_on: '2025-09-01' }, safety_training: { valid_until: null },
     });
     expect(app.showMessage).toHaveBeenCalledWith('volunteers_verified_confirmed', 'success');
+  });
+
+  test('a manager sees the certifications a person declared and verifies them for every unit of theirs', async () => {
+    mockPermissions.add('volunteers.manage');
+    getVolunteerShifts.mockResolvedValue({ data: [shift({
+      id: 5, volunteer_type: 'cook', title: '', slots: 1, taken: 1, pending: 1, requirements: ['background_check'],
+      volunteers: [{ user_id: '00000000-0000-4000-8000-000000000004', name: 'Katherine Johnson', status: 'pending', missing: ['background_check'] }],
+    })] });
+    getVolunteerRequirements.mockResolvedValue({ data: [] });
+    saveVolunteerRequirements.mockResolvedValue({ data: { confirmed: 0 } });
+    verifyMemberCertification.mockResolvedValue({ data: [] });
+    getMemberCertifications.mockResolvedValue({ data: [
+      { certification_key: 'wilderness_first_aid', declared: { obtained_on: '2025-03-01', valid_until: '2028-03-01' }, verified: null },
+      { certification_key: 'winter_camping', declared: { obtained_on: '2024-01-15', valid_until: null }, verified: { valid_until: null } },
+      { certification_key: 'first_aid_certificate', declared: null, verified: null },
+    ] });
+    await open();
+    document.querySelector('[data-verify]').click();
+    await flush();
+    const form = document.getElementById('volunteers-verify-form');
+    expect(form.elements.cert_wilderness_first_aid.checked).toBe(false);
+    expect(form.elements.cert_winter_camping.checked).toBe(true);
+    expect(form.elements.cert_first_aid_certificate).toBeUndefined();
+    expect(document.getElementById('volunteers-cert-wilderness_first_aid-declared').textContent).toBe('volunteers_declared_until');
+    expect((await axe.run(document.getElementById('volunteers-verify'), AXE_OPTIONS)).violations).toEqual([]);
+    form.elements.req_background_check.checked = true;
+    form.elements.checked_background_check.value = '2025-09-01';
+    form.elements.cert_wilderness_first_aid.checked = true;
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    await flush();
+    expect(verifyMemberCertification).toHaveBeenCalledTimes(1);
+    expect(verifyMemberCertification).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000004', 'wilderness_first_aid', true,
+      { obtained_on: '2025-03-01', valid_until: '2028-03-01' });
+  });
+
+  test('after a partly refused save, a retry sends exactly what still differs, a withdrawal included', async () => {
+    mockPermissions.add('volunteers.manage');
+    getVolunteerShifts.mockResolvedValue({ data: [shift({
+      id: 7, volunteer_type: 'cook', title: '', slots: 1, taken: 1, pending: 1, requirements: ['background_check'],
+      volunteers: [{ user_id: '00000000-0000-4000-8000-000000000006', name: 'Annie Easley', status: 'pending', missing: [] }],
+    })] });
+    getVolunteerRequirements.mockResolvedValue({ data: [{ requirement_key: 'background_check', checked_on: '2025-09-01', valid_until: '2028-09-01' }] });
+    saveVolunteerRequirements.mockResolvedValue({ data: { confirmed: 0 } });
+    getMemberCertifications.mockResolvedValue({ data: [
+      { certification_key: 'first_aid_certificate', declared: { obtained_on: '2025-01-01', valid_until: null }, verified: null },
+      { certification_key: 'winter_camping', declared: { obtained_on: '2024-01-15', valid_until: null }, verified: null },
+    ] });
+    verifyMemberCertification.mockReset()
+      .mockResolvedValueOnce({ data: [] })
+      .mockRejectedValueOnce(Object.assign(new Error('changed'), { status: 409 }));
+    await open();
+    document.querySelector('[data-verify]').click();
+    await flush();
+    const form = document.getElementById('volunteers-verify-form');
+    form.elements.cert_first_aid_certificate.checked = true;
+    form.elements.cert_winter_camping.checked = true;
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    await flush();
+    expect(document.getElementById('volunteers-verify-error').hidden).toBe(false);
+    verifyMemberCertification.mockReset().mockResolvedValue({ data: [] });
+    form.elements.cert_first_aid_certificate.checked = false;
+    form.elements.cert_winter_camping.checked = false;
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    await flush();
+    expect(verifyMemberCertification).toHaveBeenCalledTimes(1);
+    expect(verifyMemberCertification).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000006', 'first_aid_certificate', false,
+      { obtained_on: '2025-01-01', valid_until: null });
+  });
+
+  test('when declarations cannot be read, verifying still works', async () => {
+    mockPermissions.add('volunteers.manage');
+    getVolunteerShifts.mockResolvedValue({ data: [shift({
+      id: 6, volunteer_type: 'cook', title: '', slots: 1, taken: 1, pending: 1, requirements: ['background_check'],
+      volunteers: [{ user_id: '00000000-0000-4000-8000-000000000005', name: 'Dorothy Vaughan', status: 'pending', missing: ['background_check'] }],
+    })] });
+    getVolunteerRequirements.mockResolvedValue({ data: [] });
+    getMemberCertifications.mockRejectedValue(Object.assign(new Error('down'), { status: 500 }));
+    await open();
+    document.querySelector('[data-verify]').click();
+    await flush();
+    expect(document.getElementById('volunteers-verify-form')).not.toBeNull();
+    expect(document.querySelector('[id^="volunteers-declared-"]')).toBeNull();
   });
 });
 

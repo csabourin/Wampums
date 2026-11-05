@@ -13,6 +13,7 @@ jest.mock('../services/campRoster', () => {
   return {
     ...actual,
     readCampRoster: jest.fn(), listTeamCandidates: jest.fn(), saveTeamMember: jest.fn(), removeTeamMember: jest.fn(),
+    saveCampActivities: jest.fn(),
   };
 });
 const service = require('../services/campRoster');
@@ -46,10 +47,11 @@ beforeEach(() => {
   service.listTeamCandidates.mockResolvedValue([]);
   service.saveTeamMember.mockResolvedValue([]);
   service.removeTeamMember.mockResolvedValue([]);
+  service.saveCampActivities.mockResolvedValue({ swimming_planned: true });
 });
 
 test('without a token, nothing is read or written', async () => {
-  for (const [method, path] of [['get', '/12'], ['get', '/12/team-candidates'], ['put', `/12/team/${MEMBER_ID}`], ['delete', `/12/team/${MEMBER_ID}`]]) {
+  for (const [method, path] of [['get', '/12'], ['patch', '/12'], ['get', '/12/team-candidates'], ['put', `/12/team/${MEMBER_ID}`], ['delete', `/12/team/${MEMBER_ID}`]]) {
     // eslint-disable-next-line no-await-in-loop -- each refusal is checked in turn
     const response = await request(app)[method](`/api/v1/camp-rosters${path}`);
     expect(response.status).toBe(401);
@@ -59,10 +61,55 @@ test('without a token, nothing is read or written', async () => {
 test('a leader reads the authenticated unit’s camp lists, with the rights the engine grants', async () => {
   permissions = ['meetings.view', 'participants.view'];
   expect((await call('get', '/12?organization_id=99')).status).toBe(200);
-  expect(service.readCampRoster).toHaveBeenCalledWith(pool, UNIT_ID, 12, { canManage: false, canSeeVolunteers: false });
+  expect(service.readCampRoster).toHaveBeenCalledWith(pool, UNIT_ID, 12,
+    { canManage: false, canSeeVolunteers: false, canSeeCertifications: false, canSeeAllergies: false });
   permissions = ['meetings.view', 'participants.view', 'meetings.manage', 'volunteers.manage'];
   await call('get', '/12');
-  expect(service.readCampRoster).toHaveBeenLastCalledWith(pool, UNIT_ID, 12, { canManage: true, canSeeVolunteers: true });
+  expect(service.readCampRoster).toHaveBeenLastCalledWith(pool, UNIT_ID, 12,
+    { canManage: true, canSeeVolunteers: true, canSeeCertifications: true, canSeeAllergies: false });
+});
+
+test('team members’ certifications go to whoever manages the camp or its volunteers, and no one else', async () => {
+  permissions = ['meetings.view', 'participants.view', 'volunteers.manage'];
+  await call('get', '/12');
+  expect(service.readCampRoster).toHaveBeenLastCalledWith(pool, UNIT_ID, 12,
+    { canManage: false, canSeeVolunteers: true, canSeeCertifications: true, canSeeAllergies: false });
+  permissions = ['meetings.view', 'participants.view', 'meetings.manage'];
+  await call('get', '/12');
+  expect(service.readCampRoster).toHaveBeenLastCalledWith(pool, UNIT_ID, 12,
+    { canManage: true, canSeeVolunteers: false, canSeeCertifications: true, canSeeAllergies: false });
+});
+
+test('allergies go only to holders of camp_allergies.view, whatever else they manage', async () => {
+  permissions = ['meetings.view', 'participants.view', 'camp_allergies.view'];
+  await call('get', '/12');
+  expect(service.readCampRoster).toHaveBeenLastCalledWith(pool, UNIT_ID, 12, expect.objectContaining({ canSeeAllergies: true }));
+  permissions = ['meetings.view', 'participants.view', 'meetings.manage', 'volunteers.manage', 'reports.view'];
+  await call('get', '/12');
+  expect(service.readCampRoster).toHaveBeenLastCalledWith(pool, UNIT_ID, 12, expect.objectContaining({ canSeeAllergies: false }));
+});
+
+test('saying a camp plans swimming takes meetings.manage and refuses demo accounts', async () => {
+  const saved = await call('patch', '/12', { swimming_planned: true, organization_id: 99 });
+  expect(saved.status).toBe(200);
+  expect(saved.body.message).toBe('camp_roster_activities_saved');
+  expect(service.saveCampActivities).toHaveBeenCalledWith(pool, UNIT_ID, 12, expect.objectContaining({ swimming_planned: true }));
+  permissions = ['meetings.view', 'participants.view'];
+  const refused = await call('patch', '/12', { swimming_planned: true });
+  expect(refused.status).toBe(403);
+  expect(refused.body.missing).toEqual(['meetings.manage']);
+  permissions = ['meetings.view', 'participants.view', 'meetings.manage'];
+  roles = [{ role_name: 'demoadmin', display_name: 'Demo', data_scope: 'organization' }];
+  const demo = await call('patch', '/12', { swimming_planned: true });
+  expect(demo.status).toBe(403);
+  expect(demo.body.isDemo).toBe(true);
+  expect(service.saveCampActivities).toHaveBeenCalledTimes(1);
+});
+
+test('swimming must be said with yes or no', () => {
+  const { saveCampActivities } = jest.requireActual('../services/campRoster');
+  expect(() => saveCampActivities(pool, UNIT_ID, 12, { swimming_planned: 'yes' })).toThrow('camp_roster_invalid');
+  expect(() => saveCampActivities(pool, UNIT_ID, 12, {})).toThrow('camp_roster_invalid');
 });
 
 test('the lists name youth, so reading takes participants.view as well as meetings.view', async () => {

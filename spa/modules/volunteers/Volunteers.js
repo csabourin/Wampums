@@ -31,6 +31,7 @@ import {
   getVolunteerShifts, getVolunteerShiftActivities, saveVolunteerShift, deleteVolunteerShift,
   signUpForShift, withdrawFromShift, removeVolunteer, getVolunteerRequirements, saveVolunteerRequirements, getTeamChecks,
 } from '../../api/api-volunteers.js';
+import { getMemberCertifications, verifyMemberCertification } from '../../api/api-member-certifications.js';
 import styles from '../../../css/volunteers.css?url';
 
 /** Server field names, and the form controls that show their errors. */
@@ -326,6 +327,13 @@ export class Volunteers {
   async openVerify(shiftId, userId, name) {
     const shift = this.shifts.find((item) => Number(item.id) === shiftId);
     let records;
+    // What the person declared helps the manager verify it; without it, the dialog still works.
+    const declarations = getMemberCertifications(userId)
+      .then((response) => (Array.isArray(response?.data) ? response.data : []))
+      .catch((err) => {
+        debugError('Failed to load declared certifications:', err);
+        return [];
+      });
     try {
       const response = await getVolunteerRequirements(userId);
       records = Array.isArray(response?.data) ? response.data : [];
@@ -334,15 +342,18 @@ export class Volunteers {
       this.app.showMessage(apiErrorMessage(err, 'error_loading_data'), 'error');
       return;
     }
+    const declared = await declarations;
     if (this.stale()) { return; }
     const needed = shift?.requirements || [];
     const keys = [...needed, ...VOLUNTEER_REQUIREMENTS.filter((key) => !needed.includes(key))];
     const rows = keys.map((key) => {
       const record = records.find((item) => item.requirement_key === key);
+      const own = declared.find((item) => item.certification_key === key)?.declared;
       const neededHere = needed.includes(key)
         ? ` <span class="volunteers__needed">(${escapeHTML(translate('volunteers_needed_here'))})</span>` : '';
       return `<fieldset class="volunteers__requirement">
         <legend>${escapeHTML(translate(`volunteer_requirement_${key}`))}${neededHere}</legend>
+        ${own ? `<p class="form-help" id="volunteers-declared-${key}">${escapeHTML(this.declaredText(own))}</p>` : ''}
         <div class="checkbox-option">
           <input type="checkbox" id="volunteers-req-${key}" name="req_${key}" ${record ? 'checked' : ''}>
           <label for="volunteers-req-${key}">${escapeHTML(translate('volunteers_verified'))}</label>
@@ -354,10 +365,22 @@ export class Volunteers {
         <p class="form-help" id="volunteers-checked-${key}-lasts" aria-live="polite">${escapeHTML(this.lastsText(key, record?.checked_on))}</p>`
     : `
         <label for="volunteers-until-${key}">${escapeHTML(translate('volunteers_valid_until'))}</label>
-        <input type="date" id="volunteers-until-${key}" name="until_${key}" value="${escapeAttribute(record?.valid_until || '')}"
-          aria-describedby="volunteers-until-help">`}
+        <input type="date" id="volunteers-until-${key}" name="until_${key}" value="${escapeAttribute(record ? record.valid_until || '' : own?.valid_until || '')}"
+          aria-describedby="${own ? `volunteers-declared-${key} ` : ''}volunteers-until-help">`}
       </fieldset>`;
     }).join('');
+    // Certifications belong to the person: verified here, they hold in every unit of theirs.
+    const declaredCertifications = declared.filter((item) => item.declared);
+    const certificationRows = declaredCertifications.length ? `<fieldset class="volunteers__requirement">
+        <legend>${escapeHTML(translate('volunteers_certifications'))}</legend>
+        <p class="form-help" id="volunteers-certifications-help">${escapeHTML(translate('volunteers_certifications_help'))}</p>
+        ${declaredCertifications.map((item) => `<div class="checkbox-option">
+          <input type="checkbox" id="volunteers-cert-${item.certification_key}" name="cert_${item.certification_key}"
+            ${item.verified ? 'checked' : ''} aria-describedby="volunteers-cert-${item.certification_key}-declared volunteers-certifications-help">
+          <label for="volunteers-cert-${item.certification_key}">${escapeHTML(translate(`volunteer_requirement_${item.certification_key}`))}</label>
+        </div>
+        <p class="form-help" id="volunteers-cert-${item.certification_key}-declared">${escapeHTML(this.declaredText(item.declared))}</p>`).join('')}
+      </fieldset>` : '';
     const modal = openModal({
       id: 'volunteers-verify',
       title: escapeHTML(translate('volunteers_verify_title').replace('{name}', name)),
@@ -366,6 +389,7 @@ export class Volunteers {
       body: `<form id="volunteers-verify-form" class="volunteers__form" novalidate>
         <p>${escapeHTML(translate('volunteers_verify_intro'))}</p>
         ${rows}
+        ${certificationRows}
         <small class="form-help" id="volunteers-until-help">${escapeHTML(translate('volunteers_valid_until_help'))}</small>
         <p id="volunteers-verify-error" role="alert" tabindex="-1" hidden></p>
       </form>`,
@@ -411,8 +435,21 @@ export class Volunteers {
           return;
         }
         let result;
+        const changedCertifications = declaredCertifications
+          .filter((item) => form.elements[`cert_${item.certification_key}`].checked !== Boolean(item.verified));
         try {
           result = await saveVolunteerRequirements(userId, verified);
+          // Each certification that saved becomes the new baseline, so a retry after a partial
+          // failure sends exactly what is still different (a withdrawal included).
+          const outcomes = await Promise.allSettled(changedCertifications.map(async (item) => {
+            const checked = form.elements[`cert_${item.certification_key}`].checked;
+            await verifyMemberCertification(userId, item.certification_key, checked, item.declared);
+            item.verified = checked ? { valid_until: item.declared.valid_until } : null;
+          }));
+          const refused = outcomes.find((outcome) => outcome.status === 'rejected');
+          if (refused) {
+            throw refused.reason;
+          }
         } catch (err) {
           if (this.stale()) { return; }
           debugError('Failed to save requirements:', err);
@@ -432,6 +469,17 @@ export class Volunteers {
         await this.reload();
       });
     });
+  }
+
+  /**
+   * @param {{obtained_on: string, valid_until: string|null}} declaration - What the person declared
+   * @returns {string} The declaration in words, for the manager verifying it
+   */
+  declaredText(declaration) {
+    const obtained = formatDate(declaration.obtained_on, this.lang());
+    return declaration.valid_until
+      ? translate('volunteers_declared_until').replace('{obtained}', obtained).replace('{until}', formatDate(declaration.valid_until, this.lang()))
+      : translate('volunteers_declared').replace('{obtained}', obtained);
   }
 
   /**

@@ -78,4 +78,7 @@
   background: var(--color-surface); overflow-wrap: anywhere; }
 .camp-roster__member p { margin: .25rem 0; }
 .camp-roster__warning { font-weight: 600; }
+/* A blocking gap is named in words ("Blocking:"); the border only reinforces it. */
+.camp-roster__gap--blocking { border-inline-start: 4px solid var(--color-error); padding-inline-start: .5rem; margin-block-end: .25rem; }
+.camp-roster__certifications { font-size: .95em; }
 .camp-roster__table { width: 100%; }

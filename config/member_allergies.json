@@ -1,0 +1,4 @@
+{
+  "allergies_max_length": 1000,
+  "person_to_notify_max_length": 200
+}

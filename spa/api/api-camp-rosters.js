@@ -41,3 +41,12 @@ export function saveCampTeamMember(meetingId, userId, body) {
 export function removeCampTeamMember(meetingId, userId) {
   return API.delete(`v1/camp-rosters/${encodeURIComponent(meetingId)}/team/${encodeURIComponent(userId)}`);
 }
+
+/**
+ * @param {number} meetingId - The planned camp
+ * @param {{swimming_planned: boolean}} body
+ * @returns {Promise<Object>} { swimming_planned }
+ */
+export function saveCampActivities(meetingId, body) {
+  return API.patch(`v1/camp-rosters/${encodeURIComponent(meetingId)}`, body);
+}

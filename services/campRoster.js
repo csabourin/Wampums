@@ -16,19 +16,39 @@
  * - **Volunteers** holding a place on one of the camp's shifts are listed on
  *   their own, by name only for whoever manages volunteers (the rule of #1251).
  *
+ * - **Certifications** (second slice): an adult declares their own, a manager
+ *   of volunteers verifies them (services/memberCertifications.js). Only a
+ *   verified one valid through the camp's last day counts; a team without a
+ *   verified first aider is a blocking gap. They are shown only to whoever
+ *   manages the camp or volunteers.
+ * - **Allergies** (third slice): the youth's come from their health forms, the
+ *   team's from what each adult declared for themselves
+ *   (services/memberAllergies.js). They are returned only to holders of
+ *   `camp_allergies.view`; a youth without a health form, or a team member who
+ *   declared nothing, is listed to check, never read as "no allergy".
+ * - **Swimming**: a camp may say it plans swimming; its supervision is then
+ *   listed to check. It is never a blocking gap: no lifeguard certification is
+ *   recorded.
+ *
  * Nothing here says a camp is compliant: what cannot be checked is listed in
- * `gaps`, and an empty list is one of them.
+ * `gaps`, and an empty list is one of them. `blocking_gaps` names those of
+ * them the camp cannot leave without.
  *
  * @module services/campRoster
  */
 const transaction = require('../utils/transaction');
 const { isCalendarDate } = require('../utils/calendar-date');
 const RULES = require('../config/camp_team.json');
+const { FIRST_AID, certificationsForCamp } = require('./memberCertifications');
+const { declarationsFor } = require('./memberAllergies');
+const { isAffirmative, allergyText, medicationText, declaresAllergy } = require('../utils/health-form');
 
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
 const HTTP_CONFLICT = 409;
 const TEAM_ROLES = RULES.team_roles;
+/** Gaps the camp cannot leave without; the others are to check. */
+const BLOCKING_GAPS = ['no_first_aider'];
 /** Length of a YYYY-MM-DD calendar date in an ISO timestamp. */
 const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
 
@@ -50,7 +70,7 @@ const refuse = (key, status = HTTP_BAD_REQUEST, field = null) => {
 
 const CAMP_SQL = `SELECT m.id, m.theme, m.meeting_date::text AS date_from,
        COALESCE(a.activity_end_date, m.meeting_date)::text AS date_to,
-       m.activity_id, m.is_cancelled
+       m.activity_id, m.is_cancelled, m.swimming_planned
   FROM year_plan_meetings m
   LEFT JOIN activities a ON a.id = m.activity_id AND a.organization_id = m.organization_id AND a.is_active = TRUE
  WHERE m.organization_id = $1 AND m.id = $2 AND m.meeting_kind = 'camp'`;
@@ -172,8 +192,71 @@ async function campVolunteers(db, organizationId, camp, { canSeeVolunteers }) {
   return { count: rows.length, people: canSeeVolunteers ? rows : null };
 }
 
+/**
+ * Each team member's certifications for the camp. Every member's are read, since the gaps need
+ * them; they are attached to the members only for those who may see them.
+ */
+async function withCertifications(db, organizationId, camp, team, { canSeeCertifications }) {
+  // A member who left the unit is still listed, but their person-wide record is no longer this unit's to read.
+  const present = team.filter((member) => member.active_member).map((member) => member.user_id);
+  const certifications = await certificationsForCamp(db, present, camp.date_from, camp.date_to);
+  const members = team.map((member) => (canSeeCertifications && member.active_member
+    ? { ...member, certifications: certifications.get(member.user_id) }
+    : member));
+  return { members, certifications };
+}
+
+/**
+ * Each listed youth's health form in the unit: whether there is one, and, for whoever may read
+ * allergies, what it says about them. The latest submission is the one in force.
+ */
+async function youthHealthForms(db, organizationId, youth, { canSeeAllergies }) {
+  if (!youth.length) {
+    return new Map();
+  }
+  const rows = (await db.query(
+    `SELECT DISTINCT ON (fs.participant_id) fs.participant_id,
+            CASE WHEN $3::boolean THEN fs.submission_data END AS health_data
+       FROM form_submissions fs
+      WHERE fs.organization_id = $1 AND fs.participant_id = ANY($2::int[]) AND fs.form_type = 'fiche_sante'
+      ORDER BY fs.participant_id, fs.updated_at DESC NULLS LAST, fs.id DESC`,
+    [organizationId, youth.map((person) => person.id), Boolean(canSeeAllergies)]
+  )).rows;
+  return new Map(rows.map((row) => [row.participant_id, row.health_data || {}]));
+}
+
+/**
+ * The camp's allergies, for holders of `camp_allergies.view`: youth whose health form declares one,
+ * and active team members who declared theirs. What cannot be known is counted, never left out.
+ */
+function campAllergies(youth, team, healthForms, declarations) {
+  const present = team.filter((member) => member.active_member);
+  const youthAllergies = youth.filter((person) => healthForms.has(person.id) && declaresAllergy(healthForms.get(person.id)))
+    .map((person) => {
+      const health = healthForms.get(person.id);
+      const epipen = isAffirmative(health.epipen);
+      return {
+        participant_id: person.id, first_name: person.first_name, last_name: person.last_name, nickname: person.nickname,
+        allergies: allergyText(health),
+        epipen,
+        emergency_medication: epipen ? medicationText(health) : null,
+        reaction: health.allergie_reaction || health.reaction_allergie || null,
+        action: health.allergie_action || health.mesures_allergie || null,
+      };
+    });
+  const adults = present.filter((member) => declarations.has(member.user_id)).map((member) => ({
+    user_id: member.user_id, name: member.name, nickname: member.nickname, ...declarations.get(member.user_id),
+  }));
+  return {
+    youth: youthAllergies,
+    youth_without_health_form: youth.filter((person) => !healthForms.has(person.id)).length,
+    adults,
+    adults_without_declaration: present.length - adults.length,
+  };
+}
+
 /** What the lists cannot vouch for: each entry is a key the screen explains. */
-function rosterGaps({ scout_year: scoutYear, youth }, team) {
+function rosterGaps({ scout_year: scoutYear, youth }, team, certifications, camp, healthForms, declarations) {
   const gaps = [];
   if (!scoutYear) {
     gaps.push('no_scout_year');
@@ -189,6 +272,23 @@ function rosterGaps({ scout_year: scoutYear, youth }, team) {
   if (team.some((member) => !member.active_member)) {
     gaps.push('member_left_unit');
   }
+  const present = team.filter((member) => member.active_member);
+  const held = (member) => certifications.get(member.user_id) || { verified: [], to_verify: [] };
+  if (!present.some((member) => held(member).verified.some((key) => FIRST_AID.includes(key)))) {
+    gaps.push('no_first_aider');
+  }
+  if (present.some((member) => held(member).to_verify.length)) {
+    gaps.push('certification_to_verify');
+  }
+  if (youth.some((person) => !healthForms.has(person.id))) {
+    gaps.push('youth_health_form_missing');
+  }
+  if (present.some((member) => !declarations.has(member.user_id))) {
+    gaps.push('adult_allergies_not_declared');
+  }
+  if (camp.swimming_planned) {
+    gaps.push('swimming_supervision');
+  }
   return gaps;
 }
 
@@ -196,8 +296,9 @@ function rosterGaps({ scout_year: scoutYear, youth }, team) {
  * @param {Object} db
  * @param {number} organizationId
  * @param {number} meetingId - The planned camp
- * @param {{canManage: boolean, canSeeVolunteers: boolean}} rights - From the authorization engine
- * @returns {Promise<Object>} { camp, scout_year, consent, youth, team, volunteers, gaps }
+ * @param {{canManage: boolean, canSeeVolunteers: boolean, canSeeCertifications: boolean, canSeeAllergies: boolean}} rights - From the authorization engine
+ * @returns {Promise<Object>} { camp, scout_year, consent, youth, team, volunteers, allergies, gaps, blocking_gaps };
+ *   `allergies` is null without `camp_allergies.view`
  */
 async function readCampRoster(db, organizationId, meetingId, rights) {
   const camp = await campFor(db, organizationId, meetingId);
@@ -206,16 +307,49 @@ async function readCampRoster(db, organizationId, meetingId, rights) {
     campTeam(db, organizationId, camp, rights),
     campVolunteers(db, organizationId, camp, rights),
   ]);
+  const present = team.filter((member) => member.active_member).map((member) => member.user_id);
+  const [{ members, certifications }, healthForms, declarations] = await Promise.all([
+    withCertifications(db, organizationId, camp, team, rights),
+    youthHealthForms(db, organizationId, youth.youth, rights),
+    declarationsFor(db, present),
+  ]);
+  const gaps = rosterGaps(youth, team, certifications, camp, healthForms, declarations);
+  const allergies = rights.canSeeAllergies ? campAllergies(youth.youth, team, healthForms, declarations) : null;
   return {
     camp: {
       id: camp.id, theme: camp.theme, date_from: camp.date_from, date_to: camp.date_to,
-      activity_id: camp.activity_id, is_cancelled: camp.is_cancelled,
+      activity_id: camp.activity_id, is_cancelled: camp.is_cancelled, swimming_planned: camp.swimming_planned,
     },
     ...youth,
-    team,
+    team: members,
     volunteers,
-    gaps: rosterGaps(youth, team),
+    allergies,
+    gaps,
+    blocking_gaps: gaps.filter((gap) => BLOCKING_GAPS.includes(gap)),
   };
+}
+
+/**
+ * Say whether the camp plans swimming.
+ *
+ * @param {Object} pool
+ * @param {number} organizationId
+ * @param {number} meetingId
+ * @param {Object} input - Request body: { swimming_planned: boolean }
+ * @returns {Promise<{swimming_planned: boolean}>}
+ */
+function saveCampActivities(pool, organizationId, meetingId, input) {
+  if (typeof input?.swimming_planned !== 'boolean') {
+    refuse('camp_roster_invalid', HTTP_BAD_REQUEST, 'swimming_planned');
+  }
+  return transaction(pool, async (client) => {
+    const camp = await campFor(client, organizationId, meetingId, { lock: true });
+    await client.query(
+      'UPDATE year_plan_meetings SET swimming_planned = $3 WHERE organization_id = $1 AND id = $2',
+      [organizationId, camp.id, input.swimming_planned]
+    );
+    return { swimming_planned: input.swimming_planned };
+  });
 }
 
 /**
@@ -324,5 +458,6 @@ function removeTeamMember(pool, organizationId, meetingId, userId) {
 }
 
 module.exports = {
-  CampRosterError, TEAM_ROLES, readCampRoster, listTeamCandidates, saveTeamMember, removeTeamMember,
+  CampRosterError, TEAM_ROLES, BLOCKING_GAPS, readCampRoster, listTeamCandidates, saveTeamMember, removeTeamMember,
+  saveCampActivities,
 };
