@@ -11,6 +11,7 @@
 const express = require('express');
 const { eligibleActionParticipants } = require('../services/actionRoster');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { rowPlaceholders } = require('../utils/sql-placeholders');
 const router = express.Router();
 
 // Import utilities and middleware
@@ -248,11 +249,11 @@ module.exports = (pool, logger) => {
 
         // Batch insert new honors
         if (newHonors.length > 0) {
-          const createdByPlaceholderIndex = (newHonors.length * 4) + 1;
-          const honorValues = newHonors.map((_, idx) => {
-            const base = idx * 4;
-            return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${createdByPlaceholderIndex}, NOW())`;
-          }).join(', ');
+          const HONOR_COLUMNS = 4; // participant, date, unit, reason
+          const createdByPlaceholderIndex = (newHonors.length * HONOR_COLUMNS) + 1;
+          const honorValues = newHonors.map((_, idx) =>
+            `(${rowPlaceholders(idx, HONOR_COLUMNS)}, $${createdByPlaceholderIndex}, NOW())`
+          ).join(', ');
           
           const honorParams = [
             ...newHonors.flatMap(h => [h.participantId, h.honorDate, organizationId, h.reason]),

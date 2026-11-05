@@ -21,6 +21,27 @@ const { isCalendarDate } = require('../utils/calendar-date');
 const MEDICATION_READ_PERMISSIONS = ['medication.view'];
 const MEDICATION_MANAGE_PERMISSIONS = ['medication.manage'];
 
+/** Longest text kept for each free-text field; longer input is cut. */
+const TEXT_LIMITS = Object.freeze({
+  DEFAULT: 1000,
+  MEDICATION_NAME: 200,
+  FREQUENCY_TEXT: 120,
+  FREQUENCY_PRESET: 30,
+  ROUTE: 120,
+  DOSE_UNIT: 50,
+  ACTIVITY_NAME: 200,
+  WITNESS_NAME: 150,
+  QUANTITY_RECEIVED: 500,
+  RECEPTION_NOTES: 1000,
+  INITIALS: 20,
+});
+
+/** Batch inserts: $1 (and $2) are shared, then each row adds its own parameters. */
+const SHARED_PARAMS_BEFORE_PARTICIPANTS = 2;
+const PARAMS_PER_AUTHORIZATION_ROW = 2;
+/** $1 is the authorization; its rows' parameters start at $2. */
+const FIRST_AUTHORIZATION_ROW_PARAM = 2;
+
 const validateStatus = (status) => ['scheduled', 'given', 'missed', 'cancelled'].includes(status);
 
 /**
@@ -52,7 +73,7 @@ const parseParticipantIds = (participantIds) => {
   return ids.includes(null) ? null : Array.from(new Set(ids));
 };
 
-const normalizeText = (value, maxLength = 1000) => {
+const normalizeText = (value, maxLength = TEXT_LIMITS.DEFAULT) => {
   if (typeof value !== 'string') {
     return null;
   }
@@ -179,7 +200,7 @@ module.exports = (pool, logger) => {
       participant_ids
     } = req.body || {};
 
-    const normalizedName = normalizeText(medication_name, 200);
+    const normalizedName = normalizeText(medication_name, TEXT_LIMITS.MEDICATION_NAME);
     const participants = parseParticipantIds(participant_ids);
 
     if (!normalizedName) {
@@ -215,15 +236,15 @@ module.exports = (pool, logger) => {
           organizationId,
           normalizedName,
           normalizeText(dosage_instructions),
-          normalizeText(frequency_text, 120),
-          normalizeText(frequency_preset_type, 30),
+          normalizeText(frequency_text, TEXT_LIMITS.FREQUENCY_TEXT),
+          normalizeText(frequency_preset_type, TEXT_LIMITS.FREQUENCY_PRESET),
           frequency_times ? JSON.stringify(frequency_times) : null,
           frequency_slots ? JSON.stringify(frequency_slots) : null,
           frequency_interval_hours ? Number(frequency_interval_hours) : null,
           frequency_interval_start || null,
-          normalizeText(route, 120),
+          normalizeText(route, TEXT_LIMITS.ROUTE),
           numericDoseAmount,
-          normalizeText(default_dose_unit, 50),
+          normalizeText(default_dose_unit, TEXT_LIMITS.DOSE_UNIT),
           normalizeText(general_notes),
           start_date || null,
           end_date || null,
@@ -246,7 +267,7 @@ module.exports = (pool, logger) => {
       // Batch insert all participant medications in a single query
       if (participants.length > 0) {
         const values = participants.map((participantId, idx) =>
-          `($1, $2, $${idx + 3}, NULL)`
+          `($1, $2, $${idx + SHARED_PARAMS_BEFORE_PARTICIPANTS + 1}, NULL)`
         ).join(', ');
 
         await client.query(
@@ -298,7 +319,7 @@ module.exports = (pool, logger) => {
       participant_ids
     } = req.body || {};
 
-    const normalizedName = normalizeText(medication_name, 200);
+    const normalizedName = normalizeText(medication_name, TEXT_LIMITS.MEDICATION_NAME);
     const participants = parseParticipantIds(participant_ids);
 
     if (!normalizedName) {
@@ -354,15 +375,15 @@ module.exports = (pool, logger) => {
         [
           normalizedName,
           normalizeText(dosage_instructions),
-          normalizeText(frequency_text, 120),
-          normalizeText(frequency_preset_type, 30),
+          normalizeText(frequency_text, TEXT_LIMITS.FREQUENCY_TEXT),
+          normalizeText(frequency_preset_type, TEXT_LIMITS.FREQUENCY_PRESET),
           frequency_times ? JSON.stringify(frequency_times) : null,
           frequency_slots ? JSON.stringify(frequency_slots) : null,
           frequency_interval_hours ? Number(frequency_interval_hours) : null,
           frequency_interval_start || null,
-          normalizeText(route, 120),
+          normalizeText(route, TEXT_LIMITS.ROUTE),
           numericDoseAmount,
-          normalizeText(default_dose_unit, 50),
+          normalizeText(default_dose_unit, TEXT_LIMITS.DOSE_UNIT),
           normalizeText(general_notes),
           start_date || null,
           end_date || null,
@@ -375,7 +396,7 @@ module.exports = (pool, logger) => {
       // Batch insert all participant medications in a single query
       if (participants.length > 0) {
         const values = participants.map((participantId, idx) =>
-          `($1, $2, $${idx + 3}, NULL)`
+          `($1, $2, $${idx + SHARED_PARAMS_BEFORE_PARTICIPANTS + 1}, NULL)`
         ).join(', ');
 
         await client.query(
@@ -584,12 +605,12 @@ module.exports = (pool, logger) => {
             participantId,
             participantMedicationId,
             scheduledDate.toISOString(),
-            normalizeText(activity_name, 200),
+            normalizeText(activity_name, TEXT_LIMITS.ACTIVITY_NAME),
             numericDoseAmount !== null ? numericDoseAmount : requirement.default_dose_amount,
-            normalizeText(dose_unit, 50) || requirement.default_dose_unit,
+            normalizeText(dose_unit, TEXT_LIMITS.DOSE_UNIT) || requirement.default_dose_unit,
             normalizeText(dose_notes),
             normalizeText(general_notice),
-            normalizeText(witness_name, 150)
+            normalizeText(witness_name, TEXT_LIMITS.WITNESS_NAME)
           ]
         );
 
@@ -649,7 +670,7 @@ module.exports = (pool, logger) => {
         normalizedStatus,
         administeredAtDate ? administeredAtDate.toISOString() : null,
         req.user.id,
-        normalizeText(witness_name, 150),
+        normalizeText(witness_name, TEXT_LIMITS.WITNESS_NAME),
         distributionId,
         organizationId
       ]
@@ -783,8 +804,8 @@ module.exports = (pool, logger) => {
          RETURNING *`,
         [
           status || 'not_received',
-          normalizeText(quantity_received, 500),
-          normalizeText(reception_notes, 1000),
+          normalizeText(quantity_received, TEXT_LIMITS.QUANTITY_RECEIVED),
+          normalizeText(reception_notes, TEXT_LIMITS.RECEPTION_NOTES),
           req.user.id,
           receivedAt,
           participant_medication_id || null,
@@ -815,8 +836,8 @@ module.exports = (pool, logger) => {
           participant_id,
           participant_medication_id || null,
           status || 'not_received',
-          normalizeText(quantity_received, 500),
-          normalizeText(reception_notes, 1000),
+          normalizeText(quantity_received, TEXT_LIMITS.QUANTITY_RECEIVED),
+          normalizeText(reception_notes, TEXT_LIMITS.RECEPTION_NOTES),
           req.user.id,
           receivedAt
         ]
@@ -862,8 +883,8 @@ module.exports = (pool, logger) => {
        RETURNING *`,
       [
         status || null,
-        normalizeText(quantity_received, 500) || null,
-        normalizeText(reception_notes, 1000) || null,
+        normalizeText(quantity_received, TEXT_LIMITS.QUANTITY_RECEIVED) || null,
+        normalizeText(reception_notes, TEXT_LIMITS.RECEPTION_NOTES) || null,
         req.user.id,
         receivedAt,
         receptionId,
@@ -1068,7 +1089,7 @@ module.exports = (pool, logger) => {
       const newAuthId = mtaResult.rows[0].id;
 
       if (Array.isArray(supplies) && supplies.length > 0) {
-        const values = supplies.map((s, idx) => `($1, $${idx * 2 + 2}, $${idx * 2 + 3})`).join(', ');
+        const values = supplies.map((s, idx) => `($1, $${idx * PARAMS_PER_AUTHORIZATION_ROW + FIRST_AUTHORIZATION_ROW_PARAM}, $${idx * PARAMS_PER_AUTHORIZATION_ROW + FIRST_AUTHORIZATION_ROW_PARAM + 1})`).join(', ');
         const flatParams = [newAuthId];
         supplies.forEach((s) => flatParams.push(s.id, s.is_allowed));
 
@@ -1137,9 +1158,9 @@ module.exports = (pool, logger) => {
       const newAuthId = maaResult.rows[0].id;
 
       if (Array.isArray(requirements) && requirements.length > 0) {
-        const values = requirements.map((r, idx) => `($1, $${idx * 2 + 2}, $${idx * 2 + 3})`).join(', ');
+        const values = requirements.map((r, idx) => `($1, $${idx * PARAMS_PER_AUTHORIZATION_ROW + FIRST_AUTHORIZATION_ROW_PARAM}, $${idx * PARAMS_PER_AUTHORIZATION_ROW + FIRST_AUTHORIZATION_ROW_PARAM + 1})`).join(', ');
         const flatParams = [newAuthId];
-        requirements.forEach((r) => flatParams.push(r.requirement_id, normalizeText(r.initials, 20)));
+        requirements.forEach((r) => flatParams.push(r.requirement_id, normalizeText(r.initials, TEXT_LIMITS.INITIALS)));
 
         await client.query(
           `INSERT INTO medication_admin_authorization_requirements (authorization_id, medication_requirement_id, initiales) VALUES ${values}`,

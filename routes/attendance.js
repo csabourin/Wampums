@@ -1,6 +1,7 @@
 // RESTful routes for attendance
 const express = require('express');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { rowPlaceholders } = require('../utils/sql-placeholders');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, allowDemoSandbox, withScoutYear } = require('../middleware/auth');
 const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
@@ -358,8 +359,9 @@ module.exports = (pool, logger) => {
 
         // Batch insert the attendance records for target date. A carried day
         // grants no attendance points, and records that it granted none.
+        const CARRIED_ATTENDANCE_COLUMNS = 4;
         const valuesClauses = toCarryForward.map((_, idx) =>
-          `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4}, 0)`
+          `(${rowPlaceholders(idx, CARRIED_ATTENDANCE_COLUMNS)}, 0)`
         ).join(', ');
 
         const insertParams = toCarryForward.flatMap(row =>
@@ -682,9 +684,8 @@ module.exports = (pool, logger) => {
 
         // Batch insert all points if any adjustments needed
         if (pointsToInsert.length > 0) {
-          const pointsValues = pointsToInsert.map((_, idx) =>
-            `($${idx * 5 + 1}, $${idx * 5 + 2}, $${idx * 5 + 3}, $${idx * 5 + 4}, $${idx * 5 + 5})`
-          ).join(', ');
+          const POINT_COLUMNS = 5;
+          const pointsValues = pointsToInsert.map((_, idx) => `(${rowPlaceholders(idx, POINT_COLUMNS)})`).join(', ');
 
           const pointsParams = pointsToInsert.flatMap(p =>
             [p.participant_id, p.group_id, organizationId, p.points, date]

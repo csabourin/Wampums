@@ -26,6 +26,7 @@ const {
 } = require('../services/fundraiserCampaigns');
 const { listFamilyFundraisers } = require('../services/familyFundraisers');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { rowPlaceholders } = require('../utils/sql-placeholders');
 const { ISO_DATE_LENGTH } = require('../utils/time-units');
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -394,10 +395,8 @@ module.exports = (pool, logger) => {
 
       // Create calendar entries for all participants
       if (participantsResult.rows.length > 0) {
-        const values = participantsResult.rows.map((p, idx) => {
-          const offset = idx * 5;
-          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5})`;
-        }).join(',');
+        const CALENDAR_ENTRY_COLUMNS = 5;
+        const values = participantsResult.rows.map((p, idx) => `(${rowPlaceholders(idx, CALENDAR_ENTRY_COLUMNS)})`).join(',');
 
         const params = participantsResult.rows.flatMap(p => [
           p.id,              // participant_id

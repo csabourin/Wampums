@@ -11,6 +11,7 @@ const express = require('express');
 const { eligibleActionParticipants } = require('../services/actionRoster');
 const { createHash } = require('node:crypto');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { rowPlaceholders } = require('../utils/sql-placeholders');
 const router = express.Router();
 
 // Import auth middleware
@@ -335,9 +336,8 @@ module.exports = (pool, logger) => {
           const memberTotals = [];
           if (memberIds.length > 0) {
             // Build VALUES clause for batch insert
-            const valuesClauses = memberIds.map((_, idx) =>
-              `($${idx * 5 + 1}, $${idx * 5 + 2}, $${idx * 5 + 3}, $${idx * 5 + 4}, $${idx * 5 + 5})`
-            ).join(', ');
+            const MEMBER_POINT_COLUMNS = 5;
+            const valuesClauses = memberIds.map((_, idx) => `(${rowPlaceholders(idx, MEMBER_POINT_COLUMNS)})`).join(', ');
 
             const insertValues = memberIds.flatMap(memberId =>
               [memberId, groupId, organizationId, activeScoutYear.id, value]
