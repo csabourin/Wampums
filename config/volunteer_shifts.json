@@ -3,13 +3,14 @@
   "notes_max_length": 1000,
   "max_slots": 50,
   "types": [
-    { "key": "camp_aide", "requirements": ["background_check", "safety_training"] },
-    { "key": "cook", "requirements": ["background_check"] },
-    { "key": "driver", "requirements": ["background_check", "driver_licence"] },
-    { "key": "night_watch", "requirements": ["background_check", "safety_training"] },
-    { "key": "first_aid", "requirements": ["background_check", "first_aid_certificate"] },
-    { "key": "other", "requirements": ["background_check"] }
+    { "key": "camp_aide", "requirements": ["background_check", "safety_training"], "space_panels": [] },
+    { "key": "cook", "requirements": ["background_check"], "space_panels": ["menus"] },
+    { "key": "driver", "requirements": ["background_check", "driver_licence"], "space_panels": ["transport"] },
+    { "key": "night_watch", "requirements": ["background_check", "safety_training"], "space_panels": ["emergency_first"] },
+    { "key": "first_aid", "requirements": ["background_check", "first_aid_certificate"], "space_panels": ["emergency_first"] },
+    { "key": "other", "requirements": ["background_check"], "space_panels": [] }
   ],
+  "space_panels": ["menus", "transport", "emergency_first"],
   "requirements": ["background_check", "safety_training", "first_aid_certificate", "driver_licence"],
   "validity_years": { "background_check": 3 },
   "expiring_soon_days": 60

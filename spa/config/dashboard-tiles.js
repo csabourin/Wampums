@@ -53,6 +53,16 @@ export const DASHBOARD_TILES = [
     gate: { permission: 'tasks.view' },
   },
   {
+    // A member's camps, shifts and tasks in one place (#1360).
+    href: '/volunteer-space',
+    icon: 'fa-people-carry-box',
+    label: 'tile_volunteer_space',
+    moment: 'week',
+    domain: 'logistics',
+    priority: 5,
+    gate: { permission: 'volunteer_space.view' },
+  },
+  {
     href: '/volunteers',
     icon: 'fa-handshake-angle',
     label: 'tile_volunteers',

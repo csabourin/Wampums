@@ -11,8 +11,8 @@ take or give up a place. Migration `069_volunteer_shifts.sql`.
 | `volunteers.manage` | Create, edit and delete shifts; see who signed up and remove someone. |
 
 The built-in **volunteer** role (`role_label_volunteer`, data scope `organization`) holds only
-`volunteers.view` and `tasks.view`: a cook or driver takes part without any youth, family or
-health permission. Invite them with that role from `/invitations`. Migration 069 also gives both
+`volunteers.view`, `tasks.view` and, since migration 075, `volunteer_space.view` (`devdocs/VOLUNTEER_SPACE.md`):
+a cook or driver takes part without any youth, family or health permission. Invite them with that role from `/invitations`. Migration 069 also gives both
 keys to `unitadmin` (and roles customized from it), `volunteers.view` to `leader`, and both to
 `demoadmin` (read-only through `blockDemoRoles`). The district role receives them through its trigger.
 
@@ -89,8 +89,9 @@ The binding rules for this area, formerly in CLAUDE.md.
 `/volunteers` (`volunteers.view`; managing shifts takes `volunteers.manage`, migration 069) lists
 each activity's or camp's needs by time slot. Writes go through `services/volunteerShifts.js`, which
 locks the shift so its last place goes to one person (409 `volunteer_shift_full` for the other). The
-built-in `volunteer` role holds only `volunteers.view` and `tasks.view`: no youth, family or health
-record. Other volunteers' names go to managers only. Each shift has a type (`config/volunteer_shifts.json`); a type's
+built-in `volunteer` role holds only `volunteers.view`, `tasks.view` and `volunteer_space.view`: no youth,
+family or health record. What a member needs at the camps they take part in is gathered in the volunteer
+space (`devdocs/VOLUNTEER_SPACE.md`). Other volunteers' names go to managers only. Each shift has a type (`config/volunteer_shifts.json`); a type's
 requirements keep a place pending until a manager records them. Every adult of the team and every
 volunteer needs a background check, valid three years from the day it was done (the server sets the
 expiry); managers follow them on `/volunteers`. See `devdocs/VOLUNTEERS.md`.

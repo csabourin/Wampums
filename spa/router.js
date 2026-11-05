@@ -141,6 +141,7 @@ const lazyModules = {
   CampEquipmentLots: () => import('./modules/camp-lots/CampEquipmentLots.js').then(m => m.CampEquipmentLots),
   CampReadiness: () => import('./modules/camp-readiness/CampReadiness.js').then(m => m.CampReadiness),
   Volunteers: () => import('./modules/volunteers/Volunteers.js').then(m => m.Volunteers),
+  VolunteerSpace: () => import('./modules/volunteer-space/VolunteerSpace.js').then(m => m.VolunteerSpace),
   CampMaterialList: () => import('./modules/camp-material/CampMaterialList.js').then(m => m.CampMaterialList),
   CampSites: () => import('./modules/camp-sites/CampSites.js').then(m => m.CampSites),
   CampSite: () => import('./modules/camp-sites/CampSite.js').then(m => m.CampSite),
@@ -271,6 +272,8 @@ const routes = {
   '/my-camp-lots/:id': 'myCampLots',
   '/camp-readiness/:id': 'campReadiness',
   '/volunteers': 'volunteers',
+  '/volunteer-space': 'volunteerSpace',
+  '/volunteer-space/:id': 'volunteerSpace',
   '/camp-material/:id': 'campMaterial',
   '/camp-sites': 'campSites',
   '/camp-site/:id': 'campSite',
@@ -825,6 +828,14 @@ export class Router {
           if (!guard(hasPermission('volunteers.view'))) { break; }
           const Volunteers = await this.loadModule('Volunteers');
           this.currentModuleInstance = new Volunteers(this.app);
+          await this.currentModuleInstance.init();
+          break;
+        }
+        case 'volunteerSpace': {
+          // Which camps open is decided by the server, from taking part in them.
+          if (!guard(hasPermission('volunteer_space.view'))) { break; }
+          const VolunteerSpace = await this.loadModule('VolunteerSpace');
+          this.currentModuleInstance = new VolunteerSpace(this.app, { activityId: param ?? null });
           await this.currentModuleInstance.init();
           break;
         }

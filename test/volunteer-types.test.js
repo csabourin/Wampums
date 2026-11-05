@@ -44,3 +44,8 @@ test.each([['en', en], ['fr', fr]])('every type and requirement has a %s name', 
   ];
   expect(keys.filter((key) => !messages[key]?.trim())).toEqual([]);
 });
+
+test('what each type adds to the volunteer space is a panel the space knows', () => {
+  config.types.forEach((type) => (type.space_panels || []).forEach((panel) => expect(config.space_panels).toContain(panel)));
+  expect(config.types.find((type) => type.key === 'cook').space_panels).toEqual(['menus']);
+});
