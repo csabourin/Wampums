@@ -396,6 +396,42 @@ describe('types and what they require', () => {
       { obtained_on: '2025-03-01', valid_until: '2028-03-01' });
   });
 
+  test('after a partly refused save, a retry sends exactly what still differs, a withdrawal included', async () => {
+    mockPermissions.add('volunteers.manage');
+    getVolunteerShifts.mockResolvedValue({ data: [shift({
+      id: 7, volunteer_type: 'cook', title: '', slots: 1, taken: 1, pending: 1, requirements: ['background_check'],
+      volunteers: [{ user_id: '00000000-0000-4000-8000-000000000006', name: 'Annie Easley', status: 'pending', missing: [] }],
+    })] });
+    getVolunteerRequirements.mockResolvedValue({ data: [{ requirement_key: 'background_check', checked_on: '2025-09-01', valid_until: '2028-09-01' }] });
+    saveVolunteerRequirements.mockResolvedValue({ data: { confirmed: 0 } });
+    getMemberCertifications.mockResolvedValue({ data: [
+      { certification_key: 'first_aid_certificate', declared: { obtained_on: '2025-01-01', valid_until: null }, verified: null },
+      { certification_key: 'winter_camping', declared: { obtained_on: '2024-01-15', valid_until: null }, verified: null },
+    ] });
+    verifyMemberCertification.mockReset()
+      .mockResolvedValueOnce({ data: [] })
+      .mockRejectedValueOnce(Object.assign(new Error('changed'), { status: 409 }));
+    await open();
+    document.querySelector('[data-verify]').click();
+    await flush();
+    const form = document.getElementById('volunteers-verify-form');
+    form.elements.cert_first_aid_certificate.checked = true;
+    form.elements.cert_winter_camping.checked = true;
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    await flush();
+    expect(document.getElementById('volunteers-verify-error').hidden).toBe(false);
+    verifyMemberCertification.mockReset().mockResolvedValue({ data: [] });
+    form.elements.cert_first_aid_certificate.checked = false;
+    form.elements.cert_winter_camping.checked = false;
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    await flush();
+    expect(verifyMemberCertification).toHaveBeenCalledTimes(1);
+    expect(verifyMemberCertification).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000006', 'first_aid_certificate', false,
+      { obtained_on: '2025-01-01', valid_until: null });
+  });
+
   test('when declarations cannot be read, verifying still works', async () => {
     mockPermissions.add('volunteers.manage');
     getVolunteerShifts.mockResolvedValue({ data: [shift({

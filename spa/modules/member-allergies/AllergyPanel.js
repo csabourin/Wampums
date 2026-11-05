@@ -40,6 +40,16 @@ export class AllergyPanel {
     this.loadError = null;
     this.container = null;
     this.destroyed = false;
+    // One write at a time: a withdrawal must never be overtaken by an earlier save, or the reverse.
+    this.busy = false;
+  }
+
+  /** Disable both actions while a write is pending. */
+  setBusy(busy) {
+    this.busy = busy;
+    this.container?.querySelectorAll('#allergy-declaration-form button').forEach((button) => {
+      button.disabled = busy;
+    });
   }
 
   /** Called when the account page is left. */
@@ -153,10 +163,17 @@ export class AllergyPanel {
     form.addEventListener('input', (event) => this.clearError(event.target));
     form.addEventListener('submit', (event) => {
       event.preventDefault();
-      if (isDemoUser()) {
+      if (isDemoUser() || this.busy) {
         return;
       }
-      withFormBusy(form, () => this.save(form));
+      withFormBusy(form, async () => {
+        this.setBusy(true);
+        try {
+          await this.save(form);
+        } finally {
+          this.setBusy(false);
+        }
+      });
     });
   }
 
@@ -230,14 +247,18 @@ export class AllergyPanel {
 
   /** Withdraw the declaration, once confirmed. Declining changes nothing. */
   async remove() {
+    if (this.busy) {
+      return;
+    }
     const confirmed = await confirmDestructive({
       title: translate('allergy_declaration_remove_title'),
       message: translate('allergy_declaration_remove_confirm'),
       confirmLabel: translate('allergy_declaration_remove'),
     });
-    if (!confirmed || this.destroyed) {
+    if (!confirmed || this.destroyed || this.busy) {
       return;
     }
+    this.setBusy(true);
     try {
       await removeMyAllergies();
       if (this.destroyed) {
@@ -254,6 +275,8 @@ export class AllergyPanel {
       }
       debugError('Failed to remove the allergy declaration:', error);
       this.showSummary(apiErrorMessage(error, 'allergy_declaration_remove_failed'));
+    } finally {
+      this.setBusy(false);
     }
   }
 }

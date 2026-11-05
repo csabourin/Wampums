@@ -121,6 +121,23 @@ test('withdrawing asks first; declining changes nothing', async () => {
   expect(document.activeElement).toBe($('#allergy-declaration-status'));
 });
 
+test('while a save is pending, withdrawing is not offered, so it cannot be overtaken', async () => {
+  api.getMyAllergies.mockResolvedValue({ success: true, data: DECLARED });
+  let finish;
+  api.saveMyAllergies.mockReturnValue(new Promise((done) => { finish = done; }));
+  confirmDestructive.mockResolvedValue(true);
+  await mount();
+  submit();
+  await flush();
+  expect($('#allergy-declaration-remove').disabled).toBe(true);
+  $('#allergy-declaration-remove').click();
+  await flush();
+  expect(api.removeMyAllergies).not.toHaveBeenCalled();
+  finish({ success: true, data: DECLARED });
+  await flush();
+  expect($('#allergy-declaration-remove').disabled).toBe(false);
+});
+
 test('what was declared is shown as text', async () => {
   api.getMyAllergies.mockResolvedValue({ success: true, data: { ...DECLARED, allergies: HOSTILE, person_to_notify: HOSTILE } });
   await mount();

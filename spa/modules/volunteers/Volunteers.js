@@ -439,8 +439,17 @@ export class Volunteers {
           .filter((item) => form.elements[`cert_${item.certification_key}`].checked !== Boolean(item.verified));
         try {
           result = await saveVolunteerRequirements(userId, verified);
-          await Promise.all(changedCertifications.map((item) => verifyMemberCertification(
-            userId, item.certification_key, form.elements[`cert_${item.certification_key}`].checked, item.declared)));
+          // Each certification that saved becomes the new baseline, so a retry after a partial
+          // failure sends exactly what is still different (a withdrawal included).
+          const outcomes = await Promise.allSettled(changedCertifications.map(async (item) => {
+            const checked = form.elements[`cert_${item.certification_key}`].checked;
+            await verifyMemberCertification(userId, item.certification_key, checked, item.declared);
+            item.verified = checked ? { valid_until: item.declared.valid_until } : null;
+          }));
+          const refused = outcomes.find((outcome) => outcome.status === 'rejected');
+          if (refused) {
+            throw refused.reason;
+          }
         } catch (err) {
           if (this.stale()) { return; }
           debugError('Failed to save requirements:', err);
