@@ -99,6 +99,45 @@ function requirementScheduleProblem(body, doseAmount) {
       && (!Array.isArray(body.frequency_times) || body.frequency_times.length === 0)) {
     return 'medication_frequency_times_required';
   }
+  return requirementDateProblem(body);
+}
+
+/** A timestamp as the requirements list returns a date column: `2026-12-01T00:00:00.000Z`. */
+const ISO_TIMESTAMP_PATTERN = /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/;
+
+/**
+ * A treatment date as stored: the calendar day, `YYYY-MM-DD`. A screen may send
+ * back the value the list gave it, a full timestamp, so its day is kept.
+ * @param {*} value - Date sent by the client
+ * @returns {string|null|undefined} The day, null when none was given, undefined when unreadable
+ */
+function readTreatmentDate(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const day = ISO_TIMESTAMP_PATTERN.exec(value)?.[1] || value;
+  return isCalendarDate(day) ? day : undefined;
+}
+
+/**
+ * What is wrong with a requirement's treatment dates, as a translation key.
+ * Both dates are optional; one given must be a real calendar day, and the
+ * treatment cannot end before it starts.
+ * @param {Object} body - Request body
+ * @returns {string|null} Error key, or null when the dates can be stored
+ */
+function requirementDateProblem(body) {
+  const start = readTreatmentDate(body.start_date);
+  const end = readTreatmentDate(body.end_date);
+  if (start === undefined || end === undefined) {
+    return 'medication_date_invalid';
+  }
+  if (start !== null && end !== null && end < start) {
+    return 'medication_end_before_start';
+  }
   return null;
 }
 
@@ -273,8 +312,8 @@ module.exports = (pool, logger) => {
           numericDoseAmount,
           normalizeText(default_dose_unit, TEXT_LIMITS.DOSE_UNIT),
           normalizeText(general_notes),
-          start_date || null,
-          end_date || null,
+          readTreatmentDate(start_date),
+          readTreatmentDate(end_date),
           req.user.id,
           participants[0]
         ]
@@ -417,8 +456,8 @@ module.exports = (pool, logger) => {
           numericDoseAmount,
           normalizeText(default_dose_unit, TEXT_LIMITS.DOSE_UNIT),
           normalizeText(general_notes),
-          start_date || null,
-          end_date || null,
+          readTreatmentDate(start_date),
+          readTreatmentDate(end_date),
           requirementId,
           organizationId,
           participants[0]

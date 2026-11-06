@@ -48,6 +48,7 @@ import {
 import {
   ALL_CHILDREN,
   buildFamilyTasks,
+  isSlipAnswerable,
   renderFamilyFilter,
   renderFamilyTaskList,
   taskChildNames,
@@ -64,7 +65,6 @@ export class ParentDashboard {
     this.formFormats = {};
     this.participantStatements = new Map();
     this.permissionSlips = new Map();
-    this.permissionSlipHandlerBound = false;
     this.formsToReview = [];
     this.authorizationsToSign = [];
     this.hiddenButtons = new Set();
@@ -488,7 +488,7 @@ export class ParentDashboard {
                         this.app.organizationSettings?.organization_info
                           ?.name || 'Scouts';
     const notificationButton = this.shouldShowNotificationButton()
-      ? `<button id="enableNotifications" class="dashboard-button dashboard-button--secondary">
+      ? `<button id="enableNotifications" class="button button--secondary">
                                                 ${translate('enable_notifications')}
                                         </button>`
       : ''; // Only render the button if needed
@@ -497,13 +497,13 @@ export class ParentDashboard {
     // one, else the steps for this browser, so a dismissed prompt is not final.
     const installButton = isAppInstalled()
       ? ''
-      : `<button id="installPwaButton" type="button" class="dashboard-button dashboard-button--secondary">
+      : `<button id="installPwaButton" type="button" class="button button--secondary">
                                                 ${translate('install_app')}
                                         </button>`;
 
     const calendarDownloadAction = `
-                        <div class="parent-dashboard__calendar-download" style="margin-top: 1rem;">
-                                <p class="muted-text" style="margin-top: 0.5rem;">${translate('calendar_download_description')}</p>
+                        <div class="parent-dashboard__calendar-download">
+                                <p class="muted-text">${translate('calendar_download_description')}</p>
                         </div>
                 `;
 
@@ -516,13 +516,13 @@ export class ParentDashboard {
     const managesOwnFamily = hasPermission('participants.create_own');
     const addChildHref = managesOwnFamily ? '/parent-onboarding' : '/formulaire-inscription';
     const familySharingLink = managesOwnFamily && !this.hiddenButtons.has('family_access')
-      ? `<a href="/family-access" class="dashboard-button dashboard-button--secondary">${translate('family_access_title')}</a>`
+      ? `<a href="/family-access" class="button button--secondary">${translate('family_access_title')}</a>`
       : '';
     // Where the family's children stand in the campaigns under way.
     // The unit-wide campaign screens stay behind fundraisers.view.
     const fundraisersLink = this.hiddenButtons.has('fundraisers')
       ? ''
-      : `<a href="/parent-fundraisers" class="dashboard-button dashboard-button--secondary">${translate('parent_fundraisers_title')}</a>`;
+      : `<a href="/parent-fundraisers" class="button button--secondary">${translate('parent_fundraisers_title')}</a>`;
 
     // Dynamically replace the title with the organization name
     const userName =
@@ -547,18 +547,18 @@ export class ParentDashboard {
                                 <section class="parent-dashboard__actions">
                                         <h2 class="visually-hidden">${translate('main_actions')}</h2>
                                         <div class="parent-dashboard__actions-grid">
-                                                ${this.hiddenButtons.has('finances') ? '' : `<a href="/parent-finance" class="dashboard-button dashboard-button--primary">
+                                                ${this.hiddenButtons.has('finances') ? '' : `<a href="/parent-finance" class="button button--primary">
                                                         ${translate('my_finances')}
                                                 </a>`}
                                                 ${fundraisersLink}
                                                 ${familySharingLink}
-                                                <a href="/account-info" class="dashboard-button dashboard-button--secondary">
+                                                <a href="/account-info" class="button button--secondary">
                                                         ${translate('account_settings')}
                                                 </a>
-                                                ${this.hiddenButtons.has('program_progress') ? '' : `<a href="/parent-program-progress" class="dashboard-button dashboard-button--secondary">
+                                                ${this.hiddenButtons.has('program_progress') ? '' : `<a href="/parent-program-progress" class="button button--secondary">
                                                         ${translate('program_progress_parent_link')}
                                                 </a>`}
-                                                ${canViewActivities() && !this.hiddenButtons.has('download_calendar') ? `<button id="downloadCalendarButton" type="button" class="dashboard-button dashboard-button--secondary">
+                                                ${canViewActivities() && !this.hiddenButtons.has('download_calendar') ? `<button id="downloadCalendarButton" type="button" class="button button--secondary">
                                                         ${translate('download_activities_calendar')}
                                                 </button>` : ''}
                                         </div>
@@ -572,10 +572,10 @@ export class ParentDashboard {
                                                 ${installButton}
                                         </div>
                                         <div class="parent-dashboard__footer-account">
-                                                <a href="${addChildHref}" class="dashboard-button dashboard-button--primary">
+                                                <a href="${addChildHref}" class="button button--primary">
                                                         ${translate('ajouter_participant')}
                                                 </a>
-                                                <a href="/logout" class="dashboard-button dashboard-button--logout">
+                                                <a href="/logout" class="button button--secondary">
                                                         ${translate('deconnexion')}
                                                 </a>
                                         </div>
@@ -585,7 +585,6 @@ export class ParentDashboard {
     setContent(document.getElementById('app'), content);
     this.applyChildFilter();
     this.bindStatementHandlers();
-    this.bindPermissionSlipHandlers();
     this.bindFamilyTaskHandlers();
   }
 
@@ -728,6 +727,12 @@ export class ParentDashboard {
         this.showStatementModal(statement.dataset.participantId);
         return;
       }
+      if (event.target.closest('.js-family-goto-tasks')) {
+        const heading = document.getElementById('family-tasks-title');
+        heading?.scrollIntoView?.({ block: 'start' });
+        heading?.focus();
+        return;
+      }
       if (event.target.closest('#family-tasks-retry')) {
         this.init();
       }
@@ -774,7 +779,7 @@ export class ParentDashboard {
       });
     const results = await Promise.allSettled(task.rows.map((row) => (isDecline
       ? declinePermissionSlip(row.slipId, { declined_by: signerName })
-      : signPermissionSlip(row.slipId, { signed_by: signerName, signature_hash: `signed-${Date.now()}` }))));
+      : signPermissionSlip(row.slipId, { signed_by: signerName }))));
     this.responding = false;
 
     const failedRows = task.rows.filter((_row, index) => results[index].status === 'rejected');
@@ -846,8 +851,8 @@ export class ParentDashboard {
       return '';
     }
     return `
-                        <div class="parent-dashboard__carpool-section" style="margin-top: 1.5rem;">
-                                <a href="#" id="view-carpool-activities" class="dashboard-button dashboard-button--secondary" style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                        <div class="parent-dashboard__carpool-section">
+                                <a href="#" id="view-carpool-activities" class="button button--secondary">
                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                                                 <rect x="1" y="3" width="15" height="13"></rect>
                                                 <path d="M16 8h2"></path>
@@ -943,6 +948,7 @@ export class ParentDashboard {
                                 <details class="participant-card__details">
                                         <summary class="participant-card__summary">
                                                 ${translate('family_child_file_show')}<span class="visually-hidden"> — ${participantName}</span>
+                                                <span class="participant-card__progress">${escapeHTML(this.describeFormProgress(participant))}</span>
                                         </summary>
                                         <div class="participant-card__body">
                                                 <div class="participant-card__forms">
@@ -956,6 +962,24 @@ export class ParentDashboard {
                 `;
       })
       .join('');
+  }
+
+  /**
+   * How many of the child's forms are filled in, so the file's title never
+   * reads as complete when it is not.
+   * @param {Object} participant - Child, with its has_<form> flags
+   * @returns {string} "Forms complete: 1 of 4", or empty without forms
+   */
+  describeFormProgress(participant) {
+    const formTypes = Object.keys(this.formFormats || {});
+    if (formTypes.length === 0) {
+      return '';
+    }
+    const done = formTypes.filter((formType) => participant[`has_${formType}`] === 1
+      || participant[`has_${formType}`] === true).length;
+    return translate('family_child_file_progress')
+      .replace('{done}', String(done))
+      .replace('{total}', String(formTypes.length));
   }
 
   renderFormButtons(participant) {
@@ -1101,9 +1125,10 @@ export class ParentDashboard {
                                                             slip.declined_by,
                                                           )
                                                           : '';
-      const canSign =
-                                                        slip.status ===
-                                                        'pending';
+      const canSign = isSlipAnswerable(slip, getTodayISO());
+      // Pending for an event already past: nothing left to answer, and said so.
+      const pastUnanswered = slip.status === 'pending' && !canSign;
+      const shownStatus = pastUnanswered ? escapeHTML(translate('permission_slip_past_unanswered')) : statusLabel;
 
       const signedMeta =
                                                         signedDate || signer
@@ -1112,16 +1137,18 @@ export class ParentDashboard {
                                                             ? `<p class="muted-text">${[declinedDate ? `${translate('permission_slip_declined_at')}: ${declinedDate}` : '', declinedBy ? `${translate('permission_slip_declined_by')}: ${declinedBy}` : ''].filter(Boolean).join(' · ')}</p>`
                                                             : '';
 
+      // One way to answer: the family task, which names the activity and every child it concerns.
       const actionArea = canSign
-        ? `<button type="button" class="dashboard-button dashboard-button--secondary permission-slip-sign-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate('permission_slip_sign')}</button>
-                                                           <button type="button" class="dashboard-button dashboard-button--danger permission-slip-decline-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate('permission_slip_decline')}</button>`
-        : `<span class="status-badge status-${escapeHTML(slip.status)}">${statusLabel}</span>`;
+        ? `<button type="button" class="button button--secondary button--small js-family-goto-tasks">${translate('permission_slip_answer_in_tasks')}</button>`
+        : `<span class="status-badge status-${escapeHTML(pastUnanswered ? 'expired' : slip.status)}">${shownStatus}</span>`;
+      const activityTitle = slip.activity_title || slip.activity_name || '';
 
       return `
                                                 <li class="permission-slip-item">
                                                         <div>
-                                                                <p class="permission-slip-meeting">${translate('meeting_date_label')}: ${meetingLabel}</p>
-                                                                <p class="permission-slip-status">${translate('status')}: ${statusLabel}</p>
+                                                                ${activityTitle ? `<p class="permission-slip-title">${escapeHTML(activityTitle)}</p>` : ''}
+                                                                <p class="permission-slip-meeting">${translate('activity_date_label')}: ${meetingLabel}</p>
+                                                                <p class="permission-slip-status">${translate('status')}: ${shownStatus}</p>
                                                                 ${signedMeta}
                                                         </div>
                                                         <div class="permission-slip-actions">${actionArea}</div>
@@ -1160,12 +1187,12 @@ export class ParentDashboard {
 
   formatDateSafe(dateString) {
     if (!dateString) {
-      return translate('meeting_date_label');
+      return translate('unknown');
     }
 
     const parsed = parseDate(dateString);
     if (!parsed || Number.isNaN(parsed.getTime())) {
-      return translate('meeting_date_label');
+      return translate('unknown');
     }
 
     const locale =
@@ -1229,7 +1256,7 @@ export class ParentDashboard {
       if (!installed || this.destroyed) {
         return;
       }
-      // Removed, not hidden: `.dashboard-button { display: flex }` outranks
+      // Removed, not hidden: `.button { display: inline-flex }` outranks
       // the browser's [hidden] rule. Focus on it moves to the next action.
       const button = document.getElementById('installPwaButton');
       if (button) {
@@ -1325,126 +1352,6 @@ export class ParentDashboard {
         await this.showStatementModal(participantId);
       });
     });
-  }
-
-  bindPermissionSlipHandlers() {
-    if (this.permissionSlipHandlerBound) {
-      return;
-    }
-
-    const appContainer = document.getElementById('app');
-    if (!appContainer) {
-      return;
-    }
-
-    appContainer.addEventListener('click', async (event) => {
-      const button = event.target.closest(
-        '.permission-slip-sign-btn, .permission-slip-decline-btn',
-      );
-      if (!button) {
-        return;
-      }
-
-      const slipId = Number.parseInt(
-        button.dataset?.slipId,
-        10,
-      );
-      const participantId = Number.parseInt(
-        button.dataset?.participantId,
-        10,
-      );
-
-      if (!slipId || !participantId) {
-        return;
-      }
-
-      const signerName = (await promptDialog({
-        title: translate('permission_slip_signer'),
-        message: translate('permission_slip_signer'),
-      }))?.trim();
-      if (!signerName) {
-        return;
-      }
-
-      const isDecline = button.classList.contains(
-        'permission-slip-decline-btn',
-      );
-      if (
-        isDecline &&
-                                !(await confirmDialog(
-                                  translate(
-                                    'permission_slip_decline_confirm',
-                                  ),
-                                ))
-      ) {
-        return;
-      }
-
-      try {
-        if (isDecline) {
-          await declinePermissionSlip(slipId, {
-            declined_by: signerName,
-          });
-        } else {
-          await signPermissionSlip(slipId, {
-            signed_by: signerName,
-            signature_hash: `signed-${Date.now()}`,
-          });
-        }
-        this.app.showMessage(
-          translate(
-            isDecline
-              ? 'permission_slip_declined'
-              : 'permission_slip_signed',
-          ),
-          'success',
-        );
-        await this.loadPermissionSlips(
-          participantId,
-          true,
-        );
-        this.refreshPermissionSlipSection(
-          participantId,
-        );
-      } catch (error) {
-        debugError(
-          'Error responding to permission slip',
-          error,
-        );
-
-        const errorMessage = error?.message || '';
-        if (
-          apiErrorMessageKey(error) === 'api_error_conflict' ||
-                                        errorMessage.includes('already been answered')
-        ) {
-          this.app.showMessage(
-            translate('permission_slip_already_answered'),
-            'warning',
-          );
-          // Refresh the section to show current state
-          await this.loadPermissionSlips(participantId, true);
-          this.refreshPermissionSlipSection(participantId);
-        } else if (
-          errorMessage.includes(
-            'only respond to permission slips for your own children',
-          )
-        ) {
-          this.app.showMessage(
-            translate('permission_slip_not_your_child'),
-            'error',
-          );
-        } else {
-          // The server's message is English; explain in the page's language.
-          this.app.showMessage(
-            apiErrorMessage(error, 'error_saving'),
-            'error',
-          );
-        }
-      }
-      this.refreshFamilyView();
-    }, { signal: this.listeners.signal });
-
-    this.permissionSlipHandlerBound = true;
   }
 
   async showStatementModal(participantId) {

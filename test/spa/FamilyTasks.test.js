@@ -39,6 +39,7 @@ const mockTemplates = {
   family_tasks_concerns: 'For: {children}',
   family_filter_child: '{name} ({count})',
   family_tasks_deadline: 'Answer by {date}',
+  family_child_file_progress: 'Forms complete: {done} of {total}',
 };
 jest.mock('../../spa/app.js', () => ({
   translate: (key) => mockTemplates[key] || key,
@@ -304,6 +305,20 @@ describe('the parent dashboard', () => {
     page.destroy();
   });
 
+  test('a child\'s file says how many forms are filled in, never that it is complete when it is not', async () => {
+    const { page } = await renderDashboard([ADA, LEA], new Map(), {
+      fetchFormFormats: jest.fn(function loadFormats() {
+        this.formFormats = { fiche_sante: {}, acceptation_risque: {} };
+        this.formMeta = {};
+      }),
+    });
+
+    const summary = (id) => document.querySelector(`[data-child-card="${id}"] summary`).textContent;
+    expect(summary(4)).toContain('Forms complete: 0 of 2');
+    expect(summary(5)).toContain('Forms complete: 1 of 2');
+    page.destroy();
+  });
+
   test('each child\'s full file opens on demand; a family of one sees no filter and the file open', async () => {
     let { page } = await renderDashboard([ADA, LEA], twoChildSlips());
     expect([...document.querySelectorAll('.participant-card details')].map((details) => details.open)).toEqual([false, false]);
@@ -325,8 +340,9 @@ describe('the parent dashboard', () => {
     await flush();
 
     expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ message: 'family_tasks_signer_prompt' }));
-    expect(endpoints.signPermissionSlip.mock.calls.map(([id, body]) => [id, body.signed_by]))
-      .toEqual([[91, 'Marie Tremblay'], [92, 'Marie Tremblay']]);
+    // Only the signer's name: the server dates the signature, and nothing pretends to be a hash.
+    expect(endpoints.signPermissionSlip.mock.calls)
+      .toEqual([[91, { signed_by: 'Marie Tremblay' }], [92, { signed_by: 'Marie Tremblay' }]]);
     expect(app.showMessage).toHaveBeenCalledWith('permission_slip_signed', 'success');
     expect(page.loadPermissionSlips).toHaveBeenCalledWith(4, true);
     expect(page.loadPermissionSlips).toHaveBeenCalledWith(5, true);
@@ -375,6 +391,74 @@ describe('the parent dashboard', () => {
     page.destroy();
   });
 
+  test('a pending slip is answered in one place: the child\'s file shows it and leads to the task', async () => {
+    const { page } = await renderDashboard([ADA, LEA], twoChildSlips());
+    const card = document.querySelector('[data-child-card="4"]');
+
+    expect(card.querySelector('.js-family-sign, .js-family-decline, .permission-slip-sign-btn, .permission-slip-decline-btn')).toBeNull();
+    expect(card.querySelector('.permission-slip-title').textContent).toBe('Winter camp');
+    expect(card.querySelector('.permission-slip-meeting').textContent).toContain('activity_date_label');
+    expect(card.textContent).not.toContain('meeting_date_label');
+
+    card.querySelector('.js-family-goto-tasks').click();
+    expect(document.activeElement).toBe(document.getElementById('family-tasks-title'));
+    expect(prompt).not.toHaveBeenCalled();
+    page.destroy();
+  });
+
+  test('a slip left unanswered for an activity already past says so, with no way to answer', async () => {
+    const { page } = await renderDashboard([ADA], new Map([[4, [
+      slip(93, 4, { activity_title: 'Last week', meeting_date: '2026-10-17' }),
+    ]]]));
+    const card = document.querySelector('[data-child-card="4"]');
+
+    expect(tasks()).toHaveLength(0);
+    expect(card.querySelector('.js-family-goto-tasks')).toBeNull();
+    expect(card.querySelector('.permission-slip-actions').textContent.trim()).toBe('permission_slip_past_unanswered');
+    expect(card.querySelector('.permission-slip-status').textContent).toContain('permission_slip_past_unanswered');
+    page.destroy();
+  });
+
+  test('the decline dialog names the activity, the action and the children', async () => {
+    mockTemplates.family_tasks_decline_title = 'Decline: {activity}';
+    mockTemplates.family_tasks_signer_prompt = 'Your name, for {children}';
+    const { page } = await renderDashboard([ADA, LEA], twoChildSlips());
+    prompt.mockResolvedValue(null);
+
+    document.querySelector('.js-family-decline').click();
+    await flush();
+
+    expect(prompt).toHaveBeenCalledWith({
+      title: 'Decline: Winter camp',
+      message: expect.stringMatching(/^Your name, for .*Ada.*Léa/),
+    });
+    expect(endpoints.declinePermissionSlip).not.toHaveBeenCalled();
+    delete mockTemplates.family_tasks_decline_title;
+    delete mockTemplates.family_tasks_signer_prompt;
+    page.destroy();
+  });
+
+  test('a refused answer is explained in the page language, and one answered meanwhile says so', async () => {
+    let { page, app } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]]));
+    prompt.mockResolvedValue('Marie Tremblay');
+    endpoints.signPermissionSlip.mockRejectedValueOnce(
+      Object.assign(new Error('API request failed: Insufficient permissions'), { status: 403 }),
+    );
+    document.querySelector('.js-family-sign').click();
+    await flush();
+    expect(app.showMessage).toHaveBeenCalledWith('api_error_forbidden', 'error');
+    page.destroy();
+
+    ({ page, app } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]])));
+    endpoints.signPermissionSlip.mockRejectedValueOnce(
+      Object.assign(new Error('API request failed: Permission slip has already been answered'), { status: 409 }),
+    );
+    document.querySelector('.js-family-sign').click();
+    await flush();
+    expect(app.showMessage).toHaveBeenCalledWith('permission_slip_already_answered', 'warning');
+    page.destroy();
+  });
+
   test('confirming a form re-read removes it from the tasks', async () => {
     const { page, app } = await renderDashboard([ADA, LEA], new Map(), {});
     page.formsToReview = [{ id: 70, participant_id: 4, form_type: 'fiche_sante', display_name: 'Health form' }];
@@ -420,6 +504,18 @@ describe('the parent dashboard', () => {
     document.querySelector('.js-family-sign').click();
     await flush();
     expect(prompt).not.toHaveBeenCalled();
+  });
+
+  test('every action on the dashboard uses the shared button styles', async () => {
+    const { page } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]]));
+
+    expect(document.querySelector('.dashboard-button')).toBeNull();
+    const actions = [...document.querySelectorAll('.parent-dashboard__actions a, .parent-dashboard__footer a')];
+    expect(actions.length).toBeGreaterThan(0);
+    actions.forEach((action) => expect(action.classList.contains('button')).toBe(true));
+    // Spacing lives in the stylesheet, where the theme's tokens apply.
+    expect(document.querySelector('.parent-dashboard [style]')).toBeNull();
+    page.destroy();
   });
 
   test('has no WCAG A/AA violations, with every kind of task and the filter', async () => {

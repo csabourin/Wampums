@@ -834,7 +834,7 @@ export class PermissionSlipDashboard {
 
         withButtonLoading(trigger, async () => {
           try {
-            await signPermissionSlip(slipId, { signed_by: signerName, signature_hash: `signed-${Date.now()}` });
+            await signPermissionSlip(slipId, { signed_by: signerName });
             this.app.showMessage(translate('permission_slip_signed'), 'success');
             await this.clearPermissionSlipCaches();
             await this.refreshData(true);
