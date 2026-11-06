@@ -387,6 +387,45 @@ describe('POST /api/v1/medication/requirements', () => {
     expect(queries.some((query) => query.includes('INSERT INTO medication_requirements'))).toBe(false);
   });
 
+  test('an update sending back the dates as the list returned them keeps those days', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const updates = [];
+    __mPool.connect.mockResolvedValue(__mClient);
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('SELECT id FROM medication_requirements')) {
+        return Promise.resolve({ rows: [{ id: 7 }] });
+      }
+      if (query.includes('UPDATE medication_requirements')) {
+        updates.push(params);
+        return Promise.resolve({ rows: [{ id: 7, medication_name: 'Advil' }] });
+      }
+      if (['BEGIN', 'COMMIT'].includes(query) || query.includes('participant_medications')) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }] });
+      }
+      if (query.includes('JOIN roles r')) {
+        return Promise.resolve({ rows: [{ role_name: 'district', data_scope: 'organization' }] });
+      }
+      if (query.includes('FROM user_organizations')) {
+        return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .put('/api/v1/medication/requirements/7')
+      .set('Authorization', `Bearer ${generateToken({ permissions: ['medication.manage'] })}`)
+      .send({
+        medication_name: 'Advil', frequency_preset_type: 'prn', participant_ids: [50],
+        start_date: '2026-12-01T00:00:00.000Z', end_date: '2026-12-03T00:00:00.000Z',
+      });
+
+    expect(res.status).toBe(200);
+    expect(updates[0]).toEqual(expect.arrayContaining(['2026-12-01', '2026-12-03']));
+  });
+
   test('an update cannot remove the unit of a dose either', async () => {
     const { __mClient, __mPool } = require('pg');
     const queries = asUnitAdmin(__mClient, __mPool);
