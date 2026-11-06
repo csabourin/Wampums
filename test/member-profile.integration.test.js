@@ -33,12 +33,12 @@ describe.skipIf(!URL)('personal profiles and consent', () => {
       SELECT $1, $2, jsonb_build_array(id), 'active' FROM roles WHERE role_name = $3 AND organization_id IS NULL`, [unitId, user, roleName]);
     return user;
   }
-  async function camp(unitId, creator) {
+  async function camp(unitId, creator, offset = 3) {
     const activity = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
       meeting_time_going, departure_time_going, activity_start_date, activity_start_time, activity_end_date, activity_end_time, is_camp)
-      VALUES ($1, $2, 'Fictional Profile Camp', CURRENT_DATE + 3, 'Hall', '09:00', '09:15', CURRENT_DATE + 3, '09:00', CURRENT_DATE + 5, '16:00', TRUE) RETURNING id`, [unitId, creator]);
+      VALUES ($1, $2, 'Fictional Profile Camp', CURRENT_DATE + $3::int, 'Hall', '09:00', '09:15', CURRENT_DATE + $3::int, '09:00', CURRENT_DATE + $3::int + 2, '16:00', TRUE) RETURNING id`, [unitId, creator, offset]);
     const meeting = await one(`INSERT INTO year_plan_meetings (organization_id, meeting_date, theme, meeting_kind, activity_id)
-      VALUES ($1, CURRENT_DATE + 3, 'Fictional Profile Camp', 'camp', $2) RETURNING id`, [unitId, activity]);
+      VALUES ($1, CURRENT_DATE + $3::int, 'Fictional Profile Camp', 'camp', $2) RETURNING id`, [unitId, activity, offset]);
     return { activity, meeting };
   }
   const call = (method, endpoint, user = ids.owner, unitId = ids.unit) => request(app)[method](`/api/v1/${endpoint}`)
@@ -56,7 +56,7 @@ describe.skipIf(!URL)('personal profiles and consent', () => {
     ids.outsider = await member(ids.other, 'district');
     await pool.query(`INSERT INTO user_organizations (organization_id, user_id, role_ids, status)
       SELECT $1, $2, jsonb_build_array(id), 'active' FROM roles WHERE role_name = 'volunteer' AND organization_id IS NULL`, [ids.other, ids.owner]);
-    ids.camp = await camp(ids.unit, ids.manager); ids.otherCamp = await camp(ids.unit, ids.manager); ids.foreignCamp = await camp(ids.other, ids.outsider);
+    ids.camp = await camp(ids.unit, ids.manager); ids.otherCamp = await camp(ids.unit, ids.manager, 10); ids.foreignCamp = await camp(ids.other, ids.outsider);
     for (const user of [ids.owner, ids.peer]) {
       // eslint-disable-next-line no-await-in-loop -- fixture members
       await saveTeamMember(pool, ids.unit, ids.manager, ids.camp.meeting, user, { team_role: 'leader' });
