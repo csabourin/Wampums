@@ -379,9 +379,12 @@ test.describe('permission slips for a parent', () => {
     });
   }
 
-  test('the parent dashboard still offers the pending slip to sign', async ({ page }) => {
+  test('the parent dashboard offers the pending slip to sign in one place, its family task', async ({ page }) => {
     await openScreen(page, '/parent-dashboard');
-    await expect(page.locator('.permission-slip-section .permission-slip-sign-btn').first()).toBeVisible();
+    await expect(page.locator('.family-tasks .js-family-sign').first()).toBeVisible();
+    // The child's file shows the slip and leads to the task; it has no sign button of its own.
+    await expect(page.locator('.permission-slip-section .js-family-goto-tasks')).not.toHaveCount(0);
+    await expect(page.locator('.permission-slip-section').getByRole('button', { name: /^(Signer|Sign)$/ })).toHaveCount(0);
   });
 });
 
