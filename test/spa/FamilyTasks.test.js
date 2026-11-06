@@ -39,6 +39,7 @@ const mockTemplates = {
   family_tasks_concerns: 'For: {children}',
   family_filter_child: '{name} ({count})',
   family_tasks_deadline: 'Answer by {date}',
+  family_child_file_progress: 'Forms complete: {done} of {total}',
 };
 jest.mock('../../spa/app.js', () => ({
   translate: (key) => mockTemplates[key] || key,
@@ -301,6 +302,20 @@ describe('the parent dashboard', () => {
     filterButtons()[0].click();
     expect(tasks()).toHaveLength(1);
     expect(document.querySelector('[data-child-card="4"]').hidden).toBe(false);
+    page.destroy();
+  });
+
+  test('a child\'s file says how many forms are filled in, never that it is complete when it is not', async () => {
+    const { page } = await renderDashboard([ADA, LEA], new Map(), {
+      fetchFormFormats: jest.fn(function loadFormats() {
+        this.formFormats = { fiche_sante: {}, acceptation_risque: {} };
+        this.formMeta = {};
+      }),
+    });
+
+    const summary = (id) => document.querySelector(`[data-child-card="${id}"] summary`).textContent;
+    expect(summary(4)).toContain('Forms complete: 0 of 2');
+    expect(summary(5)).toContain('Forms complete: 1 of 2');
     page.destroy();
   });
 

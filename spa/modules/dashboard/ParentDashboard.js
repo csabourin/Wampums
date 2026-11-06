@@ -943,6 +943,7 @@ export class ParentDashboard {
                                 <details class="participant-card__details">
                                         <summary class="participant-card__summary">
                                                 ${translate('family_child_file_show')}<span class="visually-hidden"> — ${participantName}</span>
+                                                <span class="participant-card__progress">${escapeHTML(this.describeFormProgress(participant))}</span>
                                         </summary>
                                         <div class="participant-card__body">
                                                 <div class="participant-card__forms">
@@ -956,6 +957,24 @@ export class ParentDashboard {
                 `;
       })
       .join('');
+  }
+
+  /**
+   * How many of the child's forms are filled in, so the file's title never
+   * reads as complete when it is not.
+   * @param {Object} participant - Child, with its has_<form> flags
+   * @returns {string} "Forms complete: 1 of 4", or empty without forms
+   */
+  describeFormProgress(participant) {
+    const formTypes = Object.keys(this.formFormats || {});
+    if (formTypes.length === 0) {
+      return '';
+    }
+    const done = formTypes.filter((formType) => participant[`has_${formType}`] === 1
+      || participant[`has_${formType}`] === true).length;
+    return translate('family_child_file_progress')
+      .replace('{done}', String(done))
+      .replace('{total}', String(formTypes.length));
   }
 
   renderFormButtons(participant) {

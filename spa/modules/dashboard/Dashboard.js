@@ -640,11 +640,11 @@ export class Dashboard extends BaseModule {
       0,
     );
     if (participantCount) {
-      stats['/manage-participants'] = { value: participantCount, label: translate('participants_short') };
-      stats['/parent-contact-list'] = { value: participantCount, label: translate('contacts_short') };
+      stats['/manage-participants'] = { value: participantCount, label: translate(participantCount === 1 ? 'participants_short_one' : 'participants_short') };
+      stats['/parent-contact-list'] = { value: participantCount, label: translate(participantCount === 1 ? 'contacts_short_one' : 'contacts_short') };
     }
     if (groupCount) {
-      stats['/manage-groups'] = { value: groupCount, label: translate('groups_short') };
+      stats['/manage-groups'] = { value: groupCount, label: translate(groupCount === 1 ? 'groups_short_one' : 'groups_short') };
     }
     if (totalPoints) {
       stats['/managePoints'] = { value: totalPoints, label: translate('points_short') };

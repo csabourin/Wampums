@@ -342,6 +342,17 @@ describe('tool groups stay accessible', () => {
     expect(count.textContent.replace(/\s+/g, ' ').trim()).toBe('2 contacts_short');
   });
 
+  test('a count of one is read in the singular: "1 contact", not "1 contacts"', () => {
+    const dashboard = renderAdmin();
+    dashboard.participants = [{ id: 1 }];
+    dashboard.render();
+
+    const stat = (href) => document.querySelector(`a[href="${href}"] .dashboard-v2__tile-stat`)
+      .textContent.replace(/\s+/g, ' ').trim();
+    expect(stat('/parent-contact-list')).toBe('1 contacts_short_one');
+    expect(stat('/manage-participants')).toBe('1 participants_short_one');
+  });
+
   test('the page is titled by the unit\'s name, as its only <h1>', () => {
     const dashboard = renderAdmin();
     dashboard.organizationName = '6e Meute <img src=x onerror=alert(1)>';

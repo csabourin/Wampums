@@ -155,6 +155,16 @@
   transition: transform var(--transition-fast, 150ms);
 }
 
+.participant-card__summary {
+  flex-wrap: wrap;
+}
+
+.participant-card__progress {
+  color: var(--color-text-muted, #4b5563);
+  font-weight: var(--font-weight-normal, 400);
+  margin-inline-start: auto;
+}
+
 .participant-card__details[open] > .participant-card__summary::before {
   transform: rotate(90deg);
 }
