@@ -65,9 +65,9 @@ module.exports = (pool) => {
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const { meetingId, noteId } = ids(req);
-      const { note, created } = await transaction(pool, (db) =>
+      const { note, notes, created } = await transaction(pool, (db) =>
         saveNote(db, organizationId, req.user.id, meetingId, noteId, req.body));
-      return success(res, { note }, 'camp_review_note_saved', created ? HTTP_STATUS.CREATED : HTTP_STATUS.OK);
+      return success(res, { note, notes }, 'camp_review_note_saved', created ? HTTP_STATUS.CREATED : HTTP_STATUS.OK);
     }));
 
   router.delete('/camps/:meetingId/notes/:noteId',

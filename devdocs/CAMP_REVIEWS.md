@@ -50,6 +50,11 @@ year after year ("Last year") comes next (see the issue).
   weight, including when an offline vote and deletion are replayed after another device merged it.
   A confirmed parent's merged children also replace any standalone copies retained here, so a vote
   after a merge on another device never counts the same note both inside and outside its parent.
+  Note and vote responses include the complete `notes` list already read by the service in the
+  write transaction. The client uses this authoritative list when supplied: a child detached on
+  another device stays visible with its current version and votes, while a deleted child stays gone.
+  Quiet refreshes also redraw status controls when server decisions become available after reconnecting,
+  keeping a note being typed and its focus.
 
 ## Offline
 

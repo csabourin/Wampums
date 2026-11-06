@@ -107,6 +107,15 @@ test('voting on a note merged elsewhere keeps its children only inside the confi
   expect((await getCampReviewSnapshot(12)).data.notes).toEqual([parent]);
 });
 
+test('a confirmed complete note list restores a child unmerged elsewhere without reviving a deleted child', async () => {
+  const detached = { ...SWIM, id: 'detached', version: 3, weight: 2, votes: [{ id: 'other-vote' }] };
+  const deleted = { ...SWIM, id: 'deleted' };
+  await storeCampReviewSnapshot(12, { camp: CAMP, notes: [{ ...SWIM, merged: [detached, deleted], weight: 4 }] });
+  const parent = { ...SWIM, merged: [], weight: 2, votes: [{ id: VOTE_ID }] };
+  await applyCampReviewWrite(12, { method: 'PUT', noteId: NOTE_ID, voteId: VOTE_ID }, { note: parent, notes: [parent, detached] });
+  expect((await getCampReviewSnapshot(12)).data.notes).toEqual([parent, detached]);
+});
+
 test('a confirmed vote removal keeps the remaining votes and weight on this device', async () => {
   await storeCampReviewSnapshot(12, { camp: CAMP, notes: [{ ...SWIM, weight: 2, votes: [{ id: VOTE_ID }] }] });
   await applyCampReviewWrite(12, { method: 'DELETE', noteId: NOTE_ID, voteId: VOTE_ID }, { note: SWIM });

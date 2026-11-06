@@ -185,15 +185,16 @@ async function readNotes(db, organizationId, meetingId, userId) {
  * The note as the screen shows it after a write: the note itself, or the note
  * it was merged into.
  *
- * @returns {Promise<?Object>} Null when it is gone
+ * @returns {Promise<{note: ?Object, notes: Object[]}>} The affected note (null when gone) and
+ * the complete confirmed list, including notes another device detached from a merge target.
  */
 async function noteAfterWrite(db, organizationId, meetingId, userId, noteId) {
   const { rows, notes } = await readNotes(db, organizationId, meetingId, userId);
   const row = rows.find((entry) => entry.id === noteId);
   if (!row) {
-    return null;
+    return { note: null, notes };
   }
-  return notes.find((note) => note.id === (row.merged_into_id || row.id)) || null;
+  return { note: notes.find((note) => note.id === (row.merged_into_id || row.id)) || null, notes };
 }
 
 /**
@@ -318,7 +319,7 @@ async function saveNote(db, organizationId, userId, meetingId, noteId, body) {
        RETURNING id`,
       [organizationId, noteId, meetingId, note.category, note.moment, note.day, note.theme, note.text, userId]);
     if (inserted.rows[0]) {
-      return { note: await noteAfterWrite(db, organizationId, meetingId, userId, noteId), created: true };
+      return { ...await noteAfterWrite(db, organizationId, meetingId, userId, noteId), created: true };
     }
     // Written meanwhile by the same device's other request: judge it as an existing note.
     existing = await lockNote(db, organizationId, noteId);
@@ -344,7 +345,7 @@ async function saveNote(db, organizationId, userId, meetingId, noteId, body) {
         WHERE organization_id = $1 AND id = $2`,
       [organizationId, noteId, note.category, note.moment, note.day, note.theme, note.text]);
   }
-  return { note: await noteAfterWrite(db, organizationId, meetingId, userId, noteId), created: false };
+  return { ...await noteAfterWrite(db, organizationId, meetingId, userId, noteId), created: false };
 }
 
 /**
@@ -407,11 +408,11 @@ async function addVote(db, organizationId, userId, meetingId, noteId, voteId) {
       refuse('camp_review_vote_conflict', HTTP_CONFLICT);
     }
   }
-  const note = await noteAfterWrite(db, organizationId, meetingId, userId, noteId);
-  if (!note) {
+  const answer = await noteAfterWrite(db, organizationId, meetingId, userId, noteId);
+  if (!answer.note) {
     refuse('camp_review_note_not_found', HTTP_NOT_FOUND);
   }
-  return { note };
+  return answer;
 }
 
 /**
@@ -434,7 +435,7 @@ async function removeVote(db, organizationId, userId, meetingId, noteId, voteId)
       WHERE v.organization_id = $1 AND v.id = $2 AND v.note_id = $3
         AND n.organization_id = v.organization_id AND n.id = v.note_id AND n.meeting_id = $4`,
     [organizationId, voteId, noteId, meetingId]);
-  return { note: await noteAfterWrite(db, organizationId, meetingId, userId, noteId) };
+  return noteAfterWrite(db, organizationId, meetingId, userId, noteId);
 }
 
 /**
@@ -486,7 +487,7 @@ async function sortNote(db, organizationId, userId, meetingId, noteId, body) {
     `UPDATE camp_review_notes SET outcome = $3, action_text = $4, version = version + 1, updated_at = NOW()
       WHERE organization_id = $1 AND id = $2`,
     [organizationId, noteId, outcome, action || null]);
-  return { note: await noteAfterWrite(db, organizationId, meetingId, userId, noteId) };
+  return noteAfterWrite(db, organizationId, meetingId, userId, noteId);
 }
 
 /**
@@ -523,7 +524,7 @@ async function mergeNote(db, organizationId, userId, meetingId, noteId, body) {
     refuse('camp_review_note_conflict', HTTP_CONFLICT);
   }
   if (note.merged_into_id === into) {
-    return { note: await noteAfterWrite(db, organizationId, meetingId, userId, into) };
+    return noteAfterWrite(db, organizationId, meetingId, userId, into);
   }
   if (note.category !== target.category) {
     refuse('camp_review_merge_category', HTTP_CONFLICT, 'into');
@@ -537,7 +538,7 @@ async function mergeNote(db, organizationId, userId, meetingId, noteId, body) {
     `UPDATE camp_review_notes SET merged_into_id = $3, version = version + 1, updated_at = NOW()
       WHERE organization_id = $1 AND id = $2`,
     [organizationId, noteId, into]);
-  return { note: await noteAfterWrite(db, organizationId, meetingId, userId, into) };
+  return noteAfterWrite(db, organizationId, meetingId, userId, into);
 }
 
 /**
@@ -555,7 +556,7 @@ async function unmergeNote(db, organizationId, userId, meetingId, noteId) {
         WHERE organization_id = $1 AND id = $2`,
       [organizationId, noteId]);
   }
-  return { note: await noteAfterWrite(db, organizationId, meetingId, userId, noteId) };
+  return noteAfterWrite(db, organizationId, meetingId, userId, noteId);
 }
 
 /**

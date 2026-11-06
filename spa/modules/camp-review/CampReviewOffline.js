@@ -113,6 +113,11 @@ export async function getCampReviewSnapshot(meetingId, scope = currentCampReview
  * @returns {Object[]} The notes after
  */
 export function applyAnswer(previous, { method, noteId, voteId, unmerge = false }, answer) {
+  // The server read the whole review in the write transaction. Missing children may have been
+  // detached, deleted or merged elsewhere: only that confirmed list can distinguish those cases.
+  if (Array.isArray(answer?.notes)) {
+    return answer.notes;
+  }
   const notes = unmerge ? previous.map((note) => (note.merged?.some((child) => child.id === noteId)
     ? weighed({ ...note, merged: note.merged.filter((child) => child.id !== noteId) }) : note)) : previous;
   if (method === 'DELETE' && !voteId && !unmerge) {

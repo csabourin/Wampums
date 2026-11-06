@@ -674,6 +674,21 @@ describe('sorting after the camp', () => {
     expect($('[data-review-vote]')).not.toBeNull();
   });
 
+  test('reconnecting restores the close control while keeping a note being typed', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    offline.getCampReviewSnapshot.mockResolvedValue({ preparedAt: Date.now(), data: review().data });
+    await open();
+    type('Une idée en cours');
+    expect($('#camp-review-close')).toBeNull();
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+    window.dispatchEvent(new CustomEvent('offlineMutationReplayed', { detail: { kind: 'camp_review' } }));
+    await flush();
+    await flush();
+    expect($('#camp-review-close')).not.toBeNull();
+    expect($('#camp-review-text').value).toBe('Une idée en cours');
+    expect($('.camp-review__offline')).toBeNull();
+  });
+
   test('a review closed on another device while this one is open closes here too, keeping what was typed', async () => {
     await open();
     expect($('#camp-review-form')).not.toBeNull();

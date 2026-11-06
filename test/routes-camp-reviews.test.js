@@ -105,13 +105,43 @@ test('noting, removing, giving and undoing a +1 take camp_reviews.manage', async
 });
 
 test('a new note answers 201, the same note written again 200', async () => {
+  service.saveNote.mockResolvedValueOnce({ note: { id: NOTE_ID, weight: 1 }, notes: [{ id: NOTE_ID, weight: 1 }], created: true });
   const created = await call('put', `/camps/12/notes/${NOTE_ID}`, NOTE);
   expect(created.status).toBe(201);
   expect(created.body.data.note.id).toBe(NOTE_ID);
+  expect(created.body.data.notes).toEqual([{ id: NOTE_ID, weight: 1 }]);
   expect(service.saveNote).toHaveBeenCalledWith(client, UNIT_ID, USER_ID, 12, NOTE_ID, NOTE);
 
   service.saveNote.mockResolvedValue({ note: { id: NOTE_ID, weight: 1 }, created: false });
   expect((await call('put', `/camps/12/notes/${NOTE_ID}`, NOTE)).status).toBe(200);
+});
+
+test('a vote returns the complete confirmed list, including a note detached elsewhere', async () => {
+  const detachedId = '11111111-1111-4111-8111-111111111111';
+  const rows = [
+    { ...NOTE, id: NOTE_ID, meeting_id: 12, version: 1, votes: [{ id: VOTE_ID }] },
+    { ...NOTE, id: detachedId, meeting_id: 12, version: 3, votes: [] },
+  ];
+  const db = { query: jest.fn((sql) => {
+    if (sql.includes('FROM year_plan_meetings')) {
+      return Promise.resolve({ rows: [{ id: 12 }] });
+    }
+    if (sql.includes('SELECT status FROM camp_reviews')) {
+      return Promise.resolve({ rows: [{ status: 'open' }] });
+    }
+    if (sql.includes('FROM camp_review_notes n') && sql.includes('ORDER BY n.created_at')) {
+      return Promise.resolve({ rows });
+    }
+    if (sql.includes('RETURNING note_id')) {
+      return Promise.resolve({ rows: [{ note_id: NOTE_ID }] });
+    }
+    return Promise.resolve({ rows: [] });
+  }) };
+  const actual = jest.requireActual('../services/campReviews');
+  const answer = await actual.addVote(db, UNIT_ID, USER_ID, 12, NOTE_ID, VOTE_ID);
+  expect(answer.note).toMatchObject({ id: NOTE_ID, weight: 2 });
+  expect(answer.notes.map((entry) => entry.id)).toEqual([NOTE_ID, detachedId]);
+  expect(answer.notes[1]).toMatchObject({ version: 3, merged: [] });
 });
 
 test('a +1 and its undo reach the service with the ids the device chose', async () => {

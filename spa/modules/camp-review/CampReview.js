@@ -294,7 +294,7 @@ export class CampReview {
       return;
     }
     const shown = this.root().querySelector('.camp-review');
-    if (quiet && shown && this.renderedStatus === this.review?.status) {
+    if (quiet && shown && this.renderedStatus === this.review?.status && this.renderedCanDecide === this.canDecide()) {
       this.renderNotes();
       this.renderSuggestions();
       return;
@@ -407,6 +407,7 @@ export class CampReview {
 
   render() {
     this.renderedStatus = this.review?.status;
+    this.renderedCanDecide = this.canDecide();
     setContent(this.root(), `<section class="page camp-review">
         ${renderBackLink(this.backHref())}
         <h1>${escapeHTML(translate('camp_review_title'))}</h1>

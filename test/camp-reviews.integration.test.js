@@ -226,6 +226,14 @@ describe.skipIf(!DATABASE_URL)('Camp review', () => {
       const undone = await call('delete', on(`/notes/${second.id}/merge`));
       expect(undone.body.data.note).toMatchObject({ id: second.id, weight: 3, merged: [] });
       expect((await read(campIds.meeting)).notes.find((entry) => entry.id === first.id).weight).toBe(2);
+      // A device still retaining the old merge receives both confirmed notes on its next vote,
+      // including the detached child's current version and votes, without another GET.
+      const afterUnmerge = await call('put', on(`/notes/${first.id}/votes/${randomUUID()}`)).send({});
+      expect(afterUnmerge.status).toBe(200);
+      expect(afterUnmerge.body.data.notes).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: first.id, weight: 3, merged: [] }),
+        expect.objectContaining({ id: second.id, weight: 3, version: second.version + 2, merged: [] }),
+      ]));
     });
 
     test('a merge stays one level deep and within one kind of note', async () => {
