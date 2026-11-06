@@ -5,6 +5,18 @@ import { ACCOUNTS, storageStateFor, openScreen, axeViolations, waitForAnimations
 test.use({ storageState: storageStateFor(ACCOUNTS.leader) });
 
 test('attendance uses light rows, one selected recipient and a separate focus outline', async ({ page }, testInfo) => {
+  // Keep this interaction independent of the shared seed's single child and
+  // current camps. These read fixtures never change the shared database.
+  const participants = [
+    { id: 91001, first_name: 'Alex', last_name: 'Rivière-Tremblay', group_id: 910, group_name: 'Les Érables', first_leader: true },
+    { id: 91002, first_name: 'Sam', last_name: 'Rocher', group_id: 910, group_name: 'Les Érables' },
+  ];
+  await page.route(/\/api\/v1\/participants(?:\?.*)?$/, (route) => route.fulfill({
+    json: { success: true, data: participants },
+  }));
+  await page.route(/\/api\/v1\/action-roster(?:\?.*)?$/, (route) => route.fulfill({
+    json: { success: true, data: { activities: [], attendance: [] } },
+  }));
   await openScreen(page, '/attendance');
   const rows = page.locator('#attendance-list .participant-row');
   const first = rows.nth(0);
