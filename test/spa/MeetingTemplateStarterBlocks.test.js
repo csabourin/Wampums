@@ -106,3 +106,21 @@ test('a description joins the summary and precautions, skipping what is empty', 
   expect(activityDescriptionText({ description: null, precautions: null })).toBe('');
   expect(activityDescriptionText(undefined)).toBe('');
 });
+
+test('a saved schedule is completed by the template blocks after its end, never overlapped from the start', () => {
+  const manager = new ActivityManager({ lang: 'fr' }, [], [], { activityTemplates: TEMPLATES });
+  const saved = [
+    { id: 41, time: '18:45', duration: '00:15', activity: 'Accueil et grand hurlement' },
+    { id: 42, time: '19:00', duration: '00:25', activity: 'Jeu de la tanière' },
+    { id: 43, time: '19:25', duration: '00:20', activity: 'Histoire de la jungle' },
+  ];
+
+  const rows = manager.initializePlaceholderActivities(saved);
+
+  expect(rows.map((row) => `${row.time} ${row.activity}`)).toEqual([
+    '18:45 Accueil et grand hurlement',
+    '19:00 Jeu de la tanière',
+    '19:25 Histoire de la jungle',
+    '20:40 activity_prayer_departure',
+  ]);
+});
