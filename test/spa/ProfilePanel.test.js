@@ -20,6 +20,7 @@ async function mount(health = false) {
 const submit = () => $('form').dispatchEvent(new Event('submit', { cancelable: true }));
 beforeEach(() => {
   jest.clearAllMocks();
+  window.history.replaceState(null, '', '/');
   isDemoUser.mockReturnValue(false); buildScopedCacheKey.mockReturnValue('one-account');
   document.body.innerHTML = '<main><section></section></main>';
   app = { showMessage: jest.fn() };
@@ -95,4 +96,13 @@ test.each([false, true])('personal forms escape supplied text and meet axe acces
   expect($('img')).toBeNull();
   const result = await axe.run(document.body, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'] }, rules: { 'color-contrast': { enabled: false } } });
   expect(result.violations).toEqual([]);
+});
+
+
+test('a profile shortcut moves focus to the requested section after it loads', async () => {
+  window.history.replaceState(null, '', '/account-info#my-profile');
+  const frame = jest.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => { callback(); return 0; });
+  await mount();
+  expect(document.activeElement).toBe(document.getElementById('my-profile-heading'));
+  frame.mockRestore();
 });

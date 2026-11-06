@@ -33,7 +33,20 @@ export class ProfilePanel {
   async mount(container) {
     this.container = container;
     if (!container) { return; }
-    if (this.state === 'idle') { await this.load(); } else { this.render(); }
+    if (this.state === 'idle') {
+      await this.load();
+      window.requestAnimationFrame(() => this.revealIfLinkedTo());
+    } else { this.render(); }
+  }
+
+  /** A profile link opens at its heading, after the router restores the page's scroll. */
+  revealIfLinkedTo() {
+    if (this.stale() || window.location.hash !== `#${this.id}`) { return; }
+    const heading = this.container?.querySelector('h2');
+    if (!heading?.isConnected) { return; }
+    heading.setAttribute('tabindex', '-1');
+    heading.focus({ preventScroll: true });
+    heading.scrollIntoView?.({ block: 'start' });
   }
 
   async load() {
