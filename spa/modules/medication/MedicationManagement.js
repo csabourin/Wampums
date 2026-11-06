@@ -2365,6 +2365,12 @@ export class MedicationManagement {
       participant_ids: [participantId]
     };
 
+    if (this.savingRequirement) {
+      return;
+    }
+    this.savingRequirement = true;
+    const typedValues = this.readRequirementFormValues(form);
+
     const previousRequirements = JSON.parse(JSON.stringify(this.requirements));
     const previousAssignments = JSON.parse(JSON.stringify(this.participantMedications));
     const optimisticRequirement = {
@@ -2383,6 +2389,8 @@ export class MedicationManagement {
     this.participantMedications = [optimisticAssignment, ...this.participantMedications];
     this.render();
     this.attachEventListeners();
+    // The redrawn form keeps what was typed, and says it is saving.
+    this.setRequirementFormSaving(this.restoreRequirementForm(typedValues), true);
     this.app.showMessage(translate('medication_requirement_syncing'), 'info');
 
     try {
@@ -2391,6 +2399,8 @@ export class MedicationManagement {
       // Handle queued (offline) response
       if (response?.queued) {
         debugLog('Medication requirement queued for offline sync');
+        this.savingRequirement = false;
+        this.setRequirementFormSaving(document.getElementById('medicationRequirementForm'), false);
         this.app.showMessage(translate('medication_offline_dose_queued'), 'info');
         return;
       }
@@ -2400,15 +2410,89 @@ export class MedicationManagement {
       }
     } catch (error) {
       debugError('Error saving medication requirement', error);
+      this.savingRequirement = false;
+      if (this.destroyed) {
+        return;
+      }
       this.requirements = previousRequirements;
       this.participantMedications = previousAssignments;
       this.render();
       this.attachEventListeners();
+      // Nothing typed is lost: the person corrects or simply sends it again.
+      const restored = this.restoreRequirementForm(typedValues);
+      restored?.querySelector('button[type="submit"]')?.focus();
       this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
       return;
     }
+    this.savingRequirement = false;
     // Saved on the server: nothing below rolls it back.
     await this.reloadAfterWrite('medication_requirement_saved');
+  }
+
+  /**
+   * What the person typed in the requirement form, kept in memory only.
+   * @param {HTMLFormElement} form - Requirement form
+   * @returns {Array<{name: string, value: string, checked: boolean}>} Field values, in order
+   */
+  readRequirementFormValues(form) {
+    return [...form.elements]
+      .filter((field) => field.name && field.type !== 'submit')
+      .map((field) => ({ name: field.name, value: field.value, checked: Boolean(field.checked) }));
+  }
+
+  /**
+   * Put typed values back into the requirement form drawn by render(). The
+   * schedule type goes first, since it decides which time fields exist.
+   * @param {Array<{name: string, value: string, checked: boolean}>} values - From readRequirementFormValues
+   * @returns {HTMLFormElement|null} The form, once filled
+   */
+  restoreRequirementForm(values) {
+    const form = document.getElementById('medicationRequirementForm');
+    if (!form) {
+      return null;
+    }
+    const preset = values.find((entry) => entry.name === 'frequency_preset_type');
+    const presetField = form.elements.frequency_preset_type;
+    if (preset && presetField && presetField.value !== preset.value) {
+      presetField.value = preset.value;
+      presetField.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const seen = new Map();
+    values.forEach((entry) => {
+      const index = seen.get(entry.name) || 0;
+      seen.set(entry.name, index + 1);
+      const field = [...form.elements].filter((element) => element.name === entry.name)[index];
+      if (!field) {
+        return;
+      }
+      if (field.type === 'checkbox' || field.type === 'radio') {
+        field.checked = entry.checked;
+      } else {
+        field.value = entry.value;
+      }
+    });
+    return form;
+  }
+
+  /**
+   * Show the requirement form as saving, or ready again.
+   * @param {HTMLFormElement|null} form - Requirement form
+   * @param {boolean} saving - Whether a save is on its way
+   */
+  setRequirementFormSaving(form, saving) {
+    if (!form) {
+      return;
+    }
+    const submit = form.querySelector('button[type="submit"]');
+    if (saving) {
+      form.setAttribute('aria-busy', 'true');
+    } else {
+      form.removeAttribute('aria-busy');
+    }
+    if (submit) {
+      submit.disabled = saving;
+      submit.textContent = translate(saving ? 'saving' : 'medication_save_requirement');
+    }
   }
 
   async handleScheduleSubmit(event) {

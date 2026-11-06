@@ -374,6 +374,71 @@ describe('planning a medication as a parent who does not touch the times', () =>
     screen.destroy();
   });
 
+  /** Fill a complete "only when needed" plan, ready to send. */
+  function fillPlan(form) {
+    const preset = document.getElementById('frequencyPreset');
+    preset.value = 'prn';
+    preset.dispatchEvent(new Event('change', { bubbles: true }));
+    form.elements.general_notes.value = 'Avant le souper';
+    form.elements.start_date.value = '2026-12-01';
+  }
+  const currentForm = () => document.getElementById('medicationRequirementForm');
+
+  test('while the plan is being saved, what was typed stays and the form says it is saving', async () => {
+    const { screen, form } = await openPlanning();
+    let finish;
+    api.saveMedicationRequirement.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    fillPlan(form);
+
+    submit(form);
+    await flush();
+    submit(currentForm());
+    await flush();
+
+    expect(api.saveMedicationRequirement).toHaveBeenCalledTimes(1);
+    expect(currentForm().getAttribute('aria-busy')).toBe('true');
+    expect(currentForm().querySelector('button[type="submit"]').disabled).toBe(true);
+    expect(currentForm().querySelector('button[type="submit"]').textContent).toBe('saving');
+    expect(currentForm().elements.medication_name.value).toBe('Ritalin');
+    expect(currentForm().elements.frequency_preset_type.value).toBe('prn');
+    expect(currentForm().elements.general_notes.value).toBe('Avant le souper');
+
+    finish({ success: true, data: { id: 12 } });
+    await flush();
+    screen.destroy();
+  });
+
+  test('a refused save keeps every field, and sending again sends the same plan once', async () => {
+    const { screen, form } = await openPlanning();
+    const app = screen.app;
+    api.saveMedicationRequirement.mockRejectedValueOnce(Object.assign(new Error('down'), { status: 503 }));
+    fillPlan(form);
+
+    submit(form);
+    await flush();
+
+    const restored = currentForm();
+    expect(restored.elements.medication_name.value).toBe('Ritalin');
+    expect(restored.elements.frequency_preset_type.value).toBe('prn');
+    expect(restored.elements.general_notes.value).toBe('Avant le souper');
+    expect(restored.elements.start_date.value).toBe('2026-12-01');
+    expect(restored.hasAttribute('aria-busy')).toBe(false);
+    expect(restored.querySelector('button[type="submit"]').disabled).toBe(false);
+    expect(document.activeElement).toBe(restored.querySelector('button[type="submit"]'));
+    expect(app.showMessage).toHaveBeenCalledWith(expect.any(String), 'error');
+    expect(screen.requirements.some((requirement) => requirement.isOptimistic)).toBe(false);
+    expect(await violations()).toEqual([]);
+
+    api.saveMedicationRequirement.mockResolvedValueOnce({ success: true, data: { id: 12 } });
+    submit(restored);
+    await flush();
+
+    expect(api.saveMedicationRequirement).toHaveBeenCalledTimes(2);
+    expect(api.saveMedicationRequirement.mock.calls[1][0]).toEqual(api.saveMedicationRequirement.mock.calls[0][0]);
+    expect(app.showMessage).toHaveBeenCalledWith('medication_requirement_saved', 'success');
+    screen.destroy();
+  });
+
   test('the planned medications show the treatment dates, formatted for the page', async () => {
     loadAll();
     api.getMedicationRequirements.mockResolvedValue({ success: true, data: { requirements: [{
