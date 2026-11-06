@@ -518,6 +518,19 @@ describe('sorting after the camp', () => {
     expect(summary.textContent).toContain('camp_review_action_value');
   });
 
+  test('sorting a note keeps a note still being typed', async () => {
+    await open();
+    type('Une idée pas encore ajoutée');
+    const dialog = await openSort(NIGHT.id);
+    dialog.querySelector('input[name="camp-review-sort-outcome"][value="keep"]').click();
+    $('#camp-review-sort-form').requestSubmit();
+    await flush();
+    await flush();
+    await flush();
+    expect(api.sortCampReviewNote).toHaveBeenCalled();
+    expect($('#camp-review-text').value).toBe('Une idée pas encore ajoutée');
+  });
+
   test('a note joins another that says the same thing, offered only within its kind', async () => {
     await open();
     const dialog = await openSort(NIGHT.id);

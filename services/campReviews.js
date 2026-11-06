@@ -330,9 +330,13 @@ async function saveNote(db, organizationId, userId, meetingId, noteId, body) {
     if (note.expectedVersion === null || note.expectedVersion !== Number(existing.version)) {
       refuse('camp_review_note_conflict', HTTP_CONFLICT);
     }
-    if (existing.merged_into_id && existing.category !== note.category) {
-      // A merged note shares the category of the note it joined.
-      refuse('camp_review_merge_category', HTTP_CONFLICT, 'category');
+    if (existing.category !== note.category) {
+      // Merged notes share one category: neither a merged note nor a note others joined changes its own.
+      const { rows: joined } = await db.query(
+        'SELECT 1 FROM camp_review_notes WHERE organization_id = $1 AND merged_into_id = $2 LIMIT 1', [organizationId, noteId]);
+      if (existing.merged_into_id || joined.length) {
+        refuse('camp_review_merge_category', HTTP_CONFLICT, 'category');
+      }
     }
     await db.query(
       `UPDATE camp_review_notes

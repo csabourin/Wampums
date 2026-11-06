@@ -239,6 +239,12 @@ describe.skipIf(!DATABASE_URL)('Camp review', () => {
       expect((await call('put', on(`/notes/${other.id}/merge`)).send({ into: a.id })).body.message).toBe('camp_review_merge_category');
       expect((await call('put', on(`/notes/${a.id}/merge`)).send({ into: a.id })).status).toBe(400);
       expect((await call('patch', on(`/notes/${b.id}`)).send({ outcome: 'keep', expected_version: 2 })).body.message).toBe('camp_review_note_merged');
+      // A note others joined, like a merged note, keeps the category they share: totals stay right.
+      const recategorised = await call('put', on(`/notes/${a.id}`)).send(note({ category: 'improve', text: 'Le feu de camp', expected_version: a.version }));
+      expect(recategorised.status).toBe(409);
+      expect(recategorised.body.message).toBe('camp_review_merge_category');
+      const merged = await call('put', on(`/notes/${b.id}`)).send(note({ category: 'improve', text: 'Le feu', expected_version: 2 }));
+      expect(merged.body.message).toBe('camp_review_merge_category');
       // Removing the note kept lets the merged one stand on its own again.
       expect((await call('delete', on(`/notes/${a.id}`))).body.data).toEqual({ deleted: true });
       const detached = (await read(campIds.meeting)).notes.find((entry) => entry.id === b.id);

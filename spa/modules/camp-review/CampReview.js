@@ -886,12 +886,12 @@ export class CampReview {
     openSortDialog({ app: this.app, meetingId: this.meetingId, note, candidates, onChanged: () => this.reload() });
   }
 
-  /** Reload after a change decided online, redrawing the form for a new state. */
+  /**
+   * Reload after a change decided online. The quiet load redraws the notes and the summary,
+   * and the whole page only when the review was closed or reopened, keeping what was typed.
+   */
   async reload() {
     await this.load({ quiet: true });
-    if (!this.destroyed && this.root().querySelector('.camp-review')) {
-      this.render();
-    }
   }
 
   /**
