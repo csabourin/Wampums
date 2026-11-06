@@ -52,6 +52,7 @@ test('attendance uses light rows, one selected recipient and a separate focus ou
   await expect(pressed).toHaveCount(1);
   await expect(first).toHaveAttribute('aria-pressed', 'false');
   await expect(second).toHaveAttribute('aria-pressed', 'true');
+  await waitForAnimations(page);
   expect(await axeViolations(page)).toEqual([]);
 
   await activate(second);
@@ -71,5 +72,6 @@ test('attendance uses light rows, one selected recipient and a separate focus ou
   await activate(header);
   await expect(pressed).toHaveCount(1);
   await expect(header).toHaveAttribute('aria-pressed', 'true');
+  await waitForAnimations(page);
   expect(await axeViolations(page)).toEqual([]);
 });

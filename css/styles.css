@@ -1077,6 +1077,12 @@ input[type="radio"] {
   margin-block-end: 0;
 }
 
+/* Change text and fill together: interpolating both creates low-contrast frames. */
+.attendance-list .participant-row,
+.attendance-list .group-header {
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
 /* A status keeps its own readable surface even on a selected row. */
 .attendance-list .participant-status.unmarked,
 .attendance-list .participant-status.departed {
