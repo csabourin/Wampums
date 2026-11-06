@@ -48,6 +48,7 @@ import {
 import {
   ALL_CHILDREN,
   buildFamilyTasks,
+  isSlipAnswerable,
   renderFamilyFilter,
   renderFamilyTaskList,
   taskChildNames,
@@ -1124,9 +1125,10 @@ export class ParentDashboard {
                                                             slip.declined_by,
                                                           )
                                                           : '';
-      const canSign =
-                                                        slip.status ===
-                                                        'pending';
+      const canSign = isSlipAnswerable(slip, getTodayISO());
+      // Pending for an event already past: nothing left to answer, and said so.
+      const pastUnanswered = slip.status === 'pending' && !canSign;
+      const shownStatus = pastUnanswered ? escapeHTML(translate('permission_slip_past_unanswered')) : statusLabel;
 
       const signedMeta =
                                                         signedDate || signer
@@ -1138,7 +1140,7 @@ export class ParentDashboard {
       // One way to answer: the family task, which names the activity and every child it concerns.
       const actionArea = canSign
         ? `<button type="button" class="button button--secondary button--small js-family-goto-tasks">${translate('permission_slip_answer_in_tasks')}</button>`
-        : `<span class="status-badge status-${escapeHTML(slip.status)}">${statusLabel}</span>`;
+        : `<span class="status-badge status-${escapeHTML(pastUnanswered ? 'expired' : slip.status)}">${shownStatus}</span>`;
       const activityTitle = slip.activity_title || slip.activity_name || '';
 
       return `
@@ -1146,7 +1148,7 @@ export class ParentDashboard {
                                                         <div>
                                                                 ${activityTitle ? `<p class="permission-slip-title">${escapeHTML(activityTitle)}</p>` : ''}
                                                                 <p class="permission-slip-meeting">${translate('activity_date_label')}: ${meetingLabel}</p>
-                                                                <p class="permission-slip-status">${translate('status')}: ${statusLabel}</p>
+                                                                <p class="permission-slip-status">${translate('status')}: ${shownStatus}</p>
                                                                 ${signedMeta}
                                                         </div>
                                                         <div class="permission-slip-actions">${actionArea}</div>

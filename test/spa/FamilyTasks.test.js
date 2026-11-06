@@ -406,6 +406,19 @@ describe('the parent dashboard', () => {
     page.destroy();
   });
 
+  test('a slip left unanswered for an activity already past says so, with no way to answer', async () => {
+    const { page } = await renderDashboard([ADA], new Map([[4, [
+      slip(93, 4, { activity_title: 'Last week', meeting_date: '2026-10-17' }),
+    ]]]));
+    const card = document.querySelector('[data-child-card="4"]');
+
+    expect(tasks()).toHaveLength(0);
+    expect(card.querySelector('.js-family-goto-tasks')).toBeNull();
+    expect(card.querySelector('.permission-slip-actions').textContent.trim()).toBe('permission_slip_past_unanswered');
+    expect(card.querySelector('.permission-slip-status').textContent).toContain('permission_slip_past_unanswered');
+    page.destroy();
+  });
+
   test('the decline dialog names the activity, the action and the children', async () => {
     mockTemplates.family_tasks_decline_title = 'Decline: {activity}';
     mockTemplates.family_tasks_signer_prompt = 'Your name, for {children}';

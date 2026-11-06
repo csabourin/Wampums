@@ -99,6 +99,17 @@ function addRow(tasks, key, create, row) {
 }
 
 /**
+ * Whether a permission slip can still be answered: pending, for an event that
+ * is today or later. Only such a slip becomes a family task.
+ * @param {Object} slip - Permission slip
+ * @param {string} today - Today, YYYY-MM-DD
+ * @returns {boolean} True when the family can still sign or decline it
+ */
+export function isSlipAnswerable(slip, today) {
+  return slip.status === 'pending' && isoToDateString(slip.meeting_date) >= today;
+}
+
+/**
  * Build the family's tasks from what the dashboard loaded.
  *
  * @param {Object} data - Dashboard data
@@ -129,8 +140,7 @@ export function buildFamilyTasks(data, filter = ALL_CHILDREN) {
   included.forEach((participantId) => {
     const slips = data.permissionSlips?.get(participantId) || [];
     slips
-      .filter((slip) => slip.status === 'pending'
-        && isoToDateString(slip.meeting_date) >= data.today)
+      .filter((slip) => isSlipAnswerable(slip, data.today))
       .forEach((slip) => addRow(tasks, eventKey(slip), () => ({
         kind: FAMILY_TASK_KIND.PERMISSION,
         title: slip.activity_title || slip.activity_name || '',
