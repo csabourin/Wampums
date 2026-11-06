@@ -64,7 +64,6 @@ export class ParentDashboard {
     this.formFormats = {};
     this.participantStatements = new Map();
     this.permissionSlips = new Map();
-    this.permissionSlipHandlerBound = false;
     this.formsToReview = [];
     this.authorizationsToSign = [];
     this.hiddenButtons = new Set();
@@ -585,7 +584,6 @@ export class ParentDashboard {
     setContent(document.getElementById('app'), content);
     this.applyChildFilter();
     this.bindStatementHandlers();
-    this.bindPermissionSlipHandlers();
     this.bindFamilyTaskHandlers();
   }
 
@@ -711,6 +709,12 @@ export class ParentDashboard {
           ? ALL_CHILDREN
           : Number(filter.dataset.familyFilter);
         this.refreshFamilyView();
+        return;
+      }
+      if (event.target.closest('.js-family-slip-answer')) {
+        const heading = document.getElementById('family-tasks-title');
+        heading?.scrollIntoView?.({ block: 'start' });
+        heading?.focus();
         return;
       }
       const respond = event.target.closest('.js-family-sign, .js-family-decline');
@@ -1112,15 +1116,16 @@ export class ParentDashboard {
                                                             ? `<p class="muted-text">${[declinedDate ? `${translate('permission_slip_declined_at')}: ${declinedDate}` : '', declinedBy ? `${translate('permission_slip_declined_by')}: ${declinedBy}` : ''].filter(Boolean).join(' · ')}</p>`
                                                             : '';
 
+      // A pending slip is answered in "To do for your family", which names the
+      // activity and every child it concerns: one place, one way to answer.
       const actionArea = canSign
-        ? `<button type="button" class="dashboard-button dashboard-button--secondary permission-slip-sign-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate('permission_slip_sign')}</button>
-                                                           <button type="button" class="dashboard-button dashboard-button--danger permission-slip-decline-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate('permission_slip_decline')}</button>`
+        ? `<button type="button" class="button button--secondary button--small js-family-slip-answer">${translate('permission_slip_answer_in_tasks')}</button>`
         : `<span class="status-badge status-${escapeHTML(slip.status)}">${statusLabel}</span>`;
 
       return `
                                                 <li class="permission-slip-item">
                                                         <div>
-                                                                <p class="permission-slip-meeting">${translate('meeting_date_label')}: ${meetingLabel}</p>
+                                                                <p class="permission-slip-meeting">${slip.activity_title ? `${escapeHTML(slip.activity_title)} — ` : ''}${translate('permission_slip_activity_date')}: ${meetingLabel}</p>
                                                                 <p class="permission-slip-status">${translate('status')}: ${statusLabel}</p>
                                                                 ${signedMeta}
                                                         </div>
@@ -1325,126 +1330,6 @@ export class ParentDashboard {
         await this.showStatementModal(participantId);
       });
     });
-  }
-
-  bindPermissionSlipHandlers() {
-    if (this.permissionSlipHandlerBound) {
-      return;
-    }
-
-    const appContainer = document.getElementById('app');
-    if (!appContainer) {
-      return;
-    }
-
-    appContainer.addEventListener('click', async (event) => {
-      const button = event.target.closest(
-        '.permission-slip-sign-btn, .permission-slip-decline-btn',
-      );
-      if (!button) {
-        return;
-      }
-
-      const slipId = Number.parseInt(
-        button.dataset?.slipId,
-        10,
-      );
-      const participantId = Number.parseInt(
-        button.dataset?.participantId,
-        10,
-      );
-
-      if (!slipId || !participantId) {
-        return;
-      }
-
-      const signerName = (await promptDialog({
-        title: translate('permission_slip_signer'),
-        message: translate('permission_slip_signer'),
-      }))?.trim();
-      if (!signerName) {
-        return;
-      }
-
-      const isDecline = button.classList.contains(
-        'permission-slip-decline-btn',
-      );
-      if (
-        isDecline &&
-                                !(await confirmDialog(
-                                  translate(
-                                    'permission_slip_decline_confirm',
-                                  ),
-                                ))
-      ) {
-        return;
-      }
-
-      try {
-        if (isDecline) {
-          await declinePermissionSlip(slipId, {
-            declined_by: signerName,
-          });
-        } else {
-          await signPermissionSlip(slipId, {
-            signed_by: signerName,
-            signature_hash: `signed-${Date.now()}`,
-          });
-        }
-        this.app.showMessage(
-          translate(
-            isDecline
-              ? 'permission_slip_declined'
-              : 'permission_slip_signed',
-          ),
-          'success',
-        );
-        await this.loadPermissionSlips(
-          participantId,
-          true,
-        );
-        this.refreshPermissionSlipSection(
-          participantId,
-        );
-      } catch (error) {
-        debugError(
-          'Error responding to permission slip',
-          error,
-        );
-
-        const errorMessage = error?.message || '';
-        if (
-          apiErrorMessageKey(error) === 'api_error_conflict' ||
-                                        errorMessage.includes('already been answered')
-        ) {
-          this.app.showMessage(
-            translate('permission_slip_already_answered'),
-            'warning',
-          );
-          // Refresh the section to show current state
-          await this.loadPermissionSlips(participantId, true);
-          this.refreshPermissionSlipSection(participantId);
-        } else if (
-          errorMessage.includes(
-            'only respond to permission slips for your own children',
-          )
-        ) {
-          this.app.showMessage(
-            translate('permission_slip_not_your_child'),
-            'error',
-          );
-        } else {
-          // The server's message is English; explain in the page's language.
-          this.app.showMessage(
-            apiErrorMessage(error, 'error_saving'),
-            'error',
-          );
-        }
-      }
-      this.refreshFamilyView();
-    }, { signal: this.listeners.signal });
-
-    this.permissionSlipHandlerBound = true;
   }
 
   async showStatementModal(participantId) {

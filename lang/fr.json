@@ -5838,5 +5838,7 @@
   "participants_short_one": "membre",
   "contacts_short_one": "contact",
   "groups_short_one": "groupe",
-  "mark_remaining_present_one": "Marquer présent le jeune non marqué"
+  "mark_remaining_present_one": "Marquer présent le jeune non marqué",
+  "permission_slip_answer_in_tasks": "Répondre dans « À faire pour votre famille »",
+  "permission_slip_activity_date": "Date de l’activité"
 }

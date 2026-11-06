@@ -334,6 +334,22 @@ describe('the parent dashboard', () => {
     page.destroy();
   });
 
+  test('a pending slip is answered in one place: the child\'s file sends the parent to it', async () => {
+    const { page } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]]));
+    const card = document.querySelector('[data-child-card="4"]');
+
+    expect(card.querySelector('.js-family-sign, .js-family-decline, .permission-slip-sign-btn, .permission-slip-decline-btn')).toBeNull();
+    expect(card.textContent).not.toContain('meeting_date_label');
+    const answer = card.querySelector('.js-family-slip-answer');
+    expect(answer.tagName).toBe('BUTTON');
+    expect(answer.textContent).toBe('permission_slip_answer_in_tasks');
+
+    answer.click();
+    expect(document.activeElement).toBe(document.getElementById('family-tasks-title'));
+    expect(prompt).not.toHaveBeenCalled();
+    page.destroy();
+  });
+
   test('declining asks for confirmation, and declining the confirmation sends nothing', async () => {
     const { page } = await renderDashboard([ADA, LEA], twoChildSlips());
     prompt.mockResolvedValue('Marie Tremblay');

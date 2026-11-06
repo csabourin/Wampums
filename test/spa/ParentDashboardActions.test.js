@@ -69,10 +69,8 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   canViewCarpools: () => mockHeld.has('carpools.view') || mockHeld.has('carpools.manage'),
 }));
 
-const endpoints = require('../../spa/api/api-endpoints.js');
 const ajax = require('../../spa/ajax-functions.js');
 const { setContent } = require('../../spa/utils/DOMUtils.js');
-const { prompt } = require('../../spa/utils/DialogUtils.js');
 const { ParentDashboard } = require('../../spa/modules/dashboard/ParentDashboard.js');
 
 // The app catches the browser's install prompt as it starts.
@@ -150,40 +148,6 @@ describe('parent dashboard buttons', () => {
 
     mockHeld.delete('carpools.view');
     expect(page.renderCarpoolButton()).toBe('');
-  });
-});
-
-describe('answering a permission slip', () => {
-  /**
-   * Click "sign" on a rendered slip button.
-   *
-   * @param {Error} failure - Error the API rejects with
-   * @returns {Promise<Object>} The app stub
-   */
-  async function signWith(failure) {
-    const app = { showMessage: jest.fn() };
-    const page = new ParentDashboard(app);
-    page.loadPermissionSlips = jest.fn().mockResolvedValue([]);
-    page.refreshPermissionSlipSection = jest.fn();
-    document.body.innerHTML = `<div id="app"><button type="button" class="permission-slip-sign-btn"
-      data-slip-id="9" data-participant-id="4">sign</button></div>`;
-    page.bindPermissionSlipHandlers();
-    prompt.mockResolvedValue('Marie Parent');
-    endpoints.signPermissionSlip.mockRejectedValue(failure);
-
-    document.querySelector('button').click();
-    await new Promise((resolve) => { setTimeout(resolve, 0); });
-    return app;
-  }
-
-  test('a refusal is shown in the page language', async () => {
-    const app = await signWith(Object.assign(new Error('API request failed: Insufficient permissions'), { status: 403 }));
-    expect(app.showMessage).toHaveBeenCalledWith('api_error_forbidden', 'error');
-  });
-
-  test('a slip answered meanwhile says so and refreshes', async () => {
-    const app = await signWith(Object.assign(new Error('API request failed: Permission slip has already been answered'), { status: 409 }));
-    expect(app.showMessage).toHaveBeenCalledWith('permission_slip_already_answered', 'warning');
   });
 });
 

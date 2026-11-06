@@ -5838,5 +5838,7 @@
   "participants_short_one": "member",
   "contacts_short_one": "contact",
   "groups_short_one": "group",
-  "mark_remaining_present_one": "Mark the 1 unmarked youth as present"
+  "mark_remaining_present_one": "Mark the 1 unmarked youth as present",
+  "permission_slip_answer_in_tasks": "Answer in “To do for your family”",
+  "permission_slip_activity_date": "Activity date"
 }
