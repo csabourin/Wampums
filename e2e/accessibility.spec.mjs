@@ -631,6 +631,51 @@ test.describe('preparing personal packing lists', () => {
 });
 
 
+/* eslint-disable no-await-in-loop -- Each UI action depends on the preceding navigation or disclosure. */
+for (const who of ['parent', 'admin']) {
+  test.describe(`account tasks for ${who}`, () => {
+    signedInAs(who);
+
+    test('task navigation preserves drafts and exposes accessible forms', async ({ page }, testInfo) => {
+      await openScreen(page, '/account-info');
+      const name = page.locator('#fullname-input');
+      await name.fill('Brouillon sans enregistrement');
+      const tasks = who === 'admin' ? ['health', 'preferences', 'security', 'profile'] : ['preferences', 'security', 'profile'];
+      await expect(page.locator('[data-account-section-link]')).toHaveCount(tasks.length);
+      for (const key of tasks) {
+        await page.locator(`[data-account-section-link="${key}"]`).click();
+        const section = page.locator(`[data-account-section="${key}"]`);
+        await expect(section).toBeVisible();
+        await expect(page.locator('[data-account-section]:visible')).toHaveCount(1);
+        await expect(page.locator(`[data-account-section-link="${key}"]`)).toHaveAttribute('aria-current', 'page');
+        await expect(page.locator(`#account-heading-${key}`)).toBeFocused();
+        // Expose the actual optional controls, including health, emergency contacts and security.
+        for (const disclosure of await section.locator('details').all()) {
+          if ((await disclosure.getAttribute('open')) === null) {
+            await disclosure.locator(':scope > summary').click();
+          }
+        }
+        // Keep the hover background active through the contrast audit, including on touch projects.
+        const summary = section.locator('.account-disclosure > summary').last();
+        if (await summary.count()) { await summary.hover(); }
+        await settleScreen(page);
+        await waitForAnimations(page);
+        expect(await axeViolations(page)).toEqual([]);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+        await expect(page.locator('#logout-btn')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath(`account-${who}-${key}.png`), fullPage: true });
+      }
+      await expect(name).toHaveValue('Brouillon sans enregistrement');
+      // A previously issued link still selects its task and reveals the right disclosure.
+      await page.evaluate(() => { window.location.hash = 'calendar-feed'; });
+      await expect(page.locator('[data-account-section="preferences"]')).toBeVisible();
+      await expect(page.locator('#account-calendar')).toHaveAttribute('open', '');
+      await expect(page.locator('#calendar-feed')).toBeVisible();
+    });
+  });
+}
+/* eslint-enable no-await-in-loop */
+
 test.describe('volunteer profile navigation', () => {
   signedInAs('admin');
 

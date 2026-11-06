@@ -55,3 +55,6 @@ authentication, demo restrictions and validation. Profile and volunteer-space js
 escaping, retry, late answers, single writes and axe. Both account and volunteer-space routes already
 belong to the real-browser accessibility suite. `test/service-worker-personal-profile.test.js` checks
 that these sensitive endpoints bypass offline caches.
+
+The account now groups these forms by task rather than stacking every setting. Contact forms use
+compact optional disclosures, with the same data and save contract; see `devdocs/ACCOUNT.md`.

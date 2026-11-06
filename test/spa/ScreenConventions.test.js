@@ -17,7 +17,6 @@ const ROOT = path.join(__dirname, '../..');
 /** Screens that still write their back link by hand. */
 const HAND_WRITTEN_BACK_LINKS = [
   'spa/modules/TabbedPage.js',
-  'spa/modules/account-info.js',
   'spa/modules/meetings/MeetingPrep.js',
   'spa/modules/scout-year/ScoutYearTransition.js',
   'spa/modules/unit-settings/unit-settings.js',
