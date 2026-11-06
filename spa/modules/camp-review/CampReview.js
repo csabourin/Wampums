@@ -599,9 +599,14 @@ export class CampReview {
     const entry = { voteId: null, body: {}, ...change };
     this.inflight.push(entry);
     this.renderNotes();
+    // The account, unit and year the change was made in: it waits behind earlier ones, and must
+    // never be sent under another session's credentials if the session changes meanwhile.
+    const scope = currentCampReviewScope();
     const run = this.sending.then(async () => {
-      const scope = currentCampReviewScope();
       try {
+        if (this.destroyed || scope !== currentCampReviewScope()) {
+          return { ok: false, error: Object.assign(new Error('Session changed'), { name: 'AbortError' }) };
+        }
         const response = await send();
         if (this.destroyed || scope !== currentCampReviewScope()) {
           return { ok: true };
@@ -611,7 +616,9 @@ export class CampReview {
           return { ok: true, queued: true };
         }
         this.confirmed = applyAnswer(this.confirmed, entry, response?.data);
-        if (this.camp && this.offlineSince === null) {
+        // Kept on the device whenever this screen holds a whole confirmed copy, read online or from
+        // the device: a page opened offline and then reconnected must not leave an older copy behind.
+        if (this.camp && this.offlineSince !== false) {
           storeCampReviewSnapshot(this.meetingId, { camp: this.camp, notes: this.confirmed }, undefined, scope)
             .catch((err) => debugError('The camp review could not be kept on this device', err));
         }

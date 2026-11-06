@@ -372,6 +372,44 @@ describe('without a network', () => {
   });
 });
 
+test('a change waiting behind another is never sent once the account or unit has changed', async () => {
+  let release;
+  api.saveCampReviewNote.mockImplementationOnce((_meeting, id, body) => new Promise((resolve) => {
+    release = () => resolve({ success: true, data: { note: { id, ...body, version: 1, weight: 1, votes: [] } } });
+  }));
+  await open();
+  type('Première note');
+  $('#camp-review-form').requestSubmit();
+  type('Deuxième note');
+  $('#camp-review-form').requestSubmit();
+  await flush();
+  mockScope = 'scope:another-account';
+  release();
+  await flush();
+  await flush();
+  expect(api.saveCampReviewNote).toHaveBeenCalledTimes(1);
+});
+
+test('a page opened from the device copy keeps that copy current once the network is back', async () => {
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+  offline.getCampReviewSnapshot.mockResolvedValue({ preparedAt: Date.now(), data: { camp: CAMP, notes: [SWIM] } });
+  await open();
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+  type('Le coucher de soleil');
+  await enter();
+  const [, stored] = offline.storeCampReviewSnapshot.mock.calls.at(-1);
+  expect(stored.notes.map((note) => note.text)).toEqual(['La baignade au lac', 'Le coucher de soleil']);
+});
+
+test('a page with nothing kept on the device never stores a partial copy as if it were whole', async () => {
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+  await open();
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+  type('Le coucher de soleil');
+  await enter();
+  expect(offline.storeCampReviewSnapshot).not.toHaveBeenCalled();
+});
+
 test('an answer arriving after the screen was left does not draw over the next one', async () => {
   let resolve;
   api.getCampReview.mockReturnValue(new Promise((done) => { resolve = done; }));
