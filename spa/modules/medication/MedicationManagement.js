@@ -2400,7 +2400,12 @@ export class MedicationManagement {
       if (response?.queued) {
         debugLog('Medication requirement queued for offline sync');
         this.savingRequirement = false;
-        this.setRequirementFormSaving(document.getElementById('medicationRequirementForm'), false);
+        // Queued is sent as far as this device can: a blank form, so a second
+        // Save cannot queue the same plan again under another idempotency key.
+        if (!this.destroyed) {
+          this.render();
+          this.attachEventListeners();
+        }
         this.app.showMessage(translate('medication_offline_dose_queued'), 'info');
         return;
       }

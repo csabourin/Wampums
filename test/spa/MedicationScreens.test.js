@@ -408,6 +408,25 @@ describe('planning a medication as a parent who does not touch the times', () =>
     screen.destroy();
   });
 
+  test('a plan queued offline leaves a blank form, so Save cannot queue it twice', async () => {
+    const { screen, form } = await openPlanning();
+    api.saveMedicationRequirement.mockResolvedValue({ queued: true });
+    fillPlan(form);
+
+    submit(form);
+    await flush();
+
+    expect(screen.app.showMessage).toHaveBeenCalledWith('medication_offline_dose_queued', 'info');
+    expect(currentForm().elements.medication_name.value).toBe('');
+    expect(currentForm().elements.general_notes.value).toBe('');
+    expect(currentForm().hasAttribute('aria-busy')).toBe(false);
+
+    submit(currentForm());
+    await flush();
+    expect(api.saveMedicationRequirement).toHaveBeenCalledTimes(1);
+    screen.destroy();
+  });
+
   test('a refused save keeps every field, and sending again sends the same plan once', async () => {
     const { screen, form } = await openPlanning();
     const app = screen.app;
