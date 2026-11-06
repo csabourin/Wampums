@@ -40,7 +40,9 @@ Roster health reads are also network-only.
 
 `config/member_profile.json` sets the minimum volunteer age to 14. A known younger birth date is
 refused on shift signup and camp team assignment (including a proposed birth date in the assignment).
-The fourteenth birthday is accepted. Unknown ages remain unverified under the existing camp rules.
+The fourteenth birthday is accepted. Omitting a birth date on a team edit keeps the stored date;
+explicitly clearing it checks the resulting unknown age and is permitted. Unknown ages remain
+unverified under the existing camp rules.
 The account advisory lock serializes age checks and self-written birth date changes across units.
 The pre-existing camp manager birth-date editor remains available; it does not edit contacts, health
 or consent.

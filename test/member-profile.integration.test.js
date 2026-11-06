@@ -141,4 +141,15 @@ describe.skipIf(!URL)('personal profiles and consent', () => {
     await expect(signUp(pool, ids.unit, shift.id, young)).resolves.toMatchObject({ created: true });
     await expect(saveTeamMember(pool, ids.unit, ids.manager, ids.camp.meeting, young, { team_role: 'camp_aide' })).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ user_id: young })]));
   });
+
+  test('a manager can clear an erroneous under-age birth date, while omission still refuses the stored under-age date', async () => {
+    const person = await member(ids.unit, 'volunteer');
+    await pool.query("UPDATE users SET date_of_birth = (CURRENT_DATE - interval '13 years')::date WHERE id = $1", [person]);
+    await expect(saveTeamMember(pool, ids.unit, ids.manager, ids.camp.meeting, person, { team_role: 'camp_aide' }))
+      .rejects.toMatchObject({ message: 'member_profile_volunteer_too_young' });
+    await expect(saveTeamMember(pool, ids.unit, ids.manager, ids.camp.meeting, person, { team_role: 'camp_aide', date_of_birth: null }))
+      .resolves.toEqual(expect.arrayContaining([expect.objectContaining({ user_id: person, age_status: 'unknown', date_of_birth: null })]));
+    expect(await one('SELECT date_of_birth FROM users WHERE id = $1', [person])).toBeNull();
+  });
+
 });
