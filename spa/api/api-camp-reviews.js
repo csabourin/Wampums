@@ -100,7 +100,7 @@ export function mergeCampReviewNote(meetingId, noteId, body) {
  * @returns {Promise<Object>} { note }
  */
 export function unmergeCampReviewNote(meetingId, noteId) {
-  return API.delete(`${notePath(meetingId, noteId)}/merge`);
+  return API.delete(`${notePath(meetingId, noteId)}/merge`, {}, null, ONLINE_ONLY);
 }
 
 /**
@@ -112,4 +112,17 @@ export function unmergeCampReviewNote(meetingId, noteId) {
  */
 export function setCampReviewStatus(meetingId, body) {
   return API.put(`v1/camp-reviews/camps/${encodeURIComponent(meetingId)}/status`, body, {}, ONLINE_ONLY);
+}
+
+/**
+ * Remove one particular "+1" while sorting. Unlike undoing a "+1" just given,
+ * this needs the network: the dialog only reports what the server confirmed.
+ *
+ * @param {number} meetingId - The planned camp
+ * @param {string} noteId - UUID of the note
+ * @param {string} voteId - UUID of the vote
+ * @returns {Promise<Object>} { note }
+ */
+export function removeCampReviewVoteOnline(meetingId, noteId, voteId) {
+  return API.delete(`${notePath(meetingId, noteId)}/votes/${encodeURIComponent(voteId)}`, {}, null, ONLINE_ONLY);
 }

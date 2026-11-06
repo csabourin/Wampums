@@ -18,7 +18,7 @@ import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import {
-  sortCampReviewNote, mergeCampReviewNote, unmergeCampReviewNote, removeCampReviewVote,
+  sortCampReviewNote, mergeCampReviewNote, unmergeCampReviewNote, removeCampReviewVoteOnline,
 } from '../../api/api-camp-reviews.js';
 
 const FORM_ID = 'camp-review-sort-form';
@@ -171,7 +171,7 @@ export function openSortDialog({ app, meetingId, note, candidates, onChanged }) 
     }
     const vote = event.target.closest('[data-sort-remove-vote]');
     if (vote) {
-      run(() => removeCampReviewVote(meetingId, vote.dataset.sortVoteNote, vote.dataset.sortRemoveVote),
+      run(() => removeCampReviewVoteOnline(meetingId, vote.dataset.sortVoteNote, vote.dataset.sortRemoveVote),
         'camp_review_vote_removed_done', 'camp_review_sort_failed');
     }
   });

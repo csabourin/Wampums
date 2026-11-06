@@ -787,8 +787,9 @@ export const API = {
      * Takes an optional body for the rare deletion that needs the caller to
      * confirm what they are destroying rather than just name it in the URL.
      */
-  async delete(endpoint, params = {}, body = null) {
+  async delete(endpoint, params = {}, body = null, options = {}) {
     return makeApiRequest(endpoint, {
+      ...options,
       method: 'DELETE',
       params,
       body

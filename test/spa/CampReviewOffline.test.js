@@ -17,9 +17,10 @@ import { OfflineManager } from '../../spa/modules/OfflineManager.js';
 import { getOfflineData } from '../../spa/indexedDB.js';
 import {
   storeCampReviewSnapshot, getCampReviewSnapshot, pendingCampReviewChanges, overlayPending, applyAnswer, parseCampReviewWrite,
-  applyCampReviewWrite,
+  applyCampReviewWrite, storeCampReviewState,
 } from '../../spa/modules/camp-review/CampReviewOffline.js';
 import { similarNotes, reviewWords } from '../../spa/modules/camp-review/CampReviewMatching.js';
+import { removeCampReviewVoteOnline, removeCampReviewVote } from '../../spa/api/api-camp-reviews.js';
 
 const NOTE_ID = '11111111-1111-4111-8111-111111111111';
 const VOTE_ID = '22222222-2222-4222-8222-222222222222';
@@ -110,6 +111,28 @@ test('a confirmed write updates the copy kept here, keeping its expiry; without 
   expect(after.expiresAt).toBeLessThanOrEqual(expiresAt + 1000);
   await applyCampReviewWrite(13, { method: 'PUT', noteId: NOTE_ID, voteId: null }, { note: SWIM });
   expect(await getCampReviewSnapshot(13)).toBeNull();
+});
+
+test('removing a note others were merged into keeps them, on their own', () => {
+  const child = { ...SWIM, id: '44444444-4444-4444-8444-444444444444', text: 'Baignade', weight: 2 };
+  const parent = { ...SWIM, weight: 3, merged: [child] };
+  expect(applyAnswer([parent], { method: 'DELETE', noteId: SWIM.id, voteId: null }, { deleted: true }))
+    .toEqual([{ ...child, merged: [] }]);
+});
+
+test('closing or reopening the review is recorded in the copy kept here, never in another session\'s', async () => {
+  await storeCampReviewSnapshot(12, { camp: CAMP, review: { status: 'open', version: 1 }, notes: [SWIM] });
+  await storeCampReviewState(12, { status: 'closed', version: 2 });
+  expect((await getCampReviewSnapshot(12)).data).toMatchObject({ review: { status: 'closed', version: 2 }, notes: [SWIM] });
+  await storeCampReviewState(13, { status: 'closed', version: 2 });
+  expect(await getCampReviewSnapshot(13)).toBeNull();
+});
+
+test('a +1 removed while sorting is never kept for later, unlike one undone at the campfire', async () => {
+  await expect(removeCampReviewVoteOnline(12, NOTE_ID, VOTE_ID)).rejects.toMatchObject({ code: 'online_required' });
+  expect(await getOfflineData()).toEqual([]);
+  expect(await removeCampReviewVote(12, NOTE_ID, VOTE_ID)).toMatchObject({ queued: true });
+  expect(await getOfflineData()).toHaveLength(1);
 });
 
 test('a copy from another account, unit or camp is never read', async () => {

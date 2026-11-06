@@ -36,7 +36,7 @@ import {
 import { openSortDialog } from './CampReviewSorting.js';
 import {
   currentCampReviewScope, getCampReviewSnapshot, storeCampReviewSnapshot, pendingCampReviewChanges,
-  overlayPending, applyAnswer, applyCampReviewWrite,
+  overlayPending, applyAnswer, applyCampReviewWrite, storeCampReviewState,
 } from './CampReviewOffline.js';
 import { similarNotes } from './CampReviewMatching.js';
 import { MAX_EVENT_DAYS } from '../../utils/ActivityDateUtils.js';
@@ -893,11 +893,16 @@ export class CampReview {
       return;
     }
     try {
+      const scope = currentCampReviewScope();
       const response = await setCampReviewStatus(this.meetingId, { status, expected_version: this.review.version });
+      const review = response?.data?.review || { ...this.review, status };
+      // The copy on the device follows, so an offline visit reads the review as it now is.
+      await storeCampReviewState(this.meetingId, review, scope)
+        .catch((err) => debugError('The camp review kept on this device could not be updated', err));
       if (this.destroyed) {
         return;
       }
-      this.review = response?.data?.review || { ...this.review, status };
+      this.review = review;
       this.app.showMessage(translate(closing ? 'camp_review_closed_done' : 'camp_review_reopened_done'), 'success');
       this.render();
       this.root().querySelector('h1')?.setAttribute('tabindex', '-1');

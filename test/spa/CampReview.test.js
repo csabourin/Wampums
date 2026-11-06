@@ -36,6 +36,7 @@ jest.mock('../../spa/api/api-camp-reviews.js', () => ({
   getCampReview: jest.fn(), saveCampReviewNote: jest.fn(), deleteCampReviewNote: jest.fn(),
   addCampReviewVote: jest.fn(), removeCampReviewVote: jest.fn(),
   sortCampReviewNote: jest.fn(), mergeCampReviewNote: jest.fn(), unmergeCampReviewNote: jest.fn(), setCampReviewStatus: jest.fn(),
+  removeCampReviewVoteOnline: jest.fn(),
 }));
 
 let mockScope = 'scope:unit-1';
@@ -48,6 +49,7 @@ jest.mock('../../spa/modules/camp-review/CampReviewOffline.js', () => {
     getCampReviewSnapshot: jest.fn(() => Promise.resolve(null)),
     pendingCampReviewChanges: jest.fn(() => Promise.resolve([])),
     applyCampReviewWrite: jest.fn(() => Promise.resolve()),
+    storeCampReviewState: jest.fn(() => Promise.resolve()),
   };
 });
 
@@ -485,6 +487,7 @@ describe('sorting after the camp', () => {
     api.sortCampReviewNote.mockResolvedValue({ success: true, data: { note: { ...NIGHT, outcome: 'keep' } } });
     api.mergeCampReviewNote.mockResolvedValue({ success: true, data: { note: VOTED } });
     api.unmergeCampReviewNote.mockResolvedValue({ success: true, data: { note: NIGHT } });
+    api.removeCampReviewVoteOnline.mockResolvedValue({ success: true, data: { note: { ...SWIM, votes: [] } } });
     api.setCampReviewStatus.mockResolvedValue({ success: true, data: { review: { status: 'closed', version: 2, closed_at: '2026-07-14T12:00:00Z', closed_by: 'Ada Lovelace' } } });
     confirm.mockClear();
     confirm.mockResolvedValue(true);
@@ -536,7 +539,20 @@ describe('sorting after the camp', () => {
     remove.click();
     await flush();
     await flush();
-    expect(api.removeCampReviewVote).toHaveBeenCalledWith(12, SWIM.id, 'v1');
+    expect(api.removeCampReviewVoteOnline).toHaveBeenCalledWith(12, SWIM.id, 'v1');
+    expect(api.removeCampReviewVote).not.toHaveBeenCalled();
+  });
+
+  test('a +1 that cannot be removed without the network stays, and the dialog says so', async () => {
+    api.removeCampReviewVoteOnline.mockRejectedValueOnce(Object.assign(new Error('offline'), { code: 'online_required' }));
+    await open();
+    const dialog = await openSort(SWIM.id);
+    dialog.querySelector('[data-sort-remove-vote="v1"]').click();
+    await flush();
+    await flush();
+    expect($('.modal-dialog')).not.toBeNull();
+    expect($('#camp-review-sort-error').hidden).toBe(false);
+    expect(app.showMessage).not.toHaveBeenCalledWith('camp_review_vote_removed_done', 'success');
   });
 
   test('a merged note is listed under the note it joined, and the merge can be undone', async () => {
@@ -588,6 +604,8 @@ describe('sorting after the camp', () => {
     await flush();
     await flush();
     expect(api.setCampReviewStatus).toHaveBeenCalledWith(12, { status: 'closed', expected_version: 1 });
+    // The copy on the device closes too, so an offline visit does not accept notes the server would refuse.
+    expect(offline.storeCampReviewState).toHaveBeenCalledWith(12, expect.objectContaining({ status: 'closed' }), 'scope:unit-1');
     expect($('.camp-review__state').textContent).toContain('camp_review_closed_by');
     expect($('#camp-review-form')).toBeNull();
     expect($('[data-review-vote], [data-review-sort], [data-review-delete]')).toBeNull();

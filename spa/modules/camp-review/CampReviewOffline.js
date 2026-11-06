@@ -113,7 +113,10 @@ export async function getCampReviewSnapshot(meetingId, scope = currentCampReview
  */
 export function applyAnswer(notes, { method, noteId, voteId }, answer) {
   if (method === 'DELETE' && !voteId) {
-    return notes.filter((note) => note.id !== noteId);
+    // Notes merged into a removed note stand on their own again, as the server keeps them.
+    return notes.flatMap((note) => (note.id === noteId
+      ? (note.merged || []).map((child) => ({ ...child, merged: [] }))
+      : [note]));
   }
   const note = answer?.note;
   if (!note) {
@@ -176,6 +179,27 @@ export async function applyCampReviewWrite(meetingId, change, answer, scope = cu
   const notes = applyAnswer(snapshot.data.notes, { ...change, method: String(change.method).toUpperCase() }, answer);
   // Keep the copy's original expiry, not another full camp period.
   await storeCampReviewSnapshot(meetingId, { ...snapshot.data, notes }, snapshot.expiresAt - Date.now(), scope);
+}
+
+/**
+ * Record a confirmed closing or reopening in this camp's copy on the device,
+ * so an offline visit neither accepts notes on a closed review nor refuses
+ * them on a reopened one. Without a copy, nothing is stored.
+ *
+ * @param {number} meetingId - The planned camp
+ * @param {Object} review - The review's state as the server answered it
+ * @param {string} [scope] - The scope captured before the change
+ * @returns {Promise<void>}
+ */
+export async function storeCampReviewState(meetingId, review, scope = currentCampReviewScope()) {
+  if (scope !== currentCampReviewScope()) {
+    return;
+  }
+  const snapshot = await getCampReviewSnapshot(meetingId, scope);
+  if (!snapshot) {
+    return;
+  }
+  await storeCampReviewSnapshot(meetingId, { ...snapshot.data, review }, snapshot.expiresAt - Date.now(), scope);
 }
 
 /**
