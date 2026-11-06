@@ -11,7 +11,7 @@ const express = require('express');
 const { authenticate, requirePermission, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
-const { VolunteerSpaceError, readOverview, readCamp } = require('../services/volunteerSpace');
+const { VolunteerSpaceError, readOverview, readCamp, readCampContacts } = require('../services/volunteerSpace');
 
 /** Answer known refusals with their translation key; anything else goes to the global handler. */
 const handle = (handler) => asyncHandler(async (req, res) => {
@@ -39,6 +39,13 @@ module.exports = (pool) => {
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       return success(res, await readCamp(pool, organizationId, req.user.id, Number(req.params.activityId)));
+    }));
+
+  router.get('/camps/:activityId/contacts', requirePermission('volunteer_space.view'), validateIdParam('activityId'), checkValidation,
+    handle(async (req, res) => {
+      res.set('Cache-Control', 'no-store');
+      const organizationId = await getOrganizationId(req, pool);
+      return success(res, await readCampContacts(pool, organizationId, req.user.id, Number(req.params.activityId)));
     }));
 
   return router;

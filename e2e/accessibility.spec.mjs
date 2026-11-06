@@ -629,3 +629,19 @@ test.describe('preparing personal packing lists', () => {
     await page.screenshot({ path: testInfo.outputPath('material-personal-editor.png'), fullPage: true });
   });
 });
+
+
+test.describe('volunteer profile navigation', () => {
+  signedInAs('admin');
+
+  test('the volunteer space offers one profile entry and opens its contact section', async ({ page }) => {
+    await openScreen(page, '/volunteer-space');
+    const links = page.locator('#volunteer-space-profile a');
+    await expect(links).toHaveCount(1);
+    await links.click();
+    await page.waitForURL('**/account-info#my-profile');
+    await expect(page.locator('#my-profile-form')).toBeVisible();
+    await expect(page.locator('#my-profile-heading')).toBeFocused();
+    expect(await axeViolations(page)).toEqual([]);
+  });
+});

@@ -1,0 +1,6 @@
+{
+  "phone_max_length": 30,
+  "name_max_length": 200,
+  "health_text_max_length": 2000,
+  "minimum_volunteer_age": 14
+}

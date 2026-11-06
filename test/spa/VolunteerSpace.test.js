@@ -17,6 +17,8 @@ jest.mock('../../spa/modules/member-allergies/AllergyPanel.js', () => ({ ALLERGY
 jest.mock('../../spa/api/api-volunteer-space.js', () => ({ getVolunteerSpace: jest.fn(), getVolunteerSpaceCamp: jest.fn() }));
 
 import { getVolunteerSpace, getVolunteerSpaceCamp } from '../../spa/api/api-volunteer-space.js';
+jest.mock('../../spa/api/api-member-profile.js', () => ({ getCampContacts: jest.fn() }));
+import { getCampContacts } from '../../spa/api/api-member-profile.js';
 import { VolunteerSpace } from '../../spa/modules/volunteer-space/VolunteerSpace.js';
 import { getTodayISO } from '../../spa/utils/DateUtils.js';
 
@@ -80,6 +82,7 @@ beforeEach(() => {
   document.body.innerHTML = '<main id="app"></main>';
   mockPermissions.clear();
   ['volunteer_space.view', 'volunteers.view', 'tasks.view'].forEach((key) => mockPermissions.add(key));
+  getCampContacts.mockResolvedValue({ data: [] });
   getVolunteerSpace.mockResolvedValue({ data: OVERVIEW });
   getVolunteerSpaceCamp.mockResolvedValue({ data: camp() });
 });
@@ -95,8 +98,11 @@ describe('the space\'s first page', () => {
     expect(sectionTitles()).toEqual(['volunteer_space_camps_title', 'volunteer_space_shifts_title', 'volunteer_space_tasks_title', 'volunteer_space_profile_title']);
     expect(document.querySelector('a[href="/volunteer-space/3"]').textContent).toBe('Camp d’hiver');
     expect(document.body.textContent).toContain('volunteer_space_camp_now');
-    expect(document.querySelector('a[href="/account-info#certifications"]')).not.toBeNull();
-    expect(document.querySelector('a[href="/account-info#my-allergies"]')).not.toBeNull();
+    const profile = document.getElementById('volunteer-space-profile');
+    expect(profile.querySelectorAll('a')).toHaveLength(1);
+    expect(profile.querySelector('a').getAttribute('href')).toBe('/account-info#my-profile');
+    expect(profile.textContent).toContain('member_profile_open');
+    expect(profile.textContent).toContain('member_profile_open_hint');
   });
 
   test('a place still to verify says so in words, beside a confirmed one', async () => {
@@ -152,7 +158,7 @@ describe('one camp', () => {
     expect(document.querySelector('.volunteer-space > a').getAttribute('href')).toBe('/volunteer-space');
     expect(document.querySelector('h1').textContent).toBe('Camp d’hiver');
     expect(sectionTitles()).toEqual(['volunteer_space_my_shifts_title', 'volunteer_space_schedule_title', 'volunteer_space_menus_title',
-      'volunteer_space_site_title', 'volunteer_space_instructions_title', 'volunteer_space_camp_tasks_title']);
+      'volunteer_space_site_title', 'volunteer_space_instructions_title', 'member_profile_camp_contacts', 'volunteer_space_camp_tasks_title']);
     expect(document.querySelector('.volunteer-space__menu-text').textContent).toBe('Menu : spaghetti');
     expect(document.querySelector('#volunteer-space-instructions').textContent).toContain('On se respecte.');
     expect(document.querySelector('#volunteer-space-site').textContent).toContain('Trois coups de sifflet.');
@@ -241,4 +247,22 @@ describe('one camp', () => {
     const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
     expect(results.violations).toEqual([]);
   });
+});
+
+test('camp contacts are fetched separately and hostile names remain text', async () => {
+  getCampContacts.mockResolvedValue({ data: [{ user_id: 'peer', name: HOSTILE, phone: '555-0100' }] });
+  await open(3);
+  expect(getCampContacts).toHaveBeenCalledWith(3);
+  expect(document.querySelector('#camp-peer-contacts img')).toBeNull();
+  expect(document.querySelector('#camp-peer-contacts strong').textContent).toBe(HOSTILE);
+  expect(document.querySelector('#camp-peer-contacts a').getAttribute('href')).toBe('tel:5550100');
+});
+
+test('unavailable contacts are explained without replacing the readable camp schedule, and can be retried', async () => {
+  getCampContacts.mockRejectedValueOnce(new Error('offline'));
+  await open(3);
+  expect(document.querySelector('#volunteer-space-schedule')).not.toBeNull();
+  expect(document.querySelector('#camp-peer-contacts').textContent).toContain('member_profile_contacts_unavailable');
+  document.getElementById('camp-contacts-retry').click(); await flush();
+  expect(document.querySelector('#camp-peer-contacts').textContent).toContain('member_profile_contacts_empty');
 });

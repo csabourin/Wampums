@@ -95,3 +95,6 @@ space (`devdocs/VOLUNTEER_SPACE.md`). Other volunteers' names go to managers onl
 requirements keep a place pending until a manager records them. Every adult of the team and every
 volunteer needs a background check, valid three years from the day it was done (the server sets the
 expiry); managers follow them on `/volunteers`. See `devdocs/VOLUNTEERS.md`.
+
+Known under-14 accounts cannot sign up for shifts (#1359). The fourteenth birthday is accepted;
+unknown ages stay unverified. See `devdocs/MEMBER_PROFILE.md`.

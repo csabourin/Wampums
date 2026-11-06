@@ -151,7 +151,11 @@ describe.skipIf(!DATABASE_URL)('Camp lists', () => {
   });
 
   test('a manager names the team; a camp aide without a birth date reads “not verified”, with one a minor on the camp’s dates', async () => {
-    const { meeting } = await camp(ids.unit, '2031-03-01', '2031-03-03', ids.manager);
+    const year = new Date().getUTCFullYear();
+    const campYear = year + 1;
+    const minorBirth = `${year - 15}-03-02`;
+    const adultBirth = `${year - 20}-03-01`;
+    const { meeting } = await camp(ids.unit, `${campYear}-03-01`, `${campYear}-03-03`, ids.manager);
     expect((await call('put', `/${meeting}/team/${ids.reader}`, ids.manager).send({ team_role: 'lead' })).status).toBe(200);
     const aide = await call('put', `/${meeting}/team/${ids.aide}`, ids.manager).send({ team_role: 'camp_aide' });
     expect(aide.status).toBe(200);
@@ -163,14 +167,14 @@ describe.skipIf(!DATABASE_URL)('Camp lists', () => {
     // A reader never receives a member's birth date.
     expect(roster.team[1]).not.toHaveProperty('date_of_birth');
 
-    await call('put', `/${meeting}/team/${ids.aide}`, ids.manager).send({ team_role: 'camp_aide', date_of_birth: '2014-03-02' });
+    await call('put', `/${meeting}/team/${ids.aide}`, ids.manager).send({ team_role: 'camp_aide', date_of_birth: minorBirth });
     roster = (await call('get', `/${meeting}`, ids.manager)).body.data;
     const named = roster.team.find((row) => row.user_id === ids.aide);
-    expect(named).toMatchObject({ age_status: 'minor', date_of_birth: '2014-03-02' });
+    expect(named).toMatchObject({ age_status: 'minor', date_of_birth: minorBirth });
     expect(roster.gaps).not.toContain('aide_age_unknown');
     expect(roster.gaps).not.toContain('no_lead');
 
-    await call('put', `/${meeting}/team/${ids.aide}`, ids.manager).send({ team_role: 'camp_aide', date_of_birth: '2013-03-01' });
+    await call('put', `/${meeting}/team/${ids.aide}`, ids.manager).send({ team_role: 'camp_aide', date_of_birth: adultBirth });
     roster = (await call('get', `/${meeting}`, ids.reader)).body.data;
     expect(roster.team.find((row) => row.user_id === ids.aide).age_status).toBe('adult');
   });

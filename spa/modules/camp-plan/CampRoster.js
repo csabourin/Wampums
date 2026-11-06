@@ -309,6 +309,19 @@ export class CampRoster {
       ${list}${silentText}`;
   }
 
+  /** Health readers receive only active team members' personal health forms and emergency contacts. */
+  adultHealthMarkup() {
+    const people = this.data.adult_health_forms;
+    if (!Array.isArray(people) || !people.length) { return ''; }
+    const fields = ['health_conditions', 'medications', 'support_needs', 'phone', 'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship'];
+    return `<h3>${escapeHTML(translate('member_health_camp_title'))}</h3>
+      <ul class="camp-roster__list">${people.map((person) => `<li class="camp-roster__member">
+        <p><strong>${escapeHTML(this.personName(person.name, person.nickname))}</strong></p>
+        ${!person.updated_at ? `<p>${escapeHTML(translate('member_health_not_completed'))}</p>` : ''}
+        <dl>${fields.filter((field) => person[field]).map((field) => `<dt>${escapeHTML(translate(`member_profile_${field}`))}</dt><dd>${escapeHTML(person[field])}</dd>`).join('')}</dl>
+      </li>`).join('')}</ul>`;
+  }
+
   /** @returns {string} The camp's allergies, for whoever may read them; nothing otherwise */
   allergiesMarkup() {
     const { allergies } = this.data;
@@ -319,6 +332,7 @@ export class CampRoster {
         <h2 id="camp-roster-allergies">${escapeHTML(translate('camp_roster_allergies'))}</h2>
         ${this.youthAllergiesMarkup(allergies)}
         ${this.adultAllergiesMarkup(allergies)}
+        ${this.adultHealthMarkup()}
       </section>`;
   }
 

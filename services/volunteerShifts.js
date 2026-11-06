@@ -9,6 +9,7 @@
  * volunteers' names, and anyone's requirements, only to managers.
  */
 const config = require('../config/volunteer_shifts.json');
+const { assertVolunteerAge, MemberProfileError } = require('./memberProfile');
 
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
@@ -254,6 +255,10 @@ function signUp(pool, organizationId, shiftId, userId) {
     )).rows[0];
     if (!shift) { throw new VolunteerError('volunteer_shift_not_found', HTTP_NOT_FOUND); }
     await lockMember(db, organizationId, userId);
+    try { await assertVolunteerAge(db, userId); } catch (err) {
+      if (err instanceof MemberProfileError) { throw new VolunteerError(err.message, err.status); }
+      throw err;
+    }
     const places = (await db.query(
       `SELECT COUNT(*)::int AS taken, MAX(status) FILTER (WHERE user_id = $3) AS mine
          FROM volunteer_signups WHERE organization_id = $1 AND shift_id = $2`,

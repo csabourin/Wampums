@@ -16,6 +16,7 @@
  * @module services/volunteerSpace
  */
 const config = require('../config/volunteer_shifts.json');
+const { campContacts } = require('./memberProfile');
 const { missingRequirements, requirementsByUser } = require('./volunteerShifts');
 const { UNIT_SECTIONS, listTemplates, resolveSections } = require('./campPlan');
 
@@ -268,4 +269,12 @@ async function readCamp(db, organizationId, userId, activityId) {
   };
 }
 
-module.exports = { VolunteerSpaceError, OVERVIEW_TASKS, readOverview, readCamp };
+/** Fresh consenting peer contacts, after checking this camp still opens to the caller. */
+async function readCampContacts(db, organizationId, userId, activityId) {
+  const found = await db.query(`SELECT 1 FROM activities a WHERE a.organization_id = $1 AND a.id = $3
+    AND a.is_camp AND a.is_active AND ${TAKES_PART_SQL}`, [organizationId, userId, activityId]);
+  if (!found.rows.length) { throw new VolunteerSpaceError('volunteer_space_camp_not_found', HTTP_NOT_FOUND); }
+  return campContacts(db, organizationId, userId, activityId);
+}
+
+module.exports = { VolunteerSpaceError, OVERVIEW_TASKS, readOverview, readCamp, readCampContacts };
