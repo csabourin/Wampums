@@ -2504,6 +2504,7 @@
   "permission_slip_signed_at": "Signed at",
   "permission_slip_sign": "Sign",
   "permission_slip_decline": "Decline",
+  "permission_slip_answer_in_tasks": "Answer in “To do for your family”",
   "permission_slip_decline_confirm": "Decline this permission request? This response cannot be changed.",
   "permission_slip_declined": "Permission request declined",
   "permission_slip_already_answered": "This permission request has already been answered",

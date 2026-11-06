@@ -390,6 +390,61 @@ describe('the parent dashboard', () => {
     page.destroy();
   });
 
+  test('a pending slip is answered in one place: the child\'s file shows it and leads to the task', async () => {
+    const { page } = await renderDashboard([ADA, LEA], twoChildSlips());
+    const card = document.querySelector('[data-child-card="4"]');
+
+    expect(card.querySelector('.js-family-sign, .js-family-decline, .permission-slip-sign-btn, .permission-slip-decline-btn')).toBeNull();
+    expect(card.querySelector('.permission-slip-title').textContent).toBe('Winter camp');
+    expect(card.querySelector('.permission-slip-meeting').textContent).toContain('activity_date_label');
+    expect(card.textContent).not.toContain('meeting_date_label');
+
+    card.querySelector('.js-family-goto-tasks').click();
+    expect(document.activeElement).toBe(document.getElementById('family-tasks-title'));
+    expect(prompt).not.toHaveBeenCalled();
+    page.destroy();
+  });
+
+  test('the decline dialog names the activity, the action and the children', async () => {
+    mockTemplates.family_tasks_decline_title = 'Decline: {activity}';
+    mockTemplates.family_tasks_signer_prompt = 'Your name, for {children}';
+    const { page } = await renderDashboard([ADA, LEA], twoChildSlips());
+    prompt.mockResolvedValue(null);
+
+    document.querySelector('.js-family-decline').click();
+    await flush();
+
+    expect(prompt).toHaveBeenCalledWith({
+      title: 'Decline: Winter camp',
+      message: expect.stringMatching(/^Your name, for .*Ada.*Léa/),
+    });
+    expect(endpoints.declinePermissionSlip).not.toHaveBeenCalled();
+    delete mockTemplates.family_tasks_decline_title;
+    delete mockTemplates.family_tasks_signer_prompt;
+    page.destroy();
+  });
+
+  test('a refused answer is explained in the page language, and one answered meanwhile says so', async () => {
+    let { page, app } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]]));
+    prompt.mockResolvedValue('Marie Tremblay');
+    endpoints.signPermissionSlip.mockRejectedValueOnce(
+      Object.assign(new Error('API request failed: Insufficient permissions'), { status: 403 }),
+    );
+    document.querySelector('.js-family-sign').click();
+    await flush();
+    expect(app.showMessage).toHaveBeenCalledWith('api_error_forbidden', 'error');
+    page.destroy();
+
+    ({ page, app } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]])));
+    endpoints.signPermissionSlip.mockRejectedValueOnce(
+      Object.assign(new Error('API request failed: Permission slip has already been answered'), { status: 409 }),
+    );
+    document.querySelector('.js-family-sign').click();
+    await flush();
+    expect(app.showMessage).toHaveBeenCalledWith('permission_slip_already_answered', 'warning');
+    page.destroy();
+  });
+
   test('confirming a form re-read removes it from the tasks', async () => {
     const { page, app } = await renderDashboard([ADA, LEA], new Map(), {});
     page.formsToReview = [{ id: 70, participant_id: 4, form_type: 'fiche_sante', display_name: 'Health form' }];

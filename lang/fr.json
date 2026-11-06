@@ -2498,6 +2498,7 @@
   "permission_slip_signed_at": "Signé le",
   "permission_slip_sign": "Signer",
   "permission_slip_decline": "Refuser",
+  "permission_slip_answer_in_tasks": "Répondre dans « À faire pour votre famille »",
   "permission_slip_decline_confirm": "Refuser cette demande d’autorisation? Cette réponse ne pourra pas être modifiée.",
   "permission_slip_declined": "Demande d’autorisation refusée",
   "permission_slip_already_answered": "Une réponse a déjà été donnée pour cette demande d’autorisation",
