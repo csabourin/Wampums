@@ -722,6 +722,7 @@ ${this.allergyPanel ? `
    * Attach event listeners to forms and buttons
    */
   attachEventListeners() {
+    if (this.destroyed) { return; }
     document.getElementById('account-nickname-form')
       ?.addEventListener('submit', (event) => this.handleNicknameUpdate(event));
 
@@ -1167,6 +1168,7 @@ ${this.allergyPanel ? `
    */
   async handleLanguageChange(event) {
     event.preventDefault();
+    if (this.destroyed) { return; }
 
     const button = event.currentTarget;
     const newLang = button.dataset.lang;
@@ -1179,6 +1181,8 @@ ${this.allergyPanel ? `
       // Update app language immediately
       await this.app.setLanguage(newLang);
       await this.saveLanguagePreference(this.app.lang);
+      // setLanguage can replace this route while the preference request is pending.
+      if (this.destroyed) { return; }
 
       // Show success message
       this.app.showMessage(translate('account_info_language_success'), 'success');
@@ -1188,6 +1192,7 @@ ${this.allergyPanel ? `
       this.attachEventListeners();
     } catch (error) {
       debugError('Error changing language:', error);
+      if (this.destroyed) { return; }
       this.app.showMessage(translate('account_info_language_error'), 'error');
     }
   }

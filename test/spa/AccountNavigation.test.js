@@ -111,6 +111,34 @@ test('a name save updates the account summary without replacing an unrelated dra
   expect($('[name=phone]')).toBe(phone); expect(phone.value).toBe('555-0188');
 });
 
+test('a language save finishing after route replacement never binds the replacement forms twice', async () => {
+  await draw();
+  const oldPage = page;
+  let finishSave;
+  makeApiRequest.mockImplementation((path) => path.endsWith('/language-preference')
+    ? new Promise((resolve) => { finishSave = resolve; })
+    : Promise.resolve({ success: true, data: { full_name: 'New Fictional Name' } }));
+  app.setLanguage = jest.fn((lang) => {
+    app.lang = lang;
+    oldPage.destroy();
+    page = new AccountInfoModule(app);
+    page.userData = oldPage.userData;
+    page.render(); page.attachEventListeners();
+    return Promise.resolve();
+  });
+  const changing = oldPage.handleLanguageChange({ preventDefault() {}, currentTarget: { dataset: { lang: 'en' } } });
+  await flush();
+  finishSave({ success: true });
+  await changing;
+  expect(app.showMessage).not.toHaveBeenCalled();
+  // A late callback must also be harmless if it tries to bind directly.
+  oldPage.attachEventListeners();
+  $('#fullname-input').value = 'New Fictional Name';
+  $('#fullname-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  await flush();
+  expect(makeApiRequest.mock.calls.filter(([path]) => path === 'v1/users/me/name')).toHaveLength(1);
+});
+
 test('a loading failure offers retry and a response after leaving never overwrites another page', async () => {
   await draw(); page.renderError('Account could not load');
   expect($('[role=alert]').textContent).toBe('Account could not load'); expect($('#account-retry')).not.toBeNull();
