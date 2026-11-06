@@ -394,6 +394,22 @@ try {
     await campPlan.saveRainGames(pool, organizationId, adminId, campMeetingId, { activity_library_ids: [rainGameId] });
   }
 
+  // Its review (#1257): what the youth's council and the team said, one idea said three times,
+  // so the review shows its categories, a weight and an empty category.
+  const campReviews = require(path.join(ROOT, 'services/campReviews.js'));
+  const reviewNotes = [
+    { category: 'liked', moment: 'youth_council', theme: 'activity', text: 'Le grand jeu de nuit', votes: 2 },
+    { category: 'liked', moment: 'youth_council', theme: 'meals', text: 'Les guimauves au feu de camp', votes: 0 },
+    { category: 'improve', moment: 'team_after', theme: 'organization', text: 'Prévoir plus de temps pour la vaisselle', votes: 1 },
+  ];
+  for (const { votes, ...note } of reviewNotes) {
+    const noteId = randomUUID();
+    await campReviews.saveNote(pool, organizationId, adminId, campMeetingId, noteId, note);
+    for (let vote = 0; vote < votes; vote += 1) {
+      await campReviews.addVote(pool, organizationId, adminId, campMeetingId, noteId, randomUUID());
+    }
+  }
+
   // A camp in ten days, recorded as an activity marked as a camp, with volunteer shifts:
   // cooks (one place still open), a driver (filled), and camp aides, whose place stays to
   // verify until a background check and training are recorded.

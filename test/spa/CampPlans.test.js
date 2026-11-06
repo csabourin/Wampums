@@ -62,7 +62,7 @@ test('coming camps come first, each saying what its plan still lacks and leading
   expect(first.textContent).toContain('camp_readiness_left_plan_review');
   expect(first.classList.contains('is-attention')).toBe(true);
   expect(Array.from(first.querySelectorAll('a')).map((link) => link.getAttribute('href')))
-    .toEqual(['/camp-plan/12', '/camp-site/12', '/camp-roster/12', '/camp-readiness/12']);
+    .toEqual(['/camp-plan/12', '/camp-site/12', '/camp-roster/12', '/camp-readiness/12', '/camp-review/12']);
   expect(document.querySelectorAll('.camp-plans__camp')[1].textContent).toContain('camp_plan_all_written');
 });
 
@@ -78,7 +78,14 @@ test('someone who sees only their own children is not offered the team overview,
   hasOrganizationScope.mockReturnValue(false);
   await open();
   const links = Array.from(document.querySelector('.camp-plans__camp').querySelectorAll('a')).map((link) => link.getAttribute('href'));
-  expect(links).toEqual(['/camp-plan/12', '/camp-site/12']);
+  expect(links).toEqual(['/camp-plan/12', '/camp-site/12', '/camp-review/12']);
+});
+
+test('the camp’s review is offered only with camp_reviews.view', async () => {
+  hasPermission.mockImplementation((key) => key !== 'camp_reviews.view');
+  await open();
+  const links = Array.from(document.querySelector('.camp-plans__camp').querySelectorAll('a')).map((link) => link.getAttribute('href'));
+  expect(links).not.toContain('/camp-review/12');
 });
 
 test('a camp’s name is shown as text, and names each of its links', async () => {

@@ -316,6 +316,14 @@ test('the camp\'s pages are offered as shortcuts, each behind its own permission
   dashboard.destroy();
 });
 
+test('whoever may read the camp\'s review is offered it at camp, to note it at the last campfire', async () => {
+  atTime(14, 0);
+  mockPermissions.add('camp_reviews.view');
+  const dashboard = await openDashboard();
+  expect(campShortcuts()).toEqual(['/camp-readiness/41', '/camp-site/41', '/my-camp-lots/41', '/camp-review/41', '/attendance']);
+  dashboard.destroy();
+});
+
 test('a camp recorded only as an activity is recognised by its dates and opens its overview by activity', async () => {
   atTime(14, 0);
   getDayProgramme.mockResolvedValue({ data: null });

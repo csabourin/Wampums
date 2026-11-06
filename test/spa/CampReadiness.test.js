@@ -4,9 +4,11 @@ jest.mock('../../spa/config.js', () => ({ CONFIG: {}, getStorageKey: (key) => ke
 jest.mock('../../spa/app.js', () => ({ translate: jest.fn((key) => key) }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
 jest.mock('../../spa/api/api-camp-readiness.js', () => ({ getCampReadiness: jest.fn(), getActivityCampReadiness: jest.fn() }));
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(() => true) }));
 import { getCampReadiness, getActivityCampReadiness } from '../../spa/api/api-camp-readiness.js';
 import { CampReadiness, READINESS_LABELS } from '../../spa/modules/camp-readiness/CampReadiness.js';
 import { translate } from '../../spa/app.js';
+import { hasPermission } from '../../spa/utils/PermissionUtils.js';
 import en from '../../lang/en.json';
 import fr from '../../lang/fr.json';
 let screen;
@@ -19,6 +21,7 @@ const data = () => ({ camp: { id: 3, activity_id: 8, theme: '<img src=x onerror=
 beforeEach(() => {
   jest.clearAllMocks(); localStorage.clear(); document.body.innerHTML = '<main id="app"></main>';
   translate.mockImplementation((key) => key);
+  hasPermission.mockImplementation(() => true);
   getCampReadiness.mockResolvedValue({ data: data() }); screen = new CampReadiness({ lang: 'fr' }, { meetingId: 3 });
 });
 test.each([
@@ -216,4 +219,13 @@ test('written plan sections still to write or reread are part of what is left, e
   const done = [...document.querySelectorAll('.camp-readiness__left li')].find((li) => li.querySelector('a[href="#camp-readiness-plan"]'));
   expect(done.classList.contains('is-clear')).toBe(true);
   expect(document.querySelector('#camp-readiness-plan a[href="/camp-plan/3"]').textContent).toBe('camp_plan_all_written');
+});
+
+test('the camp’s review is reached from its overview by whoever may read it', async () => {
+  await screen.init();
+  expect(document.querySelector('.camp-readiness__actions a[href="/camp-review/3"]').textContent).toBe('camp_review_title');
+
+  hasPermission.mockImplementation((key) => key !== 'camp_reviews.view');
+  await screen.init();
+  expect(document.querySelector('a[href="/camp-review/3"]')).toBeNull();
 });

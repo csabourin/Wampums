@@ -149,6 +149,7 @@ const lazyModules = {
   CampPlanTemplates: () => import('./modules/camp-plan/CampPlanTemplates.js').then(m => m.CampPlanTemplates),
   CampPlans: () => import('./modules/camp-plan/CampPlans.js').then(m => m.CampPlans),
   CampRoster: () => import('./modules/camp-plan/CampRoster.js').then(m => m.CampRoster),
+  CampReview: () => import('./modules/camp-review/CampReview.js').then(m => m.CampReview),
   ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
   AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink),
   ReactivationLink: () => import('./modules/reactivation/ReactivationLink.js').then(m => m.ReactivationLink),
@@ -281,6 +282,7 @@ const routes = {
   '/camp-plan-templates': 'campPlanTemplates',
   '/camp-plans': 'campPlans',
   '/camp-roster/:id': 'campRoster',
+  '/camp-review/:id': 'campReview',
   '/unit-settings': 'unitSettings',
   '/scout-year': 'scoutYear'
 
@@ -893,6 +895,14 @@ export class Router {
           if (!guard(hasPermission('meetings.view') && hasPermission('participants.view') && hasOrganizationScope())) {break;}
           const CampRoster = await this.loadModule('CampRoster');
           this.currentModuleInstance = new CampRoster(this.app, { meetingId: Number(param) });
+          await this.currentModuleInstance.init();
+          break;
+        }
+        case 'campReview': {
+          // A camp's review is read with camp_reviews.view; writing its notes takes camp_reviews.manage.
+          if (!guard(hasPermission('camp_reviews.view'))) {break;}
+          const CampReview = await this.loadModule('CampReview');
+          this.currentModuleInstance = new CampReview(this.app, { meetingId: Number(param) });
           await this.currentModuleInstance.init();
           break;
         }

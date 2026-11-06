@@ -13,6 +13,7 @@ const { mayReadInviteeList, getActivityParticipation } = require('../services/ac
 const { DATE_LIMITS } = require('../config/constants');
 const { activityPacks } = require('../services/campEquipmentLots');
 const { readCampSite } = require('../services/campSites');
+const { readCampReview } = require('../services/campReviews');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 
 const HTTP_BAD_REQUEST = 400;
@@ -295,19 +296,26 @@ module.exports = (pool, logger) => {
         // the network is gone. Read as GET /v1/camp-sites/camps/:id answers it, without the
         // members a manager may choose a lead from.
         const mayReadCampSites = preparedOuting && await userHasPermission(req, pool, organizationId, 'meetings.view');
-        const campMeetings = mayReadCampSites ? (await client.query(
+        // The camp's review, so notes can be added and weighed at the last campfire without a network.
+        const mayReadCampReviews = preparedOuting && await userHasPermission(req, pool, organizationId, 'camp_reviews.view');
+        const campMeetings = mayReadCampSites || mayReadCampReviews ? (await client.query(
           `SELECT id FROM year_plan_meetings
             WHERE organization_id = $1 AND activity_id = $2 AND meeting_kind = 'camp' AND NOT is_cancelled
             ORDER BY meeting_date, id`,
           [organizationId, preparedOuting.id]
         )).rows : [];
-        const campSites = await Promise.all(campMeetings.map(async ({ id }) => ({
+        const campSites = mayReadCampSites ? await Promise.all(campMeetings.map(async ({ id }) => ({
           meeting_id: Number(id),
           data: await readCampSite(client, organizationId, Number(id)),
-        })));
+        }))) : [];
+        const campReviews = mayReadCampReviews ? await Promise.all(campMeetings.map(async ({ id }) => ({
+          meeting_id: Number(id),
+          data: await readCampReview(client, organizationId, Number(id), req.user.id),
+        }))) : [];
         const responseData = {
           campLots,
           campSites,
+          campReviews,
           actionRoster: await getActionRoster(client, organizationId, start_date, end_date),
           activity: activityResult.rows[0] || null,
           dates,

@@ -448,8 +448,12 @@ async function sendApiRequest(endpoint, options = {}) {
     await offlineManager.hasPendingEquipmentLoans();
   const campLotsWaiting = method === 'PATCH' && requestPath.startsWith('/api/v1/camp-equipment-lots/')
     && await offlineManager.hasPendingResource('/api/v1/camp-equipment-lots');
+  // A vote must not reach the server before the note it was given to, still in the outbox.
+  const campReviewWaiting = method !== 'GET' && requestPath.startsWith('/api/v1/camp-reviews/')
+    && await offlineManager.hasPendingResource('/api/v1/camp-reviews');
   // Keep arrivals, departures, awards and returns in their original order across reconnects.
-  if ((offlineManager.isOffline || navigator.onLine === false || pointsWaiting || attendanceWaiting || equipmentLoansWaiting || campLotsWaiting)
+  if ((offlineManager.isOffline || navigator.onLine === false || pointsWaiting || attendanceWaiting || equipmentLoansWaiting || campLotsWaiting
+    || campReviewWaiting)
     && method !== 'GET') {
     if (requiresOnline) {
       const offlineError = new Error(offlineManager.getTranslation('family_operation_online_required'));

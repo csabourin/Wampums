@@ -20,6 +20,7 @@ import { CONFIG } from '../config.js';
 import { isoToDateString } from '../utils/DateUtils.js';
 import { assertPreparedLotMutation, applyReplayedLot, storeLotSnapshot, lotSnapshotKey } from './camp-lots/CampLotOffline.js';
 import { storeCampSiteSnapshot } from './camp-sites/CampSiteOffline.js';
+import { CAMP_REVIEW_WRITE_PATH, applyCampReviewAnswer, storeCampReviewSnapshot } from './camp-review/CampReviewOffline.js';
 import { OFFLINE_CAMPS } from '../config/offline-camps.js';
 import {
   buildApiCacheKey,
@@ -72,6 +73,9 @@ const SAFE_OFFLINE_MUTATIONS = [
   // A handout replays once (Idempotency-Key receipt); a return is a count.
   { method: 'POST', path: /^\/api\/v1\/equipment-loans$/, kind: 'equipment_loans' },
   { method: 'PATCH', path: /^\/api\/v1\/equipment-loans\/\d+$/, kind: 'equipment_loans' },
+  // A review note or vote carries the id its device chose: writing it twice is writing it once.
+  { method: 'PUT', path: CAMP_REVIEW_WRITE_PATH, kind: 'camp_review' },
+  { method: 'DELETE', path: CAMP_REVIEW_WRITE_PATH, kind: 'camp_review' },
 ];
 
 /**
@@ -615,6 +619,13 @@ export class OfflineManager {
               if (!result.success || !result.data?.id) { throw new Error('Invalid camp lot replay response'); }
               // eslint-disable-next-line no-await-in-loop -- commit the device snapshot before announcing this receipt
               await applyReplayedLot(result.data, scope);
+            }
+            if (mutationKind(record.data.url, method) === 'camp_review') {
+              // eslint-disable-next-line no-await-in-loop -- the answer must reach the device copy before this change leaves the outbox
+              const result = await response.json().catch(() => null);
+              // eslint-disable-next-line no-await-in-loop -- as above
+              await applyCampReviewAnswer(record.data.url, method, result?.data, scope)
+                .catch((error) => debugWarn('OfflineManager: Could not update the camp review kept on this device', error));
             }
             await deleteOfflineData(record.key);
             replayed += 1;
@@ -1198,6 +1209,14 @@ export class OfflineManager {
         assertScope();
       }
 
+      // The camp's review, so notes are added and weighed at the last campfire without a network.
+      for (const pack of bulkData.campReviews || []) {
+        assertScope();
+        // eslint-disable-next-line no-await-in-loop -- required camp snapshots must finish before readiness is recorded
+        cacheKeys.push(await storeCampReviewSnapshot(pack.meeting_id, pack.data, duration, scope));
+        assertScope();
+      }
+
       // Step 8: Pre-load JavaScript modules for offline use
       this.updatePreparationProgress(8, this.getTranslation('offline.cachingModules'));
       await this.preloadCampModules();
@@ -1275,6 +1294,7 @@ export class OfflineManager {
     const campModules = [
       () => import('./camp-lots/CampEquipmentLots.js'),
       () => import('./camp-sites/CampSite.js'),
+      () => import('./camp-review/CampReview.js'),
       () => import('./tasks/Tasks.js'),
       () => import('./attendance/Attendance.js'),
       () => import('./points/ManagePoints.js'),

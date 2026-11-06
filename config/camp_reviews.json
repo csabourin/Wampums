@@ -1,0 +1,9 @@
+{
+  "TEXT_MAX": 280,
+  "CATEGORIES": ["liked", "disliked", "improve"],
+  "MOMENTS": ["youth_council", "team_daily", "team_after"],
+  "THEMES": ["activity", "meals", "equipment", "site", "organization", "leadership"],
+  "UNDO_MS": 8000,
+  "SUGGESTIONS_MAX": 3,
+  "SUGGESTION_MIN_WORD_LENGTH": 3
+}
