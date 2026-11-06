@@ -11,3 +11,12 @@ The format remains semicolon-delimited, with quoted separators and blank lines s
 SPA link navigation parses URLs before checking new-tab, download or modifier gestures.
 Only HTTP, HTTPS, mailto, tel and blob links may reach browser navigation; other protocols are
 cancelled. Only same-origin HTTP(S) links are routed inside the SPA.
+
+## Health declarations (#1364)
+
+The SISC CSV contains no health answers. `fiche_sante` is excluded from the forms written by an
+import: an existing family's health declaration, timestamps and review metadata are preserved, and
+no empty health submission is created for someone who has not filled one in. Registration and
+supported authorization fields continue to import normally. Older empty placeholders are not
+removed automatically: distinguishing them from a family's own declaration requires a separate
+review. Tests: `test/sisc-import.test.js` and `test/sisc-health-preservation.integration.test.js`.

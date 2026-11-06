@@ -84,4 +84,38 @@ describe('SISC import validation before database work', () => {
     expect(client.release).toHaveBeenCalledTimes(1);
   });
 
+
+  test.each([true, false])('a SISC import leaves health declarations to the family (existing health form: %s)', async (hasHealthForm) => {
+    const healthId = 42;
+    const client = {
+      query: jest.fn((sql, values) => {
+        let rows = [];
+        if (sql.includes('SELECT form_type, form_structure')) {
+          rows = [{ form_type: 'fiche_sante' }, { form_type: 'participant_registration' }];
+        } else if (sql.includes('SELECT p.id FROM participants')) {
+          rows = [{ id: 7 }];
+        } else if (sql.includes('SELECT id FROM form_submissions') && values[2] === 'fiche_sante') {
+          rows = hasHealthForm ? [{ id: healthId }] : [];
+        }
+        return Promise.resolve({ rows });
+      }),
+      release: jest.fn(),
+    };
+    pool.connect.mockResolvedValue(client);
+    pool.query.mockResolvedValue({ rows: [{ count: '1' }] });
+    const response = await request(app).post('/api/v1/import/sisc').send({
+      csvContent: 'nom;prenom;naissance\nFiction;Ada;20160503',
+    });
+    expect(response.status).toBe(200);
+    expect(response.body.stats.errors).toEqual([]);
+    expect(response.body.stats.formSubmissionsCreated).toBe(1);
+    const writes = client.query.mock.calls.filter(([sql]) => /(?:INSERT INTO|UPDATE) form_submissions/.test(sql));
+    expect(writes).toHaveLength(1);
+    expect(writes[0][0]).toContain('INSERT INTO form_submissions');
+    expect(writes[0][1]).toEqual([1, 7, 'participant_registration', expect.any(String)]);
+    expect(JSON.parse(writes[0][1][3])).toMatchObject({ first_name: 'Ada', last_name: 'Fiction' });
+    expect(client.query).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE form_submissions'), [expect.anything(), healthId]);
+    expect(client.query).toHaveBeenCalledWith('COMMIT');
+  });
+
 });
