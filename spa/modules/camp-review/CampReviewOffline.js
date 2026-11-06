@@ -147,16 +147,33 @@ export function parseCampReviewWrite(url) {
  */
 export async function applyCampReviewAnswer(url, method, answer, scope = currentCampReviewScope()) {
   const write = parseCampReviewWrite(url);
-  if (!write || scope !== currentCampReviewScope()) {
+  if (!write) {
     return;
   }
-  const snapshot = await getCampReviewSnapshot(write.meetingId, scope);
+  await applyCampReviewWrite(write.meetingId, { method, noteId: write.noteId, voteId: write.voteId }, answer, scope);
+}
+
+/**
+ * Apply a confirmed write to this camp's copy on the device, whether or not
+ * its screen is still open. Without a copy, nothing is stored.
+ *
+ * @param {number} meetingId - The planned camp
+ * @param {{method: string, noteId: string, voteId: ?string}} change - The write
+ * @param {Object} answer - `data` of the server's answer
+ * @param {string} [scope] - The scope captured before the write
+ * @returns {Promise<void>}
+ */
+export async function applyCampReviewWrite(meetingId, change, answer, scope = currentCampReviewScope()) {
+  if (scope !== currentCampReviewScope()) {
+    return;
+  }
+  const snapshot = await getCampReviewSnapshot(meetingId, scope);
   if (!snapshot) {
     return;
   }
-  const notes = applyAnswer(snapshot.data.notes, { method: String(method).toUpperCase(), ...write }, answer);
+  const notes = applyAnswer(snapshot.data.notes, { ...change, method: String(change.method).toUpperCase() }, answer);
   // Keep the copy's original expiry, not another full camp period.
-  await storeCampReviewSnapshot(write.meetingId, { ...snapshot.data, notes }, snapshot.expiresAt - Date.now(), scope);
+  await storeCampReviewSnapshot(meetingId, { ...snapshot.data, notes }, snapshot.expiresAt - Date.now(), scope);
 }
 
 /**

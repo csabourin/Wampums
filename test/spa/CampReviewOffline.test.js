@@ -17,6 +17,7 @@ import { OfflineManager } from '../../spa/modules/OfflineManager.js';
 import { getOfflineData } from '../../spa/indexedDB.js';
 import {
   storeCampReviewSnapshot, getCampReviewSnapshot, pendingCampReviewChanges, overlayPending, applyAnswer, parseCampReviewWrite,
+  applyCampReviewWrite,
 } from '../../spa/modules/camp-review/CampReviewOffline.js';
 import { similarNotes, reviewWords } from '../../spa/modules/camp-review/CampReviewMatching.js';
 
@@ -98,6 +99,17 @@ test('a refused change is dropped and announced; the copy, which never held it, 
   expect(events).toHaveLength(1);
   expect((await getCampReviewSnapshot(12)).data.notes).toEqual([SWIM]);
   expect(manager.describeRejected(outcome.rejected)).toContain('sync.rejected_kind_camp_review');
+});
+
+test('a confirmed write updates the copy kept here, keeping its expiry; without a copy, nothing is stored', async () => {
+  await storeCampReviewSnapshot(12, { camp: CAMP, notes: [] });
+  const { expiresAt } = await getCampReviewSnapshot(12);
+  await applyCampReviewWrite(12, { method: 'PUT', noteId: NOTE_ID, voteId: null }, { note: SWIM });
+  const after = await getCampReviewSnapshot(12);
+  expect(after.data.notes).toEqual([SWIM]);
+  expect(after.expiresAt).toBeLessThanOrEqual(expiresAt + 1000);
+  await applyCampReviewWrite(13, { method: 'PUT', noteId: NOTE_ID, voteId: null }, { note: SWIM });
+  expect(await getCampReviewSnapshot(13)).toBeNull();
 });
 
 test('a copy from another account, unit or camp is never read', async () => {

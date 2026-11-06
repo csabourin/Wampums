@@ -35,7 +35,7 @@ import {
 } from '../../api/api-camp-reviews.js';
 import {
   currentCampReviewScope, getCampReviewSnapshot, storeCampReviewSnapshot, pendingCampReviewChanges,
-  overlayPending, applyAnswer,
+  overlayPending, applyAnswer, applyCampReviewWrite,
 } from './CampReviewOffline.js';
 import { similarNotes } from './CampReviewMatching.js';
 import { OFFLINE_CAMPS } from '../../config/offline-camps.js';
@@ -608,7 +608,15 @@ export class CampReview {
           return { ok: false, error: Object.assign(new Error('Session changed'), { name: 'AbortError' }) };
         }
         const response = await send();
-        if (this.destroyed || scope !== currentCampReviewScope()) {
+        if (scope !== currentCampReviewScope()) {
+          return { ok: true };
+        }
+        if (this.destroyed) {
+          // Left meanwhile: the server accepted the change, so the copy on the device must show it.
+          if (!response?.queued) {
+            await applyCampReviewWrite(this.meetingId, entry, response?.data, scope)
+              .catch((err) => debugError('The camp review kept on this device could not be updated', err));
+          }
           return { ok: true };
         }
         if (response?.queued) {

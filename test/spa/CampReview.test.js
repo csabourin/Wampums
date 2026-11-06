@@ -44,6 +44,7 @@ jest.mock('../../spa/modules/camp-review/CampReviewOffline.js', () => {
     storeCampReviewSnapshot: jest.fn(() => Promise.resolve('camp_review_snapshot_12')),
     getCampReviewSnapshot: jest.fn(() => Promise.resolve(null)),
     pendingCampReviewChanges: jest.fn(() => Promise.resolve([])),
+    applyCampReviewWrite: jest.fn(() => Promise.resolve()),
   };
 });
 
@@ -399,6 +400,23 @@ test('a page opened from the device copy keeps that copy current once the networ
   await enter();
   const [, stored] = offline.storeCampReviewSnapshot.mock.calls.at(-1);
   expect(stored.notes.map((note) => note.text)).toEqual(['La baignade au lac', 'Le coucher de soleil']);
+});
+
+test('a change the server accepts after the screen was left still reaches the copy on the device', async () => {
+  let release;
+  api.saveCampReviewNote.mockImplementationOnce((_meeting, id, body) => new Promise((resolve) => {
+    release = () => resolve({ success: true, data: { note: { id, ...body, version: 1, weight: 1, votes: [] } } });
+  }));
+  await open();
+  type('La veillée');
+  $('#camp-review-form').requestSubmit();
+  await flush();
+  screen.destroy();
+  release();
+  await flush();
+  await flush();
+  expect(offline.applyCampReviewWrite).toHaveBeenCalledWith(12, expect.objectContaining({ method: 'PUT', voteId: null }),
+    { note: expect.objectContaining({ text: 'La veillée' }) }, 'scope:unit-1');
 });
 
 test('a page with nothing kept on the device never stores a partial copy as if it were whole', async () => {
