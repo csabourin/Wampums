@@ -46,6 +46,8 @@ year after year ("Last year") comes next (see the issue).
   copy before refreshing. Losing the network during that refresh therefore keeps the accepted change.
   Unmerging also removes the child and its weight from its former parent. A confirmed closing or
   reopening invalidates older background reads so they cannot restore the previous status.
+  A confirmed deletion also removes a note nested under a merge target, recalculating the target's
+  weight, including when an offline vote and deletion are replayed after another device merged it.
 
 ## Offline
 

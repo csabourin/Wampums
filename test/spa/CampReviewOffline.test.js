@@ -116,6 +116,22 @@ test('a confirmed replay updates the copy kept on this device, even with the scr
   expect(await getOfflineData()).toEqual([]);
 });
 
+test('a deleted note merged elsewhere disappears from the offline copy after queued votes and deletion replay', async () => {
+  const child = { ...SWIM, id: '33333333-3333-4333-8333-333333333333', text: 'Le jeu de nuit' };
+  const sibling = { ...SWIM, id: '44444444-4444-4444-8444-444444444444', text: 'Le canot', weight: 2 };
+  const childUrl = `http://localhost/api/v1/camp-reviews/camps/12/notes/${child.id}`;
+  await storeCampReviewSnapshot(12, { camp: CAMP, notes: [{ ...SWIM, weight: 3, merged: [sibling] }, child] });
+  await queue(`${childUrl}/votes/${VOTE_ID}`, 'PUT', {});
+  await queue(childUrl, 'DELETE');
+  const merged = { ...SWIM, weight: 5, merged: [{ ...child, weight: 2, votes: [{ id: VOTE_ID }] }, sibling] };
+  global.fetch
+    .mockResolvedValueOnce(jsonResponse({ success: true, data: { note: merged } }))
+    .mockResolvedValueOnce(jsonResponse({ success: true, data: { deleted: true } }));
+  expect((await manager.replayPendingMutations()).replayed).toBe(2);
+  expect((await getCampReviewSnapshot(12)).data.notes).toEqual([{ ...SWIM, weight: 3, merged: [sibling] }]);
+  expect(await getOfflineData()).toEqual([]);
+});
+
 test('a refused change is dropped and announced; the copy, which never held it, stays', async () => {
   await storeCampReviewSnapshot(12, { camp: CAMP, notes: [SWIM] });
   await queue(`${NOTE_URL}/votes/${VOTE_ID}`, 'PUT', {});

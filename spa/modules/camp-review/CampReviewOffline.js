@@ -120,7 +120,8 @@ export function applyAnswer(previous, { method, noteId, voteId, unmerge = false 
     // detaching them is a change, so each is now one version further.
     return notes.flatMap((note) => (note.id === noteId
       ? (note.merged || []).map((child) => ({ ...child, merged: [], version: (Number(child.version) || 1) + 1 }))
-      : [note]));
+      : [note.merged?.some((child) => child.id === noteId)
+        ? weighed({ ...note, merged: note.merged.filter((child) => child.id !== noteId) }) : note]));
   }
   const note = answer?.note;
   if (!note) {
