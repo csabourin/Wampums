@@ -312,6 +312,80 @@ describe('planning a medication as a parent who does not touch the times', () =>
     screen.destroy();
   });
 
+  test('the first and last day of the treatment are sent with the plan', async () => {
+    const { screen, form } = await openPlanning();
+    api.saveMedicationRequirement.mockResolvedValue({ success: true, data: { id: 12 } });
+    const preset = document.getElementById('frequencyPreset');
+    preset.value = 'prn';
+    preset.dispatchEvent(new Event('change', { bubbles: true }));
+    form.elements.start_date.value = '2026-12-01';
+    form.elements.end_date.value = '2026-12-03';
+
+    submit(form);
+    await flush();
+
+    expect(api.saveMedicationRequirement).toHaveBeenCalledWith(expect.objectContaining({
+      start_date: '2026-12-01',
+      end_date: '2026-12-03',
+    }));
+    screen.destroy();
+  });
+
+  test('a plan without dates is sent without dates', async () => {
+    const { screen, form } = await openPlanning();
+    api.saveMedicationRequirement.mockResolvedValue({ success: true, data: { id: 12 } });
+    const preset = document.getElementById('frequencyPreset');
+    preset.value = 'prn';
+    preset.dispatchEvent(new Event('change', { bubbles: true }));
+
+    submit(form);
+    await flush();
+
+    expect(api.saveMedicationRequirement).toHaveBeenCalledWith(expect.objectContaining({
+      start_date: null,
+      end_date: null,
+    }));
+    screen.destroy();
+  });
+
+  test('a treatment that ends before it starts is not sent, and the end date says why', async () => {
+    const { screen, form } = await openPlanning();
+    const preset = document.getElementById('frequencyPreset');
+    preset.value = 'prn';
+    preset.dispatchEvent(new Event('change', { bubbles: true }));
+    form.elements.start_date.value = '2026-12-03';
+    form.elements.end_date.value = '2026-12-01';
+
+    submit(form);
+    await flush();
+
+    expect(api.saveMedicationRequirement).not.toHaveBeenCalled();
+    const end = form.elements.end_date;
+    expect(end.getAttribute('aria-invalid')).toBe('true');
+    expect(end.getAttribute('aria-describedby')).toBe('medicationEndDateError');
+    expect(document.getElementById('medicationEndDateError').textContent).toBe('medication_end_before_start');
+    expect(document.activeElement).toBe(end);
+    expect(await violations()).toEqual([]);
+
+    end.value = '2026-12-04';
+    end.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.getElementById('medicationEndDateError').hidden).toBe(true);
+    expect(end.hasAttribute('aria-invalid')).toBe(false);
+    screen.destroy();
+  });
+
+  test('the planned medications show the treatment dates, formatted for the page', async () => {
+    loadAll();
+    api.getMedicationRequirements.mockResolvedValue({ success: true, data: { requirements: [{
+      ...REQUIREMENT, start_date: '2026-12-01T05:00:00.000Z', end_date: '2026-12-03',
+    }] } });
+    const screen = new MedicationManagement(makeApp(), { view: 'planning', participantId: 5 });
+    await screen.init();
+
+    expect(page().textContent).toContain('2026-12-01 → 2026-12-03');
+    screen.destroy();
+  });
+
   test('the planned medications show the dose with its unit and the times it is given', async () => {
     loadAll();
     api.getMedicationRequirements.mockResolvedValue({ success: true, data: { requirements: [{

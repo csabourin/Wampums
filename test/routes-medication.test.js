@@ -322,6 +322,57 @@ describe('POST /api/v1/medication/requirements', () => {
     expect(queries.some((query) => query.includes('INSERT INTO medication_requirements'))).toBe(false);
   });
 
+  test.each([
+    ['an impossible day', { start_date: '2026-02-30' }, 'medication_date_invalid'],
+    ['something that is not a date', { end_date: 'demain' }, 'medication_date_invalid'],
+    ['an end before the start', { start_date: '2026-12-03', end_date: '2026-12-01' }, 'medication_end_before_start'],
+  ])('a treatment with %s is refused', async (_label, dates, key) => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asUnitAdmin(__mClient, __mPool);
+
+    const res = await request(app)
+      .post('/api/v1/medication/requirements')
+      .set('Authorization', `Bearer ${generateToken({ permissions: ['medication.manage'] })}`)
+      .send({ medication_name: 'Advil', frequency_preset_type: 'prn', participant_ids: [50], ...dates });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe(key);
+    expect(queries.some((query) => query.includes('INSERT INTO medication_requirements'))).toBe(false);
+  });
+
+  test('a treatment from December 1 to 3 is stored with exactly those dates', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const params = [];
+    __mPool.connect.mockResolvedValue(__mClient);
+    mockQueryImplementation(__mClient, __mPool, (query, queryParams) => {
+      if (query.includes('INSERT INTO medication_requirements')) {
+        params.push(queryParams);
+        return Promise.resolve({ rows: [{ id: 100, medication_name: 'Advil' }] });
+      }
+      if (query === 'BEGIN' || query === 'COMMIT' || query.includes('INSERT INTO participant_medications')) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }] });
+      }
+      if (query.includes('JOIN roles r')) {
+        return Promise.resolve({ rows: [{ role_name: 'district', data_scope: 'organization' }] });
+      }
+      if (query.includes('FROM user_organizations')) {
+        return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .post('/api/v1/medication/requirements')
+      .set('Authorization', `Bearer ${generateToken({ permissions: ['medication.manage'] })}`)
+      .send({ medication_name: 'Advil', frequency_preset_type: 'prn', participant_ids: [50], start_date: '2026-12-01', end_date: '2026-12-03' });
+
+    expect(res.status).toBe(201);
+    expect(params[0]).toEqual(expect.arrayContaining(['2026-12-01', '2026-12-03']));
+  });
+
   test.each(['time_of_day', 'meal'])('a %s schedule without any time is refused', async (preset) => {
     const { __mClient, __mPool } = require('pg');
     const queries = asUnitAdmin(__mClient, __mPool);

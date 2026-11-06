@@ -99,6 +99,25 @@ function requirementScheduleProblem(body, doseAmount) {
       && (!Array.isArray(body.frequency_times) || body.frequency_times.length === 0)) {
     return 'medication_frequency_times_required';
   }
+  return requirementDateProblem(body);
+}
+
+/**
+ * What is wrong with a requirement's treatment dates, as a translation key.
+ * Both dates are optional; one given must be a real calendar day, and the
+ * treatment cannot end before it starts.
+ * @param {Object} body - Request body
+ * @returns {string|null} Error key, or null when the dates can be stored
+ */
+function requirementDateProblem(body) {
+  const start = body.start_date || null;
+  const end = body.end_date || null;
+  if ((start !== null && !isCalendarDate(start)) || (end !== null && !isCalendarDate(end))) {
+    return 'medication_date_invalid';
+  }
+  if (start !== null && end !== null && end < start) {
+    return 'medication_end_before_start';
+  }
   return null;
 }
 

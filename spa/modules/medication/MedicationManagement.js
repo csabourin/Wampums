@@ -49,6 +49,8 @@ const MEDICATION_NAME_MAX_LENGTH = 200;
 const HTTP_CONFLICT = 409;
 /** Presets whose doses are given at times the person picks; at least one is needed. */
 const TIMED_FREQUENCY_PRESETS = Object.freeze(['time_of_day', 'meal']);
+/** How the planned medications list shows a treatment's first and last day. */
+const REQUIREMENT_DATE_FORMAT = Object.freeze({ year: 'numeric', month: 'short', day: 'numeric' });
 
 export class MedicationManagement {
   constructor(app, options = {}) {
@@ -1219,6 +1221,7 @@ export class MedicationManagement {
             <span>${escapeHTML(translate('medication_end_date_label'))}</span>
             <input type="date" name="end_date" />
             <p class="help-text">${escapeHTML(translate('medication_end_date_hint'))}</p>
+            <p class="error-text" id="medicationEndDateError" role="alert" hidden></p>
           </label>
           ${participantSelectorHtml}
           <button class="button button--primary" type="submit">${escapeHTML(translate('medication_save_requirement'))}</button>
@@ -1916,6 +1919,18 @@ export class MedicationManagement {
     }
   }
 
+  /**
+   * A treatment date in the page's language, or a dash when there is none.
+   * @param {string|null} value - Date (YYYY-MM-DD or ISO timestamp)
+   * @returns {string} Localized date
+   */
+  formatRequirementDate(value) {
+    if (!value) {
+      return '—';
+    }
+    return formatDate(String(value).slice(0, ISO_DATE_LENGTH), this.app.lang, REQUIREMENT_DATE_FORMAT) || String(value);
+  }
+
   renderRequirementTable() {
     if (!this.requirements.length) {
       return `<p>${escapeHTML(translate('medication_requirements_empty'))}</p>`;
@@ -1926,7 +1941,7 @@ export class MedicationManagement {
       const participantName = assigned ? this.getParticipantName(assigned.participant_id) : translate('unknown');
       const nameLabel = `${req.medication_name}${req.isOptimistic ? ` (${translate('medication_pending_sync')})` : ''}`;
       const dateRange = req.start_date || req.end_date
-        ? `${req.start_date || '—'} → ${req.end_date || '—'}`
+        ? `${this.formatRequirementDate(req.start_date)} → ${this.formatRequirementDate(req.end_date)}`
         : '-';
       return `
         <tr>
@@ -2237,7 +2252,8 @@ export class MedicationManagement {
 
   /**
    * Check, before sending, what would leave the team guessing: a timed schedule
-   * without any time, or a dose quantity without its unit. Each problem is shown
+   * without any time, a dose quantity without its unit, or a treatment that ends
+   * before it starts. Each problem is shown
    * under its field, tied to it, and the first field with one takes the focus.
    * @param {HTMLFormElement} form - Requirement form
    * @param {FormData} formData - Its values
@@ -2252,6 +2268,10 @@ export class MedicationManagement {
     const missingUnit = Boolean(formData.get('default_dose_amount'))
       && !formData.get('default_dose_unit')?.trim();
 
+    const startDate = formData.get('start_date') || '';
+    const endDate = formData.get('end_date') || '';
+    const endBeforeStart = Boolean(startDate && endDate && endDate < startDate);
+
     const timeMessage = form.querySelector('#medicationFrequencyError');
     const unitMessage = form.querySelector('#medicationDoseUnitError');
     const timeFields = [...form.querySelectorAll('#frequencyPresetFields input')];
@@ -2265,12 +2285,18 @@ export class MedicationManagement {
       this.setFieldProblem(unitField ? [unitField] : [], unitMessage,
         missingUnit ? translate('medication_dose_unit_required') : '');
     }
+    if (!endBeforeStart || !clearOnly) {
+      const endField = form.elements.end_date;
+      this.setFieldProblem(endField ? [endField] : [], form.querySelector('#medicationEndDateError'),
+        endBeforeStart ? translate('medication_end_before_start') : '');
+    }
+    const hasProblem = missingTimes || missingUnit || endBeforeStart;
     if (clearOnly) {
-      return missingTimes || missingUnit;
+      return hasProblem;
     }
 
     form.querySelector('[aria-invalid="true"]')?.focus();
-    if ((missingTimes || missingUnit) && !form.dataset.problemListener) {
+    if (hasProblem && !form.dataset.problemListener) {
       // A message goes away as soon as its field is fixed; none appears while typing.
       form.dataset.problemListener = 'true';
       const clear = () => {
@@ -2280,7 +2306,7 @@ export class MedicationManagement {
       form.addEventListener('input', clear);
       form.addEventListener('change', clear);
     }
-    return missingTimes || missingUnit;
+    return hasProblem;
   }
 
   /**
@@ -2334,6 +2360,8 @@ export class MedicationManagement {
       default_dose_amount: formData.get('default_dose_amount') ? Number(formData.get('default_dose_amount')) : null,
       default_dose_unit: formData.get('default_dose_unit')?.trim() || null,
       general_notes: formData.get('general_notes')?.trim() || null,
+      start_date: formData.get('start_date') || null,
+      end_date: formData.get('end_date') || null,
       participant_ids: [participantId]
     };
 

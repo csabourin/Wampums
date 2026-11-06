@@ -1540,6 +1540,8 @@
   "medication_start_date_hint": "Quand ce médicament devrait commencer (optionnel)",
   "medication_end_date_label": "Date de fin",
   "medication_end_date_hint": "Quand ce médicament devrait se terminer (optionnel)",
+  "medication_end_before_start": "Le traitement ne peut pas se terminer avant de commencer.",
+  "medication_date_invalid": "Entrez une vraie date pour le traitement.",
   "medication_save_requirement": "Enregistrer",
   "medication_schedule_activity": "Activité ou contexte",
   "medication_schedule_button": "Planifier la distribution",
