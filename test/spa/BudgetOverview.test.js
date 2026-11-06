@@ -39,6 +39,7 @@ jest.mock('../../spa/api/api-endpoints.js', () => new Proxy({}, {
   get: () => jest.fn().mockResolvedValue({ data: [] }),
 }));
 
+import axe from 'axe-core';
 import { Budgets } from '../../spa/modules/finance/Budgets.js';
 
 /**
@@ -92,6 +93,60 @@ describe('overview tab', () => {
     expect(doc.querySelectorAll('thead th')).toHaveLength(4);
     expect(doc.querySelector('tfoot')).not.toBeNull();
     expect(doc.querySelector('.empty-row')).not.toBeNull();
+  });
+
+  test('an empty fiscal year says where to start, in order, with a button per step', () => {
+    const budgets = createBudgets();
+    budgets.summaryReport = { categories: [], totals: {} };
+
+    const doc = parse(budgets.renderOverview());
+
+    const start = doc.querySelector('.budget-start');
+    expect(start).not.toBeNull();
+    expect(start.getAttribute('aria-labelledby')).toBe('budget-start-title');
+    expect([...start.querySelectorAll('ol > li')].map((li) => li.querySelector('p').textContent))
+      .toEqual(['budget_start_step_categories', 'budget_start_step_items', 'budget_start_step_expenses']);
+    expect([...start.querySelectorAll('button[data-open-tab]')].map((btn) => btn.dataset.openTab))
+      .toEqual(['categories', 'items', 'expenses']);
+  });
+
+  test('a budget with categories, or one that failed to load, shows no first steps', () => {
+    const budgets = createBudgets();
+    budgets.summaryReport = {
+      categories: [{ category_name: 'Camps', total_revenue: 1, total_expense: 0, net_amount: 1 }],
+      totals: {},
+    };
+    expect(parse(budgets.renderOverview()).querySelector('.budget-start')).toBeNull();
+
+    budgets.summaryReport = null;
+    expect(parse(budgets.renderOverview()).querySelector('.budget-start')).toBeNull();
+  });
+
+  test('a first-step button opens its tab and puts focus on it', async () => {
+    document.body.innerHTML = '<main id="app"></main>';
+    const budgets = createBudgets();
+    budgets.summaryReport = { categories: [], totals: {} };
+    budgets.updateURL = jest.fn();
+    await budgets.renderAndBind();
+
+    document.querySelector('.budget-start__open[data-open-tab="categories"]').click();
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+
+    expect(budgets.activeTab).toBe('categories');
+    expect(document.activeElement).toBe(document.querySelector('.tab-btn[data-tab="categories"]'));
+    expect(document.querySelector('.budget-start')).toBeNull();
+  });
+
+  test('the first steps have no WCAG A/AA violations', async () => {
+    const budgets = createBudgets();
+    budgets.summaryReport = { categories: [], totals: {} };
+    document.body.innerHTML = `<main>${budgets.renderGettingStarted()}</main>`;
+
+    const results = await axe.run(document.querySelector('.budget-start'), {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
   });
 
   test('distinguishes a failed load from an empty fiscal year', () => {

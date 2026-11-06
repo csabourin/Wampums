@@ -267,7 +267,7 @@ export class ManageHonors {
     // Render participants without grouping
     const visible = this.honorsData.names.filter((participant) => this.roster.includes(participant.participant_id));
     return visible.length ? visible.map(participant => this.renderParticipantItem(participant)).join('')
-      : `<p role="status">${translate('action_roster_no_participants')}</p>`;
+      : `<p role="status">${escapeHTML(this.roster.emptyMessage())}</p>`;
   }
 
   renderParticipantItem(participant) {

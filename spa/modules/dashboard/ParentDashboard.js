@@ -848,13 +848,13 @@ export class ParentDashboard {
     return `
                         <div class="parent-dashboard__carpool-section" style="margin-top: 1.5rem;">
                                 <a href="#" id="view-carpool-activities" class="dashboard-button dashboard-button--secondary" style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                                                 <rect x="1" y="3" width="15" height="13"></rect>
                                                 <path d="M16 8h2"></path>
                                                 <circle cx="18.5" cy="15.5" r="2.5"></circle>
                                                 <circle cx="5.5" cy="15.5" r="2.5"></circle>
                                         </svg>
-                                        ${translate('carpool_coordination')}
+                                        ${translate('carpool_parent_entry')}
                                 </a>
                         </div>
                 `;

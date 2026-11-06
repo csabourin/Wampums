@@ -91,6 +91,17 @@ export class ActionRoster {
     return Boolean(record && ['present', 'late'].includes(record.status) && record.is_on_site !== false);
   }
 
+  /**
+   * Why nobody is listed, in words that say how to get them back: unsigned
+   * permission slips for the activity, or attendance taken with nobody present.
+   * @returns {string} Plain text
+   */
+  emptyMessage() {
+    return this.activity?.requires_permission
+      ? translate('action_roster_empty_signed')
+      : translate('action_roster_empty_attendance');
+  }
+
   awardContext() { return { date: this.date, activity_id: this.activityId, include_all: this.showAll }; }
 
   render() {

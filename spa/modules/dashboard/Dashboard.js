@@ -447,7 +447,7 @@ export class Dashboard extends BaseModule {
         <h2>${escapeHTML(this.organizationName || '')}</h2>
         ${renderTileGroup('dashboard_finance_section', financeWorkspaceTiles)}
         ${renderTileGroup('main_actions', crossRoleTiles)}
-        <p><a href="/logout" id="logout-link">${translate('logout')}</a></p>
+        <p><a href="/logout" id="logout-link" class="button button--secondary">${translate('logout')}</a></p>
       `;
       setContent(container, content);
       return;
@@ -500,7 +500,7 @@ export class Dashboard extends BaseModule {
       ${this._renderPlan(buckets.plan)}
       ${this._renderTools(buckets.tools)}
       ${this._renderFab()}
-      <p><a href="/logout" id="logout-link">${translate('logout')}</a></p>
+      <p><a href="/logout" id="logout-link" class="button button--secondary">${translate('logout')}</a></p>
     `;
 
     setContent(container, `<div class="dashboard-v2">${content}</div>`);
