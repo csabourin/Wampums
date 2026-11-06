@@ -1561,14 +1561,17 @@ export class Router {
 
   loadNotFoundPage() {
     setContent(document.getElementById('app'), buildNotFoundMarkup({
-      titleKey: 'error_404_not_found'
+      titleKey: 'error_404_not_found',
+      messageKey: 'error_404_not_found_message',
+      homeButton: true
     }));
   }
 
   loadNotAuthorizedPage() {
     setContent(document.getElementById('app'), buildNotFoundMarkup({
       titleKey: 'error_403_not_authorized',
-      messageKey: 'error_403_not_authorized_message'
+      messageKey: 'error_403_not_authorized_message',
+      homeButton: true
     }));
   }
 

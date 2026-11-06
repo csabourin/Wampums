@@ -77,7 +77,6 @@
     "spa/modules/badges/BadgeForm.js": 6,
     "spa/modules/badges/BadgeTracker.js": 6,
     "spa/modules/carpool/CarpoolDashboard.js": 8,
-    "spa/modules/carpool/CarpoolLanding.js": 4,
     "spa/modules/dashboard/Dashboard.js": 18,
     "spa/modules/dashboard/ParentDashboard.js": 3,
     "spa/modules/district/DistrictManagement.js": 4,

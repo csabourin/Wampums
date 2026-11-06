@@ -434,8 +434,11 @@ export class Budgets {
           </tr>
         `;
 
+    const isNewBudget = !summaryUnavailable && categories.length === 0;
+
     return `
       <div class="overview-content">
+        ${isNewBudget ? this.renderGettingStarted() : ''}
         <h2>${translate('category_breakdown')}</h2>
         <div class="table-scroll">
           <table class="data-table budget-table mobile-labeled-table">
@@ -464,6 +467,35 @@ export class Budgets {
           </table>
         </div>
       </div>
+    `;
+  }
+
+  /**
+   * First steps for a fiscal year with nothing in it yet: which tab to open
+   * first, in order, so a new treasurer is not left guessing among six tabs.
+   * @returns {string} HTML fragment
+   */
+  renderGettingStarted() {
+    const steps = [
+      { tab: 'categories', text: translate('budget_start_step_categories'), button: translate('budget_start_open_categories') },
+      { tab: 'items', text: translate('budget_start_step_items'), button: translate('budget_start_open_items') },
+      { tab: 'expenses', text: translate('budget_start_step_expenses'), button: translate('budget_start_open_expenses') },
+    ];
+    return `
+      <section class="budget-start" aria-labelledby="budget-start-title">
+        <h2 id="budget-start-title">${translate('budget_start_title')}</h2>
+        <p>${translate('budget_start_intro')}</p>
+        <ol class="budget-start__steps">
+          ${steps.map((step) => `
+            <li>
+              <p>${step.text}</p>
+              <button type="button" class="button button--secondary button--small budget-start__open" data-open-tab="${step.tab}">
+                ${step.button}
+              </button>
+            </li>
+          `).join('')}
+        </ol>
+      </section>
     `;
   }
 
@@ -1200,6 +1232,22 @@ export class Budgets {
           await this.renderAndBind();
         } catch (error) {
           debugError('Error switching budget tabs', error);
+          this.app.showMessage(apiErrorMessage(error, 'error_loading_data'), 'error');
+        }
+      }, { signal });
+    });
+
+    // "Getting started" steps open their tab, then put focus on it so the
+    // person (and a screen reader) knows where they landed.
+    document.querySelectorAll('.budget-start__open').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        try {
+          this.activeTab = e.currentTarget.dataset.openTab;
+          this.updateURL();
+          await this.renderAndBind();
+          document.querySelector(`.tab-btn[data-tab="${this.activeTab}"]`)?.focus();
+        } catch (error) {
+          debugError('Error opening budget tab from the first steps', error);
           this.app.showMessage(apiErrorMessage(error, 'error_loading_data'), 'error');
         }
       }, { signal });

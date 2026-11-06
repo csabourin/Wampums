@@ -329,8 +329,101 @@ describe('US-ATT-002 — Mark one kid present instantly', () => {
 
     await page.updateStatus('present');
 
-    expect(appStub.showMessage).toHaveBeenCalledWith(tr('no_selection'), 'error');
+    expect(appStub.showMessage).toHaveBeenCalledWith(tr('attendance_selection_none'), 'error');
     expect(ajax.updateAttendance).not.toHaveBeenCalled();
+  });
+});
+
+describe('US-ATT-003 — I can see who the next status goes to, and reach every name by keyboard', () => {
+  const AXE_OPTIONS = {
+    runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+    rules: { 'color-contrast': { enabled: false } },
+  };
+  const selectionLine = () => document.getElementById('attendance-selection');
+
+  it('every name and every group is a button that says whether it is selected', async () => {
+    seedStandardData();
+    await initPage();
+
+    const rows = document.querySelectorAll('#attendance-list .participant-row');
+    expect(rows.length).toBe(4);
+    rows.forEach((row) => {
+      expect(row.tagName).toBe('BUTTON');
+      expect(row.getAttribute('type')).toBe('button');
+      expect(row.getAttribute('aria-pressed')).toBe('false');
+    });
+    const headers = document.querySelectorAll('#attendance-list .group-header');
+    headers.forEach((header) => {
+      expect(header.tagName).toBe('BUTTON');
+      expect(header.closest('h3')).not.toBeNull();
+    });
+  });
+
+  it('tells me what to do before anything is selected', async () => {
+    seedStandardData();
+    await initPage();
+
+    expect(selectionLine().getAttribute('role')).toBe('status');
+    expect(selectionLine().textContent).toBe(tr('attendance_selection_none'));
+  });
+
+  it('names the child I tapped, then the whole group when I tap a group', async () => {
+    seedStandardData();
+    await initPage();
+
+    const cam = document.querySelector('.participant-row[data-participant-id="3"]');
+    cam.click();
+    expect(cam.getAttribute('aria-pressed')).toBe('true');
+    expect(selectionLine().textContent).toBe(tr('attendance_selection_individual').replace('{{name}}', 'Cam Mid'));
+
+    const wolves = document.querySelector('.group-header[data-group-id="1"]');
+    wolves.click();
+    expect(cam.getAttribute('aria-pressed')).toBe('false');
+    expect(wolves.getAttribute('aria-pressed')).toBe('true');
+    expect(selectionLine().textContent).toBe(tr('attendance_selection_group').replace('{{name}}', 'Wolves'));
+
+    wolves.click();
+    expect(wolves.getAttribute('aria-pressed')).toBe('false');
+    expect(selectionLine().textContent).toBe(tr('attendance_selection_none'));
+  });
+
+  it('keeps the selection when a search redraws the list', async () => {
+    seedStandardData();
+    const { page } = await initPage();
+
+    document.querySelector('.participant-row[data-participant-id="3"]').click();
+    page.searchTerm = 'cam';
+    const list = document.getElementById('attendance-list');
+    list.replaceChildren(page.renderGroupsAndNames());
+
+    const cam = document.querySelector('.participant-row[data-participant-id="3"]');
+    expect(cam.getAttribute('aria-pressed')).toBe('true');
+    await page.updateStatus('present');
+    await flushPromises();
+    expect(ajax.updateAttendance).toHaveBeenCalledWith('3', 'present', TODAY, null);
+  });
+
+  it('shows a hostile name as text and has no WCAG A/AA violations', async () => {
+    ajax.getAttendanceDates.mockResolvedValue({ success: true, data: [TODAY] });
+    ajax.getParticipants.mockResolvedValue({
+      success: true,
+      data: buildParticipants([
+        { id: 9, first_name: '<img src=x onerror=alert(1)>', last_name: 'Doe', group_id: 1, group_name: 'Wolves' },
+      ]),
+    });
+    ajax.getAttendance.mockResolvedValue({ success: true, data: [] });
+    ajax.getGuestsByDate.mockResolvedValue({ success: true, data: [] });
+    getActivities.mockResolvedValue([]);
+    await initPage();
+
+    const row = document.querySelector('.participant-row[data-participant-id="9"]');
+    expect(row.querySelector('img')).toBeNull();
+    row.click();
+    expect(selectionLine().textContent).toContain('<img src=x onerror=alert(1)>');
+    expect(document.querySelector('.status-buttons img')).toBeNull();
+
+    const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
   });
 });
 

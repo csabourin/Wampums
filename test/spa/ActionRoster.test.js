@@ -182,3 +182,20 @@ test('a prepared roster survives a network failure while the browser still repor
   expect(roster.activityId).toBe(CAMP.id);
   expect(roster.includes(3)).toBe(false);
 });
+
+test('an empty list says why: nobody present yet, or no slip signed (#1374)', async () => {
+  const data = snapshot();
+  data.activities = [{ ...CAMP, requires_permission: false }];
+  data.attendance = [{ participant_id: 1, date: DATE, status: 'absent' }];
+  getActionRoster.mockResolvedValue({ data });
+  const roster = new ActionRoster('points');
+  await roster.load(DATE);
+  expect([1, 2, 3].some((id) => roster.includes(id))).toBe(false);
+  expect(roster.emptyMessage()).toMatch(/Nobody is marked present/);
+  expect(roster.emptyMessage()).toContain('Show all participants');
+
+  getActionRoster.mockResolvedValue({ data: snapshot() });
+  const signedRoster = new ActionRoster('points');
+  await signedRoster.load(DATE);
+  expect(signedRoster.emptyMessage()).toMatch(/signed permission slip/);
+});
