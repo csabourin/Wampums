@@ -401,7 +401,7 @@ export class VolunteerSpace {
         : `<p>${escapeHTML(translate('member_profile_contacts_empty'))}</p>`);
     } catch (_err) {
       if (this.stale()) { return; }
-      setContent(document.getElementById('camp-peer-contacts'), `<p role="status">${escapeHTML(translate('member_profile_contacts_unavailable'))}</p>
+      setContent(document.getElementById('camp-peer-contacts'), `<p role="alert">${escapeHTML(translate('member_profile_contacts_unavailable'))}</p>
         <button class="button button--secondary" type="button" id="camp-contacts-retry">${escapeHTML(translate('retry'))}</button>`);
       document.getElementById('camp-contacts-retry')?.addEventListener('click', () => this.loadContacts());
     }

@@ -111,12 +111,12 @@ async function saveOwnForm(pool, organizationId, userId, input, health = false) 
   } finally { db.release(); }
 }
 
-/** Refuse a known under-age account at signup or assignment; unknown ages stay explicitly unverified. */
+/** Refuse a known under-age account after applying an optional date change. Omission keeps the stored date; null clears it. */
 async function assertVolunteerAge(db, userId, dateOfBirth) {
   await lockProfile(db, userId);
-  const row = (await db.query(`SELECT CASE WHEN $2::date IS NULL THEN u.date_of_birth ELSE $2::date END IS NOT NULL
-      AND age(CURRENT_DATE, COALESCE($2::date, u.date_of_birth)) < make_interval(years => $3::int) AS too_young
-    FROM users u WHERE u.id = $1`, [userId, dateOfBirth || null, RULES.minimum_volunteer_age])).rows[0];
+  const row = (await db.query(`SELECT age(CURRENT_DATE, CASE WHEN $2::boolean THEN $3::date ELSE u.date_of_birth END)
+      < make_interval(years => $4::int) AS too_young
+    FROM users u WHERE u.id = $1`, [userId, dateOfBirth !== undefined, dateOfBirth ?? null, RULES.minimum_volunteer_age])).rows[0];
   if (row?.too_young) { throw new MemberProfileError('member_profile_volunteer_too_young'); }
 }
 

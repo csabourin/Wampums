@@ -262,7 +262,9 @@ test('unavailable contacts are explained without replacing the readable camp sch
   getCampContacts.mockRejectedValueOnce(new Error('offline'));
   await open(3);
   expect(document.querySelector('#volunteer-space-schedule')).not.toBeNull();
-  expect(document.querySelector('#camp-peer-contacts').textContent).toContain('member_profile_contacts_unavailable');
+  expect(document.querySelector('#camp-peer-contacts [role="alert"]').textContent).toContain('member_profile_contacts_unavailable');
+  const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
+  expect(results.violations).toEqual([]);
   document.getElementById('camp-contacts-retry').click(); await flush();
   expect(document.querySelector('#camp-peer-contacts').textContent).toContain('member_profile_contacts_empty');
 });
