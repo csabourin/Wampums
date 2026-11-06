@@ -1,5 +1,12 @@
 # Points hors ligne en camp
 
+La sélection permet de combiner plusieurs participants avant une attribution.
+Après un ajout ou un retrait de points, les destinataires restent sélectionnés
+pour permettre une correction immédiate. Le prochain clic sur un participant ou
+un groupe commence une nouvelle sélection, même si l'envoi attend encore le réseau.
+Un refus d'envoi conserve la sélection pour réessayer. Le focus et le survol
+utilisent un contour ; seul l'état sélectionné remplit la ligne de couleur.
+
 Les ajouts et retraits de points sont conservés dans la file IndexedDB de la SPA,
 associés au compte et à l’unité. Chaque lot porte un `Idempotency-Key` dès le premier
 envoi : `point_mutation_receipts` et les points sont validés dans la même transaction.

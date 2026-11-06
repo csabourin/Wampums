@@ -4119,9 +4119,11 @@ input.badge-tracker__search-input {
   background: var(--color-secondary);
 }
 
-.manage-points-page .list-item:hover {
-  color: var(--color-selected-text);
-  background: var(--color-primary-dark);
+.manage-points-page .list-item:hover,
+.manage-points-page .list-item:focus,
+.manage-points-page .group-header:focus {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .manage-points-page .list-item.selected {
@@ -4129,13 +4131,13 @@ input.badge-tracker__search-input {
   background: var(--color-selected);
 }
 
-.manage-points-page .list-item:is(.selected, :hover) .participant-points {
+.manage-points-page .list-item.selected .participant-points {
   color: inherit;
 }
 
 .manage-points-page .list-item:focus-visible,
 .manage-points-page .group-header:focus-visible {
-  outline: 3px solid var(--color-primary-dark);
+  outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 

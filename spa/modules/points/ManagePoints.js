@@ -38,6 +38,7 @@ export class ManagePoints {
     // Selection is data rather than DOM references so it survives sorting and
     // list re-renders. Groups remain exclusive; individuals can be combined.
     this.selected = null; // { type: 'group', id } | { type: 'individual', ids: Set }
+    this.awardedSelection = null;
     this.currentSort = { key: 'group', order: 'asc' };
     this.currentFilter = '';
     this.eventController = null;
@@ -418,6 +419,13 @@ export class ManagePoints {
     const type = item.dataset.type;
     const id = type === 'group' ? item.dataset.groupId : item.dataset.participantId;
 
+    // Keep the last recipients available for a correction or another award,
+    // but start a fresh set as soon as the user chooses recipients again.
+    if (this.selected === this.awardedSelection) {
+      this.selected = null;
+    }
+    this.awardedSelection = null;
+
     if (type === 'group') {
       if (this.selected?.type === 'group' && this.selected.id === id) {
         this.selected = null;
@@ -628,6 +636,8 @@ export class ManagePoints {
     this.pendingActionKeys.add(actionKey);
 
     try {
+      const selection = this.selected;
+      this.awardedSelection = selection;
       this.awardCount += 1;
       this.store.applyOptimistic(txn);
       this.showPointChangeAnimation(points, announcementTarget);
@@ -639,6 +649,7 @@ export class ManagePoints {
       this.updateQueue.push({
         payloads,
         txn,
+        selection,
         resolve: resolveCompletion,
       });
 
@@ -720,6 +731,9 @@ export class ManagePoints {
       // The shared API client owns queueing and preserves the request identity.
       // A failure here means local persistence or the server refused the award.
       this.store.rollbackBatch(txns);
+      if (batch.some((entry) => entry.selection === this.awardedSelection)) {
+        this.awardedSelection = null;
+      }
       this.app.showMessage(apiErrorMessage(error, 'error_updating_points'), 'error');
     } finally {
       this.batchInFlight = false;

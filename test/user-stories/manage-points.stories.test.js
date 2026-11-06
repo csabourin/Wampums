@@ -468,6 +468,89 @@ describe('US-PTS-019 — My selection survives re-renders', () => {
 });
 
 describe('Modern points action bar', () => {
+  it.each([1, -1, 4])('starts a fresh multi-selection after applying %i points', async (points) => {
+    seedStandardData();
+    const { page } = await initPage();
+    selectParticipant(1);
+    selectParticipant(2);
+    await page.applyPointAction(points);
+
+    expect(document.querySelectorAll('.list-item.selected')).toHaveLength(2);
+    page.renderList();
+    selectParticipant(3);
+    expect([...page.selected.ids]).toEqual(['3']);
+    expect(document.querySelectorAll('.list-item[aria-pressed="true"]')).toHaveLength(1);
+    expect(document.querySelector('.list-item[data-participant-id="1"]').getAttribute('aria-pressed')).toBe('false');
+    expect(document.querySelector('.list-item[data-participant-id="2"]').getAttribute('aria-pressed')).toBe('false');
+    expect(document.getElementById('points-selection-summary').textContent)
+      .toBe(tr('points_selection_individual', { name: 'Zoe Free' }));
+
+    selectParticipant(1);
+    expect([...page.selected.ids]).toEqual(['3', '1']);
+    await page.applyPointAction(1);
+    expect(ajax.updatePoints.mock.calls[1][0].map(({ id }) => id)).toEqual(['3', '1']);
+  });
+
+  it('starts a fresh selection while the previous award is still being sent', async () => {
+    seedStandardData();
+    const pending = deferred();
+    ajax.updatePoints.mockReturnValueOnce(pending.promise);
+    const { page } = await initPage();
+    selectParticipant(1);
+    const completion = page.applyPointAction(1);
+    selectParticipant(2);
+    selectParticipant(3);
+    expect([...page.selected.ids]).toEqual(['2', '3']);
+
+    pending.resolve({ success: true, data: { updates: [] } });
+    await completion;
+    expect([...page.selected.ids]).toEqual(['2', '3']);
+  });
+
+  it('starts a fresh selection after an award is saved offline', async () => {
+    seedStandardData();
+    ajax.updatePoints.mockResolvedValue({ success: true, queued: true });
+    const { page } = await initPage();
+    selectParticipant(1);
+    await page.applyPointAction(1);
+    selectParticipant(2);
+    expect([...page.selected.ids]).toEqual(['2']);
+  });
+
+  it('keeps recipients available to adjust the selection after a rejected award', async () => {
+    seedStandardData();
+    ajax.updatePoints.mockRejectedValue(new Error('Award rejected'));
+    const { page } = await initPage();
+    selectParticipant(1);
+    await page.applyPointAction(1);
+    selectParticipant(2);
+    expect([...page.selected.ids]).toEqual(['1', '2']);
+    expect(participantTotalText(1)).toBe('10');
+  });
+
+  it('can choose an awarded participant again as the first recipient of a new selection', async () => {
+    seedStandardData();
+    const { page } = await initPage();
+    selectParticipant(1);
+    selectParticipant(2);
+    await page.applyPointAction(1);
+    selectParticipant(1);
+    expect([...page.selected.ids]).toEqual(['1']);
+  });
+
+  it('deselects a participant on a second tap while keeping keyboard focus', async () => {
+    seedStandardData();
+    const { page } = await initPage();
+    const participant = document.querySelector('.list-item[data-participant-id="1"]');
+    participant.focus();
+    participant.click();
+    participant.click();
+    expect(page.selected).toBeNull();
+    expect(participant.classList.contains('selected')).toBe(false);
+    expect(participant.getAttribute('aria-pressed')).toBe('false');
+    expect(document.activeElement).toBe(participant);
+  });
+
   it('applies the primary reward and correction immediately with one click each', async () => {
     seedStandardData();
     ajax.updatePoints
