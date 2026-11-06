@@ -4030,7 +4030,7 @@
   "permission_slip_answered_kept": "{count} participant(s) already answered this slip; their answer was kept. Archive a slip to issue a new one.",
   "med_reception_fiche_declared": "Declared on the health form:",
   "med_reception_plan_to_receive": "Not planned yet. Plan this medication to record its reception.",
-  "medication_prefilled_from_fiche": "Prefilled from the health form. Check the dose before saving.",
+  "medication_prefilled_from_fiche": "Prefilled from the health form: the name here, what followed it in the instructions. Check both before saving.",
   "medication_declared_list_label": "Declared on the health form (choose one to plan it):",
   "medication_declared_planned": "planned",
   "activity_invitees_legend": "Who is invited?",
@@ -5840,5 +5840,7 @@
   "groups_short_one": "group",
   "mark_remaining_present_one": "Mark the 1 unmarked youth as present",
   "permission_slip_answer_in_tasks": "Answer in “To do for your family”",
-  "permission_slip_activity_date": "Activity date"
+  "permission_slip_activity_date": "Activity date",
+  "medication_dosage_placeholder": "e.g. with breakfast",
+  "medication_planning_description_family": "Tell the leaders which medication to give your child, how much and when."
 }

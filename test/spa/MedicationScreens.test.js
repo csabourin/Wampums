@@ -41,7 +41,7 @@ jest.mock('../../spa/indexedDB.js', () => ({
   clearMedicationCaches: jest.fn(),
 }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
-  canManageMedication: () => true,
+  canManageMedication: jest.fn(() => true),
   canViewMedication: () => true,
 }));
 jest.mock('../../spa/utils/OfflineCacheKeys.js', () => ({ buildApiCacheKey: jest.fn((key) => key) }));
@@ -70,6 +70,7 @@ jest.mock('../../spa/api/api-endpoints.js', () => ({
 }));
 
 import * as api from '../../spa/api/api-endpoints.js';
+import { canManageMedication } from '../../spa/utils/PermissionUtils.js';
 import { MedicationManagement } from '../../spa/modules/medication/MedicationManagement.js';
 import { MedicationReception } from '../../spa/modules/medication/MedicationReception.js';
 
@@ -228,6 +229,18 @@ describe('planning a medication as a parent who does not touch the times', () =>
   }
   const submit = (form) => form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
   const timeFields = () => [...document.querySelectorAll('#frequencyPresetFields input[type="time"]')];
+
+  test('a parent is told what the page is for in their own terms, a leader in the team\'s', async () => {
+    canManageMedication.mockReturnValue(false);
+    let { screen } = await openPlanning();
+    expect(page().querySelector('.subtitle').textContent).toBe('medication_planning_description_family');
+    screen.destroy();
+
+    canManageMedication.mockReturnValue(true);
+    ({ screen } = await openPlanning());
+    expect(page().querySelector('.subtitle').textContent).toBe('medication_planning_description');
+    screen.destroy();
+  });
 
   test('no time of day is chosen for the parent', async () => {
     const { screen } = await openPlanning();

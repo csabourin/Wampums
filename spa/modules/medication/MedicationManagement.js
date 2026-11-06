@@ -11,7 +11,8 @@ import {
   describeMedicationDose,
   describeMedicationFrequency,
   isSameMedication,
-  splitDeclaredMedications
+  splitDeclaredMedications,
+  splitMedicationNameAndDetails
 } from '../../utils/MedicationTextUtils.js';
 import { getGuardiansForParticipant, getLeaders } from '../../api/api-endpoints.js';
 import {
@@ -1091,7 +1092,7 @@ export class MedicationManagement {
       ? translate('medication_dispensing_description')
       : this.view === 'authorizations'
         ? translate('medication_authorizations_description')
-        : translate('medication_planning_description');
+        : translate(canManageMedication() ? 'medication_planning_description' : 'medication_planning_description_family');
 
     // Hide switch link for parents (they should only see planning view)
     // Authorizations belong to one child, so they are only offered once a
@@ -1179,7 +1180,7 @@ export class MedicationManagement {
           </label>
           <label class="field-group">
             <span>${escapeHTML(translate('medication_dosage_label'))}</span>
-            <input type="text" name="dosage_instructions" maxlength="200" placeholder="${escapeHTML(translate('dose'))}" />
+            <input type="text" name="dosage_instructions" maxlength="200" placeholder="${escapeAttribute(translate('medication_dosage_placeholder'))}" />
           </label>
           <label class="field-group">
             <span>${escapeHTML(translate('medication_frequency_label'))}</span>
@@ -2063,10 +2064,16 @@ export class MedicationManagement {
       .filter((req) => plannedIds.has(req.id))
       .map((req) => req.medication_name);
     return splitDeclaredMedications(this.ficheDeclarations.get(participantId))
-      .map((name) => ({
-        name: name.slice(0, MEDICATION_NAME_MAX_LENGTH),
-        planned: plannedNames.some((planned) => isSameMedication(planned, name))
-      }));
+      .map((text) => {
+        const { name, details } = splitMedicationNameAndDetails(text);
+        return {
+          text,
+          name: name.slice(0, MEDICATION_NAME_MAX_LENGTH),
+          details,
+          // A requirement saved before names were separated holds the whole text.
+          planned: plannedNames.some((planned) => isSameMedication(planned, name) || isSameMedication(planned, text))
+        };
+      });
   }
 
   /**
@@ -2084,6 +2091,7 @@ export class MedicationManagement {
     if (canFill) {
       field.value = next ? next.name : '';
       this.lastPrefill = field.value;
+      this.fillDeclaredDetails(form, next ? next.details : '');
     }
     const hint = document.getElementById('medicationPrefillHint');
     if (hint) {
@@ -2096,14 +2104,30 @@ export class MedicationManagement {
         <span>${escapeHTML(translate('medication_declared_list_label'))}</span>
         <div class="declared-medications">
           ${declared.map((med) => `
-            <button type="button" class="pill" data-declared-medication="${escapeHTML(med.name)}"
+            <button type="button" class="pill" data-declared-medication="${escapeAttribute(med.name)}"
+              data-declared-details="${escapeAttribute(med.details)}"
               ${med.planned ? 'disabled' : ''}>
-              ${med.planned ? '✓ ' : ''}${escapeHTML(med.name)}${med.planned ? ` (${escapeHTML(translate('medication_declared_planned'))})` : ''}
+              ${med.planned ? '✓ ' : ''}${escapeHTML(med.text)}${med.planned ? ` (${escapeHTML(translate('medication_declared_planned'))})` : ''}
             </button>
           `).join('')}
         </div>
       `);
     }
+  }
+
+  /**
+   * Put what the parent wrote after a declared medication's name ("10mg le
+   * matin") in the instructions, unless the person typed their own.
+   * @param {HTMLFormElement} form - The requirement form
+   * @param {string} details - Declared details, possibly empty
+   */
+  fillDeclaredDetails(form, details) {
+    const field = form.elements.dosage_instructions;
+    if (!field || (field.value && field.value !== this.lastDetailsPrefill)) {
+      return;
+    }
+    field.value = details;
+    this.lastDetailsPrefill = details;
   }
 
   attachEventListeners() {
@@ -2138,6 +2162,7 @@ export class MedicationManagement {
       }
       requirementForm.elements.medication_name.value = button.dataset.declaredMedication;
       this.lastPrefill = button.dataset.declaredMedication;
+      this.fillDeclaredDetails(requirementForm, button.dataset.declaredDetails || '');
       requirementForm.elements.medication_name.focus();
     });
 

@@ -13,7 +13,8 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugError: jest.fn()
 }));
 jest.mock('../../spa/utils/SecurityUtils.js', () => ({
-  escapeHTML: (value) => String(value ?? '')
+  escapeHTML: (value) => String(value ?? ''),
+  escapeAttribute: (value) => String(value ?? '')
 }));
 jest.mock('../../spa/utils/DateUtils.js', () => ({
   formatDate: (value) => value,
@@ -47,6 +48,7 @@ function buildForm() {
   document.body.innerHTML = `
     <form id="medicationRequirementForm">
       <input name="medication_name" />
+      <input name="dosage_instructions" />
       <textarea name="general_notes"></textarea>
       <p id="medicationPrefillHint" hidden></p>
       <div id="declaredMedications" hidden></div>
@@ -118,4 +120,41 @@ describe('Medication planning prefill', () => {
     expect(document.getElementById('declaredMedications').hidden).toBe(true);
     expect(document.getElementById('medicationPrefillHint').hidden).toBe(true);
   });
+
+  it('names the medication alone and puts what the parent wrote after it in the instructions', () => {
+    planning.ficheDeclarations = new Map([[5, 'Ritalin 10mg le matin avec le dejeuner, pis Advil si mal de tete']]);
+    const form = buildForm();
+
+    planning.applyDeclaredPrefill(form, 5);
+
+    expect(form.elements.medication_name.value).toBe('Ritalin');
+    expect(form.elements.dosage_instructions.value).toBe('10mg le matin avec le dejeuner');
+    // The list keeps the parent's own words, so they recognise what they wrote.
+    expect([...document.querySelectorAll('[data-declared-medication]')].map((button) => button.textContent.trim()))
+      .toEqual(['Ritalin 10mg le matin avec le dejeuner', 'pis Advil si mal de tete']);
+  });
+
+  it('never overwrites instructions the user typed', () => {
+    planning.ficheDeclarations = new Map([[5, 'Ritalin 10mg le matin']]);
+    const form = buildForm();
+    form.elements.dosage_instructions.value = '1 comprimé';
+
+    planning.applyDeclaredPrefill(form, 5);
+
+    expect(form.elements.medication_name.value).toBe('Ritalin');
+    expect(form.elements.dosage_instructions.value).toBe('1 comprimé');
+  });
+
+  it('a medication saved under the whole declared text still counts as planned', () => {
+    planning.ficheDeclarations = new Map([[5, 'Ritalin 10mg le matin']]);
+    planning.requirements = [{ id: 1, medication_name: 'Ritalin 10mg le matin' }];
+    planning.participantMedications = [{ participant_id: 5, medication_requirement_id: 1 }];
+    const form = buildForm();
+
+    planning.applyDeclaredPrefill(form, 5);
+
+    expect(listed()).toEqual([{ name: 'Ritalin', planned: true }]);
+    expect(form.elements.medication_name.value).toBe('');
+  });
 });
+
