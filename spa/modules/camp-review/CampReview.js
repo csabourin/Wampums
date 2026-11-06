@@ -883,14 +883,34 @@ export class CampReview {
       return;
     }
     const candidates = notes.filter((other) => other.id !== note.id && other.category === note.category && !other.pending);
-    openSortDialog({ app: this.app, meetingId: this.meetingId, note, candidates, onChanged: () => this.reload() });
+    const scope = currentCampReviewScope();
+    openSortDialog({ app: this.app, meetingId: this.meetingId, note, candidates,
+      onChanged: (change, answer) => this.reload(change, answer, scope) });
   }
 
   /**
-   * Reload after a change decided online. The quiet load redraws the notes and the summary,
+   * Retain a change decided online before reloading, including when the screen was left.
+   * The quiet load redraws the notes and the summary,
    * and the whole page only when the review was closed or reopened, keeping what was typed.
    */
-  async reload() {
+  async reload(change, answer, scope = currentCampReviewScope()) {
+    if (scope !== currentCampReviewScope()) {
+      return;
+    }
+    this.request += 1;
+    this.reading = null;
+    if (change) {
+      if (!this.destroyed) {
+        this.confirmed = applyAnswer(this.confirmed, change, answer);
+        this.renderNotes();
+        this.renderSuggestions();
+      }
+      await applyCampReviewWrite(this.meetingId, change, answer, scope)
+        .catch((err) => debugError('The camp review kept on this device could not be updated', err));
+    }
+    if (this.destroyed || scope !== currentCampReviewScope()) {
+      return;
+    }
     await this.load({ quiet: true });
   }
 
@@ -911,6 +931,9 @@ export class CampReview {
     try {
       const scope = currentCampReviewScope();
       const response = await setCampReviewStatus(this.meetingId, { status, expected_version: this.review.version });
+      // A read begun before this confirmation must never restore the previous state.
+      this.request += 1;
+      this.reading = null;
       const review = response?.data?.review || { ...this.review, status };
       // The copy on the device follows, so an offline visit reads the review as it now is.
       await storeCampReviewState(this.meetingId, review, scope)

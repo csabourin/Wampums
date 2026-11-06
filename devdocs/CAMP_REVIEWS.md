@@ -42,6 +42,10 @@ year after year ("Last year") comes next (see the issue).
   Writes hold the review's row (`FOR SHARE`), so closing waits for them.
 - These calls are never queued (`queueOffline: false`); the screen offers them only online, on the
   server's own copy. The plan's "Evaluated" step links to the review.
+- Confirmed sorting, merges, unmerges and vote removals update the retained notes and the device's
+  copy before refreshing. Losing the network during that refresh therefore keeps the accepted change.
+  Unmerging also removes the child and its weight from its former parent. A confirmed closing or
+  reopening invalidates older background reads so they cannot restore the previous status.
 
 ## Offline
 

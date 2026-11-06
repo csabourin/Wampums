@@ -101,7 +101,7 @@ function formMarkup(note, candidates, lang) {
  * @param {number} options.meetingId - The planned camp
  * @param {Object} options.note - The note, as the review shows it (with `merged` and `votes`)
  * @param {Object[]} options.candidates - Notes of the same category it may be merged into
- * @param {Function} options.onChanged - Called after any confirmed change, to reload the review
+ * @param {Function} options.onChanged - Retains a confirmed change and its answer, then reloads the review
  * @returns {Object} The modal handle
  */
 export function openSortDialog({ app, meetingId, note, candidates, onChanged }) {
@@ -125,18 +125,18 @@ export function openSortDialog({ app, meetingId, note, candidates, onChanged }) 
     failure.textContent = apiErrorMessage(error, fallback);
     failure.hidden = false;
   };
-  const done = async (message) => {
+  const done = async (message, change, answer) => {
     modal.close();
     app.showMessage(translate(message), 'success');
-    await onChanged();
+    await onChanged(change, answer);
   };
-  const run = async (action, message, fallback) => {
+  const run = async (action, message, fallback, change) => {
     saving = true;
     failure.hidden = true;
     try {
-      await action();
+      const response = await action();
       saving = false;
-      await done(message);
+      await done(message, change, response?.data);
     } catch (error) {
       saving = false;
       fail(error, fallback);
@@ -151,7 +151,7 @@ export function openSortDialog({ app, meetingId, note, candidates, onChanged }) 
       const action = form.querySelector('#camp-review-sort-action').value.trim();
       if (into) {
         await run(() => mergeCampReviewNote(meetingId, note.id, { into, expected_version: note.version }),
-          'camp_review_merged_done', 'camp_review_sort_failed');
+          'camp_review_merged_done', 'camp_review_sort_failed', { method: 'PUT', noteId: note.id });
         return;
       }
       if (outcome === (note.outcome || '') && action === (note.action_text || '')) {
@@ -159,20 +159,22 @@ export function openSortDialog({ app, meetingId, note, candidates, onChanged }) 
         return;
       }
       await run(() => sortCampReviewNote(meetingId, note.id, { outcome: outcome || null, action_text: action || null, expected_version: note.version }),
-        'camp_review_sorted_done', 'camp_review_sort_failed');
+        'camp_review_sorted_done', 'camp_review_sort_failed', { method: 'PATCH', noteId: note.id });
     });
   });
 
   form.addEventListener('click', (event) => {
     const unmerge = event.target.closest('[data-sort-unmerge]');
     if (unmerge) {
-      run(() => unmergeCampReviewNote(meetingId, unmerge.dataset.sortUnmerge), 'camp_review_unmerged_done', 'camp_review_sort_failed');
+      run(() => unmergeCampReviewNote(meetingId, unmerge.dataset.sortUnmerge), 'camp_review_unmerged_done', 'camp_review_sort_failed',
+        { method: 'DELETE', noteId: unmerge.dataset.sortUnmerge, unmerge: true });
       return;
     }
     const vote = event.target.closest('[data-sort-remove-vote]');
     if (vote) {
       run(() => removeCampReviewVoteOnline(meetingId, vote.dataset.sortVoteNote, vote.dataset.sortRemoveVote),
-        'camp_review_vote_removed_done', 'camp_review_sort_failed');
+        'camp_review_vote_removed_done', 'camp_review_sort_failed',
+        { method: 'DELETE', noteId: vote.dataset.sortVoteNote, voteId: vote.dataset.sortRemoveVote });
     }
   });
   return modal;

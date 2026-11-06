@@ -79,6 +79,30 @@ test('an undone +1 and a removed note leave the view at once', () => {
   expect(confirmed[0].votes).toHaveLength(1);
 });
 
+test('a confirmed unmerge keeps both notes and their separate weights on this device', async () => {
+  const child = { ...SWIM, id: 'child', weight: 2, votes: [{ id: VOTE_ID }] };
+  const parent = { ...SWIM, weight: 3, merged: [child] };
+  await storeCampReviewSnapshot(12, { camp: CAMP, notes: [parent] });
+  await applyCampReviewWrite(12, { method: 'DELETE', noteId: child.id, unmerge: true }, { note: { ...child, version: 3 } });
+  expect((await getCampReviewSnapshot(12)).data.notes).toEqual([
+    { ...parent, weight: 1, merged: [] }, { ...child, version: 3 },
+  ]);
+});
+
+test('a confirmed merge replaces both notes with the confirmed parent on this device', async () => {
+  const child = { ...SWIM, id: 'child' };
+  await storeCampReviewSnapshot(12, { camp: CAMP, notes: [SWIM, child] });
+  const merged = { ...SWIM, weight: 2, merged: [child] };
+  await applyCampReviewWrite(12, { method: 'PUT', noteId: child.id }, { note: merged });
+  expect((await getCampReviewSnapshot(12)).data.notes).toEqual([merged]);
+});
+
+test('a confirmed vote removal keeps the remaining votes and weight on this device', async () => {
+  await storeCampReviewSnapshot(12, { camp: CAMP, notes: [{ ...SWIM, weight: 2, votes: [{ id: VOTE_ID }] }] });
+  await applyCampReviewWrite(12, { method: 'DELETE', noteId: NOTE_ID, voteId: VOTE_ID }, { note: SWIM });
+  expect((await getCampReviewSnapshot(12)).data.notes).toEqual([SWIM]);
+});
+
 test('a confirmed replay updates the copy kept on this device, even with the screen closed', async () => {
   await storeCampReviewSnapshot(12, { camp: CAMP, notes: [] });
   await queue(NOTE_URL, 'PUT', BODY);

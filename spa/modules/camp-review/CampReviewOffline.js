@@ -107,13 +107,15 @@ export async function getCampReviewSnapshot(meetingId, scope = currentCampReview
  * answer is the note as shown: the note written, or the note it was merged
  * into, which then replaces that one.
  *
- * @param {Object[]} notes - The notes before
- * @param {{method: string, noteId: string, voteId: ?string}} change - The write
+ * @param {Object[]} previous - The notes before
+ * @param {{method: string, noteId: string, voteId?: ?string, unmerge?: boolean}} change - The write
  * @param {Object} answer - `data` of the server's answer
  * @returns {Object[]} The notes after
  */
-export function applyAnswer(notes, { method, noteId, voteId }, answer) {
-  if (method === 'DELETE' && !voteId) {
+export function applyAnswer(previous, { method, noteId, voteId, unmerge = false }, answer) {
+  const notes = unmerge ? previous.map((note) => (note.merged?.some((child) => child.id === noteId)
+    ? weighed({ ...note, merged: note.merged.filter((child) => child.id !== noteId) }) : note)) : previous;
+  if (method === 'DELETE' && !voteId && !unmerge) {
     // Notes merged into a removed note stand on their own again, as the server keeps them:
     // detaching them is a change, so each is now one version further.
     return notes.flatMap((note) => (note.id === noteId

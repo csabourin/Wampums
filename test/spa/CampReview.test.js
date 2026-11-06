@@ -531,6 +531,27 @@ describe('sorting after the camp', () => {
     expect($('#camp-review-text').value).toBe('Une idée pas encore ajoutée');
   });
 
+  test('a confirmed sort is kept when the following read loses the network', async () => {
+    await open();
+    const snapshot = { preparedAt: Date.now(), data: review().data };
+    offline.getCampReviewSnapshot.mockImplementation(() => Promise.resolve(snapshot));
+    offline.applyCampReviewWrite.mockImplementationOnce((_meeting, change, answer) => {
+      snapshot.data.notes = offline.applyAnswer(snapshot.data.notes, change, answer);
+      return Promise.resolve();
+    });
+    api.getCampReview.mockRejectedValueOnce(Object.assign(new Error('offline'), { isNetworkError: true }));
+    const dialog = await openSort(NIGHT.id);
+    dialog.querySelector('input[name="camp-review-sort-outcome"][value="keep"]').click();
+    $('#camp-review-sort-form').requestSubmit();
+    await flush();
+    await flush();
+    await flush();
+    expect($('.camp-review__summary')?.textContent).toContain(NIGHT.text);
+    expect(offline.applyCampReviewWrite).toHaveBeenCalledWith(12,
+      expect.objectContaining({ method: 'PATCH', noteId: NIGHT.id }),
+      { note: expect.objectContaining({ outcome: 'keep' }) }, 'scope:unit-1');
+  });
+
   test('a note joins another that says the same thing, offered only within its kind', async () => {
     await open();
     const dialog = await openSort(NIGHT.id);
@@ -623,6 +644,25 @@ describe('sorting after the camp', () => {
     expect($('#camp-review-form')).toBeNull();
     expect($('[data-review-vote], [data-review-sort], [data-review-delete]')).toBeNull();
     expect(document.activeElement).toBe($('#camp-review-reopen'));
+  });
+
+  test('an older background read cannot reopen a review after closing is confirmed', async () => {
+    await open();
+    let finishRead;
+    api.getCampReview.mockImplementationOnce(() => new Promise((resolve) => { finishRead = resolve; }));
+    window.dispatchEvent(new CustomEvent('offlineMutationReplayed', { detail: { kind: 'camp_review' } }));
+    await flush();
+    $('#camp-review-close').click();
+    await flush();
+    await flush();
+    expect($('#camp-review-form')).toBeNull();
+    offline.storeCampReviewSnapshot.mockClear();
+    finishRead(review());
+    await flush();
+    await flush();
+    expect($('#camp-review-form')).toBeNull();
+    expect($('#camp-review-reopen')).not.toBeNull();
+    expect(offline.storeCampReviewSnapshot).not.toHaveBeenCalled();
   });
 
   test('without a network, nothing that needs the server is offered', async () => {
