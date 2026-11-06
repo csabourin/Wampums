@@ -526,7 +526,10 @@ export class MeetingPrep extends BaseModule {
           ${birthdayItems}
         </div>
 
+        ${this.canManage ? '' : `<p class="meeting-prep__read-only" id="meeting-prep-read-only">${escapeHTML(translate('meeting_prep_read_only'))}</p>`}
         <form id="reunion-form" class="form-layout">
+          <fieldset class="meeting-prep__fields" ${this.canManage ? '' : 'disabled aria-describedby="meeting-prep-read-only"'}>
+          <legend class="sr-only">${escapeHTML(translate('preparation_reunions'))}</legend>
           <div class="form-row">
             <div class="form-group">
               <label for="animateur-responsable">${translate('animateur_responsable')}:</label>
@@ -577,6 +580,7 @@ export class MeetingPrep extends BaseModule {
             <label for="notes">${translate('notes')}:</label>
             <textarea id="notes" rows="4" placeholder="${translate('meeting_notes_placeholder')}">${escapeHTML(this.getNotesWithReminder(meeting.notes || ''))}</textarea>
           </div>
+          </fieldset>
           ${this.canManage ? `
             <div class="form-actions form-actions--mobile">
               ${this.renderSaveStatus()}

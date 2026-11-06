@@ -11653,7 +11653,7 @@ button.material-thumb {
 .rte {
   border: 1px solid var(--color-text-muted);
   border-radius: 6px;
-  background: var(--color-surface, #fff);
+  background: var(--color-surface);
 }
 
 .rte__toolbar {
@@ -13279,3 +13279,19 @@ body:has(> .settings-icon) .demo-banner__inner {
 
 /* Every AI action names the technology in its visible and accessible label. */
 .ai-badge { display: inline-block; margin-inline-start: .4em; padding: .1em .45em; border: 1px solid currentColor; border-radius: .3em; font-size: .8em; font-weight: 700; white-space: nowrap; }
+
+/* Meeting preparation: the fields sit in one fieldset so that, without the
+   right to manage meetings, they are all disabled at once (consultation only). */
+.meeting-prep__fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+
+.meeting-prep__read-only {
+  padding: var(--space-sm) var(--space-md);
+  border-inline-start: 4px solid var(--color-primary);
+  background: var(--color-surface);
+}
+
