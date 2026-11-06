@@ -8,6 +8,12 @@
  * @module utils/MedicationTextUtils
  */
 
+import { formatClockTime } from './DateUtils.js';
+import { localeForLanguage } from './InterfaceLanguageUtils.js';
+
+/** Most decimals a dose quantity is shown with ("2,5 ml", "0,25 mg"). */
+const DOSE_MAX_DECIMALS = 2;
+
 /** Separators between two medications in the free-text answer. */
 const MEDICATION_SEPARATOR = /\r?\n|;|,(?!\d)/;
 
@@ -61,4 +67,61 @@ export function splitDeclaredMedications(text) {
  */
 export function isSameMedication(a, b) {
   return normalize(a || '') === normalize(b || '');
+}
+
+/**
+ * The times of day a requirement is given, as stored (array or JSON text).
+ * @param {Object} requirement - Medication requirement
+ * @returns {Array<string>} HH:MM times, in order
+ */
+function requirementTimes(requirement) {
+  let times = requirement?.frequency_times;
+  if (typeof times === 'string') {
+    try {
+      times = JSON.parse(times);
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(times) ? times.filter((time) => typeof time === 'string' && time) : [];
+}
+
+/**
+ * A requirement's dose as the team reads it: quantity with its unit, then the
+ * written instructions ("200 mg · avec le déjeuner"). A quantity is never shown
+ * bare, and the instructions are never dropped because a quantity exists.
+ * @param {Object} requirement - Medication requirement
+ * @param {string} lang - Interface language
+ * @returns {string} Dose text, or an empty string when none was given
+ */
+export function describeMedicationDose(requirement, lang) {
+  const parts = [];
+  const amount = Number(requirement?.default_dose_amount);
+  if (requirement?.default_dose_amount !== null && requirement?.default_dose_amount !== undefined
+      && requirement?.default_dose_amount !== '' && Number.isFinite(amount)) {
+    const quantity = new Intl.NumberFormat(localeForLanguage(lang), { maximumFractionDigits: DOSE_MAX_DECIMALS })
+      .format(amount);
+    parts.push([quantity, requirement.default_dose_unit?.trim()].filter(Boolean).join(' '));
+  }
+  if (requirement?.dosage_instructions?.trim()) {
+    parts.push(requirement.dosage_instructions.trim());
+  }
+  return parts.join(' · ');
+}
+
+/**
+ * A requirement's frequency with the times it is given ("Moments de la journée : 08:00").
+ * @param {Object} requirement - Medication requirement
+ * @param {string} lang - Interface language
+ * @param {string} fallback - Text when no frequency was recorded
+ * @param {string} template - Translated "{frequency}: {times}" pattern
+ * @returns {string} Frequency text
+ */
+export function describeMedicationFrequency(requirement, lang, fallback, template) {
+  const text = requirement?.frequency_text || fallback;
+  const times = requirementTimes(requirement).map((time) => formatClockTime(time, lang)).filter(Boolean);
+  if (!times.length) {
+    return text;
+  }
+  return template.replace('{frequency}', text).replace('{times}', times.join(', '));
 }

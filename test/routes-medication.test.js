@@ -281,6 +281,75 @@ describe('POST /api/v1/medication/requirements', () => {
     expect(res.body.message).toMatch(/dose|number|numeric/i);
   });
 
+  /**
+   * Answer the permission and membership lookups as an admin of ORG_ID.
+   * @param {Object} client - Mocked client
+   * @param {Object} pool - Mocked pool
+   * @returns {Array<string>} Queries sent, to check nothing was written
+   */
+  function asUnitAdmin(client, pool) {
+    const queries = [];
+    mockQueryImplementation(client, pool, (query) => {
+      queries.push(query);
+      if (query.includes('permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
+      }
+      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('JOIN roles r')) {
+        return Promise.resolve({ rows: [{ role_name: 'district', data_scope: 'organization' }] });
+      }
+      if (query.includes('FROM user_organizations')) {
+        return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });
+      }
+      return undefined;
+    });
+    return queries;
+  }
+
+  test('a dose quantity without its unit is refused, so nobody reads a bare "200"', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asUnitAdmin(__mClient, __mPool);
+
+    const res = await request(app)
+      .post('/api/v1/medication/requirements')
+      .set('Authorization', `Bearer ${generateToken({ permissions: ['medication.manage'] })}`)
+      .send({ medication_name: 'Advil', default_dose_amount: 200, default_dose_unit: '  ', frequency_preset_type: 'prn', participant_ids: [50] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('medication_dose_unit_required');
+    expect(queries.some((query) => query.includes('INSERT INTO medication_requirements'))).toBe(false);
+  });
+
+  test.each(['time_of_day', 'meal'])('a %s schedule without any time is refused', async (preset) => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asUnitAdmin(__mClient, __mPool);
+
+    const res = await request(app)
+      .post('/api/v1/medication/requirements')
+      .set('Authorization', `Bearer ${generateToken({ permissions: ['medication.manage'] })}`)
+      .send({ medication_name: 'Ritalin', frequency_preset_type: preset, frequency_times: [], participant_ids: [50] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('medication_frequency_times_required');
+    expect(queries.some((query) => query.includes('INSERT INTO medication_requirements'))).toBe(false);
+  });
+
+  test('an update cannot remove the unit of a dose either', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asUnitAdmin(__mClient, __mPool);
+
+    const res = await request(app)
+      .put('/api/v1/medication/requirements/7')
+      .set('Authorization', `Bearer ${generateToken({ permissions: ['medication.manage'] })}`)
+      .send({ medication_name: 'Advil', default_dose_amount: 200, participant_ids: [50] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('medication_dose_unit_required');
+    expect(queries.some((query) => query.includes('UPDATE medication_requirements'))).toBe(false);
+  });
+
   test('stores user ID in created_by field for audit trail', async () => {
     const { __mClient, __mPool } = require('pg');
     const userId = 42;

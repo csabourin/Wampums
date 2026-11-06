@@ -29,6 +29,7 @@ jest.mock('../../spa/config.js', () => ({
 }));
 jest.mock('../../spa/utils/DateUtils.js', () => ({
   formatDate: (value) => String(value ?? ''),
+  formatClockTime: (value) => String(value ?? ''),
   getTodayISO: () => '2026-11-15',
   parseDate: (value) => (value ? new Date(`${String(value).slice(0, 10)}T00:00:00`) : null),
 }));
@@ -202,7 +203,8 @@ describe('medication planning and dispensing', () => {
     api.saveMedicationRequirement.mockResolvedValue({ success: true, data: { id: 12 } });
     api.getMedicationRequirements.mockRejectedValueOnce(new Error('offline'));
     const form = document.createElement('form');
-    form.innerHTML = '<input name="medication_name" value="Advil"><input name="participant_id" value="5">';
+    form.innerHTML = '<input name="medication_name" value="Advil"><input name="participant_id" value="5">'
+      + '<input name="frequency_preset_type" value="prn">';
 
     await screen.handleRequirementSubmit({ preventDefault: () => {}, target: form });
 
@@ -210,6 +212,119 @@ describe('medication planning and dispensing', () => {
     expect(messages).toContain('medication_requirement_saved');
     expect(messages).not.toContain('error_saving');
     expect(screen.requirements.some((requirement) => requirement.medication_name === 'Advil')).toBe(true);
+    screen.destroy();
+  });
+});
+
+describe('planning a medication as a parent who does not touch the times', () => {
+  /** @returns {Promise<{screen: MedicationManagement, form: HTMLFormElement}>} Loaded planning form */
+  async function openPlanning() {
+    loadAll();
+    const screen = new MedicationManagement(makeApp(), { view: 'planning', participantId: 5 });
+    await screen.init();
+    const form = document.getElementById('medicationRequirementForm');
+    form.elements.medication_name.value = 'Ritalin';
+    return { screen, form };
+  }
+  const submit = (form) => form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+  const timeFields = () => [...document.querySelectorAll('#frequencyPresetFields input[type="time"]')];
+
+  test('no time of day is chosen for the parent', async () => {
+    const { screen } = await openPlanning();
+
+    expect(timeFields().length).toBeGreaterThan(0);
+    expect(timeFields().map((field) => field.value)).toEqual(timeFields().map(() => ''));
+    screen.destroy();
+  });
+
+  test('no meal is ticked for the parent either', async () => {
+    const { screen } = await openPlanning();
+    const preset = document.getElementById('frequencyPreset');
+    preset.value = 'meal';
+    preset.dispatchEvent(new Event('change', { bubbles: true }));
+
+    const meals = [...document.querySelectorAll('#frequencyPresetFields input[type="checkbox"]')];
+    expect(meals.length).toBeGreaterThan(0);
+    expect(meals.some((meal) => meal.checked)).toBe(false);
+    screen.destroy();
+  });
+
+  test('saving times of day without any time sends nothing and says why, next to the times', async () => {
+    const { screen, form } = await openPlanning();
+
+    submit(form);
+    await flush();
+
+    expect(api.saveMedicationRequirement).not.toHaveBeenCalled();
+    const message = document.getElementById('medicationFrequencyError');
+    expect(message.hidden).toBe(false);
+    expect(message.getAttribute('role')).toBe('alert');
+    expect(message.textContent).toBe('medication_frequency_times_required');
+    timeFields().forEach((field) => {
+      expect(field.getAttribute('aria-invalid')).toBe('true');
+      expect(field.getAttribute('aria-describedby')).toBe('medicationFrequencyError');
+    });
+    expect(document.activeElement).toBe(timeFields()[0]);
+    expect(await violations()).toEqual([]);
+    screen.destroy();
+  });
+
+  test('the message goes away once a time is chosen, and the schedule sent is that one time', async () => {
+    const { screen, form } = await openPlanning();
+    api.saveMedicationRequirement.mockResolvedValue({ success: true, data: { id: 12 } });
+    submit(form);
+    await flush();
+
+    timeFields()[0].value = '08:00';
+    timeFields()[0].dispatchEvent(new Event('input', { bubbles: true }));
+    expect(document.getElementById('medicationFrequencyError').hidden).toBe(true);
+    expect(timeFields()[0].hasAttribute('aria-invalid')).toBe(false);
+
+    submit(form);
+    await flush();
+    expect(api.saveMedicationRequirement).toHaveBeenCalledWith(expect.objectContaining({
+      frequency_preset_type: 'time_of_day',
+      frequency_times: ['08:00'],
+    }));
+    screen.destroy();
+  });
+
+  test('a dose quantity without its unit is not sent', async () => {
+    const { screen, form } = await openPlanning();
+    const preset = document.getElementById('frequencyPreset');
+    preset.value = 'prn';
+    preset.dispatchEvent(new Event('change', { bubbles: true }));
+    form.elements.default_dose_amount.value = '200';
+
+    submit(form);
+    await flush();
+
+    expect(api.saveMedicationRequirement).not.toHaveBeenCalled();
+    const unit = form.elements.default_dose_unit;
+    expect(unit.getAttribute('aria-invalid')).toBe('true');
+    expect(unit.getAttribute('aria-describedby')).toBe('medicationDoseUnitError');
+    expect(document.getElementById('medicationDoseUnitError').textContent).toBe('medication_dose_unit_required');
+    expect(document.activeElement).toBe(unit);
+
+    unit.value = 'mg';
+    unit.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(document.getElementById('medicationDoseUnitError').hidden).toBe(true);
+    screen.destroy();
+  });
+
+  test('the planned medications show the dose with its unit and the times it is given', async () => {
+    loadAll();
+    api.getMedicationRequirements.mockResolvedValue({ success: true, data: { requirements: [{
+      ...REQUIREMENT, default_dose_amount: '10.00', default_dose_unit: 'mg',
+      dosage_instructions: 'avec le déjeuner', frequency_text: 'Moments', frequency_times: ['08:00'],
+    }] } });
+    const screen = new MedicationManagement(makeApp(), { view: 'planning', participantId: 5 });
+    await screen.init();
+
+    const text = page().textContent;
+    expect(text).toContain('10 mg · avec le déjeuner');
+    expect(text).toContain('medication_frequency_with_times');
+    expect(await violations()).toEqual([]);
     screen.destroy();
   });
 });

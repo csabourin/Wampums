@@ -7,7 +7,12 @@ import { setContent } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { OptimisticUpdateManager } from '../../utils/OptimisticUpdateManager.js';
 import { canManageMedication, canViewMedication } from '../../utils/PermissionUtils.js';
-import { isSameMedication, splitDeclaredMedications } from '../../utils/MedicationTextUtils.js';
+import {
+  describeMedicationDose,
+  describeMedicationFrequency,
+  isSameMedication,
+  splitDeclaredMedications
+} from '../../utils/MedicationTextUtils.js';
 import { getGuardiansForParticipant, getLeaders } from '../../api/api-endpoints.js';
 import {
   getParticipants,
@@ -42,6 +47,8 @@ import { DATE_PART_WIDTH, ISO_DATE_LENGTH, ISO_MINUTE_LENGTH, MS_PER_DAY, MS_PER
 const MEDICATION_NAME_MAX_LENGTH = 200;
 /** The server's answer for a dose already given, by this device or another. */
 const HTTP_CONFLICT = 409;
+/** Presets whose doses are given at times the person picks; at least one is needed. */
+const TIMED_FREQUENCY_PRESETS = Object.freeze(['time_of_day', 'meal']);
 
 export class MedicationManagement {
   constructor(app, options = {}) {
@@ -781,7 +788,7 @@ export class MedicationManagement {
     .map(
       (slot) => `
                 <label class="participant-pill" style="align-items:center;">
-                  <input type="checkbox" name="frequency_meal_${slot.key}" value="${slot.key}" checked />
+                  <input type="checkbox" name="frequency_meal_${slot.key}" value="${slot.key}" />
                   <span>${escapeHTML(translate(slot.labelKey))}</span>
                   <input type="time" name="frequency_meal_${slot.key}_time" value="${slot.defaultTime}" aria-label="${escapeHTML(translate(slot.labelKey))}" />
                 </label>
@@ -800,9 +807,9 @@ export class MedicationManagement {
     return `
       <span>${escapeHTML(translate('medication_frequency_time_of_day_label'))}</span>
       <div class="frequency-time-grid">
-        <input type="time" name="frequency_times" value="08:00" aria-label="${escapeHTML(translate('medication_frequency_time_one'))}" />
-        <input type="time" name="frequency_times" value="12:00" aria-label="${escapeHTML(translate('medication_frequency_time_two'))}" />
-        <input type="time" name="frequency_times" value="20:00" aria-label="${escapeHTML(translate('medication_frequency_time_three'))}" />
+        <input type="time" name="frequency_times" aria-label="${escapeHTML(translate('medication_frequency_time_one'))}" />
+        <input type="time" name="frequency_times" aria-label="${escapeHTML(translate('medication_frequency_time_two'))}" />
+        <input type="time" name="frequency_times" aria-label="${escapeHTML(translate('medication_frequency_time_three'))}" />
       </div>
       <p class="help-text">${escapeHTML(translate('medication_frequency_time_of_day_hint'))}</p>
     `;
@@ -1186,17 +1193,19 @@ export class MedicationManagement {
           <div class="field-group" id="frequencyPresetFields" style="grid-column: 1 / -1;">
             ${this.getFrequencyPresetFieldsMarkup('time_of_day')}
           </div>
+          <p class="error-text" id="medicationFrequencyError" role="alert" hidden style="grid-column: 1 / -1;"></p>
           <label class="field-group">
             <span>${escapeHTML(translate('medication_route_label'))}</span>
             <input type="text" name="route" maxlength="120" />
           </label>
-          <label class="field-group">
+          <div class="field-group">
             <span>${escapeHTML(translate('medication_default_dose'))}</span>
             <div style="display:flex; gap:0.5rem;">
-              <input type="number" step="0.01" name="default_dose_amount" aria-label="${escapeHTML(translate('dose'))}" />
-              <input type="text" name="default_dose_unit" maxlength="50" placeholder="mg, ml" aria-label="${escapeHTML(translate('unit'))}" />
+              <input type="number" step="0.01" min="0" name="default_dose_amount" aria-label="${escapeHTML(translate('dose'))}" />
+              <input type="text" name="default_dose_unit" maxlength="50" placeholder="${escapeAttribute(translate('medication_dose_unit_placeholder'))}" aria-label="${escapeHTML(translate('unit'))}" />
             </div>
-          </label>
+            <p class="error-text" id="medicationDoseUnitError" role="alert" hidden></p>
+          </div>
           <label class="field-group" style="grid-column: 1 / -1;">
             <span>${escapeHTML(translate('medication_general_notes_label'))}</span>
             <textarea name="general_notes" rows="3" maxlength="1000"></textarea>
@@ -1504,9 +1513,7 @@ export class MedicationManagement {
             ${dispensableMeds.map((med) => {
     const req = med.requirement;
     const reception = this.getReceptionForMedication(participantId, req.id);
-    const doseInfo = req.default_dose_amount
-      ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
-      : req.dosage_instructions || '';
+    const doseInfo = describeMedicationDose(req, this.app.lang);
     const route = req.route ? ` · ${req.route}` : '';
     const frequency = req.frequency_text || translate('medication_frequency_prn_text');
 
@@ -1759,9 +1766,7 @@ export class MedicationManagement {
           ${medications.map((med) => {
     const req = med.requirement;
     const reception = this.getReceptionForMedication(participantId, req.id);
-    const doseInfo = req.default_dose_amount
-      ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
-      : req.dosage_instructions || '';
+    const doseInfo = describeMedicationDose(req, this.app.lang);
     const route = req.route ? ` · ${req.route}` : '';
     const frequency = req.frequency_text || translate('medication_frequency_prn_text');
 
@@ -1924,22 +1929,24 @@ export class MedicationManagement {
         : '-';
       return `
         <tr>
-          <td>${escapeHTML(nameLabel)}</td>
-          <td>${escapeHTML(participantName)}</td>
-          <td>${escapeHTML(req.frequency_text || translate('medication_frequency'))}</td>
-          <td>${escapeHTML(dateRange)}</td>
-          <td>${escapeHTML(req.general_notes || req.dosage_instructions || '-')}</td>
+          <td data-label="${escapeAttribute(translate('medication'))}">${escapeHTML(nameLabel)}</td>
+          <td data-label="${escapeAttribute(translate('participants'))}">${escapeHTML(participantName)}</td>
+          <td data-label="${escapeAttribute(translate('dose'))}">${escapeHTML(describeMedicationDose(req, this.app.lang) || '-')}</td>
+          <td data-label="${escapeAttribute(translate('medication_frequency'))}">${escapeHTML(describeMedicationFrequency(req, this.app.lang, translate('medication_frequency'), translate('medication_frequency_with_times')))}</td>
+          <td data-label="${escapeAttribute(translate('dates'))}">${escapeHTML(dateRange)}</td>
+          <td data-label="${escapeAttribute(translate('notes'))}">${escapeHTML(req.general_notes || '-')}</td>
         </tr>
       `;
     }).join('');
 
     return `
       <div class="table-container">
-        <table class="data-table">
+        <table class="data-table mobile-labeled-table">
           <thead>
             <tr>
               <th>${escapeHTML(translate('medication'))}</th>
               <th>${escapeHTML(translate('participants'))}</th>
+              <th>${escapeHTML(translate('dose'))}</th>
               <th>${escapeHTML(translate('medication_frequency'))}</th>
               <th>${escapeHTML(translate('dates'))}</th>
               <th>${escapeHTML(translate('notes'))}</th>
@@ -2227,6 +2234,76 @@ export class MedicationManagement {
     this.updateScheduleFrequencyHelper();
   }
 
+  /**
+   * Check, before sending, what would leave the team guessing: a timed schedule
+   * without any time, or a dose quantity without its unit. Each problem is shown
+   * under its field, tied to it, and the first field with one takes the focus.
+   * @param {HTMLFormElement} form - Requirement form
+   * @param {FormData} formData - Its values
+   * @param {Object} frequencyConfig - Frequency read from the form
+   * @param {Object} [options]
+   * @param {boolean} [options.clearOnly=false] - Only clear what was fixed (while the person types)
+   * @returns {boolean} True when something is missing and nothing was sent
+   */
+  showRequirementProblems(form, formData, frequencyConfig, { clearOnly = false } = {}) {
+    const timed = TIMED_FREQUENCY_PRESETS.includes(frequencyConfig.type);
+    const missingTimes = timed && frequencyConfig.times.length === 0;
+    const missingUnit = Boolean(formData.get('default_dose_amount'))
+      && !formData.get('default_dose_unit')?.trim();
+
+    const timeMessage = form.querySelector('#medicationFrequencyError');
+    const unitMessage = form.querySelector('#medicationDoseUnitError');
+    const timeFields = [...form.querySelectorAll('#frequencyPresetFields input')];
+    const unitField = form.elements.default_dose_unit;
+    if (!missingTimes || !clearOnly) {
+      this.setFieldProblem(timeFields, timeMessage, missingTimes ? translate(frequencyConfig.type === 'meal'
+        ? 'medication_frequency_meal_required'
+        : 'medication_frequency_times_required') : '');
+    }
+    if (!missingUnit || !clearOnly) {
+      this.setFieldProblem(unitField ? [unitField] : [], unitMessage,
+        missingUnit ? translate('medication_dose_unit_required') : '');
+    }
+    if (clearOnly) {
+      return missingTimes || missingUnit;
+    }
+
+    form.querySelector('[aria-invalid="true"]')?.focus();
+    if ((missingTimes || missingUnit) && !form.dataset.problemListener) {
+      // A message goes away as soon as its field is fixed; none appears while typing.
+      form.dataset.problemListener = 'true';
+      const clear = () => {
+        const current = new FormData(form);
+        this.showRequirementProblems(form, current, this.buildFrequencyConfigFromForm(current), { clearOnly: true });
+      };
+      form.addEventListener('input', clear);
+      form.addEventListener('change', clear);
+    }
+    return missingTimes || missingUnit;
+  }
+
+  /**
+   * Show or clear one field's problem.
+   * @param {HTMLElement[]} fields - Fields the message describes
+   * @param {HTMLElement|null} message - Element holding the message
+   * @param {string} text - Message, or empty to clear it
+   */
+  setFieldProblem(fields, message, text) {
+    if (message) {
+      message.textContent = text;
+      message.hidden = !text;
+    }
+    fields.forEach((field) => {
+      if (text && message?.id) {
+        field.setAttribute('aria-invalid', 'true');
+        field.setAttribute('aria-describedby', message.id);
+      } else {
+        field.removeAttribute('aria-invalid');
+        field.removeAttribute('aria-describedby');
+      }
+    });
+  }
+
   async handleRequirementSubmit(event) {
     event.preventDefault();
     const form = event.target;
@@ -2236,6 +2313,10 @@ export class MedicationManagement {
 
     if (!formData.get('medication_name') || !participantId) {
       this.app.showMessage(translate('medication_requirement_fields_missing'), 'error');
+      return;
+    }
+
+    if (this.showRequirementProblems(form, formData, frequencyConfig)) {
       return;
     }
 
