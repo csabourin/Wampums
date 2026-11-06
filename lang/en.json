@@ -5959,5 +5959,6 @@
   "camp_review_note_sorted": "Note sorted",
   "camp_review_note_merged_saved": "Notes merged",
   "camp_review_note_unmerged": "Merge undone",
-  "camp_review_status_saved": "Review saved"
+  "camp_review_status_saved": "Review saved",
+  "meeting_prep_read_only": "You can read this preparation. Changing it takes the right to manage meetings; ask a unit leader who has it."
 }
