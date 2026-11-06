@@ -5826,5 +5826,11 @@
   "budget_start_open_items": "Open Budget items",
   "budget_start_open_expenses": "Open Expenses",
   "action_roster_empty_attendance": "Nobody is marked present for this date yet. Finish taking attendance, or tick “Show all participants” to give points anyway.",
-  "action_roster_empty_signed": "No youth has a signed permission slip for this activity yet. Tick “Show all participants” to see them anyway."
+  "action_roster_empty_signed": "No youth has a signed permission slip for this activity yet. Tick “Show all participants” to see them anyway.",
+  "medication_frequency_times_required": "Choose at least one time of day, or another frequency (for example \"As needed\").",
+  "medication_frequency_meal_required": "Tick at least one meal, or choose another frequency.",
+  "medication_dose_unit_required": "Add the unit of the dose (mg, ml, tablet…).",
+  "medication_dose_unit_placeholder": "e.g. mg",
+  "medication_frequency_with_times": "{frequency}: {times}",
+  "medication_admins_must_differ": "Choose two different adults: the same person cannot be named twice."
 }

@@ -80,6 +80,28 @@ const normalizeText = (value, maxLength = TEXT_LIMITS.DEFAULT) => {
   return value.trim().slice(0, maxLength);
 };
 
+/** Presets whose doses are given at times the parent or leader picks. */
+const TIMED_FREQUENCY_PRESETS = Object.freeze(['time_of_day', 'meal']);
+
+/**
+ * What is missing from a requirement's dose and schedule, as a translation key.
+ * A quantity without its unit ("200") and a timed schedule without any time are
+ * refused: either one leaves the team guessing how much to give, or when.
+ * @param {Object} body - Request body
+ * @param {number|null} doseAmount - Default dose amount, already read
+ * @returns {string|null} Error key, or null when the requirement is complete
+ */
+function requirementScheduleProblem(body, doseAmount) {
+  if (doseAmount !== null && !normalizeText(body.default_dose_unit, TEXT_LIMITS.DOSE_UNIT)) {
+    return 'medication_dose_unit_required';
+  }
+  if (TIMED_FREQUENCY_PRESETS.includes(body.frequency_preset_type)
+      && (!Array.isArray(body.frequency_times) || body.frequency_times.length === 0)) {
+    return 'medication_frequency_times_required';
+  }
+  return null;
+}
+
 module.exports = (pool, logger) => {
   /**
    * GET /v1/medication/requirements
@@ -219,6 +241,11 @@ module.exports = (pool, logger) => {
       return error(res, 'Default dose amount must be a valid number', HTTP_STATUS.BAD_REQUEST);
     }
 
+    const scheduleProblem = requirementScheduleProblem(req.body, numericDoseAmount);
+    if (scheduleProblem) {
+      return error(res, scheduleProblem, HTTP_STATUS.BAD_REQUEST);
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -336,6 +363,11 @@ module.exports = (pool, logger) => {
 
     if (numericDoseAmount !== null && !Number.isFinite(numericDoseAmount)) {
       return error(res, 'Default dose amount must be a valid number', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    const scheduleProblem = requirementScheduleProblem(req.body, numericDoseAmount);
+    if (scheduleProblem) {
+      return error(res, scheduleProblem, HTTP_STATUS.BAD_REQUEST);
     }
 
     const client = await pool.connect();
@@ -1127,6 +1159,10 @@ module.exports = (pool, logger) => {
       nom_parent_ou_tuteur_legal, signature_parent_ou_tuteur_legal, date_signature, signature_type,
       requirements // array of { requirement_id, initials }
     } = req.body;
+
+    if (admin_user_id_1 && String(admin_user_id_1) === String(admin_user_id_2)) {
+      return error(res, 'medication_admins_must_differ', HTTP_STATUS.BAD_REQUEST);
+    }
 
     if (!(await areUnitLeaders(pool, organizationId, [admin_user_id_1, admin_user_id_2]))) {
       return error(res, 'Medication may only be entrusted to leaders of this unit', HTTP_STATUS.BAD_REQUEST);

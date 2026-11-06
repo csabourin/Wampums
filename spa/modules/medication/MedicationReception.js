@@ -3,7 +3,12 @@ import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { debugError, debugLog } from '../../utils/DebugUtils.js';
 import { formatDate, getTodayISO, parseDate } from '../../utils/DateUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
-import { isSameMedication, splitDeclaredMedications } from '../../utils/MedicationTextUtils.js';
+import {
+  describeMedicationDose,
+  describeMedicationFrequency,
+  isSameMedication,
+  splitDeclaredMedications
+} from '../../utils/MedicationTextUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
@@ -690,11 +695,10 @@ export class MedicationReception {
     const reception = this.getReception(participant.id, req.id);
     const isEditing = this.editingMedications.has(`${participant.id}-${req.id}`);
 
-    const doseInfo = req.default_dose_amount
-      ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
-      : req.dosage_instructions || '';
+    const doseInfo = describeMedicationDose(req, this.app.lang);
     const route = req.route ? ` · ${req.route}` : '';
-    const frequency = req.frequency_text || translate('medication_frequency_prn_text');
+    const frequency = describeMedicationFrequency(req, this.app.lang, translate('medication_frequency_prn_text'),
+      translate('medication_frequency_with_times'));
 
     const status = reception?.status || 'not_received';
     const quantity = reception?.quantity_received || '';

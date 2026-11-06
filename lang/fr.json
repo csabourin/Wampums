@@ -5826,5 +5826,11 @@
   "budget_start_open_items": "Ouvrir Articles budgétaires",
   "budget_start_open_expenses": "Ouvrir Dépenses",
   "action_roster_empty_attendance": "Personne n’est encore marqué présent pour cette date. Terminez les présences, ou cochez « Afficher tous les participants » pour donner des points quand même.",
-  "action_roster_empty_signed": "Aucun jeune n’a encore d’autorisation signée pour cette activité. Cochez « Afficher tous les participants » pour les voir quand même."
+  "action_roster_empty_signed": "Aucun jeune n’a encore d’autorisation signée pour cette activité. Cochez « Afficher tous les participants » pour les voir quand même.",
+  "medication_frequency_times_required": "Choisissez au moins une heure, ou une autre fréquence (par exemple « Au besoin »).",
+  "medication_frequency_meal_required": "Cochez au moins un repas, ou choisissez une autre fréquence.",
+  "medication_dose_unit_required": "Ajoutez l’unité de la dose (mg, ml, comprimé…).",
+  "medication_dose_unit_placeholder": "ex. : mg",
+  "medication_frequency_with_times": "{frequency} : {times}",
+  "medication_admins_must_differ": "Choisissez deux adultes différents : la même personne ne peut pas être nommée deux fois."
 }
