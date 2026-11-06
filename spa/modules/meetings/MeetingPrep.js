@@ -677,7 +677,10 @@ export class MeetingPrep extends BaseModule {
           d.is_prepared ? '✓' : ''
         ].filter(Boolean).join(' ');
         const theme = d.theme ? ` — ${d.theme}` : '';
-        const label = `${formatDate(d.date, this.lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}${theme}${flags ? ` ${flags}` : ''}`;
+        const replaced = d.replaced_by_activity_name
+          ? ` — ${translate('yearly_planner_replaced_by').replace('{outing}', d.replaced_by_activity_name)}`
+          : '';
+        const label = `${formatDate(d.date, this.lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}${theme}${replaced}${flags ? ` ${flags}` : ''}`;
         return `<option value="${d.date}" ${d.date === current ? 'selected' : ''}>${escapeHTML(label)}</option>`;
       })
       .join('');

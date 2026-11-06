@@ -358,6 +358,36 @@ describe('upcoming meeting', () => {
     expect(page().textContent).toContain(HOSTILE);
   });
 
+  test('a meeting an outing replaces is named after the outing, is not the next meeting, and shows no programme', async () => {
+    const REPLACED = '2099-01-03';
+    ajax.getReunionDates.mockResolvedValue({ data: [
+      { date: FUTURE_MEETING, is_cancelled: false, replaced_by_activity_name: null },
+      { date: REPLACED, is_cancelled: false, replaced_by_activity_name: HOSTILE },
+    ] });
+    ajax.getParticipants.mockResolvedValue({ data: [] });
+    ajax.getReunionPreparation.mockResolvedValue({ data: { meeting: {
+      endroit: 'Local', activities: [{ time: '18:45', activity: 'Accueil des Louveteaux', duration: '00:10' }],
+    } } });
+    await new UpcomingMeeting(makeApp()).init();
+
+    const select = page().querySelector('#meeting-select');
+    expect(select.value).toBe(FUTURE_MEETING);
+    const replacedOption = [...select.options].find((option) => option.value === REPLACED);
+    expect(replacedOption.textContent).toContain('yearly_planner_replaced_by');
+    expect(page().querySelector('#meeting-replaced')).toBeNull();
+
+    select.value = REPLACED;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    await flush();
+    await flush();
+
+    expect(page().querySelector('#meeting-replaced')).not.toBeNull();
+    expect(page().textContent).toContain('meeting_replaced_no_programme');
+    expect(page().textContent).not.toContain('Accueil des Louveteaux');
+    expect(page().querySelector('img[src="x"]')).toBeNull();
+    expect(await violations()).toEqual([]);
+  });
+
   test('inside the meetings tab the error has no title of its own', async () => {
     document.body.innerHTML = '<main id="app"><h1>host</h1><div id="tab-panel"></div></main>';
     ajax.getReunionDates.mockRejectedValue(new Error('offline'));

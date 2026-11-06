@@ -5833,5 +5833,6 @@
   "medication_dose_unit_placeholder": "ex. : mg",
   "medication_frequency_with_times": "{frequency} : {times}",
   "medication_admins_must_differ": "Choisissez deux adultes différents : la même personne ne peut pas être nommée deux fois.",
-  "meeting_prep_read_only": "Vous pouvez consulter cette préparation. Pour la modifier, il faut le droit de gérer les réunions : demandez-le à un responsable de l’unité."
+  "meeting_prep_read_only": "Vous pouvez consulter cette préparation. Pour la modifier, il faut le droit de gérer les réunions : demandez-le à un responsable de l’unité.",
+  "meeting_replaced_no_programme": "Aucun programme de réunion à cette date : l’unité suit la sortie."
 }

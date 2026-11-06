@@ -5833,5 +5833,6 @@
   "medication_dose_unit_placeholder": "e.g. mg",
   "medication_frequency_with_times": "{frequency}: {times}",
   "medication_admins_must_differ": "Choose two different adults: the same person cannot be named twice.",
-  "meeting_prep_read_only": "You can read this preparation. Changing it takes the right to manage meetings; ask a unit leader who has it."
+  "meeting_prep_read_only": "You can read this preparation. Changing it takes the right to manage meetings; ask a unit leader who has it.",
+  "meeting_replaced_no_programme": "No meeting programme on this date: the unit follows the outing."
 }

@@ -192,3 +192,12 @@ test('a leader who manages meetings keeps every field editable', () => {
   expect(document.querySelector('#reunion-form .meeting-prep__fields').disabled).toBe(false);
   expect(document.getElementById('meeting-prep-read-only')).toBeNull();
 });
+
+test('a date an outing replaces is named after the outing in the date list', () => {
+  screen.meetingDates = [{ date: '2026-11-11', is_cancelled: false, theme: 'Les étoiles', replaced_by_activity_name: 'Sortie au musée' }];
+  const option = new DOMParser().parseFromString(`<select>${screen.renderDateOptions()}</select>`, 'text/html')
+    .querySelector('option[value="2026-11-11"]');
+
+  expect(option.textContent).toContain('yearly_planner_replaced_by');
+});
+
