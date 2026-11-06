@@ -421,7 +421,7 @@ export class ManagePoints {
 
     // Keep the last recipients available for a correction or another award,
     // but start a fresh set as soon as the user chooses recipients again.
-    if (this.selected === this.awardedSelection) {
+    if (this.selected === this.awardedSelection?.selection) {
       this.selected = null;
     }
     this.awardedSelection = null;
@@ -637,7 +637,10 @@ export class ManagePoints {
 
     try {
       const selection = this.selected;
-      this.awardedSelection = selection;
+      // Each action owns its marker, even when consecutive actions use the
+      // same recipients. An older failure must not clear a newer award.
+      const award = { selection };
+      this.awardedSelection = award;
       this.awardCount += 1;
       this.store.applyOptimistic(txn);
       this.showPointChangeAnimation(points, announcementTarget);
@@ -649,7 +652,7 @@ export class ManagePoints {
       this.updateQueue.push({
         payloads,
         txn,
-        selection,
+        award,
         resolve: resolveCompletion,
       });
 
@@ -731,7 +734,7 @@ export class ManagePoints {
       // The shared API client owns queueing and preserves the request identity.
       // A failure here means local persistence or the server refused the award.
       this.store.rollbackBatch(txns);
-      if (batch.some((entry) => entry.selection === this.awardedSelection)) {
+      if (batch.some((entry) => entry.award === this.awardedSelection)) {
         this.awardedSelection = null;
       }
       this.app.showMessage(apiErrorMessage(error, 'error_updating_points'), 'error');

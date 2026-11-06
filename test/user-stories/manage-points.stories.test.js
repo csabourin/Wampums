@@ -507,6 +507,33 @@ describe('Modern points action bar', () => {
     expect([...page.selected.ids]).toEqual(['2', '3']);
   });
 
+  it('starts a fresh selection when a newer award succeeds after an older award to the same recipients fails', async () => {
+    seedStandardData();
+    const first = deferred();
+    const second = deferred();
+    ajax.updatePoints.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const { page } = await initPage();
+    selectParticipant(1);
+    selectParticipant(2);
+    const firstCompletion = page.applyPointAction(1);
+    const secondCompletion = page.applyPointAction(4);
+
+    first.reject(new Error('First award rejected'));
+    await firstCompletion;
+    expect(ajax.updatePoints).toHaveBeenCalledTimes(2);
+    second.resolve({ success: true, data: { updates: [
+      { type: 'participant', id: 1, totalPoints: 14 },
+      { type: 'participant', id: 2, totalPoints: 9 }
+    ] } });
+    await secondCompletion;
+    expect(participantTotalText(1)).toBe('14');
+    expect(participantTotalText(2)).toBe('9');
+
+    selectParticipant(3);
+    expect([...page.selected.ids]).toEqual(['3']);
+    expect(document.querySelectorAll('.list-item[aria-pressed="true"]')).toHaveLength(1);
+  });
+
   it('starts a fresh selection after an award is saved offline', async () => {
     seedStandardData();
     ajax.updatePoints.mockResolvedValue({ success: true, queued: true });
