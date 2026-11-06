@@ -2,8 +2,9 @@
 
 At the end of a camp, the unit goes round the circle: what was liked, less liked, what to
 improve (the "Evaluated" of the V.C.P.R.E.F.). A leader notes it as it is said, often without a
-network. An idea said again weighs more. This first slice covers noting and weighing; sorting
-(keep / fix), merging, closing the review and reading it year after year come next (see the issue).
+network. An idea said again weighs more. The first slice covers noting and weighing; the second,
+sorting (keep / fix), merging, removing one particular "+1" and closing the review. Reading reviews
+year after year ("Last year") comes next (see the issue).
 
 ## Rules
 
@@ -25,6 +26,23 @@ network. An idea said again weighs more. This first slice covers noting and weig
 - Undoing a "+1" deletes that vote's id. The undo offer stays while it holds the focus.
 - Every read and write is filtered by the camp's unit: the same camp in two units keeps two reviews.
 
+## Sorting, merging, closing (online only)
+
+- `PATCH …/notes/:noteId` sorts a note: `outcome` `keep` | `fix` | null and a short `action_text`,
+  with `expected_version` (409 when stale). A merged note is not sorted: the note it joined is.
+- `PUT …/notes/:noteId/merge` `{ into, expected_version }` merges a note into another **of the same
+  category**; `DELETE` of the same path undoes it. One level deep: merging into a merged note, or
+  merging a note others joined, is refused (409 `camp_review_merge_nested`), so weights never chain.
+  Weight = 1 + votes + the weight of every note merged into it. A vote replayed later on a merged
+  note still counts, in the note it joined. Removing a note lets the notes merged into it stand alone.
+- Votes carry who gave them and when, so sorting can remove one particular "+1".
+- `PUT …/camps/:meetingId/status` `{ status: 'open' | 'closed', expected_version }` closes or reopens
+  the review (`camp_reviews`, migration 078; a camp without a row is open at version 0). While
+  closed, every change is refused with 409 `camp_review_closed`, a replay from the outbox included.
+  Writes hold the review's row (`FOR SHARE`), so closing waits for them.
+- These calls are never queued (`queueOffline: false`); the screen offers them only online, on the
+  server's own copy. The plan's "Evaluated" step links to the review.
+
 ## Offline
 
 - Writes are in `SAFE_OFFLINE_MUTATIONS` with kind `camp_review` (`sync.rejected_kind_camp_review`).
@@ -45,7 +63,7 @@ network. An idea said again weighs more. This first slice covers noting and weig
 
 - `test/routes-camp-reviews.test.js`: 401, 403 with `required`/`missing`, `isDemo`, 400 ids, field checks.
 - `test/camp-reviews.integration.test.js`: replayed notes and votes count once, undo, versions,
-  unit isolation, offline pack.
+  unit isolation, offline pack; sorting, merge weights and limits, closing.
 - `test/spa/CampReview.test.js` (axe, keyboard, escaping, offline) and `CampReviewOffline.test.js`
   (outbox order, overlay, replay into the copy, refusals, duplicate matching).
 - `e2e/accessibility.spec.mjs`: `/camp-review/<seeded camp>` at phone and desktop size.

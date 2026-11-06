@@ -80,7 +80,7 @@ export async function storeCampReviewSnapshot(meetingId, data, duration = CAMP_R
     meetingId: Number(meetingId),
     preparedAt: Date.now(),
     expiresAt: Date.now() + duration,
-    data: { camp: data?.camp || null, notes: Array.isArray(data?.notes) ? data.notes : [] },
+    data: { camp: data?.camp || null, review: data?.review || null, notes: Array.isArray(data?.notes) ? data.notes : [] },
   }, duration);
   assertScope(scope);
   return key;
@@ -102,7 +102,9 @@ export async function getCampReviewSnapshot(meetingId, scope = currentCampReview
 }
 
 /**
- * Apply what the server answered to a confirmed write onto the notes.
+ * Apply what the server answered to a confirmed write onto the notes. The
+ * answer is the note as shown: the note written, or the note it was merged
+ * into, which then replaces that one.
  *
  * @param {Object[]} notes - The notes before
  * @param {{method: string, noteId: string, voteId: ?string}} change - The write
@@ -110,19 +112,19 @@ export async function getCampReviewSnapshot(meetingId, scope = currentCampReview
  * @returns {Object[]} The notes after
  */
 export function applyAnswer(notes, { method, noteId, voteId }, answer) {
-  const without = notes.filter((note) => note.id !== noteId);
   if (method === 'DELETE' && !voteId) {
-    return without;
+    return notes.filter((note) => note.id !== noteId);
   }
   const note = answer?.note;
   if (!note) {
-    return without;
+    return notes.filter((entry) => entry.id !== noteId);
   }
-  const index = notes.findIndex((entry) => entry.id === noteId);
+  const index = notes.findIndex((entry) => entry.id === note.id || entry.id === noteId);
+  const others = notes.filter((entry) => entry.id !== note.id && entry.id !== noteId);
   if (index === -1) {
-    return [...notes, note];
+    return [...others, note];
   }
-  return notes.map((entry) => (entry.id === noteId ? note : entry));
+  return [...others.slice(0, index), note, ...others.slice(index)];
 }
 
 /**

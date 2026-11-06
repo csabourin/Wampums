@@ -449,7 +449,9 @@ async function sendApiRequest(endpoint, options = {}) {
   const campLotsWaiting = method === 'PATCH' && requestPath.startsWith('/api/v1/camp-equipment-lots/')
     && await offlineManager.hasPendingResource('/api/v1/camp-equipment-lots');
   // A vote must not reach the server before the note it was given to, still in the outbox.
-  const campReviewWaiting = method !== 'GET' && requestPath.startsWith('/api/v1/camp-reviews/')
+  // Only notes and votes queue; sorting, merging and closing need the network and never wait behind them.
+  const campReviewWaiting = (method === 'PUT' || method === 'DELETE')
+    && /^\/api\/v1\/camp-reviews\/camps\/\d+\/notes\/[^/]+(?:\/votes\/[^/]+)?$/.test(requestPath)
     && await offlineManager.hasPendingResource('/api/v1/camp-reviews');
   // Keep arrivals, departures, awards and returns in their original order across reconnects.
   if ((offlineManager.isOffline || navigator.onLine === false || pointsWaiting || attendanceWaiting || equipmentLoansWaiting || campLotsWaiting

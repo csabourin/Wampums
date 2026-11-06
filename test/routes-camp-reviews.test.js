@@ -13,6 +13,7 @@ jest.mock('../services/campReviews', () => {
   return {
     ...actual,
     readCampReview: jest.fn(), saveNote: jest.fn(), deleteNote: jest.fn(), addVote: jest.fn(), removeVote: jest.fn(),
+    sortNote: jest.fn(), mergeNote: jest.fn(), unmergeNote: jest.fn(), setReviewStatus: jest.fn(),
   };
 });
 const service = require('../services/campReviews');
@@ -46,6 +47,10 @@ const WRITES = [
   ['delete', `/camps/12/notes/${NOTE_ID}`],
   ['put', `/camps/12/notes/${NOTE_ID}/votes/${VOTE_ID}`, {}],
   ['delete', `/camps/12/notes/${NOTE_ID}/votes/${VOTE_ID}`],
+  ['patch', `/camps/12/notes/${NOTE_ID}`, { outcome: 'keep', expected_version: 1 }],
+  ['put', `/camps/12/notes/${NOTE_ID}/merge`, { into: VOTE_ID, expected_version: 1 }],
+  ['delete', `/camps/12/notes/${NOTE_ID}/merge`],
+  ['put', '/camps/12/status', { status: 'closed', expected_version: 0 }],
 ];
 
 beforeEach(() => {
@@ -57,6 +62,10 @@ beforeEach(() => {
   service.deleteNote.mockResolvedValue({ deleted: true });
   service.addVote.mockResolvedValue({ note: { id: NOTE_ID, weight: 2 } });
   service.removeVote.mockResolvedValue({ note: { id: NOTE_ID, weight: 1 } });
+  service.sortNote.mockResolvedValue({ note: { id: NOTE_ID, outcome: 'keep' } });
+  service.mergeNote.mockResolvedValue({ note: { id: VOTE_ID, weight: 2 } });
+  service.unmergeNote.mockResolvedValue({ note: { id: NOTE_ID, weight: 1 } });
+  service.setReviewStatus.mockResolvedValue({ review: { status: 'closed', version: 2 } });
 });
 
 test('without a token, nothing is read or written', async () => {
@@ -109,10 +118,10 @@ test('a +1 and its undo reach the service with the ids the device chose', async 
   const added = await call('put', `/camps/12/notes/${NOTE_ID}/votes/${VOTE_ID}`, {});
   expect(added.status).toBe(200);
   expect(added.body.data.note.weight).toBe(2);
-  expect(service.addVote).toHaveBeenCalledWith(pool, UNIT_ID, USER_ID, 12, NOTE_ID, VOTE_ID);
+  expect(service.addVote).toHaveBeenCalledWith(client, UNIT_ID, USER_ID, 12, NOTE_ID, VOTE_ID);
 
   expect((await call('delete', `/camps/12/notes/${NOTE_ID}/votes/${VOTE_ID}`)).status).toBe(200);
-  expect(service.removeVote).toHaveBeenCalledWith(pool, UNIT_ID, USER_ID, 12, NOTE_ID, VOTE_ID);
+  expect(service.removeVote).toHaveBeenCalledWith(client, UNIT_ID, USER_ID, 12, NOTE_ID, VOTE_ID);
 });
 
 test('a demo account writes nothing: notes are free text', async () => {
@@ -132,6 +141,10 @@ test('a malformed camp, note or vote id is a 400, not a write', async () => {
   expect((await call('put', `/camps/2147483648/notes/${NOTE_ID}`, NOTE)).status).toBe(400);
   expect((await call('put', '/camps/12/notes/not-a-uuid', NOTE)).status).toBe(400);
   expect((await call('put', `/camps/12/notes/${NOTE_ID}/votes/42`, {})).status).toBe(400);
+  expect((await call('patch', '/camps/12/notes/42', { outcome: 'keep' })).status).toBe(400);
+  expect((await call('put', '/camps/12abc/status', { status: 'closed' })).status).toBe(400);
+  expect(service.sortNote).not.toHaveBeenCalled();
+  expect(service.setReviewStatus).not.toHaveBeenCalled();
   expect(service.saveNote).not.toHaveBeenCalled();
   expect(service.addVote).not.toHaveBeenCalled();
 });
@@ -169,4 +182,23 @@ describe('a note is checked field by field before anything is written', () => {
     expect(service.readNote({ ...NOTE, moment: 'team_daily', day: '2026-07-11', expected_version: 2 }, camp))
       .toMatchObject({ day: '2026-07-11', expectedVersion: 2 });
   });
+});
+
+test('sorting, merging and closing reach the service inside one transaction each, for the authenticated unit', async () => {
+  const sort = { outcome: 'fix', action_text: 'Deux chaudrons', expected_version: 1 };
+  expect((await call('patch', `/camps/12/notes/${NOTE_ID}`, sort)).status).toBe(200);
+  expect(service.sortNote).toHaveBeenCalledWith(client, UNIT_ID, USER_ID, 12, NOTE_ID, sort);
+  expect((await call('put', `/camps/12/notes/${NOTE_ID}/merge`, { into: VOTE_ID })).body.data.note.id).toBe(VOTE_ID);
+  expect((await call('delete', `/camps/12/notes/${NOTE_ID}/merge`)).status).toBe(200);
+  expect(service.unmergeNote).toHaveBeenCalledWith(client, UNIT_ID, USER_ID, 12, NOTE_ID);
+  const closed = await call('put', '/camps/12/status?organization_id=99', { status: 'closed', expected_version: 0 });
+  expect(closed.body.data.review.status).toBe('closed');
+  expect(service.setReviewStatus).toHaveBeenCalledWith(client, UNIT_ID, USER_ID, 12, { status: 'closed', expected_version: 0 });
+});
+
+test('a closed review answers its refusal as a translation key', async () => {
+  service.saveNote.mockRejectedValue(new service.CampReviewError('camp_review_closed', 409));
+  const response = await call('put', `/camps/12/notes/${NOTE_ID}`, NOTE);
+  expect(response.status).toBe(409);
+  expect(response.body.message).toBe('camp_review_closed');
 });

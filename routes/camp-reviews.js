@@ -3,8 +3,9 @@
  *
  * Mounted at /api/v1/camp-reviews. Reading takes `camp_reviews.view`; writing
  * takes `camp_reviews.manage`. Notes are free text, so a demo account writes
- * nothing. Every write names the id the device chose, so the offline outbox may
- * replay it (services/campReviews.js, devdocs/CAMP_REVIEWS.md).
+ * nothing. Noting and voting name the id the device chose, so the offline
+ * outbox may replay them; sorting, merging and closing are online only
+ * (services/campReviews.js, devdocs/CAMP_REVIEWS.md).
  *
  * @module routes/camp-reviews
  */
@@ -16,7 +17,7 @@ const { validateIdParam, checkValidation } = require('../middleware/validation')
 const { HTTP_STATUS } = require('../utils/http-status');
 const transaction = require('../utils/transaction');
 const {
-  CampReviewError, readCampReview, saveNote, deleteNote, addVote, removeVote,
+  CampReviewError, readCampReview, saveNote, deleteNote, addVote, removeVote, sortNote, mergeNote, unmergeNote, setReviewStatus,
 } = require('../services/campReviews');
 
 /** Answer known refusals with their translation key, naming the field when there is one. */
@@ -78,7 +79,7 @@ module.exports = (pool) => {
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const { meetingId, noteId } = ids(req);
-      return success(res, await deleteNote(pool, organizationId, meetingId, noteId), 'camp_review_note_deleted');
+      return success(res, await transaction(pool, (db) => deleteNote(db, organizationId, meetingId, noteId)), 'camp_review_note_deleted');
     }));
 
   router.put('/camps/:meetingId/notes/:noteId/votes/:voteId',
@@ -91,7 +92,7 @@ module.exports = (pool) => {
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const { meetingId, noteId, voteId } = ids(req);
-      return success(res, await addVote(pool, organizationId, req.user.id, meetingId, noteId, voteId), 'camp_review_vote_saved');
+      return success(res, await transaction(pool, (db) => addVote(db, organizationId, req.user.id, meetingId, noteId, voteId)), 'camp_review_vote_saved');
     }));
 
   router.delete('/camps/:meetingId/notes/:noteId/votes/:voteId',
@@ -104,7 +105,58 @@ module.exports = (pool) => {
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const { meetingId, noteId, voteId } = ids(req);
-      return success(res, await removeVote(pool, organizationId, req.user.id, meetingId, noteId, voteId), 'camp_review_vote_removed');
+      return success(res, await transaction(pool, (db) => removeVote(db, organizationId, req.user.id, meetingId, noteId, voteId)), 'camp_review_vote_removed');
+    }));
+
+  // Sorting after the camp: to keep or to fix, with a short action.
+  router.patch('/camps/:meetingId/notes/:noteId',
+    blockDemoRoles,
+    requirePermission('camp_reviews.manage'),
+    validateIdParam('meetingId'),
+    noteIdParam,
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const { meetingId, noteId } = ids(req);
+      return success(res, await transaction(pool, (db) => sortNote(db, organizationId, req.user.id, meetingId, noteId, req.body)),
+        'camp_review_note_sorted');
+    }));
+
+  router.put('/camps/:meetingId/notes/:noteId/merge',
+    blockDemoRoles,
+    requirePermission('camp_reviews.manage'),
+    validateIdParam('meetingId'),
+    noteIdParam,
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const { meetingId, noteId } = ids(req);
+      return success(res, await transaction(pool, (db) => mergeNote(db, organizationId, req.user.id, meetingId, noteId, req.body)),
+        'camp_review_note_merged_saved');
+    }));
+
+  router.delete('/camps/:meetingId/notes/:noteId/merge',
+    blockDemoRoles,
+    requirePermission('camp_reviews.manage'),
+    validateIdParam('meetingId'),
+    noteIdParam,
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const { meetingId, noteId } = ids(req);
+      return success(res, await transaction(pool, (db) => unmergeNote(db, organizationId, req.user.id, meetingId, noteId)),
+        'camp_review_note_unmerged');
+    }));
+
+  router.put('/camps/:meetingId/status',
+    blockDemoRoles,
+    requirePermission('camp_reviews.manage'),
+    validateIdParam('meetingId'),
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      return success(res, await transaction(pool, (db) =>
+        setReviewStatus(db, organizationId, req.user.id, Number(req.params.meetingId), req.body)), 'camp_review_status_saved');
     }));
 
   return router;

@@ -64,3 +64,52 @@ export function addCampReviewVote(meetingId, noteId, voteId) {
 export function removeCampReviewVote(meetingId, noteId, voteId) {
   return API.delete(`${notePath(meetingId, noteId)}/votes/${encodeURIComponent(voteId)}`);
 }
+
+/** Sorting, merging and closing need the network: they are never queued. */
+const ONLINE_ONLY = { queueOffline: false };
+
+/**
+ * Sort a note after the camp: to keep or to fix, with a short action.
+ *
+ * @param {number} meetingId - The planned camp
+ * @param {string} noteId - UUID of the note
+ * @param {{outcome: ?string, action_text: ?string, expected_version: number}} body
+ * @returns {Promise<Object>} { note }
+ */
+export function sortCampReviewNote(meetingId, noteId, body) {
+  return API.patch(`v1/camp-reviews/camps/${encodeURIComponent(meetingId)}/notes/${encodeURIComponent(noteId)}`, body, {}, ONLINE_ONLY);
+}
+
+/**
+ * Merge a note into another that says the same thing.
+ *
+ * @param {number} meetingId - The planned camp
+ * @param {string} noteId - The note merged
+ * @param {{into: string, expected_version: number}} body
+ * @returns {Promise<Object>} { note } - the note it joined
+ */
+export function mergeCampReviewNote(meetingId, noteId, body) {
+  return API.put(`${notePath(meetingId, noteId)}/merge`, body, {}, ONLINE_ONLY);
+}
+
+/**
+ * Undo a merge.
+ *
+ * @param {number} meetingId - The planned camp
+ * @param {string} noteId - The merged note
+ * @returns {Promise<Object>} { note }
+ */
+export function unmergeCampReviewNote(meetingId, noteId) {
+  return API.delete(`${notePath(meetingId, noteId)}/merge`);
+}
+
+/**
+ * Close the review, or reopen it.
+ *
+ * @param {number} meetingId - The planned camp
+ * @param {{status: string, expected_version: number}} body
+ * @returns {Promise<Object>} { review }
+ */
+export function setCampReviewStatus(meetingId, body) {
+  return API.put(`v1/camp-reviews/camps/${encodeURIComponent(meetingId)}/status`, body, {}, ONLINE_ONLY);
+}

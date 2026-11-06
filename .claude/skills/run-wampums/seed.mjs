@@ -395,16 +395,19 @@ try {
   }
 
   // Its review (#1257): what the youth's council and the team said, one idea said three times,
-  // so the review shows its categories, a weight and an empty category.
+  // so the review shows its categories, a weight, an empty category and one note already sorted.
   const campReviews = require(path.join(ROOT, 'services/campReviews.js'));
   const reviewNotes = [
-    { category: 'liked', moment: 'youth_council', theme: 'activity', text: 'Le grand jeu de nuit', votes: 2 },
+    { category: 'liked', moment: 'youth_council', theme: 'activity', text: 'Le grand jeu de nuit', votes: 2, outcome: 'keep', action_text: 'Le refaire le samedi soir' },
     { category: 'liked', moment: 'youth_council', theme: 'meals', text: 'Les guimauves au feu de camp', votes: 0 },
     { category: 'improve', moment: 'team_after', theme: 'organization', text: 'Prévoir plus de temps pour la vaisselle', votes: 1 },
   ];
-  for (const { votes, ...note } of reviewNotes) {
+  for (const { votes, outcome, action_text: actionText, ...note } of reviewNotes) {
     const noteId = randomUUID();
     await campReviews.saveNote(pool, organizationId, adminId, campMeetingId, noteId, note);
+    if (outcome) {
+      await campReviews.sortNote(pool, organizationId, adminId, campMeetingId, noteId, { outcome, action_text: actionText, expected_version: 1 });
+    }
     for (let vote = 0; vote < votes; vote += 1) {
       await campReviews.addVote(pool, organizationId, adminId, campMeetingId, noteId, randomUUID());
     }

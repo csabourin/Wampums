@@ -370,3 +370,12 @@ test('the plan meets WCAG A/AA in every part, for an editor and for a reader', a
   await open();
   expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
 });
+
+test('the “Evaluated” step leads to the camp’s review, for whoever may read it', async () => {
+  await open();
+  expect($('a[href="/camp-review/12"]').textContent).toBe('camp_plan_open_review');
+  screen.destroy();
+  hasPermission.mockImplementation((key) => key !== 'camp_reviews.view');
+  await open();
+  expect($('a[href="/camp-review/12"]')).toBeNull();
+});
