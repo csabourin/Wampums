@@ -58,3 +58,7 @@ unpublished draft. Nothing personal is copied (registrations, authorizations, ch
 volunteer signups). Each part takes its own screen's rights (`config/camp_duplication.json`, shared
 with the SPA); a duty held by someone no longer active goes to the person copying. See
 `devdocs/CAMP_DUPLICATION.md`.
+
+With `camp_reviews.view`, the source chooser previews that camp’s sorted observations from a closed
+review. This read has its own retry and ignores late replies after source changes or closing.
+It never changes the selected parts or copies review notes/votes/states to the target.

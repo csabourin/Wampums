@@ -3,8 +3,8 @@
 At the end of a camp, the unit goes round the circle: what was liked, less liked, what to
 improve (the "Evaluated" of the V.C.P.R.E.F.). A leader notes it as it is said, often without a
 network. An idea said again weighs more. The first slice covers noting and weighing; the second,
-sorting (keep / fix), merging, removing one particular "+1" and closing the review. Reading reviews
-year after year ("Last year") comes next (see the issue).
+sorting (keep / fix), merging, removing one particular "+1" and closing the review. The third
+slice makes closed reviews readable across scout years and reuses their lessons during preparation.
 
 ## Rules
 
@@ -72,7 +72,44 @@ year after year ("Last year") comes next (see the issue).
 - Without a copy on the device, notes can still be added; the page says that notes taken elsewhere
   are not shown.
 
-## Verification
+## History and preparation lessons (#1257, third slice)
+
+- `/camp-reviews` lists closed reviews across all scout years of the authenticated unit, newest camp
+  first, including cancelled camps marked as such. Site choices include archived sites still used by
+  those camps. The native site, season and accommodation filters remain usable in an archived year
+  (`data-archive-safe`). The existing detail screen suppresses all mutations while consulting an archive.
+- `GET /api/v1/camp-reviews/history` uses `camp_reviews.view`, validates `site_id`, `season`,
+  `accommodation`, `page` and `limit`, and returns paginated `{ camps, sites }`. It never resolves or
+  creates an active scout year. `GET /camps/:meetingId/lessons` returns paginated `{ notes, target }`.
+  Both bypass caches and answer `Cache-Control: no-store`, so a reopened review disappears on refresh.
+- Lessons are sorted root observations (`keep` / `fix`) from earlier, closed, non-cancelled camps
+  at the same configured site OR with the same complete season/accommodation profile. NULLs never
+  match. Same site and same profile still produce one note; merged notes and their votes count once.
+  The summary exposes no voter identities and never combines similar notes across separate camps.
+- `CampReviewLessons` is shared by the written plan, team readiness and source preview in the copy
+  dialog. Preparation panels use a native collapsed disclosure to keep the form close at hand; the
+  source preview starts open. Their loading/errors/retry and pagination replace only the panel, never
+  a plan draft or copy checkboxes. Replies after destruction, source replacement or scope changes are
+  ignored. Every panel and request requires `camp_reviews.view`.
+- An activity-only, unscheduled camp explains that planning it enables lessons; it never requests
+  `/camps/null/lessons`. Copying a camp still copies no review, note, vote or closing state. The preview
+  only reads its source, and the next preparation read uses the target's current site/profile.
+- No new permission, table or migration. A separate "camp type" taxonomy is not inferred from a
+  free-text name: the existing season and accommodation choices are labelled as such.
+- Fine links from review notes to schedule lines, equipment articles and lots remain a follow-up
+  in #1257. This slice does not implement the permit document/approval workflow (#1320).
+
+### Verification of the third slice
+
+- `CampReviews.test.js`, `CampReviewLessons.test.js`: filters, pagination, retry, keyboard-safe native
+  controls, escaping, axe, permissions, scope changes, closed-source-only preview and preserved drafts.
+- `routes-camp-reviews.test.js`: authenticated unit, review permission, malformed filters and foreign camps.
+- `camp-reviews.integration.test.js`: real PostgreSQL, cross-year history, archived site, same-site/profile
+  deduplication, merged weight, missing profile, exclusion of the target/future camps and reopening.
+- The seeded previous camp has a closed review at the same site, with keep/fix observations, so the
+  history and lessons are populated in `SCREENS` and phone/desktop browser checks.
+
+## Verification of the earlier slices
 
 - `test/routes-camp-reviews.test.js`: 401, 403 with `required`/`missing`, `isDemo`, 400 ids, field checks.
 - `test/camp-reviews.integration.test.js`: replayed notes and votes count once, undo, versions,

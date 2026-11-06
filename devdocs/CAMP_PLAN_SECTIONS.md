@@ -81,3 +81,6 @@ in the plan and in `/camp-readiness`, never complete. Reusing a camp copies its 
 drafts to reread, never the stable ones. `/camp-plans` lists the unit's camps with what each plan
 lacks. See `devdocs/CAMP_PLAN_SECTIONS.md`. The dashboard's "Plan the year and the camps" section
 (`moment: 'plan'`, after "This week") gathers the long-range and camp tiles.
+
+The plan and camp list also expose closed review history (#1257): a permission-gated history link
+and a separate collapsed lessons panel. Loading that panel never redraws a section being edited.

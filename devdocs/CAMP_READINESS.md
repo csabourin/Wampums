@@ -92,3 +92,7 @@ both, and no event lasts more than `config/event_limits.json` days. The read-onl
 permissions the shared authorization engine confirms; it never equates empty or
 hidden sections with readiness. See `devdocs/CAMP_READINESS.md`. Offline readiness
 still belongs to `CampPreparation` on each device.
+
+With `camp_reviews.view`, the overview also offers a separate lessons panel for its planned camp.
+An unscheduled activity explains that it first needs planning. A failed lessons read leaves all
+other preparation sections usable; see `devdocs/CAMP_REVIEWS.md`.

@@ -19,6 +19,7 @@
  */
 
 import axe from 'axe-core';
+jest.mock('../../spa/modules/scout-year/ScoutYearContext.js', () => ({ isArchiveMode: jest.fn(() => false) }));
 
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn(), debugInfo: jest.fn(),
@@ -720,3 +721,12 @@ describe('sorting after the camp', () => {
   });
 });
 
+
+
+test('consulting an archived year shows no note or status mutations even with manage permission', async () => {
+  const { isArchiveMode } = require('../../spa/modules/scout-year/ScoutYearContext');
+  isArchiveMode.mockReturnValueOnce(true);
+  await open();
+  expect($('#camp-review-form')).toBeNull();
+  expect($('[data-review-vote], [data-review-sort], [data-review-delete], #camp-review-close, #camp-review-reopen')).toBeNull();
+});

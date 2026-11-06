@@ -41,6 +41,7 @@ import {
 import { similarNotes } from './CampReviewMatching.js';
 import { MAX_EVENT_DAYS } from '../../utils/ActivityDateUtils.js';
 import styles from '../../../css/camp-review.css?url';
+import { isArchiveMode } from '../scout-year/ScoutYearContext.js';
 
 const FORM_ID = 'camp-review-form';
 const TEXT_ID = 'camp-review-text';
@@ -59,7 +60,7 @@ export class CampReview {
   constructor(app, { meetingId }) {
     this.app = app;
     this.meetingId = Number(meetingId);
-    this.canManage = hasPermission('camp_reviews.manage') && !isDemoUser();
+    this.canManage = hasPermission('camp_reviews.manage') && !isDemoUser() && !isArchiveMode();
     this.camp = null;
     // Open until closed; a camp whose review was never closed is at version 0.
     this.review = { status: 'open', version: 0, closed_at: null, closed_by: null };

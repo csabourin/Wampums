@@ -24,6 +24,7 @@ import { shiftName } from '../../utils/VolunteerTypeUtils.js';
 import { emergencyGapLabels } from '../camp-sites/siteLabels.js';
 import { planSectionLabel, planPartOf } from '../camp-plan/planLabels.js';
 import styles from '../../../css/camp-readiness.css?url';
+import { CampReviewLessons } from '../camp-review/CampReviewLessons.js';
 
 export const READINESS_LABELS = {
   signed: 'permission_slip_status_signed', pending: 'permission_slip_status_pending',
@@ -52,6 +53,7 @@ export class CampReadiness {
   }
 
   destroy() {
+    this.lessons?.destroy();
     this.destroyed = true;
     this.request += 1;
   }
@@ -302,7 +304,14 @@ export class CampReadiness {
         ${camp.id && camp.scheduled !== false && hasPermission('camp_reviews.view')
     ? `<a class="button button--secondary button--small" href="/camp-review/${Number(camp.id)}">${escapeHTML(translate('camp_review_title'))}</a>` : ''}
       </div>
+      ${hasPermission('camp_reviews.view') ? (camp.id && camp.scheduled !== false
+    ? '<div id="camp-readiness-lessons"></div>' : `<p>${escapeHTML(translate('camp_history_unscheduled'))}</p>`) : ''}
       ${this.sectionsMarkup()}</section>`);
+    this.lessons?.destroy();
+    if (hasPermission('camp_reviews.view') && camp.id && camp.scheduled !== false) {
+      this.lessons = new CampReviewLessons(this.app, { element: this.root().querySelector('#camp-readiness-lessons'), meetingId: camp.id });
+      void this.lessons.init();
+    }
     this.root().querySelector('#camp-readiness-refresh').addEventListener('click', () => this.init());
   }
 }

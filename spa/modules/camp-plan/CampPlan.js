@@ -38,6 +38,7 @@ import { getActivityLibrary } from '../../api/api-yearly-planner.js';
 import { activityCategoryLabel } from '../../utils/ActivityLibraryUtils.js';
 import { CAMP_PLAN_PARTS, planPartOf, planPartLabel, planSectionLabel } from './planLabels.js';
 import styles from '../../../css/camp-plan.css?url';
+import { CampReviewLessons } from '../camp-review/CampReviewLessons.js';
 
 export class CampPlan {
   /**
@@ -64,6 +65,7 @@ export class CampPlan {
   }
 
   destroy() {
+    this.lessons?.destroy();
     this.destroyed = true;
     this.request += 1;
   }
@@ -378,9 +380,15 @@ export class CampPlan {
         <p class="camp-plan__camp"><strong>${escapeHTML(camp.theme || translate('camp_readiness_camp'))}</strong> <span>${escapeHTML(dates)}</span></p>
         ${camp.is_cancelled ? `<p role="status">${escapeHTML(translate('camp_readiness_cancelled'))}</p>` : ''}
         <div id="camp-plan-summary">${this.summaryMarkup()}</div>
+        ${hasPermission('camp_reviews.view') ? '<div id="camp-plan-lessons"></div>' : ''}
         <nav class="camp-plan__nav" id="camp-plan-nav" aria-label="${escapeAttribute(translate('camp_plan_nav_label'))}">${this.navMarkup()}</nav>
         ${panels}
       </section>`);
+    this.lessons?.destroy();
+    if (hasPermission('camp_reviews.view')) {
+      this.lessons = new CampReviewLessons(this.app, { element: this.root().querySelector('#camp-plan-lessons'), meetingId: this.meetingId });
+      void this.lessons.init();
+    }
     this.root().querySelectorAll('.camp-plan__section').forEach((block) => this.wireSection(block));
     this.wireRainGames();
     // One listener for the quick navigation and every pager, which survive redraws of the navigation.

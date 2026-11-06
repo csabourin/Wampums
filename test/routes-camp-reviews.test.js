@@ -16,6 +16,8 @@ jest.mock('../services/campReviews', () => {
     sortNote: jest.fn(), mergeNote: jest.fn(), unmergeNote: jest.fn(), setReviewStatus: jest.fn(),
   };
 });
+jest.mock('../services/campReviewHistory', () => ({ ...jest.requireActual('../services/campReviewHistory'), readCampReviewHistory: jest.fn(), readCampReviewLessons: jest.fn() }));
+const history = require('../services/campReviewHistory');
 const service = require('../services/campReviews');
 
 process.env.JWT_SECRET_KEY = 'fictional-camp-reviews-tests';
@@ -55,6 +57,8 @@ const WRITES = [
 
 beforeEach(() => {
   jest.clearAllMocks();
+  history.readCampReviewHistory.mockResolvedValue({ camps: [], sites: [], total: 0 });
+  history.readCampReviewLessons.mockResolvedValue({ notes: [], target: { id: 12 }, total: 0 });
   permissions = ['camp_reviews.view', 'camp_reviews.manage'];
   roles = [{ role_name: 'animation', display_name: 'Leader', data_scope: 'organization' }];
   service.readCampReview.mockResolvedValue({ camp: { id: 12 }, notes: [] });
@@ -231,4 +235,45 @@ test('a closed review answers its refusal as a translation key', async () => {
   const response = await call('put', `/camps/12/notes/${NOTE_ID}`, NOTE);
   expect(response.status).toBe(409);
   expect(response.body.message).toBe('camp_review_closed');
+});
+
+
+describe('history across scout years', () => {
+  test('history and lessons require a token and the review permission', async () => {
+    for (const path of ['/history', '/camps/12/lessons']) {
+      // eslint-disable-next-line no-await-in-loop -- check both public entry points
+      expect((await request(app).get(`/api/v1/camp-reviews${  path}`)).status).toBe(401);
+    }
+    permissions = [];
+    for (const path of ['/history', '/camps/12/lessons']) {
+      // eslint-disable-next-line no-await-in-loop -- check both permission refusals
+      const response = await call('get', path);
+      expect(response.status).toBe(403);
+      expect(response.body.required).toContain('camp_reviews.view');
+      expect(response.body.missing).toContain('camp_reviews.view');
+    }
+    expect(history.readCampReviewHistory).not.toHaveBeenCalled();
+    expect(history.readCampReviewLessons).not.toHaveBeenCalled();
+  });
+
+  test('the authenticated unit scopes the history even when another unit or year is requested', async () => {
+    const response = await call('get', '/history?organization_id=999&scout_year_id=42&season=winter&page=2&limit=5');
+    expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(history.readCampReviewHistory).toHaveBeenCalledWith(pool, UNIT_ID,
+      { siteId: null, season: 'winter', accommodation: null, page: 2, limit: 5 });
+    expect(response.body.pagination).toMatchObject({ page: 2, limit: 5, total: 0 });
+  });
+
+  test.each(['site_id=0', 'site_id=12x', 'site_id=2147483648', 'season=unknown', 'season[]=winter', 'accommodation=tree', 'page=-1', 'limit=51', 'limit=1.5'])('a malformed filter is refused: %s', async (filter) => {
+    expect((await call('get', `/history?${  filter}`)).status).toBe(400);
+    expect(history.readCampReviewHistory).not.toHaveBeenCalled();
+  });
+
+  test('a foreign target is not found and an invalid target never reaches the service', async () => {
+    expect((await call('get', '/camps/12abc/lessons')).status).toBe(400);
+    expect(history.readCampReviewLessons).not.toHaveBeenCalled();
+    history.readCampReviewLessons.mockRejectedValueOnce(new service.CampReviewError('camp_review_camp_not_found', 404));
+    expect((await call('get', '/camps/99/lessons')).status).toBe(404);
+  });
 });

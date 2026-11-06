@@ -150,6 +150,7 @@ const lazyModules = {
   CampPlans: () => import('./modules/camp-plan/CampPlans.js').then(m => m.CampPlans),
   CampRoster: () => import('./modules/camp-plan/CampRoster.js').then(m => m.CampRoster),
   CampReview: () => import('./modules/camp-review/CampReview.js').then(m => m.CampReview),
+  CampReviews: () => import('./modules/camp-review/CampReviews.js').then(m => m.CampReviews),
   ScoutYearTransition: () => import('./modules/scout-year/ScoutYearTransition.js').then(m => m.ScoutYearTransition),
   AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink),
   ReactivationLink: () => import('./modules/reactivation/ReactivationLink.js').then(m => m.ReactivationLink),
@@ -283,6 +284,7 @@ const routes = {
   '/camp-plans': 'campPlans',
   '/camp-roster/:id': 'campRoster',
   '/camp-review/:id': 'campReview',
+  '/camp-reviews': 'campReviews',
   '/unit-settings': 'unitSettings',
   '/scout-year': 'scoutYear'
 
@@ -895,6 +897,13 @@ export class Router {
           if (!guard(hasPermission('meetings.view') && hasPermission('participants.view') && hasOrganizationScope())) {break;}
           const CampRoster = await this.loadModule('CampRoster');
           this.currentModuleInstance = new CampRoster(this.app, { meetingId: Number(param) });
+          await this.currentModuleInstance.init();
+          break;
+        }
+        case 'campReviews': {
+          if (!guard(hasPermission('camp_reviews.view'))) {break;}
+          const CampReviews = await this.loadModule('CampReviews');
+          this.currentModuleInstance = new CampReviews(this.app);
           await this.currentModuleInstance.init();
           break;
         }

@@ -12,13 +12,14 @@
 const express = require('express');
 const { param } = require('express-validator');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
-const { success, error, asyncHandler } = require('../middleware/response');
+const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 const { HTTP_STATUS } = require('../utils/http-status');
 const transaction = require('../utils/transaction');
 const {
   CampReviewError, readCampReview, saveNote, deleteNote, addVote, removeVote, sortNote, mergeNote, unmergeNote, setReviewStatus,
 } = require('../services/campReviews');
+const { readHistoryFilters, readCampReviewHistory, readCampReviewLessons } = require('../services/campReviewHistory');
 
 /** Answer known refusals with their translation key, naming the field when there is one. */
 const handle = (handler) => asyncHandler(async (req, res) => {
@@ -45,6 +46,23 @@ const ids = (req) => ({
 module.exports = (pool) => {
   const router = express.Router();
   router.use(authenticate);
+
+  router.get('/history', requirePermission('camp_reviews.view'), handle(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const filters = readHistoryFilters(req.query);
+    const { camps, sites, total } = await readCampReviewHistory(pool, organizationId, filters);
+    res.set('Cache-Control', 'no-store');
+    return paginated(res, { camps, sites }, filters.page, filters.limit, total);
+  }));
+
+  router.get('/camps/:meetingId/lessons', requirePermission('camp_reviews.view'),
+    validateIdParam('meetingId'), checkValidation, handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const filters = readHistoryFilters(req.query);
+      const { notes, target, total } = await readCampReviewLessons(pool, organizationId, Number(req.params.meetingId), filters);
+      res.set('Cache-Control', 'no-store');
+      return paginated(res, { notes, target }, filters.page, filters.limit, total);
+    }));
 
   router.get('/camps/:meetingId',
     requirePermission('camp_reviews.view'),

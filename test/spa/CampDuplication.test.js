@@ -18,6 +18,7 @@
  */
 
 import axe from 'axe-core';
+jest.mock('../../spa/modules/camp-review/CampReviewLessons.js', () => ({ CampReviewLessons: jest.fn().mockImplementation(() => ({ init: jest.fn(), destroy: jest.fn() })) }));
 
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(),
@@ -37,7 +38,7 @@ jest.mock('../../spa/config.js', () => ({
 }));
 
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
-  hasAllPermissions: jest.fn(() => true),
+  hasAllPermissions: jest.fn(() => true), hasPermission: jest.fn(() => true),
   hasOrganizationScope: jest.fn(() => true),
 }));
 

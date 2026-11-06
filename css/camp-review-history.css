@@ -1,0 +1,10 @@
+.camp-history__filters { display: flex; flex-wrap: wrap; gap: var(--space-md); align-items: end; }
+.camp-history__filters .form-group { flex: 1 1 16rem; min-width: 0; }
+.camp-history__filters select { width: 100%; min-height: 44px; }
+.camp-history__list, .camp-lessons__list { list-style: none; padding: 0; }
+.camp-history__list > li, .camp-lessons__list > li { padding: var(--space-md); margin-block: var(--space-md); border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow-wrap: anywhere; }
+.camp-lessons { margin-block: var(--space-lg); padding: var(--space-md); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.camp-lessons summary { min-height: 44px; cursor: pointer; }
+.camp-lessons summary h2 { display: inline; margin: 0; }
+.camp-lessons a, .camp-history__list a { display: inline-flex; align-items: center; min-height: 44px; }
+.camp-history__pager { display: flex; flex-wrap: wrap; gap: var(--space-md); align-items: center; }

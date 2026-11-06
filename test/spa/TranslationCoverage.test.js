@@ -321,3 +321,11 @@ test('every camp review category, moment and topic has its label in both languag
   expect(rules.CATEGORIES).toEqual(['liked', 'disliked', 'improve']);
   expect(missing(uses)).toEqual([]);
 });
+
+test('every history season and accommodation choice has its label in both languages', () => {
+  const sites = require('../../config/camp_sites.json');
+  expect(missing([
+    ...sites.SEASONS.map((value) => [`camp_site_season_${value}`, 'CampReviews']),
+    ...sites.ACCOMMODATIONS.map((value) => [`camp_site_accommodation_${value}`, 'CampReviews']),
+  ])).toEqual([]);
+});

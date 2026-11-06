@@ -1,5 +1,6 @@
 /** @jest-environment jsdom */
 import axe from 'axe-core';
+jest.mock('../../spa/modules/camp-review/CampReviewLessons.js', () => ({ CampReviewLessons: jest.fn().mockImplementation(() => ({ init: jest.fn(), destroy: jest.fn() })) }));
 jest.mock('../../spa/config.js', () => ({ CONFIG: {}, getStorageKey: (key) => key }));
 jest.mock('../../spa/app.js', () => ({ translate: jest.fn((key) => key) }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));

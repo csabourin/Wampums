@@ -12,6 +12,16 @@ import { API } from './api-core.js';
 
 const notePath = (meetingId, noteId) => `v1/camp-reviews/camps/${encodeURIComponent(meetingId)}/notes/${encodeURIComponent(noteId)}`;
 
+/** Closed reviews across every scout year, always freshly read in the signed-in unit. */
+export function getCampReviewHistory(filters = {}) {
+  return API.getNoCache('v1/camp-reviews/history', filters);
+}
+
+/** Paginated observations from earlier closed camps relevant to this camp. */
+export function getCampReviewLessons(meetingId, filters = {}) {
+  return API.getNoCache(`v1/camp-reviews/camps/${encodeURIComponent(meetingId)}/lessons`, filters);
+}
+
 /**
  * @param {number} meetingId - The planned camp
  * @returns {Promise<Object>} { camp, notes }

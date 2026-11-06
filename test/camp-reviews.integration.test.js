@@ -297,4 +297,47 @@ describe.skipIf(!DATABASE_URL)('Camp review', () => {
     expect(pack.data.camp).toMatchObject({ id: Number(ids.camp.meeting), date_from: '2026-07-10', date_to: '2026-07-12' });
     expect(pack.data.notes.some((entry) => entry.text === 'La baignade au lac')).toBe(true);
   });
+
+  test('closed reviews and lessons span years, preserve merged weights and remain scoped to the unit', async () => {
+    const earlier = await camp(ids.unit, ids.leader, '2025-07-10', '2025-07-12');
+    const target = await camp(ids.unit, ids.leader, '2027-07-10', '2027-07-12');
+    const withoutProfile = await camp(ids.unit, ids.leader, '2027-08-10', '2027-08-12');
+    const siteId = await one("INSERT INTO camp_sites (organization_id, name, created_by) VALUES ($1, 'Forêt historique fictive', $2) RETURNING id", [ids.unit, ids.leader]);
+    for (const meeting of [earlier.meeting, target.meeting]) {
+      // eslint-disable-next-line no-await-in-loop -- two fixtures share the exact profile
+      await pool.query("INSERT INTO camp_details (organization_id, meeting_id, camp_site_id, season, accommodation) VALUES ($1, $2, $3, 'summer', 'tent')", [ids.unit, meeting, siteId]);
+    }
+    const parentId = randomUUID(); const childId = randomUUID();
+    const base = `/camps/${earlier.meeting}`;
+    await call('put', `${base}/notes/${parentId}`).send(note({ text: 'Garder le jeu de nuit' }));
+    await call('put', `${base}/notes/${childId}`).send(note({ text: 'Rejouer dehors' }));
+    await call('put', `${base}/notes/${childId}/votes/${randomUUID()}`).send({});
+    await call('patch', `${base}/notes/${parentId}`).send({ outcome: 'keep', action_text: 'Le samedi', expected_version: 1 });
+    await call('put', `${base}/notes/${childId}/merge`).send({ into: parentId, expected_version: 1 });
+    expect((await call('put', `${base}/status`).send({ status: 'closed', expected_version: 0 })).status).toBe(200);
+    await pool.query('UPDATE camp_sites SET archived_at = NOW() WHERE organization_id = $1 AND id = $2', [ids.unit, siteId]);
+
+    const historyPath = `/history?site_id=${siteId}&limit=1`;
+    const history = await call('get', historyPath);
+    expect(history.status).toBe(200);
+    expect(history.body.pagination.total).toBe(1);
+    expect(history.body.data.camps[0]).toMatchObject({ id: earlier.meeting, keep_count: 1, fix_count: 0 });
+    expect(history.body.data.sites).toContainEqual(expect.objectContaining({ id: siteId, archived: true }));
+    const inArchive = await call('get', `${historyPath  }&scout_year_id=987654`);
+    expect(inArchive.body.data).toEqual(history.body.data);
+    expect((await call('get', historyPath, ids.outsider, ids.otherUnit)).body.pagination.total).toBe(0);
+
+    const lessons = await call('get', `/camps/${target.meeting}/lessons`);
+    expect(lessons.status).toBe(200);
+    expect(lessons.body.pagination.total).toBe(1);
+    expect(lessons.body.data.notes).toEqual([expect.objectContaining({ id: parentId, source_meeting_id: earlier.meeting, weight: 3, same_site: true, same_profile: true })]);
+    expect(lessons.body.data.notes[0].votes).toBeUndefined();
+    expect((await call('get', `/camps/${withoutProfile.meeting}/lessons`)).body.pagination.total).toBe(0);
+    expect((await call('get', `/camps/${target.meeting}/lessons`, ids.outsider, ids.otherUnit)).status).toBe(404);
+    expect((await call('get', `/camps/${earlier.meeting}/lessons`)).body.pagination.total).toBe(0);
+    expect((await call('put', `${base}/status`).send({ status: 'open', expected_version: 2 })).status).toBe(200);
+    expect((await call('get', historyPath)).body.pagination.total).toBe(0);
+    expect((await call('get', `/camps/${target.meeting}/lessons`)).body.pagination.total).toBe(0);
+  });
+
 });

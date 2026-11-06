@@ -15,7 +15,8 @@ import { formatDate } from '../../utils/DateUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
-import { hasAllPermissions, hasOrganizationScope } from '../../utils/PermissionUtils.js';
+import { hasAllPermissions, hasOrganizationScope, hasPermission } from '../../utils/PermissionUtils.js';
+import { CampReviewLessons } from '../camp-review/CampReviewLessons.js';
 import { getCampDuplication, duplicateCamp } from '../../api/api-yearly-planner.js';
 
 const FORM_ID = 'yp-camp-duplicate-form';
@@ -195,6 +196,7 @@ export class CampDuplication {
             `).join('')}
           </select>
         </div>
+        ${hasPermission('camp_reviews.view') ? '<div id="yp-camp-duplicate-lessons"></div>' : ''}
         <fieldset id="yp-camp-duplicate-parts" aria-describedby="yp-camp-duplicate-parts-error">
           <legend>${escapeHTML(translate('camp_duplicate_parts'))}</legend>
           ${parts}
@@ -211,6 +213,11 @@ export class CampDuplication {
       </button>
     `);
     this.wire(body);
+    this.lessons?.destroy();
+    if (hasPermission('camp_reviews.view')) {
+      this.lessons = new CampReviewLessons(this.app, { element: body.querySelector('#yp-camp-duplicate-lessons'), meetingId: source.id, source: true });
+      void this.lessons.init();
+    }
     // The footer that held focus was just replaced: keep focus in the dialog.
     if (!this.modal.overlay.contains(document.activeElement)) {
       body.querySelector('#yp-camp-duplicate-source')?.focus();

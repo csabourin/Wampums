@@ -413,6 +413,27 @@ try {
     }
   }
 
+  // A previous camp at the same site: a closed review for history and preparation lessons.
+  const earlierReviewMeetingId = await one(`INSERT INTO year_plan_meetings
+    (year_plan_id, organization_id, meeting_date, theme, meeting_kind)
+    SELECT year_plan_id, organization_id, meeting_date - INTERVAL '1 year', 'Camp précédent au lac fictif', 'camp'
+    FROM year_plan_meetings WHERE organization_id = $1 AND id = $2 RETURNING id`,
+  [organizationId, campMeetingId]);
+  await saveCampSite(pool, organizationId, adminId, earlierReviewMeetingId, {
+    camp_site_id: campSite.id, season: 'autumn', accommodation: 'tent', expected_version: 0,
+  });
+  for (const observation of [
+    { category: 'liked', text: 'Le jeu de nuit à refaire', outcome: 'keep', action_text: 'Le samedi après le souper' },
+    { category: 'improve', text: 'Moins de charbon à apporter', outcome: 'fix', action_text: 'Réduire les quantités après vérification' },
+  ]) {
+    const noteId = randomUUID();
+    const { outcome, action_text: actionText, ...fields } = observation;
+    await campReviews.saveNote(pool, organizationId, adminId, earlierReviewMeetingId, noteId, { ...fields, moment: 'team_after' });
+    await campReviews.sortNote(pool, organizationId, adminId, earlierReviewMeetingId, noteId, { outcome, action_text: actionText, expected_version: 1 });
+    await campReviews.addVote(pool, organizationId, adminId, earlierReviewMeetingId, noteId, randomUUID());
+  }
+  await campReviews.setReviewStatus(pool, organizationId, adminId, earlierReviewMeetingId, { status: 'closed', expected_version: 0 });
+
   // A camp in ten days, recorded as an activity marked as a camp, with volunteer shifts:
   // cooks (one place still open), a driver (filled), and camp aides, whose place stays to
   // verify until a background check and training are recorded.

@@ -142,7 +142,8 @@ export class CampPlans {
         ${renderBackLink()}
         <h1>${escapeHTML(translate('camp_plans_title'))}</h1>
         <p class="camp-plan__intro">${escapeHTML(translate('camp_plans_intro'))}</p>
-        <div class="camp-plan__actions">${planner}${templates}</div>
+        <div class="camp-plan__actions">${planner}${templates}
+          ${this.canSeeReview ? `<a class="button button--secondary" href="/camp-reviews">${escapeHTML(translate('camp_history_title'))}</a>` : ''}</div>
         ${body}
       </section>`);
   }
