@@ -86,6 +86,33 @@ afterAll((done) => {
 // MEDICATION REQUIREMENT CREATION TESTS
 // ============================================
 
+/**
+ * Answer the permission and membership lookups as an admin of ORG_ID.
+ * @param {Object} client - Mocked client
+ * @param {Object} pool - Mocked pool
+ * @returns {Array<string>} Queries sent, to check nothing was written
+ */
+function asUnitAdmin(client, pool) {
+  const queries = [];
+  mockQueryImplementation(client, pool, (query) => {
+    queries.push(query);
+    if (query.includes('permission_key')) {
+      return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
+    }
+    if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
+      return Promise.resolve({ rows: [] });
+    }
+    if (query.includes('JOIN roles r')) {
+      return Promise.resolve({ rows: [{ role_name: 'district', data_scope: 'organization' }] });
+    }
+    if (query.includes('FROM user_organizations')) {
+      return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });
+    }
+    return undefined;
+  });
+  return queries;
+}
+
 describe('POST /api/v1/medication/requirements', () => {
   test('creates medication requirement with all required fields', async () => {
     const { __mClient, __mPool } = require('pg');
@@ -280,33 +307,6 @@ describe('POST /api/v1/medication/requirements', () => {
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/dose|number|numeric/i);
   });
-
-  /**
-   * Answer the permission and membership lookups as an admin of ORG_ID.
-   * @param {Object} client - Mocked client
-   * @param {Object} pool - Mocked pool
-   * @returns {Array<string>} Queries sent, to check nothing was written
-   */
-  function asUnitAdmin(client, pool) {
-    const queries = [];
-    mockQueryImplementation(client, pool, (query) => {
-      queries.push(query);
-      if (query.includes('permission_key')) {
-        return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
-      }
-      if (query.includes("'demoadmin'") || query.includes("'demoparent'")) {
-        return Promise.resolve({ rows: [] });
-      }
-      if (query.includes('JOIN roles r')) {
-        return Promise.resolve({ rows: [{ role_name: 'district', data_scope: 'organization' }] });
-      }
-      if (query.includes('FROM user_organizations')) {
-        return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });
-      }
-      return undefined;
-    });
-    return queries;
-  }
 
   test('a dose quantity without its unit is refused, so nobody reads a bare "200"', async () => {
     const { __mClient, __mPool } = require('pg');
@@ -870,5 +870,22 @@ describe('GET /api/v1/medication/requirements', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(403);
+  });
+});
+
+describe('POST /api/v1/medication/authorizations/administration', () => {
+  test('the same leader cannot be both adults entrusted with a child\'s medication', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asUnitAdmin(__mClient, __mPool);
+    const leader = '42b23881-cb20-4a2c-83de-a41221085a66';
+
+    const res = await request(app)
+      .post('/api/v1/medication/authorizations/administration')
+      .set('Authorization', `Bearer ${generateToken({ permissions: ['medication.manage'] })}`)
+      .send({ participant_id: 50, guardian_id: 1, admin_user_id_1: leader, admin_user_id_2: leader, requirements: [] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('medication_admins_must_differ');
+    expect(queries.some((query) => query.includes('INSERT INTO medication_admin_authorizations'))).toBe(false);
   });
 });

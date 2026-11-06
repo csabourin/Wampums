@@ -5831,5 +5831,6 @@
   "medication_frequency_meal_required": "Tick at least one meal, or choose another frequency.",
   "medication_dose_unit_required": "Add the unit of the dose (mg, ml, tablet…).",
   "medication_dose_unit_placeholder": "e.g. mg",
-  "medication_frequency_with_times": "{frequency}: {times}"
+  "medication_frequency_with_times": "{frequency}: {times}",
+  "medication_admins_must_differ": "Choose two different adults: the same person cannot be named twice."
 }

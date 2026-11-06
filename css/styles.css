@@ -5350,6 +5350,14 @@ body.online .pending-update {
   min-block-size: var(--touch-target-min);
 }
 
+/* Medication authorizations are signed on a phone: every box is a 24px target. */
+.medication-auth-form input[type="checkbox"] {
+  flex: none;
+  inline-size: var(--control-size-min);
+  block-size: var(--control-size-min);
+  accent-color: var(--color-primary);
+}
+
 .radio-option label,
 .checkbox-option label,
 .radio-group label,

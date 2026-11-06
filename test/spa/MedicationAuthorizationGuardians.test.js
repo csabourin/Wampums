@@ -10,6 +10,8 @@
  */
 
 import axe from 'axe-core';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
@@ -17,7 +19,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugError: jest.fn()
 }));
 jest.mock('../../spa/utils/DateUtils.js', () => ({
-  formatDate: (value) => value,
+  formatDate: (value, lang) => `${value} [${lang}]`,
   getTodayISO: () => '2026-10-09'
 }));
 jest.mock('../../spa/indexedDB.js', () => ({}));
@@ -63,13 +65,15 @@ const AXE_OPTIONS = {
  *
  * @returns {Promise<{page: MedicationManagement, app: Object}>} Page and app stub
  */
-async function openAuthorizations() {
+async function openAuthorizations(authorizations = {}) {
   endpoints.getGuardiansForParticipant.mockResolvedValue({ success: true, data: [GUARDIAN] });
-  endpoints.getLeaders.mockResolvedValue({ success: true, data: { users: [{ id: 'u-1', full_name: 'Baloo Leader' }] } });
+  endpoints.getLeaders.mockResolvedValue({ success: true, data: { users: [
+    { id: 'u-1', full_name: 'Baloo Leader' }, { id: 'u-2', full_name: 'Akela Admin' },
+  ] } });
   endpoints.getFirstAidSupplies.mockResolvedValue({ success: true, data: { supplies: [] } });
-  endpoints.getMedicationAuthorizations.mockResolvedValue({ success: true, data: {} });
+  endpoints.getMedicationAuthorizations.mockResolvedValue({ success: true, data: authorizations });
 
-  const app = { showMessage: jest.fn() };
+  const app = { showMessage: jest.fn(), lang: 'fr' };
   const page = new MedicationManagement(app, { view: 'authorizations', participantId: CHILD_ID });
   page.participants = [{ id: CHILD_ID, first_name: 'Léa', last_name: 'Parent' }];
   page.requirements = [];
@@ -133,5 +137,61 @@ describe('medication authorizations for a parent', () => {
     await openAuthorizations();
     const results = await axe.run(document.querySelector('main'), AXE_OPTIONS);
     expect(results.violations).toEqual([]);
+  });
+
+  test('the same leader cannot be named as both adults entrusted with the medication', async () => {
+    const { page } = await openAuthorizations();
+    const form = document.getElementById('adminAuthForm');
+    form.elements.guardian_id.value = '12';
+    form.elements.admin_user_id_1.value = 'u-1';
+    form.elements.admin_user_id_2.value = 'u-1';
+
+    await page.handleAdminAuthSubmit({ target: form });
+
+    expect(endpoints.saveAdministrationAuthorization).not.toHaveBeenCalled();
+    const second = form.elements.admin_user_id_2;
+    const message = document.getElementById('medicationAdminsError');
+    expect(message.hidden).toBe(false);
+    expect(message.getAttribute('role')).toBe('alert');
+    expect(message.textContent).toBe('medication_admins_must_differ');
+    expect(second.getAttribute('aria-invalid')).toBe('true');
+    expect(second.getAttribute('aria-describedby')).toBe('medicationAdminsError');
+    expect(document.activeElement).toBe(second);
+    expect((await axe.run(document.querySelector('main'), AXE_OPTIONS)).violations).toEqual([]);
+
+    second.value = 'u-2';
+    second.dispatchEvent(new Event('change'));
+    expect(message.hidden).toBe(true);
+    expect(second.hasAttribute('aria-invalid')).toBe(false);
+
+    endpoints.saveAdministrationAuthorization.mockResolvedValue({ success: true });
+    await page.handleAdminAuthSubmit({ target: form });
+    expect(endpoints.saveAdministrationAuthorization).toHaveBeenCalledWith(
+      expect.objectContaining({ admin_user_id_1: 'u-1', admin_user_id_2: 'u-2' })
+    );
+  });
+
+  test('the signing date is written in the page language', async () => {
+    await openAuthorizations({
+      treatment: { id: 1, guardian_id: 12, date_signature: '2026-11-06T00:00:00.000Z' },
+      administration: { id: 2, guardian_id: 12, date_signature: '2026-11-06T00:00:00.000Z' },
+    });
+
+    const signed = [...document.querySelectorAll('main p')].filter((p) => p.textContent.includes('signed_on'));
+    expect(signed.length).toBeGreaterThan(0);
+    signed.forEach((p) => expect(p.textContent).toContain('[fr]'));
+  });
+
+  test('every box a parent ticks in these forms is a 24px target', async () => {
+    await openAuthorizations();
+    const styles = readFileSync(path.join(__dirname, '../../css/styles.css'), 'utf8');
+    const rule = /\.medication-auth-form input\[type="checkbox"\]\s*\{([^}]*)\}/.exec(styles);
+
+    expect(rule).not.toBeNull();
+    expect(rule[1]).toMatch(/inline-size:\s*var\(--control-size-min\)/);
+    expect(rule[1]).toMatch(/block-size:\s*var\(--control-size-min\)/);
+    const boxes = document.querySelectorAll('main input[type="checkbox"]');
+    expect(boxes.length).toBeGreaterThan(0);
+    boxes.forEach((box) => expect(box.closest('.medication-auth-form')).not.toBeNull());
   });
 });

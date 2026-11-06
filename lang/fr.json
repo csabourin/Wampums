@@ -5831,5 +5831,6 @@
   "medication_frequency_meal_required": "Cochez au moins un repas, ou choisissez une autre fréquence.",
   "medication_dose_unit_required": "Ajoutez l’unité de la dose (mg, ml, comprimé…).",
   "medication_dose_unit_placeholder": "ex. : mg",
-  "medication_frequency_with_times": "{frequency} : {times}"
+  "medication_frequency_with_times": "{frequency} : {times}",
+  "medication_admins_must_differ": "Choisissez deux adultes différents : la même personne ne peut pas être nommée deux fois."
 }

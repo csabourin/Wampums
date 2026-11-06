@@ -1277,7 +1277,7 @@ export class MedicationManagement {
         <h2>📋 ${escapeHTML(translate('medication_auth_treatment_title'))}</h2>
         <p style="color:#6b7280;font-size:0.9rem;font-style:italic;">${escapeHTML(translate('medication_auth_treatment_legal'))}</p>
 
-        <form id="treatmentAuthForm" style="display:flex;flex-direction:column;gap:1rem;margin-top:1rem;">
+        <form id="treatmentAuthForm" class="medication-auth-form" style="display:flex;flex-direction:column;gap:1rem;margin-top:1rem;">
           <label class="field-group">
             <span>${escapeHTML(translate('guardian_first_name'))} / ${escapeHTML(translate('guardian_last_name'))}</span>
             <select name="guardian_id" required style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;">
@@ -1322,7 +1322,7 @@ export class MedicationManagement {
             </label>
           </div>
 
-          ${ta ? `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate('signed_on'))} ${formatDate(ta.date_signature)}</p>` : ''}
+          ${ta ? `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate('signed_on'))} ${escapeHTML(formatDate(ta.date_signature, this.app.lang))}</p>` : ''}
 
           <button type="submit" class="button button--primary" id="saveTreatmentAuth">
             ${escapeHTML(translate('save'))}
@@ -1335,7 +1335,7 @@ export class MedicationManagement {
         <p style="font-size:0.85rem;color:#6b7280;font-weight:600;">${escapeHTML(translate('medication_auth_admin_subtitle'))}</p>
         <p style="color:#6b7280;font-size:0.85rem;font-style:italic;margin-top:0.5rem;">${escapeHTML(translate('medication_auth_admin_legal_1'))}</p>
 
-        <form id="adminAuthForm" style="display:flex;flex-direction:column;gap:1rem;margin-top:1rem;">
+        <form id="adminAuthForm" class="medication-auth-form" style="display:flex;flex-direction:column;gap:1rem;margin-top:1rem;">
           <label class="field-group">
             <span>${escapeHTML(translate('guardian_first_name'))} / ${escapeHTML(translate('guardian_last_name'))}</span>
             <select name="guardian_id" required style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;">
@@ -1362,6 +1362,7 @@ export class MedicationManagement {
                 </select>
               </label>
             </div>
+            <p class="error-text" id="medicationAdminsError" role="alert" hidden></p>
           </fieldset>
 
           <fieldset style="border:1px solid #e5e7eb;border-radius:8px;padding:1rem;">
@@ -1400,7 +1401,7 @@ export class MedicationManagement {
             </label>
           </div>
 
-          ${aa ? `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate('signed_on'))} ${formatDate(aa.date_signature)}</p>` : ''}
+          ${aa ? `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate('signed_on'))} ${escapeHTML(formatDate(aa.date_signature, this.app.lang))}</p>` : ''}
 
           <button type="submit" class="button button--primary" id="saveAdminAuth">
             ${escapeHTML(translate('save'))}
@@ -2964,6 +2965,38 @@ export class MedicationManagement {
     }
   }
 
+  /**
+   * The two adults entrusted with the medication must be two people. The
+   * same leader chosen twice is shown under the second choice, which takes the
+   * focus; the message goes away as soon as either choice changes.
+   * @param {HTMLFormElement} form - Administration authorization form
+   * @returns {boolean} True when the same adult is named twice
+   */
+  showSameAdultProblem(form) {
+    const first = form.elements.admin_user_id_1;
+    const second = form.elements.admin_user_id_2;
+    if (!first || !second) {
+      return false;
+    }
+    const same = Boolean(first.value) && first.value === second.value;
+    this.setFieldProblem([second], form.querySelector('#medicationAdminsError'),
+      same ? translate('medication_admins_must_differ') : '');
+    if (same) {
+      second.focus();
+      if (!form.dataset.adultsListener) {
+        form.dataset.adultsListener = 'true';
+        const clear = () => {
+          if (first.value !== second.value || !first.value) {
+            this.setFieldProblem([second], form.querySelector('#medicationAdminsError'), '');
+          }
+        };
+        first.addEventListener('change', clear);
+        second.addEventListener('change', clear);
+      }
+    }
+    return same;
+  }
+
   async handleAdminAuthSubmit(event) {
     const form = event.target;
     const fd = new FormData(form);
@@ -2976,6 +3009,10 @@ export class MedicationManagement {
         requirement_id: req.id,
         initials: fd.get(`initials_${req.id}`) || ''
       }));
+
+    if (this.showSameAdultProblem(form)) {
+      return;
+    }
 
     const payload = {
       participant_id: participant.id,

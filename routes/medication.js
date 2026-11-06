@@ -1160,6 +1160,10 @@ module.exports = (pool, logger) => {
       requirements // array of { requirement_id, initials }
     } = req.body;
 
+    if (admin_user_id_1 && String(admin_user_id_1) === String(admin_user_id_2)) {
+      return error(res, 'medication_admins_must_differ', HTTP_STATUS.BAD_REQUEST);
+    }
+
     if (!(await areUnitLeaders(pool, organizationId, [admin_user_id_1, admin_user_id_2]))) {
       return error(res, 'Medication may only be entrusted to leaders of this unit', HTTP_STATUS.BAD_REQUEST);
     }
