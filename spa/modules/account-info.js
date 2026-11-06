@@ -18,6 +18,7 @@ import { apiErrorMessage } from '../utils/ApiErrorUtils.js';
 import { canViewActivities, holdsFamilyRole, isDemoUser, isParent } from '../utils/PermissionUtils.js';
 import { CALENDAR_FEED_ANCHOR, CalendarFeedPanel } from './calendar-feed/CalendarFeedPanel.js';
 import { CERTIFICATIONS_ANCHOR, CertificationsPanel } from './certifications/CertificationsPanel.js';
+import { PROFILE_ANCHOR, HEALTH_ANCHOR, ProfilePanel } from './member-profile/ProfilePanel.js';
 import { ALLERGY_ANCHOR, AllergyPanel } from './member-allergies/AllergyPanel.js';
 import { setContent, loadStylesheet, withFormBusy } from '../utils/DOMUtils.js';
 import { updateMyNickname } from '../api/api-members.js';
@@ -45,6 +46,8 @@ export class AccountInfoModule {
     this.calendarFeedPanel = canViewActivities() ? new CalendarFeedPanel(app) : null;
     // Certifications are those of the unit's adults (team, volunteers), not of a parent who is only a parent.
     this.certificationsPanel = isParent() ? null : new CertificationsPanel(app);
+    this.profilePanel = new ProfilePanel(app);
+    this.healthPanel = isParent() ? null : new ProfilePanel(app, { health: true });
     this.allergyPanel = isParent() ? null : new AllergyPanel(app);
   }
 
@@ -53,6 +56,8 @@ export class AccountInfoModule {
     this.calendarFeedPanel?.destroy();
     this.certificationsPanel?.destroy();
     this.allergyPanel?.destroy();
+    this.profilePanel.destroy();
+    this.healthPanel?.destroy();
   }
 
   /**
@@ -478,9 +483,13 @@ export class AccountInfoModule {
         <section class="account-section calendar-feed" id="${CALENDAR_FEED_ANCHOR}" aria-labelledby="calendar-feed-heading"></section>
         ` : ''}
 
+        <section class="account-section" id="${PROFILE_ANCHOR}" aria-labelledby="${PROFILE_ANCHOR}-heading"></section>
+
         ${this.certificationsPanel ? `
         <section class="account-section" id="${CERTIFICATIONS_ANCHOR}" aria-labelledby="certifications-heading"></section>
         ` : ''}
+
+        ${this.healthPanel ? `<section class="account-section" id="${HEALTH_ANCHOR}" aria-labelledby="${HEALTH_ANCHOR}-heading"></section>` : ''}
 
         ${this.allergyPanel ? `
         <section class="account-section" id="${ALLERGY_ANCHOR}" aria-labelledby="allergy-declaration-heading"></section>
@@ -504,6 +513,8 @@ export class AccountInfoModule {
       setContent(appContainer, content);
       this.calendarFeedPanel?.mount(document.getElementById(CALENDAR_FEED_ANCHOR));
       this.certificationsPanel?.mount(document.getElementById(CERTIFICATIONS_ANCHOR));
+      this.profilePanel.mount(document.getElementById(PROFILE_ANCHOR));
+      this.healthPanel?.mount(document.getElementById(HEALTH_ANCHOR));
       this.allergyPanel?.mount(document.getElementById(ALLERGY_ANCHOR));
     } else {
       debugError('App container not found');

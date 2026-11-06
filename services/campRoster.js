@@ -1,4 +1,6 @@
 'use strict';
+const { assertVolunteerAge, MemberProfileError, campHealthForms } = require('./memberProfile');
+
 /**
  * Camp lists (#1319, first slice): the youth taking part in a planned camp and
  * its team, as the camp permit asks for them.
@@ -324,6 +326,7 @@ async function readCampRoster(db, organizationId, meetingId, rights) {
     team: members,
     volunteers,
     allergies,
+    adult_health_forms: rights.canSeeAllergies ? await campHealthForms(db, organizationId, meetingId) : null,
     gaps,
     blocking_gaps: gaps.filter((gap) => BLOCKING_GAPS.includes(gap)),
   };
@@ -423,6 +426,10 @@ function saveTeamMember(pool, organizationId, actorId, meetingId, userId, input)
     )).rows[0];
     if (!member) {
       refuse('camp_roster_member_not_found', HTTP_NOT_FOUND, 'user_id');
+    }
+    try { await assertVolunteerAge(client, userId, dateOfBirth); } catch (err) {
+      if (err instanceof MemberProfileError) { refuse(err.message, err.status, 'user_id'); }
+      throw err;
     }
     await client.query(
       `INSERT INTO camp_team_members (organization_id, meeting_id, user_id, team_role, assigned_by)

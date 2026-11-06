@@ -17,7 +17,7 @@ camp (`camp_team_members`, not cancelled). Any other camp, of this unit or anoth
 `is_camp`; the space addresses it by its activity id (`/volunteer-space/:activityId`), because shifts
 belong to the activity and the team to its planned camp.
 
-Nothing returned names a youth or another volunteer. The on-site lead is named (never a contact),
+The camp's fresh contacts endpoint names only consenting adults at the same camp (see `devdocs/MEMBER_PROFILE.md`). Nothing returned names a youth. The on-site lead is named (never a contact),
 as on the camp site page. Phone numbers are the site's, the hospital's and public lines, as recorded
 on the camp site (`devdocs/CAMP_SITES.md`).
 
@@ -26,7 +26,7 @@ on the camp site (`devdocs/CAMP_SITES.md`).
 - **`/volunteer-space`** (tile "Volunteer space", moment "This week"): my camps that are not over
   (dates, "Under way", my seat on the team, my places and how many are still to verify), my upcoming
   places on any activity, up to five open tasks with a link to `/tasks`, and my profile: certifications
-  and allergies (`/account-info#certifications`, `#my-allergies`) and the account.
+  and allergies through one My profile entry (`/account-info#my-profile`), with contacts and health information.
 - **`/volunteer-space/:activityId`**: one camp, with quick links to each part (they move focus to it):
   - **My shifts**, each confirmed or still to verify, in words;
   - **Daily schedule** from the year plan (titles and times only), today's day open;
@@ -50,8 +50,7 @@ once can be read again without a connection.
 
 ## Not in this first version
 
-- **Other adults' contacts** at the same camp: they need the person's consent (#1359).
-- **The adult health form** in the profile (#1359).
+- Other adults' consented contacts and the adult health form are now available (#1359; `devdocs/MEMBER_PROFILE.md`).
 - **Structured menus, recipes, groceries** (#1260); allergies the kitchen needs, in numbers without
   names, are still to confirm.
 
@@ -61,3 +60,5 @@ once can be read again without a connection.
 and another unit's camp refused; panels by type; nobody else named), `test/routes-volunteer-space.test.js`,
 `test/spa/VolunteerSpace.test.js` (axe, escaping, states, focus), and both screens in
 `e2e/accessibility.spec.mjs` on the seeded "Camp d'hiver".
+
+Contacts are loaded separately, network-only: an offline schedule never includes an old consent.

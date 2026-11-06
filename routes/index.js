@@ -178,6 +178,7 @@ module.exports = (app, pool) => {
   app.use('/api/v1/volunteer-space', volunteerSpaceRoutes);
   app.use('/api/v1/member-certifications', memberCertificationRoutes);
   app.use('/api/v1/member-allergies', memberAllergyRoutes);
+  app.use('/api/v1/member-profile', require('./member-profile')(pool));
 
   app.use('/api/v1/news', newsRoutes);
 

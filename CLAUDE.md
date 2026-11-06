@@ -480,6 +480,7 @@ only then. The rules there are as binding as this file; update the devdoc in the
 | Offline points at camp (outbox, idempotency, camp preparation) | `spa/modules/points/`, `CampPreparation`, `point_mutation_receipts`, attendance points | `devdocs/OFFLINE_CAMP_POINTS.md` (French) |
 | Shared activity tasks | `/tasks`, `services/activityTasks.js`, `config/tasks.js` | `devdocs/ACTIVITY_TASKS.md` |
 | Volunteering | `/volunteers`, `services/volunteerShifts.js` | `devdocs/VOLUNTEERS.md` |
+| Personal contacts and adult health | `services/memberProfile.js`, `/member-profile`, `ProfilePanel` | `devdocs/MEMBER_PROFILE.md` |
 | Volunteer space | `/volunteer-space`, `services/volunteerSpace.js`, `space_panels` | `devdocs/VOLUNTEER_SPACE.md` |
 | Camp equipment lots | `/camp-lots`, `/my-camp-lots`, `services/campEquipmentLots.js`, `CampLotOffline.js` | `devdocs/CAMP_EQUIPMENT_LOTS.md` |
 | Reusing an earlier camp | `services/campDuplication.js` | `devdocs/CAMP_DUPLICATION.md` |

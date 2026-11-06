@@ -23,8 +23,7 @@ import { richTextOrPlain } from '../../utils/RichTextUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { requirementsLabel, shiftName, volunteerTypeLabel } from '../../utils/VolunteerTypeUtils.js';
-import { CERTIFICATIONS_ANCHOR } from '../certifications/CertificationsPanel.js';
-import { ALLERGY_ANCHOR } from '../member-allergies/AllergyPanel.js';
+import { getCampContacts } from '../../api/api-member-profile.js';
 import { getVolunteerSpace, getVolunteerSpaceCamp } from '../../api/api-volunteer-space.js';
 import styles from '../../../css/volunteer-space.css?url';
 
@@ -80,6 +79,7 @@ export class VolunteerSpace {
       if (this.stale()) { return; }
       if (this.isCamp()) {
         this.renderCamp();
+        await this.loadContacts();
       } else {
         this.renderOverview();
       }
@@ -190,15 +190,10 @@ export class VolunteerSpace {
   }
 
   profileMarkup() {
-    const links = [
-      { href: `/account-info#${CERTIFICATIONS_ANCHOR}`, icon: 'fa-certificate', label: 'volunteer_space_profile_certifications', hint: 'volunteer_space_profile_certifications_hint' },
-      { href: `/account-info#${ALLERGY_ANCHOR}`, icon: 'fa-triangle-exclamation', label: 'volunteer_space_profile_allergies', hint: 'volunteer_space_profile_allergies_hint' },
-      { href: '/account-info', icon: 'fa-user', label: 'volunteer_space_profile_account', hint: 'volunteer_space_profile_account_hint' },
-    ];
-    return `<ul class="volunteer-space__links">${links.map((item) => `<li><a class="volunteer-space__link" href="${escapeAttribute(item.href)}">
-      <i class="fa-solid ${item.icon}" aria-hidden="true"></i>
-      <span><span class="volunteer-space__link-label">${escapeHTML(translate(item.label))}</span>
-      <span class="volunteer-space__muted">${escapeHTML(translate(item.hint))}</span></span></a></li>`).join('')}</ul>`;
+    return `<a class="volunteer-space__link" href="/account-info#my-profile">
+      <i class="fa-solid fa-id-card" aria-hidden="true"></i>
+      <span><span class="volunteer-space__link-label">${escapeHTML(translate('member_profile_open'))}</span>
+      <span class="volunteer-space__muted">${escapeHTML(translate('member_profile_open_hint'))}</span></span></a>`;
   }
 
   renderOverview() {
@@ -389,9 +384,27 @@ export class VolunteerSpace {
     }
     parts.push(
       { id: 'volunteer-space-instructions', title: 'volunteer_space_instructions_title', icon: 'fa-book-open', body: () => this.instructionsMarkup() },
+      { id: 'volunteer-space-contacts', title: 'member_profile_camp_contacts', icon: 'fa-address-book', body: () => `<div id="camp-peer-contacts"><p role="status">${escapeHTML(translate('loading'))}</p></div>` },
       { id: 'volunteer-space-camp-tasks', title: 'volunteer_space_camp_tasks_title', icon: 'fa-list-check', body: () => this.campTasksMarkup() },
     );
     return parts;
+  }
+
+  /** Consent may have been withdrawn: peer contacts never use an offline or cached answer. */
+  async loadContacts() {
+    try {
+      const result = await getCampContacts(this.activityId);
+      if (this.stale()) { return; }
+      const people = Array.isArray(result.data) ? result.data : [];
+      setContent(document.getElementById('camp-peer-contacts'), people.length
+        ? `<ul class="volunteer-space__tasks">${people.map((person) => `<li><strong>${escapeHTML(person.nickname || person.name)}</strong> ${phoneLink(person.phone)}</li>`).join('')}</ul>`
+        : `<p>${escapeHTML(translate('member_profile_contacts_empty'))}</p>`);
+    } catch (_err) {
+      if (this.stale()) { return; }
+      setContent(document.getElementById('camp-peer-contacts'), `<p role="status">${escapeHTML(translate('member_profile_contacts_unavailable'))}</p>
+        <button class="button button--secondary" type="button" id="camp-contacts-retry">${escapeHTML(translate('retry'))}</button>`);
+      document.getElementById('camp-contacts-retry')?.addEventListener('click', () => this.loadContacts());
+    }
   }
 
   renderCamp() {

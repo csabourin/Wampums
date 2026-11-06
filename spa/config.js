@@ -84,6 +84,7 @@ export const CONFIG = {
     'member-certifications',
     // One's allergies are written now, never replayed over a newer declaration.
     'member-allergies',
+    'member-profile',
   ],
   /**
      * Cache Duration Settings

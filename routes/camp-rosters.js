@@ -54,6 +54,7 @@ module.exports = (pool) => {
         userHasPermission(req, pool, organizationId, 'volunteers.manage'),
         userHasPermission(req, pool, organizationId, 'camp_allergies.view'),
       ]);
+      res.set('Cache-Control', 'no-store');
       const canSeeCertifications = canManage || canSeeVolunteers;
       return success(res, await readCampRoster(pool, organizationId, Number(req.params.meetingId),
         { canManage, canSeeVolunteers, canSeeCertifications, canSeeAllergies }));
