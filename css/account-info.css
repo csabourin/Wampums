@@ -605,3 +605,52 @@ h1 {
 }
 .member-profile__fields textarea { width: 100%; }
 .member-profile__fields .checkbox-option label { overflow-wrap: anywhere; }
+
+/* Account tasks: a compact navigation beside the current task, with every choice visible on phones. */
+.account-page { max-width: 72rem; margin-inline: auto; padding: var(--space-md); }
+.account-page__header { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-md); margin-block-end: var(--space-lg); }
+.account-page__header h1 { margin: 0 0 var(--space-sm); max-width: none; text-align: start; }
+.account-page__identity { display: flex; flex-direction: column; gap: var(--space-xs); margin: 0; overflow-wrap: anywhere; }
+.account-page__identity span { color: var(--color-text-muted); }
+.account-page__layout { display: grid; gap: var(--space-lg); }
+.account-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-sm); align-content: start; }
+.account-nav a { display: flex; flex-direction: column; gap: var(--space-xs); min-height: var(--touch-target-min); padding: var(--space-md); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text); text-decoration: none; background: var(--color-surface); overflow-wrap: anywhere; }
+.account-nav a[aria-current] { border-color: var(--color-primary); background: var(--color-secondary); box-shadow: inset 4px 0 0 var(--color-primary); }
+.account-nav a:focus-visible, .account-disclosure summary:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 3px; }
+.account-nav__label { font-weight: 700; }
+.account-nav__hint { color: var(--color-text-muted); font-size: .875rem; line-height: 1.4; }
+.account-nav a[aria-current] .account-nav__hint { color: var(--color-text); }
+.account-page__content, .account-page [data-account-section] { min-width: 0; }
+.account-page [hidden] { display: none !important; }
+.account-page__section-heading { margin-block: 0 var(--space-xs); }
+.account-page__section-hint { margin-block: 0 var(--space-lg); color: var(--color-text-muted); }
+.account-page .account-section { max-width: none; margin: 0 0 var(--space-md); padding: var(--space-lg); box-shadow: none; border: 1px solid var(--color-border); background: var(--color-surface); }
+.account-page h2 { text-align: start; }
+.account-page .account-form { padding: 0; margin: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.account-page .account-form + .account-form { margin-block-start: var(--space-lg); padding-block-start: var(--space-lg); border-block-start: 1px solid var(--color-border); }
+.account-disclosure { margin-block-end: var(--space-md); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
+.account-disclosure > summary { cursor: pointer; padding: var(--space-lg); min-height: var(--touch-target-min); }
+.account-disclosure__label { font-weight: 700; }
+.account-disclosure__hint { display: block; margin-block-start: var(--space-xs); color: var(--color-text-muted); font-size: .875rem; }
+.account-disclosure__body { padding: 0 var(--space-md) var(--space-md); }
+.account-disclosure__body .account-section { border: 0; margin-bottom: 0; }
+.account-page input:invalid { border-color: var(--color-border); }
+.account-page input:user-invalid, .account-page input[aria-invalid=true] { border-color: var(--color-error); }
+.account-page .form-group input, .account-page .form-group textarea, .account-page .form-group select { max-width: 100%; min-height: var(--touch-target-min); box-sizing: border-box; }
+.account-page .form-group textarea { width: 100%; }
+.account-page .checkbox-option label { min-height: var(--touch-target-min); display: flex; align-items: center; }
+@media (max-width: 47.99rem) {
+  .account-nav__hint { display: none; }
+  .account-nav a { justify-content: center; }
+}
+@media (min-width: 48rem) {
+  .account-page__layout { grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr); align-items: start; }
+  .account-nav { grid-template-columns: 1fr; position: sticky; top: var(--space-lg); }
+}
+@media (min-width: 70rem) {
+  .account-page [data-account-section="profile"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-md); }
+  .account-page [data-account-section="profile"] > :is(h2, p, details) { grid-column: 1 / -1; }
+}
+.member-profile__detail { border-top: 1px solid var(--color-border); margin-block: var(--space-md); }
+.member-profile__detail > summary { cursor: pointer; font-weight: 600; min-height: var(--touch-target-min); padding-block: var(--space-md); }
+.member-profile__detail > summary:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 2px; }

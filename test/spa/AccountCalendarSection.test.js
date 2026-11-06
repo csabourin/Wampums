@@ -45,6 +45,7 @@ function renderPage() {
 beforeEach(() => {
   jest.clearAllMocks();
   mockSeesActivities = true;
+  window.history.replaceState(null, '', '/account-info?section=preferences');
 });
 
 test('someone who sees activities gets the calendar section, labelled by its heading', () => {
@@ -53,6 +54,18 @@ test('someone who sees activities gets the calendar section, labelled by its hea
   expect(section).not.toBeNull();
   expect(section.getAttribute('aria-labelledby')).toBe('calendar-feed-heading');
   expect(mockMount).toHaveBeenCalledWith(section);
+});
+
+test('the profile does not load the calendar until preferences are opened', () => {
+  window.history.replaceState(null, '', '/account-info');
+  const page = renderPage();
+  expect(mockMount).not.toHaveBeenCalled();
+  page.showSection('preferences');
+  expect(mockMount).toHaveBeenCalledTimes(1);
+  page.showSection('profile');
+  page.showSection('preferences');
+  expect(mockMount).toHaveBeenCalledTimes(1);
+  page.destroy();
 });
 
 test('someone who does not see activities is not offered a calendar', () => {

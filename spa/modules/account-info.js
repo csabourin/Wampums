@@ -25,6 +25,8 @@ import { updateMyNickname } from '../api/api-members.js';
 import { confirm as confirmDialog } from '../utils/DialogUtils.js';
 import { getStorage, setStorage } from '../utils/StorageUtils.js';
 import { CONFIG, getStorageKey } from '../config.js';
+import { ACCOUNT_SECTIONS, accountSectionFor } from '../config/account-sections.js';
+import { renderBackLink } from '../utils/BackLinkUtils.js';
 
 /** Longest a nickname may be, matching users.nickname. */
 const NICKNAME_MAX_LENGTH = 100;
@@ -35,6 +37,13 @@ const NICKNAME_MAX_LENGTH = 100;
 export class AccountInfoModule {
   constructor(app) {
     this.app = app;
+    this.destroyed = false;
+    this.activeSection = null;
+    this.mountedPanels = new Map();
+    this.formDrafts = new Map();
+    this.openDetails = new Set();
+    this.onHashChange = () => this.showLinkedSection();
+    window.addEventListener('hashchange', this.onHashChange);
     this.userData = null;
     this.isLoading = false;
     this.guardianProfile = { guardian: null, participantIds: [] };
@@ -46,13 +55,17 @@ export class AccountInfoModule {
     this.calendarFeedPanel = canViewActivities() ? new CalendarFeedPanel(app) : null;
     // Certifications are those of the unit's adults (team, volunteers), not of a parent who is only a parent.
     this.certificationsPanel = isParent() ? null : new CertificationsPanel(app);
-    this.profilePanel = new ProfilePanel(app);
+    this.profilePanel = new ProfilePanel(app, { compact: true });
     this.healthPanel = isParent() ? null : new ProfilePanel(app, { health: true });
     this.allergyPanel = isParent() ? null : new AllergyPanel(app);
   }
 
   /** Called by the router when the person leaves this screen. */
   destroy() {
+    this.destroyed = true;
+    window.removeEventListener('hashchange', this.onHashChange);
+    this.formDrafts.clear();
+    this.mountedPanels.clear();
     this.calendarFeedPanel?.destroy();
     this.certificationsPanel?.destroy();
     this.allergyPanel?.destroy();
@@ -65,10 +78,12 @@ export class AccountInfoModule {
    * Loads user data and renders the page
    */
   async init() {
+    this.renderLoading();
     debugLog('Initializing Settings Module');
 
     // Load page-specific CSS
     await loadStylesheet(accountInfoStylesheetUrl);
+    if (this.destroyed) { return; }
 
     try {
       debugLog('Checking permissions and push support');
@@ -78,16 +93,11 @@ export class AccountInfoModule {
       this.pushSupported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
       debugLog('Push support check:', { supported: this.pushSupported, notification: 'Notification' in window, sw: 'serviceWorker' in navigator, push: 'PushManager' in window });
 
-      if (this.pushSupported) {
-        debugLog('Checking push subscription status');
-        this.pushEnabled = await this.checkPushSubscription();
-        debugLog('Push subscription check complete:', { enabled: this.pushEnabled });
-      }
-
       debugLog('Loading starting user data');
       // The language picker lists the unit's languages: on a direct load the
       // unit's settings may still be on their way.
       await Promise.all([this.loadUserData(), this.waitForUnitSettings()]);
+      if (this.destroyed) { return; }
       debugLog('User data load complete');
 
       if (this.holdsFamilyRole) {
@@ -100,6 +110,7 @@ export class AccountInfoModule {
         this.guardianError = null;
       }
 
+      if (this.destroyed) { return; }
       debugLog('Proceeding to initial render');
       this.render();
       debugLog('Initial render complete, attaching event listeners');
@@ -107,7 +118,7 @@ export class AccountInfoModule {
       debugLog('Initialization complete');
     } catch (error) {
       debugError('Error initializing settings module:', error);
-      this.renderError(translate('error_loading_data'));
+      if (!this.destroyed) { this.renderError(apiErrorMessage(error, 'error_loading_data')); }
     }
   }
 
@@ -193,11 +204,12 @@ export class AccountInfoModule {
    * Render the settings page
    */
   render() {
+    if (this.destroyed) { return; }
     const homeLink = isParent() ? '/parent-dashboard' : '/dashboard';
 
     const fullName = escapeHTML(this.userData?.full_name || '');
     const email = escapeHTML(this.userData?.email || '');
-    const roles = Array.isArray(this.userData?.roles) ? this.userData.roles.join(', ') : '';
+
 
     // Get current UI language (not just preference)
     const currentLang = this.app.lang || getStorage('lang', false, CONFIG.DEFAULT_LANG);
@@ -206,7 +218,7 @@ export class AccountInfoModule {
     const currentTimeFormat = getStorage(timeFormatKey, false, defaultTimeFormat);
 
     const guardianData = this.guardianProfile?.guardian || {};
-    const nameParts = fullName ? fullName.split(' ') : [];
+    const nameParts = this.userData?.full_name ? this.userData.full_name.split(' ') : [];
     const defaultGuardianFirstName = guardianData.prenom || nameParts[0] || '';
     const defaultGuardianLastName = guardianData.nom || (nameParts.length > 1 ? nameParts.slice(1).join(' ') : '');
     const guardianRelationship = guardianData.lien || '';
@@ -217,23 +229,9 @@ export class AccountInfoModule {
     const guardianEmergency = guardianData.is_emergency_contact ?? false;
     const hasParticipantLinks = Array.isArray(this.guardianProfile?.participantIds) && this.guardianProfile.participantIds.length > 0;
 
-    const content = `
-      <a href="${homeLink}" class="button button--ghost">← ${translate('back')}</a>
-      <div class="settings-page">
-        <header class="settings-header">
-          <h1>${translate('settings') || translate('account_settings') || translate('account_info_title')}</h1>
-        </header>
-
-        <!-- Profile Summary Section -->
-        <section class="account-section profile-summary">
-          <div class="profile-card">
-            <div class="profile-name">${fullName}</div>
-            <div class="profile-role">${escapeHTML(roles)}</div>
-          </div>
-        </section>
-
-        <!-- Profile Information Section -->
-        <section class="account-section">
+    const identity = `
+<!-- Profile Information Section -->
+        <section class="account-section" id="account-identity">
           <h2>${translate('profile_information')}</h2>
 
           <form id="fullname-form" class="account-form">
@@ -252,18 +250,16 @@ export class AccountInfoModule {
               />
             </div>
             <button type="submit" class="button button--primary" id="fullname-submit">
-              ${translate('save_profile') || translate('account_info_fullname_button')}
+              ${translate('account_identity_save')}
             </button>
           </form>
           ${isParent() ? '' : this.renderNicknameForm()}
         </section>
-
-        <!-- Email Section -->
+    `;
+    const emailForm = `
+<!-- Email Section -->
         <section class="account-section">
           <h2>${translate('email') || translate('account_info_email_title')}</h2>
-          <div class="warning-box">
-            <p>${translate('account_info_email_warning')}</p>
-          </div>
           <form id="email-form" class="account-form">
             <div class="form-group">
               <label for="email-input">${translate('email') || translate('account_info_email_label')}</label>
@@ -283,8 +279,9 @@ export class AccountInfoModule {
             </button>
           </form>
         </section>
-
-        ${this.holdsFamilyRole ? `
+    `;
+    const guardian = `
+${this.holdsFamilyRole ? `
           <!-- Guardian Information Section (Parents only) -->
           <section class="account-section">
             <h2>${translate('guardian_info_title')}</h2>
@@ -387,8 +384,9 @@ export class AccountInfoModule {
             </form>
           </section>
         ` : ''}
-
-        <!-- Password Section -->
+    `;
+    const passwordForm = `
+<!-- Password Section -->
         <section class="account-section">
           <h2>${translate('change_password') || translate('account_info_password_title')}</h2>
           <form id="password-form" class="account-form">
@@ -434,9 +432,10 @@ export class AccountInfoModule {
             </button>
           </form>
         </section>
-
-        <!-- Language Section -->
-        <section class="account-section">
+    `;
+    const preferences = `
+<!-- Language Section -->
+        <section class="account-section" id="account-language">
           <h2>${translate('language')}</h2>
           <p class="section-description">${translate('account_info_language_description')}</p>
           <div class="language-selector" role="group" aria-label="${escapeAttribute(translate('language'))}">
@@ -445,7 +444,7 @@ export class AccountInfoModule {
         </section>
 
         <!-- Time Format Section -->
-        <section class="account-section">
+        <section class="account-section" id="account-time">
           <h2>${translate('time_format')}</h2>
           <p class="section-description">${translate('time_format_description')}</p>
           <div class="setting-row">
@@ -461,7 +460,7 @@ export class AccountInfoModule {
 
         <!-- Notifications Section -->
         ${this.pushSupported ? `
-        <section class="account-section">
+        <section class="account-section" id="account-notifications">
           <h2>${translate('notifications')}</h2>
           <p class="section-description">${translate('receive_notifications_about_activities')}</p>
           <div class="setting-row">
@@ -479,31 +478,60 @@ export class AccountInfoModule {
         </section>
         ` : ''}
 
-        ${this.calendarFeedPanel ? `
-        <section class="account-section calendar-feed" id="${CALENDAR_FEED_ANCHOR}" aria-labelledby="calendar-feed-heading"></section>
-        ` : ''}
-
-        <section class="account-section" id="${PROFILE_ANCHOR}" aria-labelledby="${PROFILE_ANCHOR}-heading"></section>
-
-        ${this.certificationsPanel ? `
+        ${this.calendarFeedPanel ? this.disclosure('account-calendar', 'account_calendar_summary', `
+          <section class="account-section calendar-feed" id="${CALENDAR_FEED_ANCHOR}" aria-labelledby="calendar-feed-heading"></section>`, 'account_calendar_hint') : ''}
+    `;
+    const profile = `
+<section class="account-section" id="${PROFILE_ANCHOR}" aria-labelledby="${PROFILE_ANCHOR}-heading"></section>
+    `;
+    const certifications = `
+${this.certificationsPanel ? `
         <section class="account-section" id="${CERTIFICATIONS_ANCHOR}" aria-labelledby="certifications-heading"></section>
         ` : ''}
-
-        ${this.healthPanel ? `<section class="account-section" id="${HEALTH_ANCHOR}" aria-labelledby="${HEALTH_ANCHOR}-heading"></section>` : ''}
-
-        ${this.allergyPanel ? `
+    `;
+    const health = `
+${this.healthPanel ? `<section class="account-section" id="${HEALTH_ANCHOR}" aria-labelledby="${HEALTH_ANCHOR}-heading"></section>` : ''}
+    `;
+    const allergies = `
+${this.allergyPanel ? `
         <section class="account-section" id="${ALLERGY_ANCHOR}" aria-labelledby="allergy-declaration-heading"></section>
         ` : ''}
-
-        <!-- Account Actions -->
-        <section class="account-section">
-          <button class="button button--danger" id="logout-btn">
-            ${translate('logout')}
-          </button>
-        </section>
-
-        <div class="settings-footer">
-          <p>${translate('made_with')} ❤️ ${translate('for_scouts')}</p>
+    `;
+    const bodies = {
+      profile: `${identity}${profile}${this.holdsFamilyRole ? this.disclosure('account-family', 'account_family_contacts', guardian, 'account_family_contacts_hint') : ''}`,
+      health: `${this.disclosure('account-health', 'account_health_summary', `${health}${allergies}`, 'account_health_hint')}${this.disclosure('account-certifications', 'certifications_title', certifications, 'account_certifications_hint')}`,
+      preferences,
+      security: `${this.disclosure('account-email', 'account_email_summary', emailForm, this.userData?.email || '', false)}${this.disclosure('account-password', 'change_password', passwordForm, 'account_password_hint')}`,
+    };
+    const sections = this.sections();
+    this.activeSection ||= accountSectionFor(window.location, sections);
+    if (!sections.some((section) => section.key === this.activeSection)) { this.activeSection = sections[0].key; }
+    this.captureDrafts();
+    const content = `
+      ${renderBackLink(homeLink)}
+      <div class="account-page">
+        <header class="account-page__header">
+          <div><h1>${escapeHTML(translate('account_info_title'))}</h1>
+            <p class="account-page__identity"><strong data-account-name>${fullName}</strong><span>${email}</span></p>
+          </div>
+          <button type="button" class="button button--ghost" id="logout-btn">${escapeHTML(translate('logout'))}</button>
+        </header>
+        <div class="account-page__layout">
+          <nav class="account-nav" aria-label="${escapeAttribute(translate('account_navigation'))}">
+            ${sections.map((section) => `<a href="/account-info?section=${section.key}" data-account-section-link="${section.key}"
+                ${section.key === this.activeSection ? 'aria-current="page"' : ''}>
+              <span class="account-nav__label">${escapeHTML(translate(section.label))}</span>
+              <span class="account-nav__hint">${escapeHTML(translate(section.hint))}</span>
+            </a>`).join('')}
+          </nav>
+          <div class="account-page__content">
+            ${sections.map((section) => `<section data-account-section="${section.key}" id="account-section-${section.key}"
+                aria-labelledby="account-heading-${section.key}" ${section.key !== this.activeSection ? 'hidden' : ''}>
+              <h2 id="account-heading-${section.key}" class="account-page__section-heading" tabindex="-1">${escapeHTML(translate(section.label))}</h2>
+              <p class="account-page__section-hint">${escapeHTML(translate(section.hint))}</p>
+              ${bodies[section.key]}
+            </section>`).join('')}
+          </div>
         </div>
       </div>
     `;
@@ -511,14 +539,168 @@ export class AccountInfoModule {
     const appContainer = document.getElementById('app');
     if (appContainer) {
       setContent(appContainer, content);
-      this.calendarFeedPanel?.mount(document.getElementById(CALENDAR_FEED_ANCHOR));
-      this.certificationsPanel?.mount(document.getElementById(CERTIFICATIONS_ANCHOR));
-      this.profilePanel.mount(document.getElementById(PROFILE_ANCHOR));
-      this.healthPanel?.mount(document.getElementById(HEALTH_ANCHOR));
-      this.allergyPanel?.mount(document.getElementById(ALLERGY_ANCHOR));
+      this.restoreDrafts();
+      this.bindSectionNavigation();
+      this.openLinkedDetails();
+      this.mountVisiblePanels();
     } else {
       debugError('App container not found');
     }
+  }
+
+  /** Available task areas; parent-only accounts have no adult camp forms. */
+  sections() {
+    return ACCOUNT_SECTIONS.filter((section) => !section.staffOnly || this.healthPanel || this.certificationsPanel);
+  }
+
+  /** An optional task uses native disclosure semantics, keyboard support and no overlay. */
+  disclosure(id, label, body, hint, translateHint = true) {
+    return `<details class="account-disclosure" id="${id}">
+      <summary><span class="account-disclosure__label">${escapeHTML(translate(label))}</span>
+        ${hint ? `<span class="account-disclosure__hint">${escapeHTML(translateHint ? translate(hint) : hint)}</span>` : ''}</summary>
+      <div class="account-disclosure__body">${body}</div>
+    </details>`;
+  }
+
+  renderLoading() {
+    if (this.destroyed) { return; }
+    setContent(document.getElementById('app'), `${renderBackLink(isParent() ? '/parent-dashboard' : '/dashboard')}
+      <section class="account-page" aria-busy="true"><h1>${escapeHTML(translate('account_info_title'))}</h1>
+        <p role="status">${escapeHTML(translate('loading'))}</p></section>`);
+  }
+
+  /** Keep drafts in this page instance only, including while its language changes. */
+  captureDrafts() {
+    document.querySelectorAll('.account-page input[id], .account-page textarea[id], .account-page select[id]').forEach((field) => {
+      this.formDrafts.set(field.id, { value: field.value, checked: field.checked });
+    });
+    this.openDetails = new Set([...document.querySelectorAll('.account-page details[open][id]')].map((element) => element.id));
+  }
+
+  restoreDrafts(root = document) {
+    root.querySelectorAll('input[id], textarea[id], select[id]').forEach((field) => {
+      const draft = this.formDrafts.get(field.id);
+      if (!draft) { return; }
+      field.value = draft.value;
+      if (field.type === 'checkbox' || field.type === 'radio') { field.checked = draft.checked; }
+    });
+    this.openDetails.forEach((id) => {
+      const element = document.getElementById(id);
+      if (element?.tagName === 'DETAILS') { element.open = true; }
+    });
+  }
+
+  /** Bind only the controls replaced with the page shell; section switches keep every form node. */
+  bindSectionNavigation() {
+    document.querySelectorAll('[data-account-section-link]').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) { return; }
+        event.preventDefault();
+        this.showSection(link.dataset.accountSectionLink, { updateUrl: true, focus: true });
+      });
+    });
+  }
+
+  /** Switch tasks without redrawing or discarding a form in another task. */
+  showSection(key, { updateUrl = false, focus = false } = {}) {
+    if (this.destroyed || !this.sections().some((section) => section.key === key)) { return; }
+    this.activeSection = key;
+    document.querySelectorAll('[data-account-section]').forEach((panel) => {
+      panel.hidden = panel.dataset.accountSection !== key;
+    });
+    document.querySelectorAll('[data-account-section-link]').forEach((link) => {
+      if (link.dataset.accountSectionLink === key) { link.setAttribute('aria-current', 'page'); }
+      else { link.removeAttribute('aria-current'); }
+    });
+    if (updateUrl) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('section', key);
+      url.hash = '';
+      window.history.replaceState(null, '', url);
+      if (this.app.router) { this.app.router.currentPath = url.pathname + url.search; }
+    }
+    this.mountVisiblePanels();
+    if (focus) {
+      const heading = document.getElementById(`account-heading-${key}`);
+      heading?.focus({ preventScroll: true });
+      heading?.scrollIntoView?.({ block: 'nearest' });
+    }
+  }
+
+  /** Old emailed and in-app anchor links open the containing task and disclosure. */
+  showLinkedSection() {
+    const linked = this.sections().find((section) => section.anchors.includes(window.location.hash.slice(1)));
+    if (!linked) { return; }
+    this.showSection(linked.key);
+    this.openLinkedDetails();
+  }
+
+  openLinkedDetails() {
+    const anchor = window.location.hash.slice(1);
+    const target = anchor ? document.getElementById(anchor) : null;
+    if (!target || !target.closest('.account-page')) { return; }
+    let detail = target.closest('details');
+    while (detail) { detail.open = true; detail = detail.parentElement?.closest('details'); }
+  }
+
+  /** Mount only panels of the visible task, once per container. Hidden tasks retain their drafts. */
+  mountVisiblePanels() {
+    const panels = [
+      ['profile', this.profilePanel, PROFILE_ANCHOR],
+      ['health', this.healthPanel, HEALTH_ANCHOR],
+      ['health', this.allergyPanel, ALLERGY_ANCHOR],
+      ['health', this.certificationsPanel, CERTIFICATIONS_ANCHOR],
+      ['preferences', this.calendarFeedPanel, CALENDAR_FEED_ANCHOR],
+    ];
+    const mounts = panels.filter(([section, panel]) => section === this.activeSection && panel).map(async ([_section, panel, anchor]) => {
+      const container = document.getElementById(anchor);
+      if (!container || this.mountedPanels.get(panel) === container) { return; }
+      this.mountedPanels.set(panel, container);
+      try {
+        await panel.mount(container);
+        if (this.destroyed || !container.isConnected) { return; }
+        this.restoreDrafts(container);
+        if (window.location.hash === `#${anchor}` && !container.closest('[hidden]')) {
+          this.openLinkedDetails();
+          const heading = container.querySelector('h2');
+          heading?.setAttribute('tabindex', '-1');
+          heading?.focus({ preventScroll: true });
+          heading?.scrollIntoView?.({ block: 'start' });
+        }
+      } catch (error) { debugError('Account panel could not load:', error); }
+    });
+    if (this.activeSection === 'preferences') { this.loadPushStatus(); }
+    return Promise.allSettled(mounts);
+  }
+
+  /** Checking notification setup must not delay someone opening their contact details. */
+  async loadPushStatus() {
+    if (!this.pushSupported || this.pushStatusLoaded) { return; }
+    this.pushStatusLoaded = true;
+    const toggle = document.getElementById('push-toggle');
+    if (toggle) { toggle.disabled = true; }
+    const enabled = await this.checkPushSubscription();
+    if (this.destroyed) { return; }
+    this.pushEnabled = enabled;
+    const current = document.getElementById('push-toggle');
+    if (current) { current.checked = enabled; current.disabled = false; }
+    const status = document.getElementById('push-status-text');
+    if (status) { status.textContent = translate(enabled ? 'push_enabled' : 'push_disabled'); }
+  }
+
+  /** Name changes update the identity and its shared guardian fields, without replacing unrelated drafts. */
+  refreshIdentity() {
+    if (this.destroyed) { return; }
+    const fullName = this.userData?.full_name || '';
+    document.querySelector('[data-account-name]')?.replaceChildren(document.createTextNode(fullName));
+    const name = document.getElementById('fullname-input');
+    if (name) { name.value = fullName; }
+    const guardian = this.guardianProfile?.guardian;
+    if (!guardian) { return; }
+    const first = document.getElementById('guardian-first-name');
+    const last = document.getElementById('guardian-last-name');
+    if (first) { first.value = guardian.prenom || ''; }
+    if (last) { last.value = guardian.nom || ''; }
   }
 
   /**
@@ -526,18 +708,14 @@ export class AccountInfoModule {
    * @param {string} message - Error message to display
    */
   renderError(message) {
-    const content = `
-      <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
-      <div class="error-container">
-        <h1>${translate('error')}</h1>
-        <p>${escapeHTML(message)}</p>
-      </div>
-    `;
-
     const appContainer = document.getElementById('app');
-    if (appContainer) {
-      setContent(appContainer, content);
-    }
+    if (!appContainer || this.destroyed) { return; }
+    setContent(appContainer, `${renderBackLink(isParent() ? '/parent-dashboard' : '/dashboard')}
+      <section class="account-page"><h1>${escapeHTML(translate('account_info_title'))}</h1>
+        <p role="alert">${escapeHTML(message)}</p>
+        <button type="button" class="button button--primary" id="account-retry">${escapeHTML(translate('retry'))}</button>
+      </section>`);
+    document.getElementById('account-retry').addEventListener('click', () => this.init());
   }
 
   /**
@@ -639,7 +817,6 @@ export class AccountInfoModule {
       return;
     }
 
-    let rerendered = false;
 
     try {
       this.isLoading = true;
@@ -665,9 +842,7 @@ export class AccountInfoModule {
         // The guardian record names the account too, so both are reloaded.
         await Promise.all([this.loadGuardianProfile(), this.loadUserData()]);
         this.app.showMessage(translate('guardian_save_success'), 'success');
-        this.render();
-        this.attachEventListeners();
-        rerendered = true;
+        this.refreshIdentity();
       } else {
         throw new Error(response.message || translate('guardian_save_error'));
       }
@@ -679,7 +854,7 @@ export class AccountInfoModule {
       this.app.showMessage(errorMessage, 'error');
     } finally {
       this.isLoading = false;
-      if (!rerendered && submitButton) {
+      if (submitButton) {
         submitButton.disabled = false;
         submitButton.textContent = translate('guardian_save');
       }
@@ -768,9 +943,10 @@ export class AccountInfoModule {
         if (this.holdsFamilyRole) {
           // A parent's guardian record carries the same name; show it changed.
           await this.loadGuardianProfile();
-          this.render();
-          this.attachEventListeners();
+          this.refreshIdentity();
         }
+
+        this.refreshIdentity();
 
         // Update stored user name if present
         const storedName = localStorage.getItem('userFullName');
@@ -1028,8 +1204,6 @@ export class AccountInfoModule {
     setStorage(timeFormatKey, normalized);
     this.app.showMessage(translate('data_saved'), 'success');
 
-    this.render();
-    this.attachEventListeners();
   }
 
   /**
