@@ -10,6 +10,7 @@ import {
 } from './ajax-functions.js';
 import { setContent, withFormBusy } from './utils/DOMUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
+import { renderBackLink } from './utils/BackLinkUtils.js';
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 
 /**
@@ -128,6 +129,16 @@ export class DynamicFormHandler {
     this.validateFormData();
   }
 
+  /**
+   * The child the form is about, so a parent of several children knows whose
+   * form is open. The submission answer carries the participant's first name.
+   * @returns {string} First name, or an empty string when unknown
+   */
+  childName() {
+    const name = this.formData?.first_name;
+    return typeof name === 'string' ? name.trim() : '';
+  }
+
   validateFormData() {
     const criticalFields = ['first_name', 'last_name', 'date_naissance'];
     for (const field of criticalFields) {
@@ -208,14 +219,13 @@ export class DynamicFormHandler {
     // Check if this handler is standalone or embedded within another form
     const content = this.isStandalone() 
       ? `
-                    <h2>${translate(this.formType)}</h2>
+                    ${renderBackLink()}
+                    <h1>${escapeHTML(translate(this.formType))}${this.childName() ? ` — ${escapeHTML(this.childName())}` : ''}</h1>
                     <form id="dynamic-form-${this.formType}">
                         ${formContent}
                         <p class="dynamic-form-status" role="status" aria-live="polite"></p>
                         <button type="submit" class="button button--primary">${escapeHTML(translate('save'))}</button>
                     </form>
-
-                    <a href="/parent-dashboard" class="button">${translate('back_to_dashboard')}</a>
                 `
       : `
                    <fieldset id="dynamic-form-${this.formType}${uniqueIdPart}">

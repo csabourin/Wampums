@@ -32,7 +32,7 @@ jest.mock('../../spa/ajax-functions.js', () => ({
 }));
 
 import axe from 'axe-core';
-import { saveFormSubmission } from '../../spa/ajax-functions.js';
+import { getFormSubmission, saveFormSubmission } from '../../spa/ajax-functions.js';
 import { DynamicFormHandler } from '../../spa/dynamicFormHandler.js';
 
 const CHILD_ID = 1;
@@ -81,6 +81,29 @@ describe('dynamic form save', () => {
 
     expect(app.showMessage).toHaveBeenCalledWith('api_error_invalid', 'error');
     expect(app.router.navigate).not.toHaveBeenCalled();
+  });
+
+  test('the open form says whose it is, under the way back', async () => {
+    const hostile = '<img src=x onerror=alert(1)>';
+    getFormSubmission.mockResolvedValue({ success: true, form_data: { first_name: hostile } });
+    const handler = new DynamicFormHandler({ showMessage: jest.fn() });
+
+    await handler.init('fiche_sante', CHILD_ID, {}, null, false, null, {
+      fields: [{ type: 'text', name: 'medecin', label: 'medecin' }],
+    });
+
+    const app = document.getElementById('app');
+    expect(app.firstElementChild.tagName).toBe('A');
+    expect(app.firstElementChild.getAttribute('href')).toBe('/dashboard');
+    const heading = app.querySelector('h1');
+    expect(heading.textContent).toBe(`fiche_sante — ${hostile}`);
+    expect(app.querySelector('img')).toBeNull();
+    expect(app.querySelector('button[type="submit"]').className).toBe('button button--primary');
+    const results = await axe.run(app, {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
   });
 });
 
