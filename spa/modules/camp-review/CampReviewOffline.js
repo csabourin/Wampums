@@ -59,8 +59,9 @@ export function campReviewSnapshotKey(meetingId, scope = currentCampReviewScope(
   return buildScopedCacheKey(`camp_review_snapshot_${Number(meetingId)}${scope}`);
 }
 
-/** @returns {Object} A note's weight recomputed from its votes */
-const weighed = (note) => ({ ...note, weight: 1 + (note.votes || []).length });
+/** @returns {Object} A note's weight recomputed from its votes and the notes merged into it */
+const weighed = (note) => ({ ...note, weight: 1 + (note.votes || []).length
+  + (note.merged || []).reduce((sum, child) => sum + (Number(child.weight) || 1), 0) });
 
 /**
  * Keep a copy of the camp's review on this device.

@@ -293,9 +293,24 @@ export class CampReview {
     if (this.destroyed) {
       return;
     }
-    if (quiet && this.root().querySelector('.camp-review')) {
+    const shown = this.root().querySelector('.camp-review');
+    if (quiet && shown && this.renderedStatus === this.review?.status) {
       this.renderNotes();
       this.renderSuggestions();
+      return;
+    }
+    if (quiet && shown) {
+      // Closed or reopened elsewhere: the form and the status controls change, keeping what was typed.
+      const typed = this.root().querySelector('#camp-review-text')?.value || '';
+      const focusedId = document.activeElement?.id;
+      this.render();
+      const field = this.root().querySelector('#camp-review-text');
+      if (field) {
+        field.value = typed;
+      }
+      if (focusedId) {
+        this.root().querySelector(`#${focusedId}`)?.focus();
+      }
       return;
     }
     if (this.moment === null) {
@@ -391,6 +406,7 @@ export class CampReview {
   }
 
   render() {
+    this.renderedStatus = this.review?.status;
     setContent(this.root(), `<section class="page camp-review">
         ${renderBackLink(this.backHref())}
         <h1>${escapeHTML(translate('camp_review_title'))}</h1>

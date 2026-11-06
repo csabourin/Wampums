@@ -66,6 +66,11 @@ test('changes waiting for one account or unit are not shown to another', async (
   expect(await pendingCampReviewChanges(12)).toEqual([]);
 });
 
+test('a +1 waiting on a note others were merged into keeps their weight', () => {
+  const parent = { ...SWIM, votes: [{ id: 'v0', mine: false }], merged: [{ ...SWIM, id: 'child', weight: 2 }], weight: 4 };
+  expect(overlayPending([parent], [{ method: 'PUT', noteId: NOTE_ID, voteId: VOTE_ID, body: {} }])[0].weight).toBe(5);
+});
+
 test('an undone +1 and a removed note leave the view at once', () => {
   const confirmed = [{ ...SWIM, votes: [{ id: VOTE_ID, mine: true }], weight: 2 }];
   expect(overlayPending(confirmed, [{ method: 'DELETE', noteId: NOTE_ID, voteId: VOTE_ID }])[0]).toMatchObject({ weight: 1, votes: [] });

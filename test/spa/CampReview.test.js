@@ -621,6 +621,25 @@ describe('sorting after the camp', () => {
     expect($('[data-review-vote]')).not.toBeNull();
   });
 
+  test('a review closed on another device while this one is open closes here too, keeping what was typed', async () => {
+    await open();
+    expect($('#camp-review-form')).not.toBeNull();
+    $('#camp-review-text').value = 'en cours';
+    api.getCampReview.mockResolvedValue(review({ review: { status: 'closed', version: 2, closed_at: '2026-07-14T12:00:00Z', closed_by: 'Ada Lovelace' } }));
+    window.dispatchEvent(new CustomEvent('offlineMutationRejected', { detail: { kind: 'camp_review' } }));
+    await flush();
+    await flush();
+    expect($('#camp-review-form')).toBeNull();
+    expect($('#camp-review-reopen')).not.toBeNull();
+    expect($('[data-review-vote]')).toBeNull();
+
+    api.getCampReview.mockResolvedValue(review());
+    window.dispatchEvent(new CustomEvent('offlineMutationReplayed', { detail: { kind: 'camp_review' } }));
+    await flush();
+    await flush();
+    expect($('#camp-review-form')).not.toBeNull();
+  });
+
   test('a review closed on another device reads as closed on this one, kept as it is', async () => {
     api.getCampReview.mockResolvedValue(review({ review: { status: 'closed', version: 2, closed_at: '2026-07-14T12:00:00Z', closed_by: null },
       notes: [{ ...NIGHT, outcome: 'fix', action_text: 'Commencer plus tôt' }] }));
