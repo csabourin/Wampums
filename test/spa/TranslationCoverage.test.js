@@ -316,6 +316,7 @@ test('every camp review category, moment and topic has its label in both languag
     ...rules.CATEGORIES.map((category) => [`camp_review_category_${category}`, 'CampReview']),
     ...rules.MOMENTS.map((moment) => [`camp_review_moment_${moment}`, 'CampReview']),
     ...rules.THEMES.map((theme) => [`camp_review_theme_${theme}`, 'CampReview']),
+    ...['keep', 'fix', 'none'].map((outcome) => [`camp_review_outcome_${outcome}`, 'CampReviewSorting']),
   ];
   expect(rules.CATEGORIES).toEqual(['liked', 'disliked', 'improve']);
   expect(missing(uses)).toEqual([]);

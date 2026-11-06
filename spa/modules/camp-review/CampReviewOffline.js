@@ -59,8 +59,9 @@ export function campReviewSnapshotKey(meetingId, scope = currentCampReviewScope(
   return buildScopedCacheKey(`camp_review_snapshot_${Number(meetingId)}${scope}`);
 }
 
-/** @returns {Object} A note's weight recomputed from its votes */
-const weighed = (note) => ({ ...note, weight: 1 + (note.votes || []).length });
+/** @returns {Object} A note's weight recomputed from its votes and the notes merged into it */
+const weighed = (note) => ({ ...note, weight: 1 + (note.votes || []).length
+  + (note.merged || []).reduce((sum, child) => sum + (Number(child.weight) || 1), 0) });
 
 /**
  * Keep a copy of the camp's review on this device.
@@ -80,7 +81,7 @@ export async function storeCampReviewSnapshot(meetingId, data, duration = CAMP_R
     meetingId: Number(meetingId),
     preparedAt: Date.now(),
     expiresAt: Date.now() + duration,
-    data: { camp: data?.camp || null, notes: Array.isArray(data?.notes) ? data.notes : [] },
+    data: { camp: data?.camp || null, review: data?.review || null, notes: Array.isArray(data?.notes) ? data.notes : [] },
   }, duration);
   assertScope(scope);
   return key;
@@ -102,27 +103,43 @@ export async function getCampReviewSnapshot(meetingId, scope = currentCampReview
 }
 
 /**
- * Apply what the server answered to a confirmed write onto the notes.
+ * Apply what the server answered to a confirmed write onto the notes. The
+ * answer is the note as shown: the note written, or the note it was merged
+ * into, which then replaces that one.
  *
- * @param {Object[]} notes - The notes before
- * @param {{method: string, noteId: string, voteId: ?string}} change - The write
+ * @param {Object[]} previous - The notes before
+ * @param {{method: string, noteId: string, voteId?: ?string, unmerge?: boolean}} change - The write
  * @param {Object} answer - `data` of the server's answer
  * @returns {Object[]} The notes after
  */
-export function applyAnswer(notes, { method, noteId, voteId }, answer) {
-  const without = notes.filter((note) => note.id !== noteId);
-  if (method === 'DELETE' && !voteId) {
-    return without;
+export function applyAnswer(previous, { method, noteId, voteId, unmerge = false }, answer) {
+  // The server read the whole review in the write transaction. Missing children may have been
+  // detached, deleted or merged elsewhere: only that confirmed list can distinguish those cases.
+  if (Array.isArray(answer?.notes)) {
+    return answer.notes;
+  }
+  const notes = unmerge ? previous.map((note) => (note.merged?.some((child) => child.id === noteId)
+    ? weighed({ ...note, merged: note.merged.filter((child) => child.id !== noteId) }) : note)) : previous;
+  if (method === 'DELETE' && !voteId && !unmerge) {
+    // Notes merged into a removed note stand on their own again, as the server keeps them:
+    // detaching them is a change, so each is now one version further.
+    return notes.flatMap((note) => (note.id === noteId
+      ? (note.merged || []).map((child) => ({ ...child, merged: [], version: (Number(child.version) || 1) + 1 }))
+      : [note.merged?.some((child) => child.id === noteId)
+        ? weighed({ ...note, merged: note.merged.filter((child) => child.id !== noteId) }) : note]));
   }
   const note = answer?.note;
   if (!note) {
-    return without;
+    return notes.filter((entry) => entry.id !== noteId);
   }
-  const index = notes.findIndex((entry) => entry.id === noteId);
+  const index = notes.findIndex((entry) => entry.id === note.id || entry.id === noteId);
+  // Another device may have merged previously separate notes since this copy was read.
+  const replaced = new Set([note.id, noteId, ...(note.merged || []).map((child) => child.id)]);
+  const others = notes.filter((entry) => !replaced.has(entry.id));
   if (index === -1) {
-    return [...notes, note];
+    return [...others, note];
   }
-  return notes.map((entry) => (entry.id === noteId ? note : entry));
+  return [...others.slice(0, index), note, ...others.slice(index)];
 }
 
 /**
@@ -174,6 +191,27 @@ export async function applyCampReviewWrite(meetingId, change, answer, scope = cu
   const notes = applyAnswer(snapshot.data.notes, { ...change, method: String(change.method).toUpperCase() }, answer);
   // Keep the copy's original expiry, not another full camp period.
   await storeCampReviewSnapshot(meetingId, { ...snapshot.data, notes }, snapshot.expiresAt - Date.now(), scope);
+}
+
+/**
+ * Record a confirmed closing or reopening in this camp's copy on the device,
+ * so an offline visit neither accepts notes on a closed review nor refuses
+ * them on a reopened one. Without a copy, nothing is stored.
+ *
+ * @param {number} meetingId - The planned camp
+ * @param {Object} review - The review's state as the server answered it
+ * @param {string} [scope] - The scope captured before the change
+ * @returns {Promise<void>}
+ */
+export async function storeCampReviewState(meetingId, review, scope = currentCampReviewScope()) {
+  if (scope !== currentCampReviewScope()) {
+    return;
+  }
+  const snapshot = await getCampReviewSnapshot(meetingId, scope);
+  if (!snapshot) {
+    return;
+  }
+  await storeCampReviewSnapshot(meetingId, { ...snapshot.data, review }, snapshot.expiresAt - Date.now(), scope);
 }
 
 /**

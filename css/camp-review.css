@@ -58,3 +58,25 @@
 }
 /* A .button sets its own display: the undo offer must still disappear when hidden. */
 .camp-review__feedback [hidden] { display: none; }
+
+/* Second slice: closing, what the unit takes from the camp, and sorting a note. */
+.camp-review__state { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-block: 0 .75rem; }
+.camp-review__state p { margin: 0; flex: 1 1 16rem; }
+.camp-review__summary { padding: .75rem 1rem; margin-block-end: 1rem; border: 2px solid var(--color-primary);
+  border-radius: var(--radius-md, .5rem); background: var(--color-surface); }
+.camp-review__summary h2 { font-size: 1.2rem; margin-block: 0 .5rem; }
+.camp-review__summary h3 { font-size: 1.05rem; margin-block: .5rem .25rem; }
+.camp-review__summary ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; overflow-wrap: anywhere; }
+.camp-review__summary .camp-review__weight { display: inline-block; }
+.camp-review__action { margin: .25rem 0 0; font-style: italic; overflow-wrap: anywhere; }
+.camp-review__merged { margin: .25rem 0 0; font-size: .9rem; overflow-wrap: anywhere; }
+.camp-review__chip--keep, .camp-review__chip--fix { font-weight: 600; }
+
+.camp-review-sort { display: grid; gap: .5rem; }
+.camp-review-sort__text { margin: 0; overflow-wrap: anywhere; }
+.camp-review-sort__outcome { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
+.camp-review-sort__outcome legend { font-weight: 700; margin-block-end: .25rem; }
+.camp-review-sort__subtitle { font-size: 1rem; margin-block: .5rem 0; }
+.camp-review-sort__list { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
+.camp-review-sort__list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .25rem .5rem;
+  overflow-wrap: anywhere; }

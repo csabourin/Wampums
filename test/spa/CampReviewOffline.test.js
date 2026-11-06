@@ -17,9 +17,10 @@ import { OfflineManager } from '../../spa/modules/OfflineManager.js';
 import { getOfflineData } from '../../spa/indexedDB.js';
 import {
   storeCampReviewSnapshot, getCampReviewSnapshot, pendingCampReviewChanges, overlayPending, applyAnswer, parseCampReviewWrite,
-  applyCampReviewWrite,
+  applyCampReviewWrite, storeCampReviewState,
 } from '../../spa/modules/camp-review/CampReviewOffline.js';
 import { similarNotes, reviewWords } from '../../spa/modules/camp-review/CampReviewMatching.js';
+import { removeCampReviewVoteOnline, removeCampReviewVote } from '../../spa/api/api-camp-reviews.js';
 
 const NOTE_ID = '11111111-1111-4111-8111-111111111111';
 const VOTE_ID = '22222222-2222-4222-8222-222222222222';
@@ -65,12 +66,60 @@ test('changes waiting for one account or unit are not shown to another', async (
   expect(await pendingCampReviewChanges(12)).toEqual([]);
 });
 
+test('a +1 waiting on a note others were merged into keeps their weight', () => {
+  const parent = { ...SWIM, votes: [{ id: 'v0', mine: false }], merged: [{ ...SWIM, id: 'child', weight: 2 }], weight: 4 };
+  expect(overlayPending([parent], [{ method: 'PUT', noteId: NOTE_ID, voteId: VOTE_ID, body: {} }])[0].weight).toBe(5);
+});
+
 test('an undone +1 and a removed note leave the view at once', () => {
   const confirmed = [{ ...SWIM, votes: [{ id: VOTE_ID, mine: true }], weight: 2 }];
   expect(overlayPending(confirmed, [{ method: 'DELETE', noteId: NOTE_ID, voteId: VOTE_ID }])[0]).toMatchObject({ weight: 1, votes: [] });
   expect(overlayPending(confirmed, [{ method: 'DELETE', noteId: NOTE_ID, voteId: null }])).toEqual([]);
   // The confirmed notes themselves are never changed.
   expect(confirmed[0].votes).toHaveLength(1);
+});
+
+test('a confirmed unmerge keeps both notes and their separate weights on this device', async () => {
+  const child = { ...SWIM, id: 'child', weight: 2, votes: [{ id: VOTE_ID }] };
+  const parent = { ...SWIM, weight: 3, merged: [child] };
+  await storeCampReviewSnapshot(12, { camp: CAMP, notes: [parent] });
+  await applyCampReviewWrite(12, { method: 'DELETE', noteId: child.id, unmerge: true }, { note: { ...child, version: 3 } });
+  expect((await getCampReviewSnapshot(12)).data.notes).toEqual([
+    { ...parent, weight: 1, merged: [] }, { ...child, version: 3 },
+  ]);
+});
+
+test('a confirmed merge replaces both notes with the confirmed parent on this device', async () => {
+  const child = { ...SWIM, id: 'child' };
+  await storeCampReviewSnapshot(12, { camp: CAMP, notes: [SWIM, child] });
+  const merged = { ...SWIM, weight: 2, merged: [child] };
+  await applyCampReviewWrite(12, { method: 'PUT', noteId: child.id }, { note: merged });
+  expect((await getCampReviewSnapshot(12)).data.notes).toEqual([merged]);
+});
+
+test('voting on a note merged elsewhere keeps its children only inside the confirmed parent', async () => {
+  const child = { ...SWIM, id: '33333333-3333-4333-8333-333333333333', text: 'Le jeu de nuit', weight: 2 };
+  await storeCampReviewSnapshot(12, { camp: CAMP, notes: [SWIM, child] });
+  await queue(VOTE_URL, 'PUT', {});
+  const parent = { ...SWIM, weight: 4, votes: [{ id: VOTE_ID }], merged: [child] };
+  global.fetch.mockResolvedValueOnce(jsonResponse({ success: true, data: { note: parent } }));
+  expect((await manager.replayPendingMutations()).replayed).toBe(1);
+  expect((await getCampReviewSnapshot(12)).data.notes).toEqual([parent]);
+});
+
+test('a confirmed complete note list restores a child unmerged elsewhere without reviving a deleted child', async () => {
+  const detached = { ...SWIM, id: 'detached', version: 3, weight: 2, votes: [{ id: 'other-vote' }] };
+  const deleted = { ...SWIM, id: 'deleted' };
+  await storeCampReviewSnapshot(12, { camp: CAMP, notes: [{ ...SWIM, merged: [detached, deleted], weight: 4 }] });
+  const parent = { ...SWIM, merged: [], weight: 2, votes: [{ id: VOTE_ID }] };
+  await applyCampReviewWrite(12, { method: 'PUT', noteId: NOTE_ID, voteId: VOTE_ID }, { note: parent, notes: [parent, detached] });
+  expect((await getCampReviewSnapshot(12)).data.notes).toEqual([parent, detached]);
+});
+
+test('a confirmed vote removal keeps the remaining votes and weight on this device', async () => {
+  await storeCampReviewSnapshot(12, { camp: CAMP, notes: [{ ...SWIM, weight: 2, votes: [{ id: VOTE_ID }] }] });
+  await applyCampReviewWrite(12, { method: 'DELETE', noteId: NOTE_ID, voteId: VOTE_ID }, { note: SWIM });
+  expect((await getCampReviewSnapshot(12)).data.notes).toEqual([SWIM]);
 });
 
 test('a confirmed replay updates the copy kept on this device, even with the screen closed', async () => {
@@ -83,6 +132,22 @@ test('a confirmed replay updates the copy kept on this device, even with the scr
   expect((await manager.replayPendingMutations()).replayed).toBe(2);
   expect(global.fetch.mock.calls.map(([url]) => url)).toEqual([NOTE_URL, VOTE_URL]);
   expect((await getCampReviewSnapshot(12)).data.notes).toEqual([{ ...SWIM, weight: 2, votes: [{ id: VOTE_ID, mine: true }] }]);
+  expect(await getOfflineData()).toEqual([]);
+});
+
+test('a deleted note merged elsewhere disappears from the offline copy after queued votes and deletion replay', async () => {
+  const child = { ...SWIM, id: '33333333-3333-4333-8333-333333333333', text: 'Le jeu de nuit' };
+  const sibling = { ...SWIM, id: '44444444-4444-4444-8444-444444444444', text: 'Le canot', weight: 2 };
+  const childUrl = `http://localhost/api/v1/camp-reviews/camps/12/notes/${child.id}`;
+  await storeCampReviewSnapshot(12, { camp: CAMP, notes: [{ ...SWIM, weight: 3, merged: [sibling] }, child] });
+  await queue(`${childUrl}/votes/${VOTE_ID}`, 'PUT', {});
+  await queue(childUrl, 'DELETE');
+  const merged = { ...SWIM, weight: 5, merged: [{ ...child, weight: 2, votes: [{ id: VOTE_ID }] }, sibling] };
+  global.fetch
+    .mockResolvedValueOnce(jsonResponse({ success: true, data: { note: merged } }))
+    .mockResolvedValueOnce(jsonResponse({ success: true, data: { deleted: true } }));
+  expect((await manager.replayPendingMutations()).replayed).toBe(2);
+  expect((await getCampReviewSnapshot(12)).data.notes).toEqual([{ ...SWIM, weight: 3, merged: [sibling] }]);
   expect(await getOfflineData()).toEqual([]);
 });
 
@@ -110,6 +175,28 @@ test('a confirmed write updates the copy kept here, keeping its expiry; without 
   expect(after.expiresAt).toBeLessThanOrEqual(expiresAt + 1000);
   await applyCampReviewWrite(13, { method: 'PUT', noteId: NOTE_ID, voteId: null }, { note: SWIM });
   expect(await getCampReviewSnapshot(13)).toBeNull();
+});
+
+test('removing a note others were merged into keeps them, on their own, one version further as on the server', () => {
+  const child = { ...SWIM, id: '44444444-4444-4444-8444-444444444444', text: 'Baignade', weight: 2 };
+  const parent = { ...SWIM, weight: 3, merged: [child] };
+  expect(applyAnswer([parent], { method: 'DELETE', noteId: SWIM.id, voteId: null }, { deleted: true }))
+    .toEqual([{ ...child, merged: [], version: child.version + 1 }]);
+});
+
+test('closing or reopening the review is recorded in the copy kept here, never in another session\'s', async () => {
+  await storeCampReviewSnapshot(12, { camp: CAMP, review: { status: 'open', version: 1 }, notes: [SWIM] });
+  await storeCampReviewState(12, { status: 'closed', version: 2 });
+  expect((await getCampReviewSnapshot(12)).data).toMatchObject({ review: { status: 'closed', version: 2 }, notes: [SWIM] });
+  await storeCampReviewState(13, { status: 'closed', version: 2 });
+  expect(await getCampReviewSnapshot(13)).toBeNull();
+});
+
+test('a +1 removed while sorting is never kept for later, unlike one undone at the campfire', async () => {
+  await expect(removeCampReviewVoteOnline(12, NOTE_ID, VOTE_ID)).rejects.toMatchObject({ code: 'online_required' });
+  expect(await getOfflineData()).toEqual([]);
+  expect(await removeCampReviewVote(12, NOTE_ID, VOTE_ID)).toMatchObject({ queued: true });
+  expect(await getOfflineData()).toHaveLength(1);
 });
 
 test('a copy from another account, unit or camp is never read', async () => {

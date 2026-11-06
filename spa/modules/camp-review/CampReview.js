@@ -29,13 +29,14 @@ import { debugError } from '../../utils/DebugUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { hasPermission, isDemoUser } from '../../utils/PermissionUtils.js';
-import { confirmDestructive } from '../../utils/DialogUtils.js';
+import { confirm, confirmDestructive } from '../../utils/DialogUtils.js';
 import {
-  getCampReview, saveCampReviewNote, deleteCampReviewNote, addCampReviewVote, removeCampReviewVote,
+  getCampReview, saveCampReviewNote, deleteCampReviewNote, addCampReviewVote, removeCampReviewVote, setCampReviewStatus,
 } from '../../api/api-camp-reviews.js';
+import { openSortDialog } from './CampReviewSorting.js';
 import {
   currentCampReviewScope, getCampReviewSnapshot, storeCampReviewSnapshot, pendingCampReviewChanges,
-  overlayPending, applyAnswer, applyCampReviewWrite,
+  overlayPending, applyAnswer, applyCampReviewWrite, storeCampReviewState,
 } from './CampReviewOffline.js';
 import { similarNotes } from './CampReviewMatching.js';
 import { MAX_EVENT_DAYS } from '../../utils/ActivityDateUtils.js';
@@ -60,6 +61,8 @@ export class CampReview {
     this.meetingId = Number(meetingId);
     this.canManage = hasPermission('camp_reviews.manage') && !isDemoUser();
     this.camp = null;
+    // Open until closed; a camp whose review was never closed is at version 0.
+    this.review = { status: 'open', version: 0, closed_at: null, closed_by: null };
     // The notes the server confirmed, and the changes not yet confirmed.
     this.confirmed = [];
     this.pending = [];
@@ -156,6 +159,7 @@ export class CampReview {
         throw new Error('Missing camp review');
       }
       this.camp = response.data.camp;
+      this.review = response.data.review || this.review;
       this.confirmed = Array.isArray(response.data.notes) ? response.data.notes : [];
       this.offlineSince = null;
       await this.readPending(request, scope);
@@ -203,6 +207,7 @@ export class CampReview {
     }
     if (snapshot) {
       this.camp = snapshot.data.camp;
+      this.review = snapshot.data.review || this.review;
       this.confirmed = snapshot.data.notes;
       this.offlineSince = snapshot.preparedAt;
     } else if (!this.camp) {
@@ -233,6 +238,21 @@ export class CampReview {
       title: translate('camp_review_title'), backHref: this.backHref(), message, retryId: 'camp-review-retry',
     }));
     this.root().querySelector('#camp-review-retry')?.addEventListener('click', () => this.init());
+  }
+
+  /** @returns {boolean} Whether the review was closed: it is then read only */
+  isClosed() {
+    return this.review?.status === 'closed';
+  }
+
+  /** @returns {boolean} Whether notes may be added and weighed now */
+  canNote() {
+    return this.canManage && !this.isClosed();
+  }
+
+  /** @returns {boolean} Whether the review may be sorted, merged, closed or reopened now: online, on the server's own copy */
+  canDecide() {
+    return this.canManage && this.offlineSince === null && navigator.onLine !== false;
   }
 
   /** @returns {Object[]} The notes as they will be once every waiting change is sent */
@@ -273,9 +293,24 @@ export class CampReview {
     if (this.destroyed) {
       return;
     }
-    if (quiet && this.root().querySelector('.camp-review')) {
+    const shown = this.root().querySelector('.camp-review');
+    if (quiet && shown && this.renderedStatus === this.review?.status && this.renderedCanDecide === this.canDecide()) {
       this.renderNotes();
       this.renderSuggestions();
+      return;
+    }
+    if (quiet && shown) {
+      // Closed or reopened elsewhere: the form and the status controls change, keeping what was typed.
+      const typed = this.root().querySelector('#camp-review-text')?.value || '';
+      const focusedId = document.activeElement?.id;
+      this.render();
+      const field = this.root().querySelector('#camp-review-text');
+      if (field) {
+        field.value = typed;
+      }
+      if (focusedId) {
+        this.root().querySelector(`#${focusedId}`)?.focus();
+      }
       return;
     }
     if (this.moment === null) {
@@ -332,7 +367,7 @@ export class CampReview {
 
   /** @returns {string} The entry form */
   formMarkup() {
-    if (!this.canManage) {
+    if (!this.canNote()) {
       return '';
     }
     const categories = rules.CATEGORIES.map((category) => `<label class="camp-review__category camp-review__category--${category}">
@@ -371,17 +406,58 @@ export class CampReview {
   }
 
   render() {
+    this.renderedStatus = this.review?.status;
+    this.renderedCanDecide = this.canDecide();
     setContent(this.root(), `<section class="page camp-review">
         ${renderBackLink(this.backHref())}
         <h1>${escapeHTML(translate('camp_review_title'))}</h1>
         ${this.campMarkup()}
         ${this.offlineNotice()}
-        <p class="camp-review__explanation">${escapeHTML(translate('camp_review_explanation'))}</p>
+        ${this.statusMarkup()}
+        ${this.isClosed() ? '' : `<p class="camp-review__explanation">${escapeHTML(translate('camp_review_explanation'))}</p>`}
         ${this.formMarkup()}
+        <div id="camp-review-summary"></div>
         <div id="camp-review-notes" class="camp-review__notes"></div>
       </section>`);
     this.renderNotes();
     this.wire();
+  }
+
+  /** @returns {string} Whether the review is closed, and the way to close or reopen it */
+  statusMarkup() {
+    const button = (id, key) => (this.canDecide()
+      ? `<button type="button" class="button button--secondary button--small" id="${id}">${escapeHTML(translate(key))}</button>` : '');
+    if (this.isClosed()) {
+      const since = this.review.closed_at
+        ? new Intl.DateTimeFormat(localeForLanguage(this.lang()), { dateStyle: 'long' }).format(new Date(this.review.closed_at)) : '';
+      const text = translate(this.review.closed_by ? 'camp_review_closed_by' : 'camp_review_closed_on')
+        .replace('{when}', () => since).replace('{name}', () => this.review.closed_by || '');
+      return `<div class="camp-review__state"><p class="status-message info">${escapeHTML(text)}</p>
+        ${button('camp-review-reopen', 'camp_review_reopen')}</div>`;
+    }
+    const close = button('camp-review-close', 'camp_review_close');
+    return close ? `<div class="camp-review__state"><p>${escapeHTML(translate('camp_review_close_hint'))}</p>${close}</div>` : '';
+  }
+
+  /** @returns {string} What the review keeps and fixes, heaviest first, once notes are sorted */
+  summaryMarkup(notes) {
+    const sorted = (outcome) => notes.filter((note) => note.outcome === outcome)
+      .sort((a, b) => (b.weight || 1) - (a.weight || 1));
+    const keep = sorted('keep');
+    const fix = sorted('fix');
+    if (!keep.length && !fix.length) {
+      return '';
+    }
+    const list = (key, items) => `<div class="camp-review__summary-part">
+        <h3>${escapeHTML(translate(`camp_review_outcome_${key}`))}</h3>
+        ${items.length ? `<ul>${items.map((note) => `<li>${this.weightMarkup(note)} <span>${escapeHTML(note.text)}</span>${note.action_text
+    ? `<p class="camp-review__action">${escapeHTML(translate('camp_review_action_value').replace('{action}', () => note.action_text))}</p>` : ''}</li>`).join('')}</ul>`
+    : `<p class="empty-state">${escapeHTML(translate('camp_review_summary_none'))}</p>`}
+      </div>`;
+    return `<section class="camp-review__summary" aria-labelledby="camp-review-summary-title">
+        <h2 id="camp-review-summary-title">${escapeHTML(translate('camp_review_summary'))}</h2>
+        ${list('keep', keep)}${list('fix', fix)}
+      </section>`;
   }
 
   /** @returns {string} Where and when a note was said */
@@ -405,21 +481,36 @@ export class CampReview {
 
   /** @returns {string} One note, with its actions */
   noteMarkup(note) {
-    const id = escapeAttribute(note.id);
     return `<li class="camp-review__note${note.pending ? ' is-pending' : ''}">
         <div class="camp-review__note-head">
           ${this.weightMarkup(note)}
           <p class="camp-review__note-text">${escapeHTML(note.text)}</p>
         </div>
         <p class="camp-review__note-meta">${escapeHTML(this.metaOf(note))}${note.pending
-  ? ` <span class="camp-review__chip">${escapeHTML(translate('camp_review_pending'))}</span>` : ''}</p>
-        ${this.canManage ? `<div class="camp-review__note-actions">
-          <button type="button" class="button button--secondary button--small" data-review-vote="${id}"
-            aria-label="${escapeAttribute(translate('camp_review_vote_label').replace('{text}', () => note.text))}">+1</button>
-          <button type="button" class="button button--ghost button--small" data-review-delete="${id}"
-            aria-label="${escapeAttribute(translate('camp_review_delete_label').replace('{text}', () => note.text))}">${escapeHTML(translate('camp_review_delete'))}</button>
-        </div>` : ''}
+  ? ` <span class="camp-review__chip">${escapeHTML(translate('camp_review_pending'))}</span>` : ''}${note.outcome
+  ? ` <span class="camp-review__chip camp-review__chip--${escapeAttribute(note.outcome)}">${escapeHTML(translate(`camp_review_outcome_${note.outcome}`))}</span>` : ''}</p>
+        ${note.action_text ? `<p class="camp-review__action">${escapeHTML(translate('camp_review_action_value').replace('{action}', () => note.action_text))}</p>` : ''}
+        ${(note.merged || []).length ? `<p class="camp-review__merged">${escapeHTML(translate('camp_review_also_said'))}
+          ${note.merged.map((child) => `<span>${escapeHTML(child.text)}</span>`).join(' · ')}</p>` : ''}
+        ${this.actionsMarkup(note)}
       </li>`;
+  }
+
+  /** @returns {string} What may be done with a note now, or nothing */
+  actionsMarkup(note) {
+    const id = escapeAttribute(note.id);
+    const buttons = [];
+    if (this.canDecide() && !this.isClosed() && !note.pending) {
+      buttons.push(`<button type="button" class="button button--secondary button--small" data-review-sort="${id}"
+        aria-label="${escapeAttribute(translate('camp_review_sort_label').replace('{text}', () => note.text))}">${escapeHTML(translate('camp_review_sort'))}</button>`);
+    }
+    if (this.canNote()) {
+      buttons.push(`<button type="button" class="button button--secondary button--small" data-review-vote="${id}"
+        aria-label="${escapeAttribute(translate('camp_review_vote_label').replace('{text}', () => note.text))}">+1</button>`,
+      `<button type="button" class="button button--ghost button--small" data-review-delete="${id}"
+        aria-label="${escapeAttribute(translate('camp_review_delete_label').replace('{text}', () => note.text))}">${escapeHTML(translate('camp_review_delete'))}</button>`);
+    }
+    return buttons.length ? `<div class="camp-review__note-actions">${buttons.join('')}</div>` : '';
   }
 
   /** Draw the notes by category, heaviest first. */
@@ -430,7 +521,7 @@ export class CampReview {
     }
     // A redraw keeps the focus on the button that held it.
     const focused = container.contains(document.activeElement) ? document.activeElement : null;
-    const focusKey = ['reviewVote', 'reviewDelete'].find((key) => focused?.dataset?.[key]);
+    const focusKey = ['reviewVote', 'reviewDelete', 'reviewSort'].find((key) => focused?.dataset?.[key]);
     const notes = this.notes();
     const sections = rules.CATEGORIES.map((category) => {
       const inCategory = notes.filter((note) => note.category === category)
@@ -443,12 +534,16 @@ export class CampReview {
     .replace('{notes}', String(inCategory.length)).replace('{votes}', String(total)))}</span></h2>
           ${inCategory.length
     ? `<ul class="camp-review__list">${inCategory.map((note) => this.noteMarkup(note)).join('')}</ul>`
-    : `<p class="empty-state">${escapeHTML(translate(this.canManage ? 'camp_review_empty_manage' : 'camp_review_empty'))}</p>`}
+    : `<p class="empty-state">${escapeHTML(translate(this.canNote() ? 'camp_review_empty_manage' : 'camp_review_empty'))}</p>`}
         </section>`;
     }).join('');
     setContent(container, sections);
+    const summary = this.root().querySelector('#camp-review-summary');
+    if (summary) {
+      setContent(summary, this.summaryMarkup(notes));
+    }
     if (focusKey) {
-      const attribute = focusKey === 'reviewVote' ? 'data-review-vote' : 'data-review-delete';
+      const attribute = { reviewVote: 'data-review-vote', reviewDelete: 'data-review-delete', reviewSort: 'data-review-sort' }[focusKey];
       [...container.querySelectorAll(`[${attribute}]`)]
         .find((button) => button.getAttribute(attribute) === focused.dataset[focusKey])?.focus();
     }
@@ -506,8 +601,15 @@ export class CampReview {
       const remove = event.target.closest('[data-review-delete]');
       if (remove) {
         this.removeNote(remove.dataset.reviewDelete);
+        return;
+      }
+      const sort = event.target.closest('[data-review-sort]');
+      if (sort) {
+        this.openSort(sort.dataset.reviewSort);
       }
     });
+    root.querySelector('#camp-review-close')?.addEventListener('click', () => this.setStatus('closed'));
+    root.querySelector('#camp-review-reopen')?.addEventListener('click', () => this.setStatus('open'));
     const undo = root.querySelector('#camp-review-undo');
     if (undo) {
       undo.addEventListener('click', () => this.undoVote());
@@ -639,7 +741,7 @@ export class CampReview {
         // Kept on the device whenever this screen holds a whole confirmed copy, read online or from
         // the device: a page opened offline and then reconnected must not leave an older copy behind.
         if (this.camp && this.offlineSince !== false) {
-          storeCampReviewSnapshot(this.meetingId, { camp: this.camp, notes: this.confirmed }, undefined, scope)
+          storeCampReviewSnapshot(this.meetingId, { camp: this.camp, review: this.review, notes: this.confirmed }, undefined, scope)
             .catch((err) => debugError('The camp review could not be kept on this device', err));
         }
         return { ok: true };
@@ -771,6 +873,83 @@ export class CampReview {
       this.root().querySelector(`#${TEXT_ID}`)?.focus();
     } else {
       this.app.showMessage(apiErrorMessage(result.error, 'camp_review_delete_failed'), 'error');
+    }
+  }
+
+  /** Open the dialog that sorts a note, offering the notes of its category it may join. */
+  openSort(noteId) {
+    const notes = this.notes();
+    const note = notes.find((entry) => entry.id === noteId);
+    if (!note) {
+      return;
+    }
+    const candidates = notes.filter((other) => other.id !== note.id && other.category === note.category && !other.pending);
+    const scope = currentCampReviewScope();
+    openSortDialog({ app: this.app, meetingId: this.meetingId, note, candidates,
+      onChanged: (change, answer) => this.reload(change, answer, scope) });
+  }
+
+  /**
+   * Retain a change decided online before reloading, including when the screen was left.
+   * The quiet load redraws the notes and the summary,
+   * and the whole page only when the review was closed or reopened, keeping what was typed.
+   */
+  async reload(change, answer, scope = currentCampReviewScope()) {
+    if (scope !== currentCampReviewScope()) {
+      return;
+    }
+    this.request += 1;
+    this.reading = null;
+    if (change) {
+      if (!this.destroyed) {
+        this.confirmed = applyAnswer(this.confirmed, change, answer);
+        this.renderNotes();
+        this.renderSuggestions();
+      }
+      await applyCampReviewWrite(this.meetingId, change, answer, scope)
+        .catch((err) => debugError('The camp review kept on this device could not be updated', err));
+    }
+    if (this.destroyed || scope !== currentCampReviewScope()) {
+      return;
+    }
+    await this.load({ quiet: true });
+  }
+
+  /**
+   * Close the review, freezing it, or reopen it, once confirmed.
+   * @param {'open'|'closed'} status - The new state
+   */
+  async setStatus(status) {
+    const closing = status === 'closed';
+    const confirmed = await confirm({
+      title: translate(closing ? 'camp_review_close_title' : 'camp_review_reopen_title'),
+      message: translate(closing ? 'camp_review_close_confirm' : 'camp_review_reopen_confirm'),
+      confirmLabel: translate(closing ? 'camp_review_close' : 'camp_review_reopen'),
+    });
+    if (!confirmed || this.destroyed) {
+      return;
+    }
+    try {
+      const scope = currentCampReviewScope();
+      const response = await setCampReviewStatus(this.meetingId, { status, expected_version: this.review.version });
+      // A read begun before this confirmation must never restore the previous state.
+      this.request += 1;
+      this.reading = null;
+      const review = response?.data?.review || { ...this.review, status };
+      // The copy on the device follows, so an offline visit reads the review as it now is.
+      await storeCampReviewState(this.meetingId, review, scope)
+        .catch((err) => debugError('The camp review kept on this device could not be updated', err));
+      if (this.destroyed) {
+        return;
+      }
+      this.review = review;
+      this.app.showMessage(translate(closing ? 'camp_review_closed_done' : 'camp_review_reopened_done'), 'success');
+      this.render();
+      this.root().querySelector('h1')?.setAttribute('tabindex', '-1');
+      this.root().querySelector(closing ? '#camp-review-reopen' : '#camp-review-close')?.focus();
+    } catch (error) {
+      debugError('Closing or reopening the camp review failed:', error);
+      this.app.showMessage(apiErrorMessage(error, 'camp_review_status_failed'), 'error');
     }
   }
 }

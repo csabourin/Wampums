@@ -110,7 +110,10 @@ describe.skipIf(!DATABASE_URL)('Camp review', () => {
     await call('put', `/camps/${ids.camp.meeting}/notes/${noteId}/votes/${mine}`).send({});
     const both = await call('put', `/camps/${ids.camp.meeting}/notes/${noteId}/votes/${theirs}`, ids.second).send({});
     expect(both.body.data.note.weight).toBe(3);
-    expect(both.body.data.note.votes).toEqual([{ id: mine, mine: false }, { id: theirs, mine: true }]);
+    expect(both.body.data.note.votes).toEqual([
+      expect.objectContaining({ id: mine, mine: false, by: 'Ada Fiction' }),
+      expect.objectContaining({ id: theirs, mine: true, by: 'Léa Fiction' }),
+    ]);
 
     const undone = await call('delete', `/camps/${ids.camp.meeting}/notes/${noteId}/votes/${mine}`);
     expect(undone.status).toBe(200);
@@ -178,6 +181,111 @@ describe.skipIf(!DATABASE_URL)('Camp review', () => {
   test('a reader without camp_reviews.manage reads the review but writes nothing', async () => {
     expect((await read(ids.camp.meeting, ids.reader)).notes.length).toBeGreaterThan(0);
     expect((await call('put', `/camps/${ids.camp.meeting}/notes/${randomUUID()}`, ids.reader).send(note())).status).toBe(403);
+  });
+
+  describe('sorting after the camp', () => {
+    let campIds;
+    const on = (path) => `/camps/${campIds.meeting}${path}`;
+    const add = async (text, category = 'liked') => {
+      const id = randomUUID();
+      const response = await call('put', on(`/notes/${id}`)).send(note({ category, text }));
+      expect(response.status).toBe(201);
+      return response.body.data.note;
+    };
+
+    beforeAll(async () => {
+      campIds = await camp(ids.unit, ids.leader, '2026-08-01', '2026-08-03');
+    });
+
+    test('a note is kept or fixed with an action, made against its version', async () => {
+      const kept = await add('Le grand jeu de nuit');
+      const sorted = await call('patch', on(`/notes/${kept.id}`)).send({ outcome: 'keep', action_text: ' Le refaire le samedi ', expected_version: kept.version });
+      expect(sorted.status).toBe(200);
+      expect(sorted.body.data.note).toMatchObject({ outcome: 'keep', action_text: 'Le refaire le samedi', version: kept.version + 1 });
+      const stale = await call('patch', on(`/notes/${kept.id}`)).send({ outcome: 'fix', expected_version: kept.version });
+      expect(stale.status).toBe(409);
+      expect((await call('patch', on(`/notes/${kept.id}`)).send({ outcome: 'later', expected_version: 2 })).status).toBe(400);
+    });
+
+    test('two notes that say the same thing merge: the one kept carries both weights, and the merge can be undone', async () => {
+      const first = await add('La baignade');
+      const second = await add('Baignade au lac');
+      await call('put', on(`/notes/${second.id}/votes/${randomUUID()}`)).send({});
+      await call('put', on(`/notes/${first.id}/votes/${randomUUID()}`)).send({});
+
+      const merged = await call('put', on(`/notes/${second.id}/merge`)).send({ into: first.id, expected_version: second.version });
+      expect(merged.status).toBe(200);
+      expect(merged.body.data.note).toMatchObject({ id: first.id, weight: 4 });
+      expect(merged.body.data.note.merged).toEqual([expect.objectContaining({ id: second.id, weight: 2 })]);
+      const review = await read(campIds.meeting);
+      expect(review.notes.some((entry) => entry.id === second.id)).toBe(false);
+      // A +1 given later to the merged note, as a waiting device would, still counts in the note it joined.
+      const late = await call('put', on(`/notes/${second.id}/votes/${randomUUID()}`)).send({});
+      expect(late.body.data.note).toMatchObject({ id: first.id, weight: 5 });
+
+      const undone = await call('delete', on(`/notes/${second.id}/merge`));
+      expect(undone.body.data.note).toMatchObject({ id: second.id, weight: 3, merged: [] });
+      expect((await read(campIds.meeting)).notes.find((entry) => entry.id === first.id).weight).toBe(2);
+      // A device still retaining the old merge receives both confirmed notes on its next vote,
+      // including the detached child's current version and votes, without another GET.
+      const afterUnmerge = await call('put', on(`/notes/${first.id}/votes/${randomUUID()}`)).send({});
+      expect(afterUnmerge.status).toBe(200);
+      expect(afterUnmerge.body.data.notes).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: first.id, weight: 3, merged: [] }),
+        expect.objectContaining({ id: second.id, weight: 3, version: second.version + 2, merged: [] }),
+      ]));
+    });
+
+    test('a merge stays one level deep and within one kind of note', async () => {
+      const a = await add('Le feu de camp');
+      const b = await add('Le feu');
+      const c = await add('Les feux');
+      const other = await add('Le feu trop petit', 'improve');
+      expect((await call('put', on(`/notes/${b.id}/merge`)).send({ into: a.id })).status).toBe(200);
+      expect((await call('put', on(`/notes/${c.id}/merge`)).send({ into: b.id })).body.message).toBe('camp_review_merge_nested');
+      expect((await call('put', on(`/notes/${a.id}/merge`)).send({ into: c.id })).body.message).toBe('camp_review_merge_nested');
+      expect((await call('put', on(`/notes/${other.id}/merge`)).send({ into: a.id })).body.message).toBe('camp_review_merge_category');
+      expect((await call('put', on(`/notes/${a.id}/merge`)).send({ into: a.id })).status).toBe(400);
+      expect((await call('patch', on(`/notes/${b.id}`)).send({ outcome: 'keep', expected_version: 2 })).body.message).toBe('camp_review_note_merged');
+      // A note others joined, like a merged note, keeps the category they share: totals stay right.
+      const recategorised = await call('put', on(`/notes/${a.id}`)).send(note({ category: 'improve', text: 'Le feu de camp', expected_version: a.version }));
+      expect(recategorised.status).toBe(409);
+      expect(recategorised.body.message).toBe('camp_review_merge_category');
+      const merged = await call('put', on(`/notes/${b.id}`)).send(note({ category: 'improve', text: 'Le feu', expected_version: 2 }));
+      expect(merged.body.message).toBe('camp_review_merge_category');
+      // Removing the note kept lets the merged one stand on its own again.
+      expect((await call('delete', on(`/notes/${a.id}`))).body.data).toEqual({ deleted: true });
+      const detached = (await read(campIds.meeting)).notes.find((entry) => entry.id === b.id);
+      // Created (1), merged (2), detached (3): the version a device computes after the removal.
+      expect(detached.version).toBe(3);
+      expect((await call('patch', on(`/notes/${b.id}`)).send({ outcome: 'keep', expected_version: 3 })).status).toBe(200);
+    });
+
+    test('a closed review refuses every change until it is reopened, a waiting replay included', async () => {
+      const open = await read(campIds.meeting);
+      expect(open.review).toMatchObject({ status: 'open' });
+      const closed = await call('put', on('/status')).send({ status: 'closed', expected_version: open.review.version });
+      expect(closed.status).toBe(200);
+      expect(closed.body.data.review).toMatchObject({ status: 'closed', closed_by: 'Ada Fiction' });
+
+      const refused = await call('put', on(`/notes/${randomUUID()}`)).send(note({ text: 'Trop tard' }));
+      expect(refused.status).toBe(409);
+      expect(refused.body.message).toBe('camp_review_closed');
+      const any = open.notes[0];
+      expect((await call('put', on(`/notes/${any.id}/votes/${randomUUID()}`)).send({})).status).toBe(409);
+      expect((await call('patch', on(`/notes/${any.id}`)).send({ outcome: 'fix', expected_version: any.version })).status).toBe(409);
+
+      expect((await call('put', on('/status')).send({ status: 'open', expected_version: open.review.version })).status).toBe(409);
+      const reopened = await call('put', on('/status')).send({ status: 'open', expected_version: closed.body.data.review.version });
+      expect(reopened.body.data.review).toMatchObject({ status: 'open', closed_at: null });
+      expect((await call('put', on(`/notes/${randomUUID()}`)).send(note({ text: 'Après réouverture' }))).status).toBe(201);
+    });
+
+    test('another unit can neither sort, merge nor close this camp’s review', async () => {
+      const mine = await add('Notre bon coup');
+      expect((await call('patch', on(`/notes/${mine.id}`), ids.outsider, ids.otherUnit).send({ outcome: 'keep', expected_version: 1 })).status).toBe(404);
+      expect((await call('put', on('/status'), ids.outsider, ids.otherUnit).send({ status: 'closed', expected_version: 0 })).status).toBe(404);
+    });
   });
 
   test('preparing the camp for offline use packs its review for those who may read it', async () => {

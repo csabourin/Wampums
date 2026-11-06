@@ -269,7 +269,9 @@ export class CampPlan {
     const state = `<span class="camp-plan__chip${section.source === 'empty' ? ' is-missing' : ''}">${escapeHTML(this.stateLabel(section))}</span>`;
     const head = `<div class="camp-plan__section-head"><h3 id="${titleId}">${escapeHTML(planSectionLabel(key))}</h3>${state}</div>
       <p class="field-hint" id="${helpId}">${escapeHTML(translate(`camp_plan_help_${key}`))}</p>
-      ${key === 'motivation' ? this.motivationMarkup() : ''}`;
+      ${key === 'motivation' ? this.motivationMarkup() : ''}
+      ${key === 'vcpref_evaluated' && hasPermission('camp_reviews.view')
+    ? `<p><a class="button button--secondary button--small" href="/camp-review/${this.meetingId}">${escapeHTML(translate('camp_plan_open_review'))}</a></p>` : ''}`;
     if (!this.editable()) {
       const body = section.source === 'empty'
         ? `<p class="camp-plan__empty">${escapeHTML(translate('camp_plan_state_to_write'))}</p>`
