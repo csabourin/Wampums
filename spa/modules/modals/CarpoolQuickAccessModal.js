@@ -10,6 +10,7 @@ import { translate } from '../../app.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
+import { hasPermission } from '../../utils/PermissionUtils.js';
 import {
   formatActivityDateRange,
   getActivityEndDateObj
@@ -18,13 +19,56 @@ import { QuickCreateActivityModal } from './QuickCreateActivityModal.js';
 
 const MODAL_ID = 'carpool-quick-access-modal';
 
+/**
+ * Activities that have not ended yet (today's included).
+ * @param {Array<Object>} activities - Activities returned by the API
+ * @returns {Array<Object>} Upcoming activities, in the API's order
+ */
+export function upcomingCarpoolActivities(activities) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return (Array.isArray(activities) ? activities : []).filter((activity) => {
+    const activityEndDate = getActivityEndDateObj(activity);
+    return activityEndDate && activityEndDate >= today;
+  });
+}
+
+/**
+ * One upcoming activity as a link to its carpool page.
+ * @param {Object} activity - Activity returned by the API
+ * @param {string} lang - Interface language, for the dates
+ * @returns {string} HTML for the list item
+ */
+export function renderCarpoolActivityItem(activity, lang) {
+  const location = activity.meeting_location_going
+    ? `<span class="carpool-quick-access__location">${escapeHTML(activity.meeting_location_going)}</span>`
+    : '';
+
+  return `
+    <li>
+      <a href="/carpool/${encodeURIComponent(activity.id)}" class="carpool-quick-access__activity">
+        <span class="carpool-quick-access__details">
+          <span class="carpool-quick-access__name">${escapeHTML(activity.name)}</span>
+          <span class="carpool-quick-access__date">${escapeHTML(formatActivityDateRange(activity, lang || 'fr'))}</span>
+          ${location}
+        </span>
+        <span class="carpool-quick-access__counts">
+          <span class="carpool-quick-access__badge">${Number(activity.carpool_offer_count) || 0} ${translate('vehicles')}</span>
+          <span>${Number(activity.assigned_participant_count) || 0} ${translate('assigned')}</span>
+        </span>
+      </a>
+    </li>
+  `;
+}
+
 export class CarpoolQuickAccessModal {
   /**
    * @param {Object} app - Application
    * @param {Object} [options]
-   * @param {boolean} [options.allowCreate=true] - Offer to create an activity (leaders, not parents)
+   * @param {boolean} [options.allowCreate] - Offer to create an activity; by
+   *   default only to someone allowed to create one
    */
-  constructor(app, { allowCreate = true } = {}) {
+  constructor(app, { allowCreate = hasPermission('activities.create') } = {}) {
     this.app = app;
     this.allowCreate = allowCreate;
     this.modal = null;
@@ -35,48 +79,13 @@ export class CarpoolQuickAccessModal {
    */
   async show() {
     try {
-      const activities = await getActivities();
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
-
-      const upcomingActivities = activities.filter((activity) => {
-        const activityEndDate = getActivityEndDateObj(activity);
-        return activityEndDate && activityEndDate >= now;
-      });
-
+      const upcomingActivities = upcomingCarpoolActivities(await getActivities());
       this.render(upcomingActivities);
       this.attachListeners();
     } catch (error) {
       debugError('Error loading carpool activities:', error);
       this.app.showMessage(translate('error_loading_activities'), 'error');
     }
-  }
-
-  /**
-   * Render one upcoming activity as a link to its carpool page.
-   * @param {Object} activity - Activity returned by the API
-   * @returns {string} HTML for the list item
-   */
-  renderActivity(activity) {
-    const location = activity.meeting_location_going
-      ? `<span class="carpool-quick-access__location">${escapeHTML(activity.meeting_location_going)}</span>`
-      : '';
-
-    return `
-      <li>
-        <a href="/carpool/${encodeURIComponent(activity.id)}" class="carpool-quick-access__activity">
-          <span class="carpool-quick-access__details">
-            <span class="carpool-quick-access__name">${escapeHTML(activity.name)}</span>
-            <span class="carpool-quick-access__date">${escapeHTML(formatActivityDateRange(activity, this.app.lang || 'fr'))}</span>
-            ${location}
-          </span>
-          <span class="carpool-quick-access__counts">
-            <span class="carpool-quick-access__badge">${Number(activity.carpool_offer_count) || 0} ${translate('vehicles')}</span>
-            <span>${Number(activity.assigned_participant_count) || 0} ${translate('assigned')}</span>
-          </span>
-        </a>
-      </li>
-    `;
   }
 
   /**
@@ -88,7 +97,7 @@ export class CarpoolQuickAccessModal {
       ? `
         <p class="carpool-quick-access__intro">${translate('select_activity_for_carpool')}</p>
         <ul class="carpool-quick-access__list">
-          ${activities.map((activity) => this.renderActivity(activity)).join('')}
+          ${activities.map((activity) => renderCarpoolActivityItem(activity, this.app.lang)).join('')}
         </ul>
       `
       : `<p class="carpool-quick-access__empty">${translate('no_upcoming_activities')}</p>`;

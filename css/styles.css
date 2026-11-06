@@ -1053,6 +1053,47 @@ input[type="radio"] {
   color: white;
 }
 
+/* Attendance: group names and participant rows are buttons, styled as rows. */
+:where(.attendance-list) button.group-header,
+:where(.attendance-list) button.participant-row {
+  inline-size: 100%;
+  min-block-size: var(--touch-target-min);
+  border: 0;
+  border-radius: 0;
+  font: inherit;
+  text-align: start;
+  color: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(.attendance-list) button.participant-row {
+  background-color: transparent;
+  border-block-end: 1px solid var(--color-border);
+}
+
+.attendance-list button.group-header:focus-visible,
+.attendance-list button.participant-row:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: -3px;
+}
+
+.status-buttons.fixed-footer {
+  flex-wrap: wrap;
+}
+
+.status-buttons.fixed-footer .status-btn {
+  flex: 1 1 0;
+}
+
+.status-buttons__selection {
+  grid-column: 1 / -1;
+  flex: 1 1 100%;
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
 .group-content {
   max-block-size: 5000px;
   overflow: hidden;
@@ -2679,9 +2720,53 @@ tr:hover {
 
 .sort-options {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-sm);
   align-items: center;
   justify-content: center;
+}
+
+/* Points: each sort button shows its words, the emoji is only decoration. */
+.manage-points-page .sort-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .manage-points-page .sort-options {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.manage-points-page .sort-btn,
+.manage-points-page .filter-toggle-btn {
+  gap: var(--space-xs);
+  min-block-size: var(--touch-target-min);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  text-align: start;
+}
+
+/* The filter looks "on" only while its panel is open. */
+.manage-points-page .filter-toggle-btn[aria-expanded="false"] {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.manage-points-page .filter-toggle-btn[aria-expanded="true"] {
+  background: var(--color-primary);
+  color: white;
+}
+
+.manage-points-page .sort-btn[aria-pressed="true"] .sort-btn__label,
+.manage-points-page .filter-toggle-btn[aria-expanded="true"] .sort-btn__label {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sort-btn__icon {
+  font-size: var(--font-size-lg);
+  line-height: 1;
 }
 
 .sort-btn,
@@ -9907,6 +9992,30 @@ details p {
 }
 
 /* Overview Tab */
+/* Budget: first steps for an empty fiscal year */
+.budget-start {
+  margin-block-end: var(--space-lg);
+  padding: var(--space-md);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.budget-start__steps {
+  display: grid;
+  gap: var(--space-md);
+  margin: var(--space-sm) 0 0;
+  padding-inline-start: var(--space-lg);
+}
+
+.budget-start__steps p {
+  margin: 0 0 var(--space-xs);
+}
+
+.budget-start__open {
+  min-block-size: var(--touch-target-min);
+}
+
 .overview-content h2 {
   font-size: var(--font-size-xl);
   color: var(--color-text);

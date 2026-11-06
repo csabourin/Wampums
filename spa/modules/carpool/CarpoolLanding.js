@@ -1,14 +1,22 @@
 import carpoolStylesheetUrl from '../../../css/carpool.css?url';
 import { translate } from '../../app.js';
+import { getActivities } from '../../api/api-activities.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
-import { CarpoolQuickAccessModal } from '../modals/CarpoolQuickAccessModal.js';
+import { hasPermission } from '../../utils/PermissionUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import {
+  upcomingCarpoolActivities,
+  renderCarpoolActivityItem
+} from '../modals/CarpoolQuickAccessModal.js';
+import { QuickCreateActivityModal } from '../modals/QuickCreateActivityModal.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 
 /**
- * Landing view for the /carpool route.
- * Provides a skeleton layout and clear navigation without requiring
- * an activity identifier.
+ * Landing view for the /carpool route: the upcoming outings, each a link to
+ * the page where a parent offers seats or asks for one. Choosing an outing is
+ * the whole task, so the list is the page rather than a dialog to open first.
  */
 export class CarpoolLanding {
   /**
@@ -16,22 +24,30 @@ export class CarpoolLanding {
    */
   constructor(app) {
     this.app = app;
+    this.destroyed = false;
+    this.abortController = new AbortController();
   }
 
   /**
-   * Initialize the landing page by rendering the skeleton layout
-   * and wiring up navigation actions.
+   * Render the page, then load the upcoming activities into it.
    * @returns {Promise<void>}
    */
   async init() {
-    // Load page-specific CSS
     await loadStylesheet(carpoolStylesheetUrl);
+    if (this.destroyed) { return; }
     this.render();
     this.attachEventListeners();
+    await this.loadActivities();
+  }
+
+  /** Stop listening and ignore any response that arrives after leaving. */
+  destroy() {
+    this.destroyed = true;
+    this.abortController.abort();
   }
 
   /**
-   * Render the carpool landing skeleton state.
+   * Render the page frame with the list in its loading state.
    */
   render() {
     const container = document.getElementById('app');
@@ -40,6 +56,8 @@ export class CarpoolLanding {
       debugError('Carpool landing container not found');
       return;
     }
+
+    const canCreate = hasPermission('activities.create');
 
     setContent(container, `
       ${renderBackLink()}
@@ -51,92 +69,87 @@ export class CarpoolLanding {
           <p class="page__subtitle">${translate('carpool_landing_intro')}</p>
         </header>
 
-        <div class="carpool-landing__actions">
-          <button type="button" class="button button--primary button--large" id="carpool-open-selector">
-            <svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M3 13h18"></path>
-              <path d="M3 6h18"></path>
-              <path d="M3 19h18"></path>
-              <path d="M6 5v4"></path>
-              <path d="M10 13v6"></path>
-              <path d="M14 5v4"></path>
-              <path d="M18 13v6"></path>
-            </svg>
-            ${translate('carpool_landing_open_selector')}
-          </button>
-          <a href="/activities" class="button button--ghost button--large carpool-landing__link">
-            <svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-              <path d="M16 2v4"></path>
-              <path d="M8 2v4"></path>
-              <path d="M3 10h18"></path>
-            </svg>
-            ${translate('carpool_landing_view_activities')}
-          </a>
-        </div>
+        <section class="carpool-landing__activities" aria-labelledby="carpool-landing-list-title">
+          <h2 id="carpool-landing-list-title">${translate('carpool_landing_list_title')}</h2>
+          <div id="carpool-landing-list">${this.renderLoading()}</div>
+        </section>
 
-        <div class="carpool-landing__skeletons" aria-hidden="true">
-          ${this.renderSkeletonCard(translate('select_activity_for_carpool'), 3)}
-          ${this.renderSkeletonCard(translate('available_rides'), 2)}
-          ${this.renderSkeletonCard(translate('current_assignments'), 2)}
-        </div>
+        ${canCreate ? `
+          <div class="carpool-landing__actions">
+            <button type="button" class="button button--secondary" id="carpool-landing-create">
+              ${translate('quick_create_activity')}
+            </button>
+          </div>
+        ` : ''}
       </section>
     `);
   }
 
-  /**
-   * Render a single skeleton card with placeholder lines. The cards preview
-   * the activity page and never load, so they are hidden from assistive
-   * technology rather than announced as busy.
-   * @param {string} title - Section title shown on the preview card.
-   * @param {number} lines - Number of placeholder rows to render.
-   * @returns {string} HTML string for the skeleton card.
-   */
-  renderSkeletonCard(title, lines = 2) {
-    const skeletonLines = Array.from({ length: lines })
-      .map(() => '<span class="carpool-landing__line skeleton-text"></span>')
-      .join('');
+  /** @returns {string} HTML of the loading state */
+  renderLoading() {
+    return `<p class="carpool-landing__status" role="status">${translate('loading')}</p>`;
+  }
 
+  /**
+   * @param {Error} error - What went wrong
+   * @returns {string} HTML of the error state, with a retry button
+   */
+  renderError(error) {
     return `
-      <article class="carpool-landing__card skeleton">
-        <div class="carpool-landing__card-header">
-          <h2>${title}</h2>
-          <span class="carpool-landing__pill skeleton-text"></span>
-        </div>
-        <div class="carpool-landing__skeleton-lines">
-          ${skeletonLines}
-        </div>
-      </article>
+      <div class="carpool-landing__error" role="alert">
+        <p>${escapeHTML(apiErrorMessage(error, 'error_loading_activities'))}</p>
+        <button type="button" class="button button--secondary" id="carpool-landing-retry">${translate('retry')}</button>
+      </div>
     `;
   }
 
   /**
-   * Wire up CTA interactions.
+   * @param {Array<Object>} activities - Upcoming activities
+   * @returns {string} HTML of the list, or of the empty state
    */
-  attachEventListeners() {
-    const selectorButton = document.getElementById('carpool-open-selector');
+  renderList(activities) {
+    if (activities.length === 0) {
+      return `<p class="carpool-landing__empty">${translate('carpool_landing_empty')}</p>`;
+    }
+    return `
+      <ul class="carpool-quick-access__list">
+        ${activities.map((activity) => renderCarpoolActivityItem(activity, this.app?.lang)).join('')}
+      </ul>
+    `;
+  }
 
-    if (selectorButton) {
-      selectorButton.addEventListener('click', async (event) => {
-        event.preventDefault();
-        await this.openActivityPicker();
-      });
+  /**
+   * Load the upcoming activities into the list.
+   * @returns {Promise<void>}
+   */
+  async loadActivities() {
+    const list = document.getElementById('carpool-landing-list');
+    if (!list) { return; }
+    setContent(list, this.renderLoading());
+    try {
+      const activities = upcomingCarpoolActivities(await getActivities());
+      if (this.destroyed || !list.isConnected) { return; }
+      setContent(list, this.renderList(activities));
+    } catch (error) {
+      debugError('Error loading carpool activities:', error);
+      if (this.destroyed || !list.isConnected) { return; }
+      setContent(list, this.renderError(error));
     }
   }
 
   /**
-   * Open the carpool quick access selector so users can pick an activity.
-   * Shares the modal the dashboard's carpool tile opens.
-   * @returns {Promise<void>}
+   * Wire the retry and create buttons. One delegated listener on the page,
+   * released by destroy().
    */
-  async openActivityPicker() {
-    try {
-      await new CarpoolQuickAccessModal(this.app).show();
-    } catch (error) {
-      debugError('Error opening carpool selector:', error);
-      if (typeof this.app?.showMessage === 'function') {
-        this.app.showMessage('error_loading_activities', 'error');
+  attachEventListeners() {
+    const page = document.querySelector('#app .carpool-landing');
+    if (!page) { return; }
+    page.addEventListener('click', (event) => {
+      if (event.target.closest('#carpool-landing-retry')) {
+        this.loadActivities();
+      } else if (event.target.closest('#carpool-landing-create')) {
+        new QuickCreateActivityModal(this.app, { redirectPath: '/carpool/{id}' }).show();
       }
-    }
+    }, { signal: this.abortController.signal });
   }
 }

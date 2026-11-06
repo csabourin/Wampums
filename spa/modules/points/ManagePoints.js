@@ -25,7 +25,7 @@ import { PointsStore } from '../../modules/points/PointsStore.js';
 import { PointActionBar } from '../../modules/points/PointActionBar.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { normalizeApiPath } from '../../utils/OfflineCacheKeys.js';
 import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 const POINTS_CACHE_KEY = 'manage_points_data';
@@ -190,6 +190,24 @@ export class ManagePoints {
       .map(([id, record]) => [id, attendanceDisplayStatus(record)]));
   }
 
+  /**
+   * One sort button: a visible label beside a decorative icon, so the choice
+   * reads without guessing what an emoji means.
+   * @param {string} key - Sort key
+   * @param {string} icon - Decorative emoji
+   * @param {string} labelKey - Translation key of the visible label
+   * @returns {string} HTML
+   */
+  renderSortButton(key, icon, labelKey) {
+    const active = this.currentSort.key === key;
+    return `
+      <button type="button" class="sort-btn${active ? ' active' : ''}" data-sort="${key}" aria-pressed="${active}">
+        <span class="sort-btn__icon" aria-hidden="true">${icon}</span>
+        <span class="sort-btn__label">${translate(labelKey)}</span>
+      </button>
+    `;
+  }
+
   render() {
     if (this.destroyed) { return; }
     const content = `
@@ -197,15 +215,15 @@ export class ManagePoints {
         ${renderBackLink()}
         <h1>${translate('manage_points')}</h1>
         <div class="controls-container">
-          <div class="sort-options">
-            <button type="button" class="sort-btn" data-sort="name"
-              aria-label="${translate('sort_by_name')}">👤</button>
-            <button type="button" class="sort-btn active" data-sort="group"
-              aria-label="${translate('sort_by_group')}">👥</button>
-            <button type="button" class="sort-btn" data-sort="points"
-              aria-label="${translate('sort_by_points')}">🏆</button>
+          <div class="sort-options" role="group" aria-label="${escapeAttribute(translate('points_sort_controls'))}">
+            ${this.renderSortButton('name', '👤', 'sort_by_name')}
+            ${this.renderSortButton('group', '👥', 'sort_by_group')}
+            ${this.renderSortButton('points', '🏆', 'sort_by_points')}
             <button type="button" class="filter-toggle-btn" id="filter-toggle"
-              data-archive-safe aria-label="${translate('filter_by_group')}">🔍</button>
+              data-archive-safe aria-expanded="false" aria-controls="filter-container">
+              <span class="sort-btn__icon" aria-hidden="true">🔍</span>
+              <span class="sort-btn__label">${translate('filter_by_group')}</span>
+            </button>
           </div>
           <div class="filter-options hidden" id="filter-container">
             <label for="group-filter">${translate('filter_by_group')}:</label>
@@ -242,7 +260,7 @@ export class ManagePoints {
     }
 
     if (this.participants.length && !this.participants.some((participant) => this.roster.includes(participant.id))) {
-      setContent(pointsList, `<p role="status">${translate('action_roster_no_participants')}</p>`);
+      setContent(pointsList, `<p role="status">${escapeHTML(this.roster.emptyMessage())}</p>`);
       return;
     }
     if (this.currentSort.key === 'group') {
@@ -366,8 +384,8 @@ export class ManagePoints {
 
     if (sortContainer) {
       sortContainer.addEventListener('click', (event) => {
-        const target = event.target;
-        if (target.tagName === 'BUTTON' && target.dataset.sort) {
+        const target = event.target.closest('button[data-sort]');
+        if (target) {
           this.sortItems(target.dataset.sort);
         }
       }, { signal });
@@ -819,10 +837,11 @@ export class ManagePoints {
       this.currentSort.order = 'asc';
     }
 
-    document.querySelectorAll('.sort-btn').forEach(btn => {
-      btn.classList.remove('active');
+    document.querySelectorAll('.sort-btn').forEach((btn) => {
+      const active = btn.dataset.sort === key;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
     });
-    document.querySelector(`.sort-btn[data-sort="${key}"]`)?.classList.add('active');
 
     this.renderList();
   }
@@ -830,7 +849,8 @@ export class ManagePoints {
   toggleFilter() {
     const filterContainer = document.getElementById('filter-container');
     if (filterContainer) {
-      filterContainer.classList.toggle('hidden');
+      const hidden = filterContainer.classList.toggle('hidden');
+      document.getElementById('filter-toggle')?.setAttribute('aria-expanded', String(!hidden));
     }
   }
 

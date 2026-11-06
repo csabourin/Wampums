@@ -19,13 +19,16 @@ import { renderBackLink } from './BackLinkUtils.js';
  * @param {string} [options.messageKey] - Translation key for the message body.
  * @param {string} [options.resourceLabel] - Optional resource label to display.
  * @param {string} [options.backHref] - Where the back link leads.
+ * @param {boolean} [options.homeButton=false] - Also offer a large "Back to home"
+ *   button, for whole pages someone lands on by mistake (a wrong or shared link).
  * @returns {string} HTML string for the not found state.
  */
 export function buildNotFoundMarkup({
   titleKey = 'resource_not_found_title',
   messageKey = 'resource_not_found_message',
   resourceLabel = '',
-  backHref = '/dashboard'
+  backHref = '/dashboard',
+  homeButton = false
 } = {}) {
   const safeLabel = resourceLabel ? escapeHTML(resourceLabel) : '';
 
@@ -36,6 +39,7 @@ export function buildNotFoundMarkup({
         <h1>${translate(titleKey)}</h1>
         <p class="not-found-state__message">${translate(messageKey)}</p>
         ${safeLabel ? `<p class="not-found-state__detail">${safeLabel}</p>` : ''}
+        ${homeButton ? `<p><a href="/" class="button button--primary not-found-state__home">${translate('not_found_home_button')}</a></p>` : ''}
       </div>
     </section>
   `;

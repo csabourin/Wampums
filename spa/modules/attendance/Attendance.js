@@ -718,10 +718,11 @@ export class Attendance {
         </div>
         ${this.renderGuestSection()}
         <div class="status-buttons fixed-footer">
-          <button class="status-btn present" data-status="present">${translate('present')}</button>
-          <button class="status-btn absent" data-status="absent">${translate('absent')}</button>
-          <button class="status-btn late" data-status="late">${translate('late')}</button>
-          <button class="status-btn excused" data-status="excused">${translate('excused')}</button>
+          <p class="status-buttons__selection" id="attendance-selection" role="status">${escapeHTML(this.selectionSummary())}</p>
+          <button type="button" class="status-btn present" data-status="present">${translate('present')}</button>
+          <button type="button" class="status-btn absent" data-status="absent">${translate('absent')}</button>
+          <button type="button" class="status-btn late" data-status="late">${translate('late')}</button>
+          <button type="button" class="status-btn excused" data-status="excused">${translate('excused')}</button>
         </div>
       </div>
     `;
@@ -816,16 +817,22 @@ export class Attendance {
       const groupDiv = document.createElement('div');
       groupDiv.classList.add('group-card');
 
-      // Create group header with proper class and data attribute
-      const groupHeader = document.createElement('h3');
-      groupHeader.classList.add('group-header'); // Make sure this class is added
+      // The group's name is a heading holding a button: tapping it selects the
+      // whole group, and a keyboard or screen reader reaches it like any button.
+      const groupTitle = document.createElement('h3');
+      groupTitle.classList.add('group-card__title');
+      const groupHeader = document.createElement('button');
+      groupHeader.type = 'button';
+      groupHeader.classList.add('group-header');
       groupHeader.dataset.groupId = group.id;
+      const groupSelected = String(this.selectedGroup) === String(group.id);
+      groupHeader.classList.toggle('selected', groupSelected);
+      groupHeader.setAttribute('aria-pressed', String(groupSelected));
       // Children without a den -- walk-ins, until a leader places them -- share a
       // group with no name; say so rather than show an empty bar.
-      groupHeader.textContent = group.name || translate('unassigned_participants');
-      groupDiv.appendChild(groupHeader);
-
-
+      groupHeader.textContent = this.groupLabel(group);
+      groupTitle.appendChild(groupHeader);
+      groupDiv.appendChild(groupTitle);
 
       filteredParticipants.forEach((participant) => {
         // No fake default: a participant with no recorded status shows as
@@ -833,10 +840,16 @@ export class Attendance {
         const recordedStatus = this.attendanceData[participant.id] || null;
         const status = recordedStatus || 'unmarked';
         const statusClass = recordedStatus || 'unmarked';
-        const participantRow = document.createElement('div');
+        const participantRow = document.createElement('button');
+        participantRow.type = 'button';
         participantRow.classList.add('participant-row');
         participantRow.dataset.participantId = participant.id;
         participantRow.dataset.groupId = group.id;
+        const rowSelected = this.selectedParticipant?.dataset?.participantId === String(participant.id);
+        participantRow.classList.toggle('selected', rowSelected);
+        participantRow.classList.toggle('highlighted', groupSelected);
+        participantRow.setAttribute('aria-pressed', String(rowSelected));
+        if (rowSelected) { this.selectedParticipant = participantRow; }
         setContent(
           participantRow,
           `
@@ -1041,73 +1054,72 @@ export class Attendance {
     await this.changeDate(this.currentDate);
   }
 
-  // Fix the selection toggle methods
-  toggleGroupSelection(header) {
-    const groupId = header.dataset.groupId;
-
-    // Remove any existing participant selection
-    if (this.selectedParticipant) {
-      this.selectedParticipant.classList.remove('selected');
-      this.selectedParticipant = null;
-    }
-
-    // Handle group selection
-    if (this.selectedGroup === groupId) {
-      // Deselect current group
-      this.selectedGroup = null;
-      header.classList.remove('selected');
-      document
-        .querySelectorAll(`.participant-row[data-group-id="${groupId}"]`)
-        .forEach((row) => row.classList.remove('highlighted'));
-    } else {
-      // Deselect previous group if exists
-      if (this.selectedGroup) {
-        const previousHeader = document.querySelector(
-          `.group-header[data-group-id="${this.selectedGroup}"]`,
-        );
-        if (previousHeader) {previousHeader.classList.remove('selected');}
-        document
-          .querySelectorAll(
-            `.participant-row[data-group-id="${this.selectedGroup}"]`,
-          )
-          .forEach((row) => row.classList.remove('highlighted'));
-      }
-
-      // Select new group
-      this.selectedGroup = groupId;
-      header.classList.add('selected');
-      document
-        .querySelectorAll(`.participant-row[data-group-id="${groupId}"]`)
-        .forEach((row) => row.classList.add('highlighted'));
-    }
+  /**
+   * The name shown for a group, including the shared "no den" group.
+   * @param {Object} group - Group with its participants
+   * @returns {string} Plain text
+   */
+  groupLabel(group) {
+    return group?.name || translate('unassigned_participants');
   }
 
-  toggleIndividualSelection(row) {
-    // Remove any existing group selection
+  /**
+   * Who the next status will go to, in words, so a leader never has to guess
+   * which row is still selected after scrolling to the buttons.
+   * @returns {string} Plain text (escape before injecting as HTML)
+   */
+  selectionSummary() {
+    if (this.selectedParticipant) {
+      const name = this.selectedParticipant.querySelector('.participant-name')?.firstChild?.textContent?.trim() || '';
+      return translate('attendance_selection_individual').replaceAll('{{name}}', name);
+    }
     if (this.selectedGroup) {
-      const groupHeader = document.querySelector(
-        `.group-header[data-group-id="${this.selectedGroup}"]`,
-      );
-      if (groupHeader) {groupHeader.classList.remove('selected');}
-      document
-        .querySelectorAll(
-          `.participant-row[data-group-id="${this.selectedGroup}"]`,
-        )
-        .forEach((r) => r.classList.remove('highlighted'));
-      this.selectedGroup = null;
+      const group = Object.values(this.groups || {})
+        .find((item) => String(item.id) === String(this.selectedGroup));
+      return translate('attendance_selection_group').replaceAll('{{name}}', this.groupLabel(group));
     }
+    return translate('attendance_selection_none');
+  }
 
-    // Handle participant selection
-    if (this.selectedParticipant === row) {
-      this.selectedParticipant = null;
-      row.classList.remove('selected');
-    } else {
-      if (this.selectedParticipant) {
-        this.selectedParticipant.classList.remove('selected');
-      }
-      this.selectedParticipant = row;
-      row.classList.add('selected');
-    }
+  /** Reflect the current selection in the buttons' state and the summary line. */
+  updateSelectionState() {
+    document.querySelectorAll('#attendance-list .group-header').forEach((header) => {
+      const selected = String(header.dataset.groupId) === String(this.selectedGroup);
+      header.classList.toggle('selected', selected);
+      header.setAttribute('aria-pressed', String(selected));
+    });
+    document.querySelectorAll('#attendance-list .participant-row').forEach((row) => {
+      const selected = row === this.selectedParticipant;
+      row.classList.toggle('selected', selected);
+      row.setAttribute('aria-pressed', String(selected));
+      row.classList.toggle('highlighted', Boolean(this.selectedGroup)
+        && String(row.dataset.groupId) === String(this.selectedGroup));
+    });
+    const summary = document.getElementById('attendance-selection');
+    if (summary) { summary.textContent = this.selectionSummary(); }
+  }
+
+  /**
+   * Select a whole group (or clear it when it is already selected). Selecting
+   * a group clears a selected participant.
+   * @param {HTMLElement} header - The group's button
+   */
+  toggleGroupSelection(header) {
+    const groupId = header.dataset.groupId;
+    this.selectedParticipant = null;
+    this.selectedGroup = this.selectedGroup === groupId ? null : groupId;
+    this.updateSelectionState();
+  }
+
+  /**
+   * Select one participant (or clear them when already selected). Selecting a
+   * participant clears a selected group.
+   * @param {HTMLElement} row - The participant's button
+   */
+  toggleIndividualSelection(row) {
+    this.selectedGroup = null;
+    this.selectedParticipant = this.selectedParticipant === row ? null : row;
+    this.updateSelectionState();
   }
 
   async updateStatus(newStatus) {
@@ -1117,7 +1129,7 @@ export class Attendance {
     } else if (this.selectedGroup) {
       await this.updateGroupStatus(this.selectedGroup, newStatus);
     } else {
-      this.app.showMessage(translate('no_selection'), 'error');
+      this.app.showMessage(translate('attendance_selection_none'), 'error');
     }
   }
 

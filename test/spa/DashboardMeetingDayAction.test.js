@@ -323,3 +323,16 @@ test('someone who cannot see honors is not asked for them', async () => {
   expect(primaryAction().getAttribute('href')).toBe('/manageHonors');
   dashboard.destroy();
 });
+
+test('signing out is a full-size button, not a small text link (#1373)', async () => {
+  atTime(18, 45);
+  const dashboard = await openDashboard();
+
+  const logout = document.getElementById('logout-link');
+  expect(logout.getAttribute('href')).toBe('/logout');
+  // The shared button classes give it the 44px touch target.
+  expect(logout.classList.contains('button')).toBe(true);
+  expect(logout.classList.contains('button--secondary')).toBe(true);
+  expect(logout.textContent).toBe('logout');
+  dashboard.destroy();
+});

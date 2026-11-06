@@ -10,6 +10,8 @@
 
 'use strict';
 
+const axe = require('axe-core');
+
 require('fake-indexeddb/auto');
 const { IDBFactory } = require('fake-indexeddb');
 
@@ -324,6 +326,18 @@ describe('US-PTS-006 — Scoring keeps working with no signal', () => {
   });
 });
 
+describe('US-PTS-011 — An empty list says why and how to get the youth back (#1374)', () => {
+  it('after one absence and no presence, explains instead of blaming a filter', async () => {
+    seedStandardData();
+    ajax.getAttendance.mockResolvedValue({ success: true, data: [{ participant_id: 1, status: 'absent' }] });
+    await initPage();
+
+    const message = document.querySelector('#points-list [role="status"]');
+    expect(message.textContent).toBe(tr('action_roster_empty_attendance'));
+    expect(message.textContent).not.toBe(tr('action_roster_no_participants'));
+  });
+});
+
 describe('US-PTS-010 — Sort by name, group, or points', () => {
   it('renders a flat list ordered by points, reversing on the second tap', async () => {
     seedStandardData();
@@ -339,6 +353,51 @@ describe('US-PTS-010 — Sort by name, group, or points', () => {
       .dispatchEvent(new MouseEvent('click', { bubbles: true }));
     totals = [...document.querySelectorAll('.participant-points')].map((el) => Number(el.textContent));
     expect(totals).toEqual([10, 5, 2]);
+  });
+
+  it('each sort button shows its words, and says which sort is on', async () => {
+    seedStandardData();
+    await initPage();
+
+    const buttons = [...document.querySelectorAll('.sort-options .sort-btn')];
+    expect(buttons.map((btn) => btn.querySelector('.sort-btn__label').textContent))
+      .toEqual([tr('sort_by_name'), tr('sort_by_group'), tr('sort_by_points')]);
+    buttons.forEach((btn) => {
+      // The emoji is decoration: the name comes from the visible words.
+      expect(btn.querySelector('.sort-btn__icon').getAttribute('aria-hidden')).toBe('true');
+      expect(btn.hasAttribute('aria-label')).toBe(false);
+    });
+    expect(document.querySelector('.sort-options').getAttribute('role')).toBe('group');
+    expect(buttons.map((btn) => btn.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false']);
+
+    // Tapping the words (not the button's edge) still sorts.
+    document.querySelector('.sort-btn[data-sort="name"] .sort-btn__label')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(buttons.map((btn) => btn.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false']);
+  });
+
+  it('the filter button says whether the filter is open', async () => {
+    seedStandardData();
+    await initPage();
+
+    const toggle = document.getElementById('filter-toggle');
+    expect(toggle.textContent).toContain(tr('filter_by_group'));
+    expect(toggle.getAttribute('aria-controls')).toBe('filter-container');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(document.getElementById('filter-container').classList.contains('hidden')).toBe(false);
+  });
+
+  it('the sort controls have no WCAG A/AA violations', async () => {
+    seedStandardData();
+    await initPage();
+
+    const results = await axe.run(document.querySelector('.controls-container'), {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
   });
 
   it('the group filter hides non-matching rows and headers', async () => {
