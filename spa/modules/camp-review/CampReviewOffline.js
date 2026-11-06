@@ -128,7 +128,9 @@ export function applyAnswer(previous, { method, noteId, voteId, unmerge = false 
     return notes.filter((entry) => entry.id !== noteId);
   }
   const index = notes.findIndex((entry) => entry.id === note.id || entry.id === noteId);
-  const others = notes.filter((entry) => entry.id !== note.id && entry.id !== noteId);
+  // Another device may have merged previously separate notes since this copy was read.
+  const replaced = new Set([note.id, noteId, ...(note.merged || []).map((child) => child.id)]);
+  const others = notes.filter((entry) => !replaced.has(entry.id));
   if (index === -1) {
     return [...others, note];
   }

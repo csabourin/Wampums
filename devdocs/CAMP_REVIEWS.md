@@ -48,6 +48,8 @@ year after year ("Last year") comes next (see the issue).
   reopening invalidates older background reads so they cannot restore the previous status.
   A confirmed deletion also removes a note nested under a merge target, recalculating the target's
   weight, including when an offline vote and deletion are replayed after another device merged it.
+  A confirmed parent's merged children also replace any standalone copies retained here, so a vote
+  after a merge on another device never counts the same note both inside and outside its parent.
 
 ## Offline
 

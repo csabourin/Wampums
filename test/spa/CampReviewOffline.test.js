@@ -97,6 +97,16 @@ test('a confirmed merge replaces both notes with the confirmed parent on this de
   expect((await getCampReviewSnapshot(12)).data.notes).toEqual([merged]);
 });
 
+test('voting on a note merged elsewhere keeps its children only inside the confirmed parent', async () => {
+  const child = { ...SWIM, id: '33333333-3333-4333-8333-333333333333', text: 'Le jeu de nuit', weight: 2 };
+  await storeCampReviewSnapshot(12, { camp: CAMP, notes: [SWIM, child] });
+  await queue(VOTE_URL, 'PUT', {});
+  const parent = { ...SWIM, weight: 4, votes: [{ id: VOTE_ID }], merged: [child] };
+  global.fetch.mockResolvedValueOnce(jsonResponse({ success: true, data: { note: parent } }));
+  expect((await manager.replayPendingMutations()).replayed).toBe(1);
+  expect((await getCampReviewSnapshot(12)).data.notes).toEqual([parent]);
+});
+
 test('a confirmed vote removal keeps the remaining votes and weight on this device', async () => {
   await storeCampReviewSnapshot(12, { camp: CAMP, notes: [{ ...SWIM, weight: 2, votes: [{ id: VOTE_ID }] }] });
   await applyCampReviewWrite(12, { method: 'DELETE', noteId: NOTE_ID, voteId: VOTE_ID }, { note: SWIM });
