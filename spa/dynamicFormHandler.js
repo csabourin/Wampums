@@ -8,7 +8,8 @@ import {
   getFormSubmission,
   saveFormSubmission,
 } from './ajax-functions.js';
-import { setContent } from './utils/DOMUtils.js';
+import { setContent, withFormBusy } from './utils/DOMUtils.js';
+import { escapeHTML } from './utils/SecurityUtils.js';
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 
 /**
@@ -210,7 +211,8 @@ export class DynamicFormHandler {
                     <h2>${translate(this.formType)}</h2>
                     <form id="dynamic-form-${this.formType}">
                         ${formContent}
-                        <button type="submit">${translate('save')}</button>
+                        <p class="dynamic-form-status" role="status" aria-live="polite"></p>
+                        <button type="submit" class="button button--primary">${escapeHTML(translate('save'))}</button>
                     </form>
 
                     <a href="/parent-dashboard" class="button">${translate('back_to_dashboard')}</a>
@@ -362,23 +364,39 @@ export class DynamicFormHandler {
     }
   }
 
+  /**
+   * Save the standalone form once, however many times it is submitted while
+   * the first save is on its way. The form says it is saving, keeps what was
+   * typed when the save fails, and can then be sent again.
+   * @param {SubmitEvent} e - Submit event of the standalone form
+   * @returns {Promise<void>}
+   */
   async handleSubmit(e) {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    const submissionData = Object.fromEntries(formData.entries());
+    const form = e.target;
+    const submissionData = Object.fromEntries(new FormData(form).entries());
+    const status = form.querySelector('.dynamic-form-status');
 
-    try {
-      const result = await saveFormSubmission(this.formType, this.participantId, submissionData);
-      if (result.success) {
-        this.app.showMessage(translate('form_saved_successfully'));
-        this.app.router.navigate('/parent-dashboard');
-      } else {
-        throw new Error(result.message || translate('error_saving_form'));
+    await withFormBusy(form, async () => {
+      if (status) {
+        status.textContent = translate('saving');
       }
-    } catch (error) {
-      debugError('Error saving form:', error);
-      this.showError(apiErrorMessage(error, 'error_saving_form'));
-    }
+      try {
+        const result = await saveFormSubmission(this.formType, this.participantId, submissionData);
+        if (!result?.success) {
+          throw Object.assign(new Error('form_not_saved'), { status: result?.status });
+        }
+        this.app.showMessage(translate('form_saved_successfully'), 'success');
+        this.app.router.navigate('/parent-dashboard');
+      } catch (error) {
+        debugError('Error saving form:', error);
+        this.showError(apiErrorMessage(error, 'error_saving_form'));
+      } finally {
+        if (status) {
+          status.textContent = '';
+        }
+      }
+    });
   }
 
   showError(message) {
