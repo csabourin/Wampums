@@ -62,12 +62,14 @@ module.exports = function (pool, logger) {
 
       await client.query('BEGIN');
 
-      // Fetch organization's form formats to know which form types to create
+      // SISC has no health declarations: importing it must neither replace a family's
+      // health answers nor create an empty submission that looks completed.
       const formFormatsResult = await client.query(
         `SELECT form_type, form_structure FROM organization_form_formats WHERE organization_id = $1`,
         [organizationId]
       );
-      const orgFormTypes = formFormatsResult.rows.map(r => r.form_type);
+      const orgFormTypes = formFormatsResult.rows.map(r => r.form_type)
+        .filter(formType => formType !== 'fiche_sante');
       logger.info(`Organization ${organizationId} has form types: ${orgFormTypes.join(', ')}`);
 
       // Mapping of SISC CSV fields to form submission data by form type
@@ -82,15 +84,7 @@ module.exports = function (pool, logger) {
         // Helper to check SISC boolean values (O/N or Oui/Non)
         const isYes = (val) => val === 'O' || val === 'Oui' || val === 'oui' || val === '1' || val === 'true';
 
-        if (formType === 'fiche_sante') {
-          // SISC doesn't contain health data - create empty form for parent to fill
-          return {
-            first_name: firstName,
-            last_name: lastName,
-            date_naissance: birthDate,
-            notes: get('notes') || ''
-          };
-        } else if (formType === 'participant_registration' || formType === 'inscription') {
+        if (formType === 'participant_registration' || formType === 'inscription') {
           return {
             first_name: firstName,
             last_name: lastName,
