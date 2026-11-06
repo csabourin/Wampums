@@ -342,6 +342,15 @@ describe('tool groups stay accessible', () => {
     expect(count.textContent.replace(/\s+/g, ' ').trim()).toBe('2 contacts_short');
   });
 
+  test('a count of one reads in the singular, not "1 contacts"', () => {
+    const dashboard = renderAdmin();
+    dashboard.participants = [{ id: 1 }];
+    dashboard.render();
+
+    const count = document.querySelector('a[href="/parent-contact-list"] .dashboard-v2__tile-stat');
+    expect(count.textContent.replace(/\s+/g, ' ').trim()).toBe('1 contacts_short_one');
+  });
+
   test('the page is titled by the unit\'s name, as its only <h1>', () => {
     const dashboard = renderAdmin();
     dashboard.organizationName = '6e Meute <img src=x onerror=alert(1)>';

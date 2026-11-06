@@ -790,13 +790,29 @@ describe('US-ATT-017 — Camp date math never explodes', () => {
   });
 });
 
+describe('US-ATT-006b — With one youth left, the button speaks of that one youth', () => {
+  it('reads in the singular, not "Mark 1 unmarked as present"', async () => {
+    seedStandardData({
+      attendanceToday: [
+        { participant_id: 1, status: 'present' },
+        { participant_id: 2, status: 'late' },
+        { participant_id: 3, status: 'present' }
+      ]
+    });
+    await initPage();
+
+    expect(document.getElementById('mark-remaining-present').textContent.trim())
+      .toBe(tr('mark_remaining_present_one', { count: 1 }));
+  });
+});
+
 describe('US-ATT-018 / US-I18N-001 — attendance strings exist in both languages', () => {
   it('en.json and fr.json both contain every attendance-flow key', () => {
     const keys = [
       'present', 'absent', 'late', 'excused', 'unmarked',
       'attendance_updated', 'error_updating_attendance', 'group_attendance_updated',
       'error_updating_group_attendance', 'attendance_carried_forward', 'camp_day_of',
-      'mark_remaining_present', 'no_selection', 'add_guest', 'guest_name',
+      'mark_remaining_present', 'mark_remaining_present_one', 'no_selection', 'add_guest', 'guest_name',
       'guest_email_optional', 'add_guest_button', 'guest_name_required',
       'guest_added_successfully', 'error_saving_guest', 'error_loading_attendance',
       'first_leader', 'second_leader', 'no_email', 'search', 'back', 'error'

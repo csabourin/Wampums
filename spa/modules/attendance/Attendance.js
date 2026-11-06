@@ -768,7 +768,7 @@ export class Attendance {
     }
     return `
       <button id="mark-remaining-present" class="button button--secondary mark-remaining-btn">
-        ${translate('mark_remaining_present').replace('{{count}}', unmarkedCount)}
+        ${translate(unmarkedCount === 1 ? 'mark_remaining_present_one' : 'mark_remaining_present').replace('{{count}}', unmarkedCount)}
       </button>
     `;
   }
@@ -1310,7 +1310,7 @@ export class Attendance {
       if (unmarkedCount === 0) {
         button.remove();
       } else {
-        button.textContent = translate('mark_remaining_present').replace('{{count}}', unmarkedCount);
+        button.textContent = translate(unmarkedCount === 1 ? 'mark_remaining_present_one' : 'mark_remaining_present').replace('{{count}}', unmarkedCount);
       }
     }
   }
