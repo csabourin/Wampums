@@ -403,6 +403,24 @@ describe('US-ATT-003 — I can see who the next status goes to, and reach every 
     expect(ajax.updateAttendance).toHaveBeenCalledWith('3', 'present', TODAY, null);
   });
 
+  it('selecting another child replaces the previous selection and tapping twice clears it', async () => {
+    seedStandardData();
+    await initPage();
+    const cam = document.querySelector('.participant-row[data-participant-id="3"]');
+    const dana = document.querySelector('.participant-row[data-participant-id="4"]');
+    cam.click();
+    dana.click();
+    expect(cam.getAttribute('aria-pressed')).toBe('false');
+    expect(dana.getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelectorAll('#attendance-list [aria-pressed="true"]')).toHaveLength(1);
+
+    dana.focus();
+    dana.click();
+    expect(document.activeElement).toBe(dana);
+    expect(document.querySelectorAll('#attendance-list .selected')).toHaveLength(0);
+    expect(selectionLine().textContent).toBe(tr('attendance_selection_none'));
+  });
+
   it('shows a hostile name as text and has no WCAG A/AA violations', async () => {
     ajax.getAttendanceDates.mockResolvedValue({ success: true, data: [TODAY] });
     ajax.getParticipants.mockResolvedValue({

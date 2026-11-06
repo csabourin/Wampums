@@ -1068,14 +1068,27 @@ input[type="radio"] {
 }
 
 :where(.attendance-list) button.participant-row {
-  background-color: transparent;
   border-block-end: 1px solid var(--color-border);
 }
 
-.attendance-list button.group-header:focus-visible,
-.attendance-list button.participant-row:focus-visible {
-  outline: 3px solid var(--color-focus-ring);
-  outline-offset: -3px;
+.attendance-list .participant-name {
+  flex: 1;
+  min-inline-size: 0;
+  margin-block-end: 0;
+}
+
+/* Change text and fill together: interpolating both creates low-contrast frames. */
+.attendance-list .participant-row,
+.attendance-list .group-header {
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+/* A status keeps its own readable surface even on a selected row. */
+.attendance-list .participant-status.unmarked,
+.attendance-list .participant-status.departed {
+  background: var(--color-surface);
+  color: var(--color-text-light);
+  border: 1px dashed var(--color-text-light);
 }
 
 .status-buttons.fixed-footer {
@@ -4091,7 +4104,9 @@ input.badge-tracker__search-input {
 }
 
 .manage-points-page .list-item,
-.manage-points-page .group-header {
+.manage-points-page .group-header,
+.attendance-list .participant-row,
+.attendance-list .group-header {
   inline-size: 100%;
   border-inline: 0;
   font: inherit;
@@ -4101,32 +4116,41 @@ input.badge-tracker__search-input {
 
 /* The header is a <button>, which the global rule paints white on green;
    unselected it sits on a pale grey, so it needs the dark text. */
-.manage-points-page .group-header {
+.manage-points-page .group-header,
+.attendance-list .group-header {
   color: var(--color-text);
 }
 
-.manage-points-page .group-header.selected {
+.manage-points-page .group-header.selected,
+.attendance-list .group-header.selected {
   color: white;
 }
 
-.manage-points-page .list-item {
+.manage-points-page .list-item,
+.attendance-list .participant-row {
   color: var(--color-text);
   background: var(--color-surface);
   box-shadow: none;
 }
 
-.manage-points-page .list-item:nth-of-type(even) {
+.manage-points-page .list-item:nth-of-type(even),
+.attendance-list .participant-row:nth-of-type(even) {
   background: var(--color-secondary);
 }
 
 .manage-points-page .list-item:hover,
 .manage-points-page .list-item:focus,
-.manage-points-page .group-header:focus {
+.manage-points-page .group-header:focus,
+.attendance-list .participant-row:hover,
+.attendance-list .participant-row:focus,
+.attendance-list .group-header:focus {
   outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
-.manage-points-page .list-item.selected {
+.manage-points-page .list-item.selected,
+.attendance-list .participant-row.selected,
+.attendance-list .group-header.selected {
   color: var(--color-selected-text);
   background: var(--color-selected);
 }
@@ -4136,7 +4160,9 @@ input.badge-tracker__search-input {
 }
 
 .manage-points-page .list-item:focus-visible,
-.manage-points-page .group-header:focus-visible {
+.manage-points-page .group-header:focus-visible,
+.attendance-list .participant-row:focus-visible,
+.attendance-list .group-header:focus-visible {
   outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
@@ -7423,6 +7449,15 @@ html.has-programme-bar .badge-tracker__fab {
 
 .status-btn.excused {
   background-color: var(--color-info);
+}
+
+/* Match the solid, readable actions used by the points screen. */
+.attendance-container .status-btn {
+  background: var(--color-primary);
+}
+
+.attendance-container .status-btn:hover {
+  background: var(--color-primary-dark);
 }
 
 .status-btn:hover {
