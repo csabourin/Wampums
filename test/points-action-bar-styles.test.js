@@ -19,6 +19,16 @@ function rulesFor(selectors) {
 }
 
 describe('manage points: the action bar and group headers stay readable', () => {
+  test('a participant uses an outline for hover and focus without a selection fill', () => {
+    for (const state of [':hover', ':focus', ':focus-visible']) {
+      const rules = rulesFor(`.manage-points-page .list-item${state}`).join('\n');
+      expect(rules).toMatch(/outline:\s*3px solid var\(--color-focus-ring\)/);
+      expect(rules).not.toMatch(/(?:background|color)\s*:/);
+    }
+    expect(rulesFor('.manage-points-page .list-item.selected').join('\n'))
+      .toMatch(/background:\s*var\(--color-selected\)/);
+  });
+
   test('a bar button at rest is neither faded nor ringed as if focused', () => {
     // A selector list missing `:disabled` / `:focus-visible` on its first entry
     // once dimmed every bar button and drew a focus ring around all of them.
