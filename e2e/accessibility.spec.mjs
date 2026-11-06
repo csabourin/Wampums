@@ -655,7 +655,11 @@ for (const who of ['parent', 'admin']) {
             await disclosure.locator(':scope > summary').click();
           }
         }
+        // Keep the hover background active through the contrast audit, including on touch projects.
+        const summary = section.locator('.account-disclosure > summary').last();
+        if (await summary.count()) { await summary.hover(); }
         await settleScreen(page);
+        await waitForAnimations(page);
         expect(await axeViolations(page)).toEqual([]);
         expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
         await expect(page.locator('#logout-btn')).toBeVisible();

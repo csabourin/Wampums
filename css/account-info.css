@@ -631,7 +631,7 @@ h1 {
 .account-disclosure { margin-block-end: var(--space-md); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
 .account-disclosure > summary { cursor: pointer; padding: var(--space-lg); min-height: var(--touch-target-min); }
 .account-disclosure__label { font-weight: 700; }
-.account-disclosure__hint { display: block; margin-block-start: var(--space-xs); color: var(--color-text-muted); font-size: .875rem; }
+.account-disclosure__hint { display: block; margin-block-start: var(--space-xs); color: var(--color-text); font-size: .875rem; }
 .account-disclosure__body { padding: 0 var(--space-md) var(--space-md); }
 .account-disclosure__body .account-section { border: 0; margin-bottom: 0; }
 .account-page input:invalid { border-color: var(--color-border); }
