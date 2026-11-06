@@ -487,7 +487,7 @@ export class ParentDashboard {
                         this.app.organizationSettings?.organization_info
                           ?.name || 'Scouts';
     const notificationButton = this.shouldShowNotificationButton()
-      ? `<button id="enableNotifications" class="dashboard-button dashboard-button--secondary">
+      ? `<button id="enableNotifications" class="button button--secondary">
                                                 ${translate('enable_notifications')}
                                         </button>`
       : ''; // Only render the button if needed
@@ -496,7 +496,7 @@ export class ParentDashboard {
     // one, else the steps for this browser, so a dismissed prompt is not final.
     const installButton = isAppInstalled()
       ? ''
-      : `<button id="installPwaButton" type="button" class="dashboard-button dashboard-button--secondary">
+      : `<button id="installPwaButton" type="button" class="button button--secondary">
                                                 ${translate('install_app')}
                                         </button>`;
 
@@ -515,13 +515,13 @@ export class ParentDashboard {
     const managesOwnFamily = hasPermission('participants.create_own');
     const addChildHref = managesOwnFamily ? '/parent-onboarding' : '/formulaire-inscription';
     const familySharingLink = managesOwnFamily && !this.hiddenButtons.has('family_access')
-      ? `<a href="/family-access" class="dashboard-button dashboard-button--secondary">${translate('family_access_title')}</a>`
+      ? `<a href="/family-access" class="button button--secondary">${translate('family_access_title')}</a>`
       : '';
     // Where the family's children stand in the campaigns under way.
     // The unit-wide campaign screens stay behind fundraisers.view.
     const fundraisersLink = this.hiddenButtons.has('fundraisers')
       ? ''
-      : `<a href="/parent-fundraisers" class="dashboard-button dashboard-button--secondary">${translate('parent_fundraisers_title')}</a>`;
+      : `<a href="/parent-fundraisers" class="button button--secondary">${translate('parent_fundraisers_title')}</a>`;
 
     // Dynamically replace the title with the organization name
     const userName =
@@ -546,18 +546,18 @@ export class ParentDashboard {
                                 <section class="parent-dashboard__actions">
                                         <h2 class="visually-hidden">${translate('main_actions')}</h2>
                                         <div class="parent-dashboard__actions-grid">
-                                                ${this.hiddenButtons.has('finances') ? '' : `<a href="/parent-finance" class="dashboard-button dashboard-button--primary">
+                                                ${this.hiddenButtons.has('finances') ? '' : `<a href="/parent-finance" class="button button--primary">
                                                         ${translate('my_finances')}
                                                 </a>`}
                                                 ${fundraisersLink}
                                                 ${familySharingLink}
-                                                <a href="/account-info" class="dashboard-button dashboard-button--secondary">
+                                                <a href="/account-info" class="button button--secondary">
                                                         ${translate('account_settings')}
                                                 </a>
-                                                ${this.hiddenButtons.has('program_progress') ? '' : `<a href="/parent-program-progress" class="dashboard-button dashboard-button--secondary">
+                                                ${this.hiddenButtons.has('program_progress') ? '' : `<a href="/parent-program-progress" class="button button--secondary">
                                                         ${translate('program_progress_parent_link')}
                                                 </a>`}
-                                                ${canViewActivities() && !this.hiddenButtons.has('download_calendar') ? `<button id="downloadCalendarButton" type="button" class="dashboard-button dashboard-button--secondary">
+                                                ${canViewActivities() && !this.hiddenButtons.has('download_calendar') ? `<button id="downloadCalendarButton" type="button" class="button button--secondary">
                                                         ${translate('download_activities_calendar')}
                                                 </button>` : ''}
                                         </div>
@@ -571,10 +571,10 @@ export class ParentDashboard {
                                                 ${installButton}
                                         </div>
                                         <div class="parent-dashboard__footer-account">
-                                                <a href="${addChildHref}" class="dashboard-button dashboard-button--primary">
+                                                <a href="${addChildHref}" class="button button--primary">
                                                         ${translate('ajouter_participant')}
                                                 </a>
-                                                <a href="/logout" class="dashboard-button dashboard-button--logout">
+                                                <a href="/logout" class="button button--secondary">
                                                         ${translate('deconnexion')}
                                                 </a>
                                         </div>
@@ -778,7 +778,7 @@ export class ParentDashboard {
       });
     const results = await Promise.allSettled(task.rows.map((row) => (isDecline
       ? declinePermissionSlip(row.slipId, { declined_by: signerName })
-      : signPermissionSlip(row.slipId, { signed_by: signerName, signature_hash: `signed-${Date.now()}` }))));
+      : signPermissionSlip(row.slipId, { signed_by: signerName }))));
     this.responding = false;
 
     const failedRows = task.rows.filter((_row, index) => results[index].status === 'rejected');
@@ -851,7 +851,7 @@ export class ParentDashboard {
     }
     return `
                         <div class="parent-dashboard__carpool-section" style="margin-top: 1.5rem;">
-                                <a href="#" id="view-carpool-activities" class="dashboard-button dashboard-button--secondary" style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                                <a href="#" id="view-carpool-activities" class="button button--secondary">
                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                                                 <rect x="1" y="3" width="15" height="13"></rect>
                                                 <path d="M16 8h2"></path>
@@ -1254,7 +1254,7 @@ export class ParentDashboard {
       if (!installed || this.destroyed) {
         return;
       }
-      // Removed, not hidden: `.dashboard-button { display: flex }` outranks
+      // Removed, not hidden: `.button { display: inline-flex }` outranks
       // the browser's [hidden] rule. Focus on it moves to the next action.
       const button = document.getElementById('installPwaButton');
       if (button) {

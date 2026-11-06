@@ -340,8 +340,9 @@ describe('the parent dashboard', () => {
     await flush();
 
     expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ message: 'family_tasks_signer_prompt' }));
-    expect(endpoints.signPermissionSlip.mock.calls.map(([id, body]) => [id, body.signed_by]))
-      .toEqual([[91, 'Marie Tremblay'], [92, 'Marie Tremblay']]);
+    // Only the signer's name: the server dates the signature, and nothing pretends to be a hash.
+    expect(endpoints.signPermissionSlip.mock.calls)
+      .toEqual([[91, { signed_by: 'Marie Tremblay' }], [92, { signed_by: 'Marie Tremblay' }]]);
     expect(app.showMessage).toHaveBeenCalledWith('permission_slip_signed', 'success');
     expect(page.loadPermissionSlips).toHaveBeenCalledWith(4, true);
     expect(page.loadPermissionSlips).toHaveBeenCalledWith(5, true);
@@ -490,6 +491,16 @@ describe('the parent dashboard', () => {
     document.querySelector('.js-family-sign').click();
     await flush();
     expect(prompt).not.toHaveBeenCalled();
+  });
+
+  test('every action on the dashboard uses the shared button styles', async () => {
+    const { page } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]]));
+
+    expect(document.querySelector('.dashboard-button')).toBeNull();
+    const actions = [...document.querySelectorAll('.parent-dashboard__actions a, .parent-dashboard__footer a')];
+    expect(actions.length).toBeGreaterThan(0);
+    actions.forEach((action) => expect(action.classList.contains('button')).toBe(true));
+    page.destroy();
   });
 
   test('has no WCAG A/AA violations, with every kind of task and the filter', async () => {

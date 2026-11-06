@@ -886,79 +886,6 @@ input[type="radio"] {
   margin: 0;
 }
 
-.dashboard-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: 100%;
-  padding: var(--space-lg);
-  background-image: var(--gradient-primary);
-  color: white;
-  text-align: center;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-medium);
-  border-radius: var(--radius-lg);
-  transition: all var(--transition-base);
-  box-shadow: var(--shadow-md);
-  border: none;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.dashboard-button:hover {
-  background-image: linear-gradient(135deg, #0b5b43 0%, #129f87 100%);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-  text-decoration: none;
-}
-
-/* Dashboard Button Variants */
-.dashboard-button--primary {
-  background-image: var(--gradient-primary);
-}
-
-.dashboard-button--primary:hover {
-  background-image: linear-gradient(135deg, #0b5b43 0%, #129f87 100%);
-}
-
-.dashboard-button--secondary {
-  background-image: none;
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-sm);
-}
-
-.dashboard-button--secondary:hover {
-  background-image: none;
-  background-color: var(--color-secondary);
-  border-color: var(--color-primary-light);
-  color: var(--color-primary-dark);
-}
-
-.dashboard-button--danger {
-  background-image: none;
-  background-color: var(--color-error);
-  color: white;
-}
-
-.dashboard-button--danger:hover,
-.dashboard-button--danger:focus-visible {
-  background-image: none;
-  background-color: var(--color-error-dark);
-  color: white;
-}
-
-.dashboard-button--logout {
-  background-image: none;
-  background-color: var(--color-error);
-}
-
-.dashboard-button--logout:hover {
-  background-image: none;
-  background-color: var(--color-error-dark);
-}
-
 /* Legacy logout button for backwards compatibility */
 .logout-button {
   background-color: var(--color-error);
@@ -4633,7 +4560,6 @@ input.badge-tracker__search-input {
   button,
   .btn,
   .button,
-  .dashboard-button,
   .toast,
   #offline-indicator,
   #loading-indicator,
@@ -4765,11 +4691,14 @@ input.badge-tracker__search-input {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.parent-dashboard__actions-grid .dashboard-button {
+.parent-dashboard__actions-grid .button,
+.parent-dashboard__carpool-section .button,
+.parent-dashboard__footer .button {
+  inline-size: 100%;
   min-inline-size: 0;
   padding: var(--space-md);
-  font-size: var(--font-size-base);
   line-height: var(--line-height-tight);
+  white-space: normal;
 }
 
 /* Participants Section */
@@ -8878,12 +8807,6 @@ details p {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm, 0.5rem);
-}
-
-.permission-slip-actions .dashboard-button {
-  min-height: 44px;
-  padding: var(--space-sm, 0.5rem) var(--space-md, 1rem);
-  font-size: var(--font-size-base, 1rem);
 }
 
 @media (min-width: 480px) {
