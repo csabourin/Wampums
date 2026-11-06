@@ -215,6 +215,17 @@ describe('noting at the speed of speech', () => {
     expect(api.saveCampReviewNote.mock.calls[0][2]).toMatchObject({ moment: 'team_daily', day: '2026-07-11' });
   });
 
+  test('a long camp offers every one of its days for the evening note', async () => {
+    api.getCampReview.mockResolvedValue({ success: true, data: { camp: { ...CAMP, date_from: '2026-07-01', date_to: '2026-07-21' }, notes: [] } });
+    await open();
+    const moment = $('#camp-review-moment');
+    moment.value = 'team_daily';
+    moment.dispatchEvent(new Event('change', { bubbles: true }));
+    const days = [...$('#camp-review-day').options].map((option) => option.value);
+    expect(days).toHaveLength(21);
+    expect(days.at(-1)).toBe('2026-07-21');
+  });
+
   test('an empty note is refused at the field, and the message clears as the person types', async () => {
     await open();
     type('   ');

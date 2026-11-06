@@ -38,7 +38,7 @@ import {
   overlayPending, applyAnswer, applyCampReviewWrite,
 } from './CampReviewOffline.js';
 import { similarNotes } from './CampReviewMatching.js';
-import { OFFLINE_CAMPS } from '../../config/offline-camps.js';
+import { MAX_EVENT_DAYS } from '../../utils/ActivityDateUtils.js';
 import styles from '../../../css/camp-review.css?url';
 
 const FORM_ID = 'camp-review-form';
@@ -260,7 +260,8 @@ export class CampReview {
     const days = [];
     const cursor = new Date(`${this.camp.date_from}T12:00:00Z`);
     const last = new Date(`${this.camp.date_to}T12:00:00Z`);
-    while (cursor <= last && days.length < OFFLINE_CAMPS.MAX_DAYS) {
+    // Every day of the camp, up to the longest event a unit records (not the offline preparation window).
+    while (cursor <= last && days.length < MAX_EVENT_DAYS) {
       days.push(cursor.toISOString().slice(0, ISO_DATE_LENGTH));
       cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
