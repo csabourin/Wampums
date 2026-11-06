@@ -419,6 +419,26 @@ test('a change the server accepts after the screen was left still reaches the co
     { note: expect.objectContaining({ text: 'La veillée' }) }, 'scope:unit-1');
 });
 
+test('a note saved while a reload is in flight is not wiped out by that older reload', async () => {
+  await open();
+  let answerReload;
+  api.getCampReview.mockImplementationOnce(() => new Promise((resolve) => { answerReload = resolve; }));
+  window.dispatchEvent(new CustomEvent('offlineMutationReplayed', { detail: { kind: 'camp_review' } }));
+  await flush();
+  // The server's list after the write, read again because the earlier read predates it.
+  api.getCampReview.mockResolvedValue({ success: true, data: { camp: CAMP, notes: [NIGHT, SWIM, DISHES, {
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001', category: 'liked', moment: 'team_after', text: 'La veillée', version: 1, weight: 1, votes: [] }] } });
+  type('La veillée');
+  await enter();
+  answerReload({ success: true, data: { camp: CAMP, notes: [NIGHT, SWIM, DISHES] } });
+  await flush();
+  await flush();
+  await flush();
+  expect(notesIn('liked')).toContain('La veillée');
+  const [, stored] = offline.storeCampReviewSnapshot.mock.calls.at(-1);
+  expect(stored.notes.map((note) => note.text)).toContain('La veillée');
+});
+
 test('a page with nothing kept on the device never stores a partial copy as if it were whole', async () => {
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
   await open();

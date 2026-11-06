@@ -72,6 +72,8 @@ export class CampReview {
     this.theme = '';
     this.destroyed = false;
     this.request = 0;
+    // The read from the server still in flight, if any: a write confirmed meanwhile makes it stale.
+    this.reading = null;
     this.sending = Promise.resolve();
     this.undo = null;
     this.undoTimer = null;
@@ -144,6 +146,7 @@ export class CampReview {
       await this.showOfflineCopy(request, scope, quiet);
       return;
     }
+    this.reading = request;
     try {
       const response = await getCampReview(this.meetingId);
       if (this.isStale(request, scope)) {
@@ -176,6 +179,10 @@ export class CampReview {
         return;
       }
       this.showError(apiErrorMessage(err, 'camp_review_load_failed'));
+    } finally {
+      if (this.reading === request) {
+        this.reading = null;
+      }
     }
   }
 
@@ -624,6 +631,10 @@ export class CampReview {
           return { ok: true, queued: true };
         }
         this.confirmed = applyAnswer(this.confirmed, entry, response?.data);
+        if (this.reading === this.request) {
+          // A read started before this write would bring back the list without it: drop it, read again.
+          void this.refresh();
+        }
         // Kept on the device whenever this screen holds a whole confirmed copy, read online or from
         // the device: a page opened offline and then reconnected must not leave an older copy behind.
         if (this.camp && this.offlineSince !== false) {
