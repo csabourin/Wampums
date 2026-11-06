@@ -1,0 +1,60 @@
+/* Camp review (#1257): noting what was liked, less liked and to improve, fast. Mobile first. */
+.camp-review { max-width: 60rem; margin-inline: auto; }
+.camp-review :is(h1, h2) { text-align: start; }
+.camp-review__camp { display: grid; gap: .15rem; margin-block: 0 .75rem; }
+.camp-review__camp strong { color: var(--color-primary); font-size: 1.1rem; }
+.camp-review__explanation { margin-block: 0 .75rem; }
+
+.camp-review__form { display: grid; gap: .5rem; padding: .75rem 1rem; margin-block-end: .5rem;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md, .5rem); background: var(--color-surface); }
+.camp-review__categories { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
+.camp-review__categories legend { font-weight: 700; margin-block-end: .25rem; }
+.camp-review__category-options { display: flex; flex-wrap: wrap; gap: .5rem; }
+.camp-review__category { display: inline-flex; align-items: center; gap: .5rem; min-block-size: var(--touch-target-min, 44px);
+  padding: .25rem .75rem; border: 2px solid var(--color-border); border-radius: 999px; cursor: pointer;
+  background: var(--color-background, #fff); }
+.camp-review__category input { inline-size: 24px; block-size: 24px; margin: 0; }
+/* The chosen category is shown by the checked radio and a thicker, darker border, not by colour alone. */
+.camp-review__category:has(input:checked) { border-color: var(--color-primary); border-width: 3px; font-weight: 700; }
+.camp-review__category:has(input:focus-visible) { outline: 3px solid var(--color-focus-ring); outline-offset: 2px; }
+
+.camp-review__context { display: flex; flex-wrap: wrap; gap: .5rem 1rem; }
+.camp-review__choice { flex: 1 1 12rem; margin: 0; }
+.camp-review__choice select { inline-size: 100%; }
+#camp-review-day-slot:empty { display: none; }
+#camp-review-day-slot { flex: 1 1 12rem; }
+
+.camp-review__entry { display: flex; flex-wrap: wrap; gap: .5rem; }
+.camp-review__entry input { flex: 1 1 14rem; min-inline-size: 0; min-block-size: var(--touch-target-min, 44px); font-size: 1.05rem; }
+.camp-review__entry .button { flex: 0 0 auto; }
+
+.camp-review__suggestions:empty { display: none; }
+.camp-review__suggestions-title { margin: 0 0 .25rem; font-weight: 600; }
+.camp-review__suggestion-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
+.camp-review__suggestion-list li { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; overflow-wrap: anywhere; }
+.camp-review__suggestion-text { flex: 1 1 10rem; }
+
+.camp-review__feedback { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; min-block-size: var(--touch-target-min, 44px);
+  margin-block-end: 1rem; }
+.camp-review__feedback p { margin: 0; }
+.camp-review__feedback p:empty { display: none; }
+
+.camp-review__notes { display: grid; gap: 1rem; }
+.camp-review__group h2 { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .5rem; font-size: 1.2rem; margin-block: 0 .5rem; }
+.camp-review__count { font-size: .95rem; font-weight: var(--font-weight-normal, 400); color: var(--color-text-muted); }
+.camp-review__list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.camp-review__note { padding: .5rem .75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md, .5rem);
+  background: var(--color-surface); overflow-wrap: anywhere; }
+.camp-review__note.is-pending { border-style: dashed; }
+.camp-review__note-head { display: flex; align-items: flex-start; gap: .5rem; }
+.camp-review__note-text { margin: 0; flex: 1 1 auto; }
+.camp-review__weight { flex: 0 0 auto; min-inline-size: 2.5rem; font-weight: 700; color: var(--color-primary); }
+.camp-review__note-meta { margin: .25rem 0 0; font-size: .9rem; color: var(--color-text-muted); }
+.camp-review__chip { display: inline-block; padding: .05rem .5rem; border: 1px solid currentColor; border-radius: 999px; }
+.camp-review__note-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-block-start: .25rem; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .camp-review__category { transition: border-color .15s ease; }
+}
+/* A .button sets its own display: the undo offer must still disappear when hidden. */
+.camp-review__feedback [hidden] { display: none; }

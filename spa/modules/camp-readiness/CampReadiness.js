@@ -17,6 +17,7 @@ import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
 import { formatEquipmentQuantity } from '../../utils/EquipmentUnitUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
+import { hasPermission } from '../../utils/PermissionUtils.js';
 import { CAMP_LOTS } from '../../config/camp-lots.js';
 import { getCampReadiness, getActivityCampReadiness } from '../../api/api-camp-readiness.js';
 import { shiftName } from '../../utils/VolunteerTypeUtils.js';
@@ -296,7 +297,11 @@ export class CampReadiness {
       ${camp.scheduled === false ? `<p class="camp-readiness__notice">${escapeHTML(translate('camp_readiness_unscheduled'))}</p>` : ''}
       ${this.leftMarkup()}
       <p class="camp-readiness__explanation">${escapeHTML(translate('camp_readiness_explanation'))}</p>
-      <button class="button button--secondary button--small" type="button" id="camp-readiness-refresh">${escapeHTML(translate('refresh'))}</button>
+      <div class="camp-readiness__actions">
+        <button class="button button--secondary button--small" type="button" id="camp-readiness-refresh">${escapeHTML(translate('refresh'))}</button>
+        ${camp.id && camp.scheduled !== false && hasPermission('camp_reviews.view')
+    ? `<a class="button button--secondary button--small" href="/camp-review/${Number(camp.id)}">${escapeHTML(translate('camp_review_title'))}</a>` : ''}
+      </div>
       ${this.sectionsMarkup()}</section>`);
     this.root().querySelector('#camp-readiness-refresh').addEventListener('click', () => this.init());
   }

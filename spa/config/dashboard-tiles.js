@@ -654,6 +654,16 @@ export const CAMP_DAY_SHORTCUTS = [
     kinds: ['camp'],
   },
   {
+    // Noting the camp's review at the last campfire; kept on the device by camp preparation (CampReviewOffline.js).
+    key: 'review',
+    hrefs: [{ needs: 'meetingId', href: '/camp-review/{meetingId}' }],
+    icon: 'fa-comments',
+    label: 'dashboard_camp_shortcut_review',
+    domain: 'people',
+    gate: { permission: 'camp_reviews.view' },
+    kinds: ['camp'],
+  },
+  {
     // Departures are marked on the attendance screen.
     key: 'departure',
     featureKey: 'attendance',

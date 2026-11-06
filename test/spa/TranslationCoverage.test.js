@@ -309,3 +309,14 @@ test('every camp team role, age status and list gap has its label in both langua
   expect(team.team_roles).toEqual(['lead', 'leader', 'camp_aide']);
   expect(missing(uses)).toEqual([]);
 });
+
+test('every camp review category, moment and topic has its label in both languages', () => {
+  const rules = require('../../config/camp_reviews.json');
+  const uses = [
+    ...rules.CATEGORIES.map((category) => [`camp_review_category_${category}`, 'CampReview']),
+    ...rules.MOMENTS.map((moment) => [`camp_review_moment_${moment}`, 'CampReview']),
+    ...rules.THEMES.map((theme) => [`camp_review_theme_${theme}`, 'CampReview']),
+  ];
+  expect(rules.CATEGORIES).toEqual(['liked', 'disliked', 'improve']);
+  expect(missing(uses)).toEqual([]);
+});
