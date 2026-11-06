@@ -5842,5 +5842,8 @@
   "permission_slip_answer_in_tasks": "Répondre dans « À faire pour votre famille »",
   "permission_slip_activity_date": "Date de l’activité",
   "medication_dosage_placeholder": "ex. : avec le déjeuner",
-  "medication_planning_description_family": "Indiquez à l’équipe d’animation quel médicament donner à votre enfant, combien et à quelle heure."
+  "medication_planning_description_family": "Indiquez à l’équipe d’animation quel médicament donner à votre enfant, combien et à quelle heure.",
+  "form_required_note": "Les questions marquées d’un astérisque (*) doivent être répondues.",
+  "form_missing_answers": "{count} questions attendent encore une réponse :",
+  "form_missing_answers_one": "Une question attend encore une réponse :"
 }

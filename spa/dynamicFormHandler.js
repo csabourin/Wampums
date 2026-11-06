@@ -221,7 +221,9 @@ export class DynamicFormHandler {
       ? `
                     ${renderBackLink()}
                     <h1>${escapeHTML(translate(this.formType))}${this.childName() ? ` — ${escapeHTML(this.childName())}` : ''}</h1>
-                    <form id="dynamic-form-${this.formType}">
+                    ${fields.some((field) => field.required) ? `<p class="form-required-note">${escapeHTML(translate('form_required_note'))}</p>` : ''}
+                    <form id="dynamic-form-${this.formType}" novalidate>
+                        <div class="form-error-summary" id="dynamic-form-errors" role="alert" tabindex="-1" hidden></div>
                         ${formContent}
                         <button type="submit" class="button button--primary">${translate('save')}</button>
                     </form>
@@ -373,15 +375,98 @@ export class DynamicFormHandler {
     }
   }
 
+  /**
+   * Check the form before sending, the way a person can follow: every question
+   * left unanswered gets a message under it, tied to its controls, and a
+   * summary at the top names them, takes the focus, and leads to each one.
+   * A message goes away as soon as its question is answered.
+   * @param {HTMLFormElement} form - The standalone form
+   * @returns {boolean} True when every required question is answered
+   */
+  showMissingAnswers(form) {
+    const summary = form.querySelector('#dynamic-form-errors');
+    form.querySelectorAll('.dynamic-form-field-error').forEach((message) => message.remove());
+    form.querySelectorAll('[aria-invalid="true"]').forEach((control) => {
+      control.removeAttribute('aria-invalid');
+      control.removeAttribute('aria-describedby');
+    });
+
+    const missing = new Map();
+    form.querySelectorAll('input, select, textarea').forEach((control) => {
+      if (!control.disabled && control.name && control.willValidate && !control.checkValidity()
+          && !missing.has(control.name)) {
+        missing.set(control.name, control.closest('.form-group'));
+      }
+    });
+    if (!summary) {
+      return missing.size === 0;
+    }
+    if (missing.size === 0) {
+      summary.hidden = true;
+      setContent(summary, '');
+      return true;
+    }
+
+    const items = [];
+    missing.forEach((group, name) => {
+      const messageId = `dynamic-form-error-${name}`;
+      const label = group?.querySelector('label');
+      const message = document.createElement('p');
+      message.className = 'error-text dynamic-form-field-error';
+      message.id = messageId;
+      message.textContent = translate('field_required');
+      label?.after(message);
+      [...form.querySelectorAll('input, select, textarea')]
+        .filter((control) => control.name === name)
+        .forEach((control) => {
+          control.setAttribute('aria-invalid', 'true');
+          control.setAttribute('aria-describedby', messageId);
+        });
+      items.push(`<li><button type="button" class="button button--ghost button--small" data-focus-field="${escapeHTML(name)}">${escapeHTML(label?.textContent.trim() || name)}</button></li>`);
+    });
+    setContent(summary, `<p>${escapeHTML(translate(missing.size === 1 ? 'form_missing_answers_one' : 'form_missing_answers').replace('{count}', String(missing.size)))}</p><ul>${items.join('')}</ul>`);
+    summary.hidden = false;
+    summary.focus();
+
+    if (!form.dataset.missingAnswersBound) {
+      form.dataset.missingAnswersBound = 'true';
+      summary.addEventListener('click', (event) => {
+        const target = event.target.closest('[data-focus-field]');
+        const control = target && [...form.querySelectorAll('input, select, textarea')]
+          .find((candidate) => candidate.name === target.dataset.focusField);
+        control?.focus();
+      });
+      const clear = (event) => {
+        const { name } = event.target;
+        if (!name || !event.target.checkValidity()) {
+          return;
+        }
+        document.getElementById(`dynamic-form-error-${name}`)?.remove();
+        [...form.querySelectorAll('input, select, textarea')]
+          .filter((control) => control.name === name)
+          .forEach((control) => {
+            control.removeAttribute('aria-invalid');
+            control.removeAttribute('aria-describedby');
+          });
+      };
+      form.addEventListener('input', clear);
+      form.addEventListener('change', clear);
+    }
+    return false;
+  }
+
   async handleSubmit(e) {
     e.preventDefault();
+    if (!this.showMissingAnswers(e.target)) {
+      return;
+    }
     const formData = new FormData(e.target);
     const submissionData = Object.fromEntries(formData.entries());
 
     try {
       const result = await saveFormSubmission(this.formType, this.participantId, submissionData);
       if (result.success) {
-        this.app.showMessage(translate('form_saved_successfully'));
+        this.app.showMessage(translate('form_saved_successfully'), 'success');
         this.app.router.navigate('/parent-dashboard');
       } else {
         throw new Error(result.message || translate('error_saving_form'));

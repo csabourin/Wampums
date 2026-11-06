@@ -9731,6 +9731,19 @@ details p {
   display: none;
 }
 
+.form-error-summary ul {
+  list-style: none;
+  margin: var(--space-sm) 0 0;
+  padding: 0;
+}
+
+.form-error-summary li .button {
+  justify-content: flex-start;
+  text-align: start;
+  color: var(--color-error);
+  text-decoration: underline;
+}
+
 .field-error {
   display: block;
   margin-top: var(--space-xs);
@@ -13293,5 +13306,17 @@ body:has(> .settings-icon) .demo-banner__inner {
   padding: var(--space-sm) var(--space-md);
   border-inline-start: 4px solid var(--color-primary);
   background: var(--color-surface);
+}
+
+/* Required questions of dynamic forms. The alternative text after "/" keeps
+   the asterisk out of the accessible name; `required` is what is announced. */
+.label--required::after {
+  content: " *";
+  content: " *" / "";
+  color: var(--color-error);
+}
+
+.form-required-note {
+  margin: 0 0 var(--space-md);
 }
 

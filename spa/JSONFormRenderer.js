@@ -58,6 +58,15 @@ export class JSONFormRenderer {
   }
 
   /**
+   * Whether another field of the form waits on this one's answer.
+   * @param {string} fieldName - Field name
+   * @returns {boolean} True when a field's `dependsOn` names it
+   */
+  controlsAnotherField(fieldName) {
+    return (this.formStructure.fields || []).some((field) => field.dependsOn?.field === fieldName);
+  }
+
+  /**
 	 * Whether a `dependsOn` condition is already satisfied by the saved answers.
 	 *
 	 * @param {Object} dependsOn - `{ field, value }` from the form format
@@ -163,7 +172,16 @@ export class JSONFormRenderer {
     }
 
     let output = `<div class="${groupClasses.join(' ')}" data-form-origin="${formOrigin}"${dependsOnAttr ? ` data-group-for="${name}"` : ''}>`;
-    const labelHtml = `<label for="${fieldId}">${formLabelHtml(field, readerLanguage(), translate, readerFallback())}</label>`;
+    // A required question shows an asterisk (drawn by CSS, so the label's text
+    // and accessible name stay the question itself); the control carries
+    // `required`, which is what a screen reader announces.
+    const labelClass = required ? ' class="label--required"' : '';
+    const labelText = formLabelHtml(field, readerLanguage(), translate, readerFallback());
+    // A radio question has no single control to point at: its label names the
+    // group (role="radiogroup") instead of a "for" that matched no element.
+    const labelHtml = type === 'radio'
+      ? `<label id="${fieldId}-label"${labelClass}>${labelText}</label>`
+      : `<label for="${fieldId}"${labelClass}>${labelText}</label>`;
     if (type !== 'checkbox') {
       output += labelHtml;
     }
@@ -189,6 +207,13 @@ export class JSONFormRenderer {
         } else {
           output += `<select id="${fieldId}" name="${name}" ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
           const chosen = this.resolveChoice(value, options, name);
+          // Without an answer, an optional select would show (and submit) its
+          // first option as if the parent had chosen it ("Ne sait pas nager").
+          // It starts empty instead, unless another field depends on it: those
+          // rely on the select showing its first option.
+          if (chosen === undefined && !required && !this.controlsAnotherField(name)) {
+            output += `<option value="" selected>${translate('select_option')}</option>`;
+          }
           options.forEach(option => {
             const selected = chosen !== undefined && chosen === option.value ? 'selected' : '';
             output += `<option value="${option.value}" ${selected}>${translate(option.label)}</option>`;
@@ -206,7 +231,7 @@ export class JSONFormRenderer {
         // Wrapped so the options lay out as a row. Bare inputs and labels
         // dropped straight into `.form-group` (a column flex container)
         // put every option on its own line under the question.
-        output += `<div class="radio-group" data-field-name="${name}">`;
+        output += `<div class="radio-group" data-field-name="${name}" role="radiogroup" aria-labelledby="${fieldId}-label"${required ? ' aria-required="true"' : ''}>`;
         const chosenRadio = this.resolveChoice(value, options, name);
         options.forEach(option => {
           const radioId = this.useUniqueIds ? `${name}_${option.value}-${index}` : `${name}_${option.value}`;
