@@ -13292,3 +13292,20 @@ body:has(> .settings-icon) .demo-banner__inner {
   margin: 0 0 var(--space-md);
 }
 
+/* Upcoming camps on the leaders' dashboard: each camp's link, then its dates
+   on their own line, instead of dates spilling out beside the button. */
+.dashboard-team-camps__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.dashboard-team-camps__list li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
+
