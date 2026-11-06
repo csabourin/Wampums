@@ -4037,7 +4037,7 @@
   "permission_slip_answered_kept": "{count} participant(s) avaient déjà répondu à cette autorisation; leur réponse est conservée. Archivez une autorisation pour en émettre une nouvelle.",
   "med_reception_fiche_declared": "Déclaré dans la fiche santé :",
   "med_reception_plan_to_receive": "Pas encore planifié. Planifiez ce médicament pour en noter la réception.",
-  "medication_prefilled_from_fiche": "Prérempli à partir de la fiche santé. Vérifiez la posologie avant d’enregistrer.",
+  "medication_prefilled_from_fiche": "Prérempli à partir de la fiche santé : le nom ici, la suite dans les instructions. Vérifiez les deux avant d’enregistrer.",
   "medication_declared_list_label": "Déclarés dans la fiche santé (choisissez-en un pour le planifier) :",
   "medication_declared_planned": "planifié",
   "activity_invitees_legend": "Qui est invité?",
@@ -5961,5 +5961,9 @@
   "camp_review_note_unmerged": "Fusion défaite",
   "camp_review_status_saved": "Bilan enregistré",
   "meeting_prep_read_only": "Vous pouvez consulter cette préparation. Pour la modifier, il faut le droit de gérer les réunions : demandez-le à un responsable de l’unité.",
-  "meeting_replaced_no_programme": "Aucun programme de réunion à cette date : l’unité suit la sortie."
+  "meeting_replaced_no_programme": "Aucun programme de réunion à cette date : l’unité suit la sortie.",
+  "mark_remaining_present_one": "Marquer présent le jeune non marqué",
+  "permission_slip_activity_date": "Date de l’activité",
+  "medication_dosage_placeholder": "ex. : avec le déjeuner",
+  "medication_planning_description_family": "Indiquez à l’équipe d’animation quel médicament donner à votre enfant, combien et à quelle heure."
 }
