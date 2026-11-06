@@ -24,6 +24,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
 }));
 jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
 jest.mock('../../spa/config.js', () => ({ CONFIG: {}, getStorageKey: (key) => key }));
+jest.mock('../../spa/modules/camp-review/CampLessons.js', () => ({ mountPreviousLessons: jest.fn(() => Promise.resolve()) }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   hasPermission: jest.fn(() => true),
   isDemoUser: jest.fn(() => false), hasOrganizationScope: jest.fn(() => true),
@@ -379,3 +380,10 @@ test('the “Evaluated” step leads to the camp’s review, for whoever may rea
   await open();
   expect($('a[href="/camp-review/12"]')).toBeNull();
 });
+
+test('the plan opens with what earlier camps at this site, or of this season, kept and fixed', async () => {
+  const { mountPreviousLessons } = require('../../spa/modules/camp-review/CampLessons.js');
+  await open();
+  expect(mountPreviousLessons).toHaveBeenCalledWith($('#camp-plan-lessons'), 12, 'fr', 'camp-plan-lessons');
+});
+

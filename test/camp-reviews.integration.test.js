@@ -288,6 +288,88 @@ describe.skipIf(!DATABASE_URL)('Camp review', () => {
     });
   });
 
+  describe('year after year', () => {
+    let lake; let hill; let past; let older; let other; let coming; let elsewhere;
+    const site = (unitId, name) => one('INSERT INTO camp_sites (organization_id, name) VALUES ($1, $2) RETURNING id', [unitId, name]);
+    const held = (meetingId, unitId, siteId, season) => pool.query(
+      'INSERT INTO camp_details (organization_id, meeting_id, camp_site_id, season) VALUES ($1, $2, $3, $4)', [unitId, meetingId, siteId, season]);
+    /** A camp with a closed review: one note kept (weight 2) and one fixed. */
+    async function reviewed(start, end, siteId, season, words) {
+      const { meeting } = await camp(ids.unit, ids.leader, start, end);
+      await held(meeting, ids.unit, siteId, season);
+      const keep = randomUUID(); const fix = randomUUID();
+      await call('put', `/camps/${meeting}/notes/${keep}`).send(note({ text: `${words} : le grand jeu` }));
+      await call('put', `/camps/${meeting}/notes/${keep}/votes/${randomUUID()}`).send({});
+      await call('put', `/camps/${meeting}/notes/${fix}`).send(note({ category: 'improve', text: `${words} : la vaisselle` }));
+      await call('patch', `/camps/${meeting}/notes/${keep}`).send({ outcome: 'keep', action_text: 'Le refaire', expected_version: 1 });
+      await call('patch', `/camps/${meeting}/notes/${fix}`).send({ outcome: 'fix', action_text: 'Deux bacs', expected_version: 1 });
+      expect((await call('put', `/camps/${meeting}/status`).send({ status: 'closed', expected_version: 1 })).status).toBe(200);
+      return meeting;
+    }
+
+    beforeAll(async () => {
+      lake = await site(ids.unit, 'Fictional Lake'); hill = await site(ids.unit, 'Fictional Hill');
+      older = await reviewed('2024-10-04', '2024-10-06', lake, 'autumn', 'Automne 2024');
+      past = await reviewed('2025-10-03', '2025-10-05', lake, 'autumn', 'Automne 2025');
+      other = await reviewed('2025-02-07', '2025-02-09', hill, 'winter', 'Hiver 2025');
+      ({ meeting: coming } = await camp(ids.unit, ids.leader, '2026-10-02', '2026-10-04'));
+      await held(coming, ids.unit, lake, 'autumn');
+      ({ meeting: elsewhere } = await camp(ids.unit, ids.leader, '2026-10-09', '2026-10-11'));
+      const newSite = await site(ids.unit, 'Fictional New Site');
+      await held(elsewhere, ids.unit, newSite, 'autumn');
+    });
+
+    test('the history lists the unit’s closed reviews, newest first, with what each kept and fixed', async () => {
+      const response = await call('get', '/');
+      expect(response.status).toBe(200);
+      const camps = response.body.data.reviews.map((review) => review.camp.id);
+      expect(camps.indexOf(Number(past))).toBeLessThan(camps.indexOf(Number(other)));
+      expect(camps.indexOf(Number(other))).toBeLessThan(camps.indexOf(Number(older)));
+      const last = response.body.data.reviews.find((review) => review.camp.id === Number(past));
+      expect(last).toMatchObject({ site: { name: 'Fictional Lake' }, counts: { keep: 1, fix: 1 } });
+      expect(last.keep[0]).toMatchObject({ text: 'Automne 2025 : le grand jeu', action_text: 'Le refaire', weight: 2 });
+      expect(last.fix[0]).toMatchObject({ text: 'Automne 2025 : la vaisselle', action_text: 'Deux bacs' });
+      expect(response.body.data.sites.map((entry) => entry.name)).toEqual(expect.arrayContaining(['Fictional Hill', 'Fictional Lake']));
+    });
+
+    test('the history filters by site and season, and refuses a malformed filter', async () => {
+      const bySite = await call('get', `/?site_id=${hill}`);
+      expect(bySite.body.data.reviews.map((review) => review.camp.id)).toEqual([Number(other)]);
+      const bySeason = await call('get', '/?season=autumn');
+      expect(bySeason.body.data.reviews.map((review) => review.camp.id)).toEqual([Number(past), Number(older)]);
+      expect((await call('get', '/?season=monsoon')).status).toBe(400);
+      expect((await call('get', '/?site_id=12abc')).status).toBe(400);
+    });
+
+    test('an open review, and another unit’s, stay out of the history', async () => {
+      const open = await read();
+      expect(open.review.status).toBe('open');
+      expect((await call('get', '/')).body.data.reviews.some((review) => review.camp.id === Number(ids.camp.meeting))).toBe(false);
+      const foreign = await call('get', '/', ids.outsider, ids.otherUnit);
+      expect(foreign.body.data.reviews).toEqual([]);
+    });
+
+    test('“last time” draws on earlier camps at the same site first, latest first', async () => {
+      const response = await call('get', `/camps/${coming}/previous`);
+      expect(response.status).toBe(200);
+      expect(response.body.data.basis).toBe('site');
+      expect(response.body.data.reviews.map((review) => review.camp.id)).toEqual([Number(past), Number(older)]);
+    });
+
+    test('without an earlier camp at its site, “last time” falls back on camps of the same season', async () => {
+      const response = await call('get', `/camps/${elsewhere}/previous`);
+      expect(response.body.data.basis).toBe('season');
+      expect(response.body.data.reviews.map((review) => review.camp.id)).toEqual([Number(past), Number(older)]);
+      // A camp never reviews itself, nor a later one.
+      const first = await call('get', `/camps/${older}/previous`);
+      expect(first.body.data).toEqual({ basis: null, reviews: [] });
+    });
+
+    test('“last time” for another unit’s camp is not found', async () => {
+      expect((await call('get', `/camps/${coming}/previous`, ids.outsider, ids.otherUnit)).status).toBe(404);
+    });
+  });
+
   test('preparing the camp for offline use packs its review for those who may read it', async () => {
     const response = await request(app).post('/api/v1/offline/prepare-activity').set(auth(ids.leader, ids.unit))
       .send({ activity_id: ids.camp.outing, start_date: '2026-07-10', end_date: '2026-07-12' });

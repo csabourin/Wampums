@@ -5,10 +5,12 @@ jest.mock('../../spa/app.js', () => ({ translate: jest.fn((key) => key) }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
 jest.mock('../../spa/api/api-camp-readiness.js', () => ({ getCampReadiness: jest.fn(), getActivityCampReadiness: jest.fn() }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(() => true) }));
+jest.mock('../../spa/modules/camp-review/CampLessons.js', () => ({ mountPreviousLessons: jest.fn(() => Promise.resolve()) }));
 import { getCampReadiness, getActivityCampReadiness } from '../../spa/api/api-camp-readiness.js';
 import { CampReadiness, READINESS_LABELS } from '../../spa/modules/camp-readiness/CampReadiness.js';
 import { translate } from '../../spa/app.js';
 import { hasPermission } from '../../spa/utils/PermissionUtils.js';
+import { mountPreviousLessons } from '../../spa/modules/camp-review/CampLessons.js';
 import en from '../../lang/en.json';
 import fr from '../../lang/fr.json';
 let screen;
@@ -229,3 +231,10 @@ test('the camp’s review is reached from its overview by whoever may read it', 
   await screen.init();
   expect(document.querySelector('a[href="/camp-review/3"]')).toBeNull();
 });
+
+test('the overview shows what earlier camps at this site, or of this season, kept and fixed', async () => {
+  await screen.init();
+  const container = document.querySelector('#camp-readiness-lessons');
+  expect(mountPreviousLessons).toHaveBeenCalledWith(container, 3, 'fr', 'camp-readiness-lessons');
+});
+

@@ -126,3 +126,23 @@ export function setCampReviewStatus(meetingId, body) {
 export function removeCampReviewVoteOnline(meetingId, noteId, voteId) {
   return API.delete(`${notePath(meetingId, noteId)}/votes/${encodeURIComponent(voteId)}`, {}, null, ONLINE_ONLY);
 }
+
+/**
+ * The unit's closed camp reviews, year after year.
+ *
+ * @param {{site_id?: number, season?: string}} [filters] - A site or a season to keep to
+ * @returns {Promise<Object>} { reviews, sites }
+ */
+export function getCampReviewHistory(filters = {}) {
+  return API.getNoCache('v1/camp-reviews', filters);
+}
+
+/**
+ * "Last time": what earlier camps at the same site, or of the same season, kept and fixed.
+ *
+ * @param {number} meetingId - The camp being prepared
+ * @returns {Promise<Object>} { basis, reviews }
+ */
+export function getPreviousLessons(meetingId) {
+  return API.getNoCache(`v1/camp-reviews/camps/${encodeURIComponent(meetingId)}/previous`);
+}

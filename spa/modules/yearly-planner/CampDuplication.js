@@ -9,14 +9,17 @@
  */
 import { translate } from '../../app.js';
 import rules from '../../../config/camp_duplication.json';
-import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
+import { setContent, withFormBusy, loadStylesheet } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
-import { hasAllPermissions, hasOrganizationScope } from '../../utils/PermissionUtils.js';
+import { hasAllPermissions, hasOrganizationScope, hasPermission } from '../../utils/PermissionUtils.js';
 import { getCampDuplication, duplicateCamp } from '../../api/api-yearly-planner.js';
+import { getCampReviewHistory } from '../../api/api-camp-reviews.js';
+import { lessonsListMarkup } from '../camp-review/CampLessons.js';
+import lessonStyles from '../../../css/camp-lessons.css?url';
 
 const FORM_ID = 'yp-camp-duplicate-form';
 
@@ -46,6 +49,9 @@ export class CampDuplication {
     this.onDone = onDone;
     this.data = null;
     this.sourceId = null;
+    // What each earlier camp's closed review kept and fixed (#1257), by camp; null when it could not be read.
+    this.lessons = new Map();
+    this.lessonsFailed = false;
     this.modal = null;
     this.saving = false;
   }
@@ -80,9 +86,43 @@ export class CampDuplication {
     }
   }
 
+  /** Read the unit's closed reviews, so the camp chosen shows what its review kept and fixed. */
+  async loadLessons() {
+    if (!hasPermission('camp_reviews.view')) {
+      return;
+    }
+    loadStylesheet(lessonStyles).catch((err) => debugError('Camp lessons stylesheet failed', err));
+    try {
+      const response = await getCampReviewHistory();
+      this.lessons = new Map((response?.data?.reviews || []).map((review) => [Number(review.camp.id), review]));
+      this.lessonsFailed = false;
+    } catch (err) {
+      debugError('Lessons of earlier camps could not be loaded', err);
+      this.lessonsFailed = true;
+    }
+  }
+
+  /** @returns {string} What the chosen camp's review kept and fixed, when it was closed */
+  lessonsMarkup() {
+    if (!hasPermission('camp_reviews.view')) {
+      return '';
+    }
+    if (this.lessonsFailed) {
+      return `<p class="status-message warning">${escapeHTML(translate('camp_lessons_load_failed'))}</p>`;
+    }
+    const review = this.lessons.get(Number(this.sourceId));
+    if (!review || (!review.keep.length && !review.fix.length)) {
+      return '';
+    }
+    return `<section class="camp-lessons" aria-labelledby="yp-camp-duplicate-lessons-title">
+        <h3 id="yp-camp-duplicate-lessons-title">${escapeHTML(translate('camp_duplicate_lessons'))}</h3>
+        ${lessonsListMarkup(review, 'h4')}
+      </section>`;
+  }
+
   async load() {
     try {
-      const response = await getCampDuplication(this.meetingId);
+      const [response] = await Promise.all([getCampDuplication(this.meetingId), this.loadLessons()]);
       this.data = response?.data || null;
     } catch (err) {
       debugError('Failed to load earlier camps:', err);
@@ -195,6 +235,7 @@ export class CampDuplication {
             `).join('')}
           </select>
         </div>
+        ${this.lessonsMarkup()}
         <fieldset id="yp-camp-duplicate-parts" aria-describedby="yp-camp-duplicate-parts-error">
           <legend>${escapeHTML(translate('camp_duplicate_parts'))}</legend>
           ${parts}

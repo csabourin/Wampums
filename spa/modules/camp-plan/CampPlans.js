@@ -135,6 +135,8 @@ export class CampPlans {
       ? `<a class="button button--secondary" href="/yearly-planner">${escapeHTML(translate('tile_yearly_planner'))}</a>` : '';
     const templates = hasPermission('camp_plan_templates.manage')
       ? `<a class="button button--secondary" href="/camp-plan-templates">${escapeHTML(translate('camp_plan_templates_open'))}</a>` : '';
+    const reviews = this.canSeeReview
+      ? `<a class="button button--secondary" href="/camp-reviews">${escapeHTML(translate('camp_plans_open_reviews'))}</a>` : '';
     const body = coming.length || past.length
       ? `${this.groupMarkup('coming', translate('camp_plans_coming'), coming)}${this.groupMarkup('past', translate('camp_plans_past'), past)}`
       : `<p class="camp-plan__empty">${escapeHTML(translate('camp_plans_empty'))}</p>`;
@@ -142,7 +144,7 @@ export class CampPlans {
         ${renderBackLink()}
         <h1>${escapeHTML(translate('camp_plans_title'))}</h1>
         <p class="camp-plan__intro">${escapeHTML(translate('camp_plans_intro'))}</p>
-        <div class="camp-plan__actions">${planner}${templates}</div>
+        <div class="camp-plan__actions">${planner}${templates}${reviews}</div>
         ${body}
       </section>`);
   }
