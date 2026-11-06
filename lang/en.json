@@ -5965,5 +5965,8 @@
   "mark_remaining_present_one": "Mark the 1 unmarked youth as present",
   "permission_slip_activity_date": "Activity date",
   "medication_dosage_placeholder": "e.g. with breakfast",
-  "medication_planning_description_family": "Tell the leaders which medication to give your child, how much and when."
+  "medication_planning_description_family": "Tell the leaders which medication to give your child, how much and when.",
+  "form_required_note": "Questions marked with an asterisk (*) must be answered.",
+  "form_missing_answers": "{count} questions still need an answer:",
+  "form_missing_answers_one": "One question still needs an answer:"
 }
