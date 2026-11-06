@@ -500,6 +500,8 @@ describe('the parent dashboard', () => {
     const actions = [...document.querySelectorAll('.parent-dashboard__actions a, .parent-dashboard__footer a')];
     expect(actions.length).toBeGreaterThan(0);
     actions.forEach((action) => expect(action.classList.contains('button')).toBe(true));
+    // Spacing lives in the stylesheet, where the theme's tokens apply.
+    expect(document.querySelector('.parent-dashboard [style]')).toBeNull();
     page.destroy();
   });
 

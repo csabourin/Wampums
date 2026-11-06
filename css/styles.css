@@ -4691,6 +4691,18 @@ input.badge-tracker__search-input {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.parent-dashboard__calendar-download {
+  margin-block-start: var(--space-md);
+}
+
+.parent-dashboard__calendar-download .muted-text {
+  margin-block-start: var(--space-sm);
+}
+
+.parent-dashboard__carpool-section {
+  margin-block-start: var(--space-lg);
+}
+
 .parent-dashboard__actions-grid .button,
 .parent-dashboard__carpool-section .button,
 .parent-dashboard__footer .button {

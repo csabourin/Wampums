@@ -501,8 +501,8 @@ export class ParentDashboard {
                                         </button>`;
 
     const calendarDownloadAction = `
-                        <div class="parent-dashboard__calendar-download" style="margin-top: 1rem;">
-                                <p class="muted-text" style="margin-top: 0.5rem;">${translate('calendar_download_description')}</p>
+                        <div class="parent-dashboard__calendar-download">
+                                <p class="muted-text">${translate('calendar_download_description')}</p>
                         </div>
                 `;
 
@@ -850,7 +850,7 @@ export class ParentDashboard {
       return '';
     }
     return `
-                        <div class="parent-dashboard__carpool-section" style="margin-top: 1.5rem;">
+                        <div class="parent-dashboard__carpool-section">
                                 <a href="#" id="view-carpool-activities" class="button button--secondary">
                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                                                 <rect x="1" y="3" width="15" height="13"></rect>
