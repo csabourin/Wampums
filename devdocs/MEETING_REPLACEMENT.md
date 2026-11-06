@@ -17,7 +17,9 @@ everyone, replaces that meeting (`services/meetingReplacement.js`).
   tasks. The chip says "Replaced" in words; its description and the sheet name the outing.
 - **The day follows the outing:** the day programme (`GET /api/v1/meetings/programme`),
   `GET /api/v1/meetings/next` and the action roster's `meeting_dates` skip the replaced meeting
-  (the next meeting is found past any number of replaced dates). The roster's `replacing_activities`
+  (the next meeting is found past any number of replaced dates). `GET /api/v1/meetings/dates` keeps the replaced
+  meeting and names its outing (`replaced_by_activity_id`, `replaced_by_activity_name`): the date pickers
+  of `/reunions` say "Replaced by {outing}", "Next meeting" skips it, and its programme is not shown. The roster's `replacing_activities`
   (`{ date: activityId }`) makes the outing the day's default activity even beside another activity,
   so its permission requests filter the roster. Activities carry `replaces_meeting_id` /
   `replaces_meeting_date` (list and single read).

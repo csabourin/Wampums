@@ -5960,5 +5960,6 @@
   "camp_review_note_merged_saved": "Notes fusionnées",
   "camp_review_note_unmerged": "Fusion défaite",
   "camp_review_status_saved": "Bilan enregistré",
-  "meeting_prep_read_only": "Vous pouvez consulter cette préparation. Pour la modifier, il faut le droit de gérer les réunions : demandez-le à un responsable de l’unité."
+  "meeting_prep_read_only": "Vous pouvez consulter cette préparation. Pour la modifier, il faut le droit de gérer les réunions : demandez-le à un responsable de l’unité.",
+  "meeting_replaced_no_programme": "Aucun programme de réunion à cette date : l’unité suit la sortie."
 }
