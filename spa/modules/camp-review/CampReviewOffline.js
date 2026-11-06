@@ -114,9 +114,10 @@ export async function getCampReviewSnapshot(meetingId, scope = currentCampReview
  */
 export function applyAnswer(notes, { method, noteId, voteId }, answer) {
   if (method === 'DELETE' && !voteId) {
-    // Notes merged into a removed note stand on their own again, as the server keeps them.
+    // Notes merged into a removed note stand on their own again, as the server keeps them:
+    // detaching them is a change, so each is now one version further.
     return notes.flatMap((note) => (note.id === noteId
-      ? (note.merged || []).map((child) => ({ ...child, merged: [] }))
+      ? (note.merged || []).map((child) => ({ ...child, merged: [], version: (Number(child.version) || 1) + 1 }))
       : [note]));
   }
   const note = answer?.note;

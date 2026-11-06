@@ -241,7 +241,10 @@ describe.skipIf(!DATABASE_URL)('Camp review', () => {
       expect((await call('patch', on(`/notes/${b.id}`)).send({ outcome: 'keep', expected_version: 2 })).body.message).toBe('camp_review_note_merged');
       // Removing the note kept lets the merged one stand on its own again.
       expect((await call('delete', on(`/notes/${a.id}`))).body.data).toEqual({ deleted: true });
-      expect((await read(campIds.meeting)).notes.some((entry) => entry.id === b.id)).toBe(true);
+      const detached = (await read(campIds.meeting)).notes.find((entry) => entry.id === b.id);
+      // Created (1), merged (2), detached (3): the version a device computes after the removal.
+      expect(detached.version).toBe(3);
+      expect((await call('patch', on(`/notes/${b.id}`)).send({ outcome: 'keep', expected_version: 3 })).status).toBe(200);
     });
 
     test('a closed review refuses every change until it is reopened, a waiting replay included', async () => {

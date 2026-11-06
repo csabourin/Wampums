@@ -118,11 +118,11 @@ test('a confirmed write updates the copy kept here, keeping its expiry; without 
   expect(await getCampReviewSnapshot(13)).toBeNull();
 });
 
-test('removing a note others were merged into keeps them, on their own', () => {
+test('removing a note others were merged into keeps them, on their own, one version further as on the server', () => {
   const child = { ...SWIM, id: '44444444-4444-4444-8444-444444444444', text: 'Baignade', weight: 2 };
   const parent = { ...SWIM, weight: 3, merged: [child] };
   expect(applyAnswer([parent], { method: 'DELETE', noteId: SWIM.id, voteId: null }, { deleted: true }))
-    .toEqual([{ ...child, merged: [] }]);
+    .toEqual([{ ...child, merged: [], version: child.version + 1 }]);
 });
 
 test('closing or reopening the review is recorded in the copy kept here, never in another session\'s', async () => {
