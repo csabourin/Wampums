@@ -62,6 +62,9 @@ const SAVE_STATUS_TRANSLATIONS = {
   [MEETING_SAVE_STATES.ERROR]: 'meeting_autosave_failed'
 };
 
+/** Controls that only show something, left usable when the preparation is read-only. */
+const READ_ONLY_ACTIONS = '.description-btn, #print-button';
+
 export class MeetingPrep extends BaseModule {
   constructor(app, options = {}) {
     super(app);
@@ -528,7 +531,7 @@ export class MeetingPrep extends BaseModule {
 
         ${this.canManage ? '' : `<p class="meeting-prep__read-only" id="meeting-prep-read-only">${escapeHTML(translate('meeting_prep_read_only'))}</p>`}
         <form id="reunion-form" class="form-layout">
-          <fieldset class="meeting-prep__fields" ${this.canManage ? '' : 'disabled aria-describedby="meeting-prep-read-only"'}>
+          <fieldset class="meeting-prep__fields" ${this.canManage ? '' : 'aria-describedby="meeting-prep-read-only"'}>
           <legend class="sr-only">${escapeHTML(translate('preparation_reunions'))}</legend>
           <div class="form-row">
             <div class="form-group">
@@ -623,6 +626,24 @@ export class MeetingPrep extends BaseModule {
 
     setContent(container, content);
     this.activityManager.renderActivitiesTable();
+    this.lockForReading();
+  }
+
+  /**
+   * Without the right to manage meetings, the preparation is for reading:
+   * every editing control is disabled, but what only shows something stays
+   * usable — an activity's description and precautions (`.description-btn`)
+   * and printing. Applied after each drawing of the activity rows.
+   */
+  lockForReading() {
+    if (this.canManage) {return;}
+    const form = document.getElementById('reunion-form');
+    form?.querySelectorAll('input, select, textarea, button').forEach((control) => {
+      if (!control.matches(READ_ONLY_ACTIONS)) {
+        // eslint-disable-next-line no-param-reassign -- a control of the page, not an argument
+        control.disabled = true;
+      }
+    });
   }
 
   /**

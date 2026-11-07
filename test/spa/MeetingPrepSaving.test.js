@@ -151,6 +151,7 @@ describe('a leader who may read meetings but not manage them', () => {
     screen.destroy();
     jest.clearAllMocks();
     hasPermission.mockImplementation((key) => key !== 'meetings.manage');
+    endpoints.getMeetingActivities.mockResolvedValueOnce({ data: [{ id: 3, activity: 'Jeu', description: 'Un jeu de course' }] });
     document.body.innerHTML = '<main id="app"></main>';
     const readOnly = new MeetingPrep({ lang: 'fr', showMessage: jest.fn(), waitForOrganizationSettings: () => Promise.resolve({}) });
     await readOnly.init(DATE);
@@ -165,7 +166,6 @@ describe('a leader who may read meetings but not manage them', () => {
     await openReadOnly();
 
     const fields = document.querySelector('#reunion-form .meeting-prep__fields');
-    expect(fields.disabled).toBe(true);
     expect(fields.getAttribute('aria-describedby')).toBe('meeting-prep-read-only');
     expect(document.getElementById('meeting-prep-read-only').textContent).toBe('meeting_prep_read_only');
     ['endroit', 'notes', 'animateur-responsable', 'youth-of-honor'].forEach((id) => {
@@ -173,6 +173,12 @@ describe('a leader who may read meetings but not manage them', () => {
     });
     expect(document.getElementById('meeting-save-button')).toBeNull();
     expect(document.getElementById('print-button').matches(':disabled')).toBe(false);
+    // Reading stays possible: an activity's description and precautions still open.
+    const description = document.querySelector('#activities-list .description-btn');
+    expect(description).not.toBeNull();
+    expect(description.matches(':disabled')).toBe(false);
+    expect([...document.querySelectorAll('#activities-list input, #activities-list select, #activities-list textarea')]
+      .every((control) => control.matches(':disabled'))).toBe(true);
     expect(document.getElementById('date-select').matches(':disabled')).toBe(false);
     expect(endpoints.saveReunionPreparation).not.toHaveBeenCalled();
   });
@@ -189,7 +195,8 @@ describe('a leader who may read meetings but not manage them', () => {
 });
 
 test('a leader who manages meetings keeps every field editable', () => {
-  expect(document.querySelector('#reunion-form .meeting-prep__fields').disabled).toBe(false);
+  expect([...document.querySelectorAll('#reunion-form input, #reunion-form select, #reunion-form textarea')]
+    .some((control) => control.disabled)).toBe(false);
   expect(document.getElementById('meeting-prep-read-only')).toBeNull();
 });
 
