@@ -457,7 +457,18 @@ module.exports = (pool, logger) => {
         [organizationId]
       );
 
-      return success(res, result.rows);
+      // A meeting an outing replaces stays listed, named after the outing, so
+      // no picker presents it as an ordinary meeting (devdocs/MEETING_REPLACEMENT.md).
+      const replacedBy = new Map((await findReplacedMeetings(pool, organizationId))
+        .map((replacement) => [replacement.meeting_date, replacement]));
+      return success(res, result.rows.map((row) => {
+        const replacement = replacedBy.get(row.date);
+        return {
+          ...row,
+          replaced_by_activity_id: replacement ? replacement.activity_id : null,
+          replaced_by_activity_name: replacement ? replacement.activity_name : null,
+        };
+      }));
     })
   );
 

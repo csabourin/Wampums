@@ -11,6 +11,7 @@ const {
   describeMedicationFrequency,
   isSameMedication,
   splitDeclaredMedications,
+  splitMedicationNameAndDetails,
 } = require('../../spa/utils/MedicationTextUtils.js');
 
 describe('splitDeclaredMedications', () => {
@@ -65,5 +66,19 @@ describe('describeMedicationFrequency', () => {
     expect(describeMedicationFrequency({ frequency_text: 'Au besoin', frequency_times: [] }, 'fr', 'x', TEMPLATE)).toBe('Au besoin');
     expect(describeMedicationFrequency({ frequency_times: 'not json' }, 'fr', 'Au besoin', TEMPLATE)).toBe('Au besoin');
     expect(describeMedicationFrequency({ frequency_text: 'Le soir', frequency_times: ['bad'] }, 'fr', 'x', TEMPLATE)).toBe('Le soir');
+  });
+});
+
+describe('splitMedicationNameAndDetails', () => {
+  it.each([
+    ['Ritalin 10mg le matin', { name: 'Ritalin', details: '10mg le matin' }],
+    ['Ritalin 10,5 mg', { name: 'Ritalin', details: '10,5 mg' }],
+    ['Vitamine D 1000 UI', { name: 'Vitamine D', details: '1000 UI' }],
+    ['Advil', { name: 'Advil', details: '' }],
+    ['pis Advil si mal de tete', { name: 'pis Advil si mal de tete', details: '' }],
+    ['5-HTP 50 mg', { name: '5-HTP', details: '50 mg' }],
+    ['', { name: '', details: '' }],
+  ])('separates %p', (text, expected) => {
+    expect(splitMedicationNameAndDetails(text)).toEqual(expected);
   });
 });

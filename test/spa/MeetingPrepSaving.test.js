@@ -142,3 +142,69 @@ test('an activity\'s unit material is sent with the meeting', async () => {
     expect.objectContaining({ equipment_item_id: 9, catalog_item_id: null, quantity: 1, name: 'Ballon' }),
   ]);
 });
+
+describe('a leader who may read meetings but not manage them', () => {
+  const { hasPermission } = require('../../spa/utils/PermissionUtils.js');
+
+  /** @returns {Promise<MeetingPrep>} The screen opened without meetings.manage */
+  async function openReadOnly() {
+    screen.destroy();
+    jest.clearAllMocks();
+    hasPermission.mockImplementation((key) => key !== 'meetings.manage');
+    endpoints.getMeetingActivities.mockResolvedValueOnce({ data: [{ id: 3, activity: 'Jeu', description: 'Un jeu de course' }] });
+    document.body.innerHTML = '<main id="app"></main>';
+    const readOnly = new MeetingPrep({ lang: 'fr', showMessage: jest.fn(), waitForOrganizationSettings: () => Promise.resolve({}) });
+    await readOnly.init(DATE);
+    await letAutosaveRun();
+    screen = readOnly;
+    return readOnly;
+  }
+
+  afterEach(() => hasPermission.mockImplementation(() => true));
+
+  test('sees every field disabled and is told why, instead of typing work that is never kept', async () => {
+    await openReadOnly();
+
+    const fields = document.querySelector('#reunion-form .meeting-prep__fields');
+    expect(fields.getAttribute('aria-describedby')).toBe('meeting-prep-read-only');
+    expect(document.getElementById('meeting-prep-read-only').textContent).toBe('meeting_prep_read_only');
+    ['endroit', 'notes', 'animateur-responsable', 'youth-of-honor'].forEach((id) => {
+      expect(document.getElementById(id).matches(':disabled')).toBe(true);
+    });
+    expect(document.getElementById('meeting-save-button')).toBeNull();
+    expect(document.getElementById('print-button').matches(':disabled')).toBe(false);
+    // Reading stays possible: an activity's description and precautions still open.
+    const description = document.querySelector('#activities-list .description-btn');
+    expect(description).not.toBeNull();
+    expect(description.matches(':disabled')).toBe(false);
+    expect([...document.querySelectorAll('#activities-list input, #activities-list select, #activities-list textarea')]
+      .every((control) => control.matches(':disabled'))).toBe(true);
+    expect(document.getElementById('date-select').matches(':disabled')).toBe(false);
+    expect(endpoints.saveReunionPreparation).not.toHaveBeenCalled();
+  });
+
+  test('passes axe in consultation', async () => {
+    const axe = require('axe-core');
+    await openReadOnly();
+    const results = await axe.run(document.getElementById('app'), {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
+  });
+});
+
+test('a leader who manages meetings keeps every field editable', () => {
+  expect([...document.querySelectorAll('#reunion-form input, #reunion-form select, #reunion-form textarea')]
+    .some((control) => control.disabled)).toBe(false);
+  expect(document.getElementById('meeting-prep-read-only')).toBeNull();
+});
+
+test('a date an outing replaces is named after the outing in the date list', () => {
+  screen.meetingDates = [{ date: '2026-11-11', is_cancelled: false, theme: 'Les étoiles', replaced_by_activity_name: 'Sortie au musée' }];
+  const option = new DOMParser().parseFromString(`<select>${screen.renderDateOptions()}</select>`, 'text/html')
+    .querySelector('option[value="2026-11-11"]');
+
+  expect(option.textContent).toContain('yearly_planner_replaced_by');
+});
+

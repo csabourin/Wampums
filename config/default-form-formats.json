@@ -264,7 +264,12 @@
           {
             "name": "epipen",
             "type": "checkbox",
-            "label": "epipen_label"
+            "label": "epipen_label",
+            "dependsOn": {
+              "field": "has_allergies",
+              "value": "yes"
+            },
+            "keepSavedAnswer": true
           },
           {
             "name": "has_medication",
@@ -547,7 +552,12 @@
               {
                 "name": "epipen",
                 "type": "checkbox",
-                "label": "epipen_label"
+                "label": "epipen_label",
+                "dependsOn": {
+                  "field": "has_allergies",
+                  "value": "yes"
+                },
+                "keepSavedAnswer": true
               },
               {
                 "name": "has_medication",

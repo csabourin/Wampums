@@ -20,6 +20,8 @@ export class UpcomingMeeting {
     this.app = app;
     Object.assign(this, resolveMountOptions(options));
     this.meetingDates = [];
+    /** Date (YYYY-MM-DD) → name of the outing replacing that meeting. */
+    this.replacedBy = new Map();
     this.closestMeeting = null;
     this.meetingDetails = null;
     this.participants = [];
@@ -92,10 +94,12 @@ export class UpcomingMeeting {
   async fetchMeetingDates() {
     try {
       const response = await getReunionDates();
-      // Standard envelope: data = [{ date, is_cancelled, theme, is_prepared }]
-      this.meetingDates = (response?.data || [])
-        .filter((entry) => !entry.is_cancelled)
-        .map((entry) => entry.date);
+      // Standard envelope: data = [{ date, is_cancelled, theme, is_prepared, replaced_by_activity_name }]
+      const entries = (response?.data || []).filter((entry) => !entry.is_cancelled);
+      this.meetingDates = entries.map((entry) => entry.date);
+      this.replacedBy = new Map(entries
+        .filter((entry) => entry.replaced_by_activity_name)
+        .map((entry) => [this.normalizeDateString(entry.date), entry.replaced_by_activity_name]));
     } catch (error) {
       debugError(
         'Error fetching meeting dates:',
@@ -213,9 +217,26 @@ export class UpcomingMeeting {
     return futureMeetings;
   }
 
+  /**
+   * The next meeting that takes place: one an outing replaces is skipped, as
+   * GET /meetings/next does. When every upcoming date is replaced, the first is
+   * still shown, with the outing named.
+   * @returns {Promise<?string>} YYYY-MM-DD
+   */
   async getClosestMeeting() {
     const futureMeetings = await this.getAllFutureMeetings();
-    return futureMeetings.length > 0 ? futureMeetings[0].dateStr : null;
+    const held = futureMeetings.find((meeting) => !this.replacedBy.has(meeting.dateStr));
+    return (held || futureMeetings[0])?.dateStr || null;
+  }
+
+  /**
+   * What replaces a meeting, in words, or an empty string.
+   * @param {string} dateStr - YYYY-MM-DD
+   * @returns {string} "Replaced by {outing}." in the interface language
+   */
+  replacementText(dateStr) {
+    const outing = this.replacedBy.get(this.normalizeDateString(dateStr));
+    return outing ? translate('yearly_planner_replaced_by').replace('{outing}', outing) : '';
   }
 
   async hasMeetingEnded(dateStr, currentTime) {
@@ -440,9 +461,9 @@ export class UpcomingMeeting {
           year: 'numeric',
         });
         const relativeTime = this.getRelativeTimeText(meeting.dateStr);
-        const displayText = relativeTime
-          ? `${shortDate} (${relativeTime})`
-          : shortDate;
+        const replaced = this.replacementText(meeting.dateStr);
+        const displayText = [relativeTime ? `${shortDate} (${relativeTime})` : shortDate, replaced]
+          .filter(Boolean).join(' — ');
         return `<option value="${meeting.dateStr}" ${meeting.dateStr === this.closestMeeting ? 'selected' : ''}>${escapeHTML(displayText)}</option>`;
       })
       .join('');
@@ -476,12 +497,14 @@ export class UpcomingMeeting {
             '',
           )
         : `<li>${translate('no_honors_on_this_date')}</li>`;
-    const activities =
-      this.meetingDetails
-        ?.activities ||
-      [];
-    const activitiesHtml =
-      activities.length > 0
+    const replacement = this.replacementText(this.closestMeeting);
+    // A replaced meeting has no programme of its own: the day follows the outing.
+    const activities = replacement
+      ? []
+      : this.meetingDetails?.activities || [];
+    const activitiesHtml = replacement
+      ? `<li>${escapeHTML(translate('meeting_replaced_no_programme'))}</li>`
+      : activities.length > 0
         ? activities
           .map(
             (
@@ -529,6 +552,7 @@ export class UpcomingMeeting {
                                                                 </div>
                                                                 <div class="meeting-details">
                                                                                 <p>${meetingDate}</p>
+                                                                                ${replacement ? `<p class="meeting-replaced" id="meeting-replaced"><strong>${escapeHTML(replacement)}</strong></p>` : ''}
                                                                                 <p><strong>${translate('location')}:</strong> ${location}</p>
                                                                 </div>
                                                                 <div class="meeting-details">

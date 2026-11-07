@@ -1,7 +1,7 @@
 // dynamicFormHandler.js
 import { translate } from './app.js';
 import { debugLog, debugError, debugWarn } from './utils/DebugUtils.js';
-import { shouldKeepSavedDependency, isControllerAnswerMatching, clearDependentValues, readControllingValue } from './utils/FormDependencyUtils.js';
+import { shouldKeepSavedDependency, isControllerAnswerMatching, clearDependentValues, readControllingValue, hasSavedAnswer } from './utils/FormDependencyUtils.js';
 import { JSONFormRenderer } from './JSONFormRenderer.js';
 import {
   getOrganizationFormFormats,
@@ -10,6 +10,7 @@ import {
 } from './ajax-functions.js';
 import { setContent, withFormBusy } from './utils/DOMUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
+import { renderBackLink } from './utils/BackLinkUtils.js';
 import { apiErrorMessage } from './utils/ApiErrorUtils.js';
 
 /**
@@ -128,6 +129,16 @@ export class DynamicFormHandler {
     this.validateFormData();
   }
 
+  /**
+   * The child the form is about, so a parent of several children knows whose
+   * form is open. The submission answer carries the participant's first name.
+   * @returns {string} First name, or an empty string when unknown
+   */
+  childName() {
+    const name = this.formData?.first_name;
+    return typeof name === 'string' ? name.trim() : '';
+  }
+
   validateFormData() {
     const criticalFields = ['first_name', 'last_name', 'date_naissance'];
     for (const field of criticalFields) {
@@ -208,14 +219,15 @@ export class DynamicFormHandler {
     // Check if this handler is standalone or embedded within another form
     const content = this.isStandalone() 
       ? `
-                    <h2>${translate(this.formType)}</h2>
-                    <form id="dynamic-form-${this.formType}">
+                    ${renderBackLink()}
+                    <h1>${escapeHTML(translate(this.formType))}${this.childName() ? ` — ${escapeHTML(this.childName())}` : ''}</h1>
+                    ${fields.some((field) => field.required) ? `<p class="form-required-note">${escapeHTML(translate('form_required_note'))}</p>` : ''}
+                    <form id="dynamic-form-${this.formType}" novalidate>
+                        <div class="form-error-summary" id="dynamic-form-errors" role="alert" tabindex="-1" hidden></div>
                         ${formContent}
                         <p class="dynamic-form-status" role="status" aria-live="polite"></p>
                         <button type="submit" class="button button--primary">${escapeHTML(translate('save'))}</button>
                     </form>
-
-                    <a href="/parent-dashboard" class="button">${translate('back_to_dashboard')}</a>
                 `
       : `
                    <fieldset id="dynamic-form-${this.formType}${uniqueIdPart}">
@@ -275,7 +287,11 @@ export class DynamicFormHandler {
           readControllingValue(controllingElements, controller),
           field.dependsOn.value
         );
-        if (controllingElements.length > 0 && !keepAsRendered) {
+        // A field marked `keepSavedAnswer` holding a saved answer is not
+        // emptied on opening either: the family sees it, and only their own
+        // change to the controlling answer hides it.
+        const keepSavedAnswer = field.keepSavedAnswer === true && hasSavedAnswer(savedAnswers[field.name]);
+        if (controllingElements.length > 0 && !keepAsRendered && !keepSavedAnswer) {
           sync();
         }
       }
@@ -365,6 +381,86 @@ export class DynamicFormHandler {
   }
 
   /**
+   * Check the form before sending, the way a person can follow: every question
+   * left unanswered gets a message under it, tied to its controls, and a
+   * summary at the top names them, takes the focus, and leads to each one.
+   * A message goes away as soon as its question is answered.
+   * @param {HTMLFormElement} form - The standalone form
+   * @returns {boolean} True when every required question is answered
+   */
+  showMissingAnswers(form) {
+    const summary = form.querySelector('#dynamic-form-errors');
+    form.querySelectorAll('.dynamic-form-field-error').forEach((message) => message.remove());
+    form.querySelectorAll('[aria-invalid="true"]').forEach((control) => {
+      control.removeAttribute('aria-invalid');
+      control.removeAttribute('aria-describedby');
+    });
+
+    const missing = new Map();
+    form.querySelectorAll('input, select, textarea').forEach((control) => {
+      if (!control.disabled && control.name && control.willValidate && !control.checkValidity()
+          && !missing.has(control.name)) {
+        missing.set(control.name, control.closest('.form-group'));
+      }
+    });
+    if (!summary) {
+      return missing.size === 0;
+    }
+    if (missing.size === 0) {
+      summary.hidden = true;
+      setContent(summary, '');
+      return true;
+    }
+
+    const items = [];
+    missing.forEach((group, name) => {
+      const messageId = `dynamic-form-error-${name}`;
+      const label = group?.querySelector('label');
+      const message = document.createElement('p');
+      message.className = 'error-text dynamic-form-field-error';
+      message.id = messageId;
+      message.textContent = translate('field_required');
+      label?.after(message);
+      [...form.querySelectorAll('input, select, textarea')]
+        .filter((control) => control.name === name)
+        .forEach((control) => {
+          control.setAttribute('aria-invalid', 'true');
+          control.setAttribute('aria-describedby', messageId);
+        });
+      items.push(`<li><button type="button" class="button button--ghost button--small" data-focus-field="${escapeHTML(name)}">${escapeHTML(label?.textContent.trim() || name)}</button></li>`);
+    });
+    setContent(summary, `<p>${escapeHTML(translate(missing.size === 1 ? 'form_missing_answers_one' : 'form_missing_answers').replace('{count}', String(missing.size)))}</p><ul>${items.join('')}</ul>`);
+    summary.hidden = false;
+    summary.focus();
+
+    if (!form.dataset.missingAnswersBound) {
+      form.dataset.missingAnswersBound = 'true';
+      summary.addEventListener('click', (event) => {
+        const target = event.target.closest('[data-focus-field]');
+        const control = target && [...form.querySelectorAll('input, select, textarea')]
+          .find((candidate) => candidate.name === target.dataset.focusField);
+        control?.focus();
+      });
+      const clear = (event) => {
+        const { name } = event.target;
+        if (!name || !event.target.checkValidity()) {
+          return;
+        }
+        document.getElementById(`dynamic-form-error-${name}`)?.remove();
+        [...form.querySelectorAll('input, select, textarea')]
+          .filter((control) => control.name === name)
+          .forEach((control) => {
+            control.removeAttribute('aria-invalid');
+            control.removeAttribute('aria-describedby');
+          });
+      };
+      form.addEventListener('input', clear);
+      form.addEventListener('change', clear);
+    }
+    return false;
+  }
+
+  /**
    * Save the standalone form once, however many times it is submitted while
    * the first save is on its way. The form says it is saving, keeps what was
    * typed when the save fails, and can then be sent again.
@@ -374,6 +470,9 @@ export class DynamicFormHandler {
   async handleSubmit(e) {
     e.preventDefault();
     const form = e.target;
+    if (!this.showMissingAnswers(form)) {
+      return;
+    }
     const submissionData = Object.fromEntries(new FormData(form).entries());
     const status = form.querySelector('.dynamic-form-status');
 

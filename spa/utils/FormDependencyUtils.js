@@ -33,6 +33,31 @@ function normalize(input) {
   return String(input).trim().toLowerCase();
 }
 
+/** Saved values that hold no answer: an empty field or an unticked box. */
+const NO_ANSWER = new Set(['', 'no', 'non', 'false', 'off', '0', 'n', 'null', 'undefined']);
+
+/**
+ * Whether a field holds a saved answer worth keeping.
+ *
+ * A dependent field whose condition is not met is hidden and emptied. A field
+ * whose definition sets `keepSavedAnswer` and already holds an answer (an
+ * EpiPen ticked on a health form saved with "no" to allergies) is kept and
+ * shown instead: emptying it on opening would drop that answer at the next
+ * save, without the family ever seeing it.
+ *
+ * @param {*|Array} value - The saved answer
+ * @returns {boolean} True for a non-empty, non-negative answer
+ */
+export function hasSavedAnswer(value) {
+  if (Array.isArray(value)) {
+    return value.some(hasSavedAnswer);
+  }
+  if (value === null || value === undefined || value === false) {
+    return false;
+  }
+  return !NO_ANSWER.has(normalize(value));
+}
+
 /**
  * Whether a `dependsOn` condition is satisfied by a given answer.
  *

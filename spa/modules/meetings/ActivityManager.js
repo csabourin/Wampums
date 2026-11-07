@@ -8,7 +8,7 @@ import { memberDisplayName } from '../../utils/DisplayNameUtils.js';
 import { AchievementModal } from '../AchievementModal.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { MaterialItemsField, renderMaterialItemsList } from '../equipment-catalog/MaterialItemsField.js';
-import { DATE_PART_WIDTH } from '../../utils/TimeUnits.js';
+import { DATE_PART_WIDTH, MINUTES_PER_HOUR } from '../../utils/TimeUnits.js';
 
 /**
  * What the description dialog shows for a library activity: its summary, then
@@ -140,6 +140,33 @@ export class ActivityManager {
   }
 
   /**
+   * Minutes since midnight of an HH:MM time.
+   * @param {string} time - HH:MM
+   * @returns {?number} Minutes, or null when the time is unreadable
+   */
+  clockMinutes(time) {
+    const match = /^(\d{1,2}):(\d{2})/.exec(String(time || ''));
+    return match ? Number(match[1]) * MINUTES_PER_HOUR + Number(match[2]) : null;
+  }
+
+  /**
+   * When the saved (non-template) activities end, in minutes since midnight.
+   * @param {?Array} activities - Activities of the meeting
+   * @returns {?number} End of the last one, or null without a timed saved activity
+   */
+  scheduleEndMinutes(activities) {
+    const ends = (Array.isArray(activities) ? activities : [])
+      .filter((activity) => !activity.isDefault)
+      .map((activity) => {
+        const start = this.clockMinutes(activity.time);
+        const duration = this.clockMinutes(activity.duration || '00:00') ?? 0;
+        return start === null ? null : start + duration;
+      })
+      .filter((end) => end !== null);
+    return ends.length ? Math.max(...ends) : null;
+  }
+
+  /**
          * Initialize placeholder activities with default values
          * Only includes templates if actual meeting duration < planned duration
          * @param {Array} existingActivities - Current activities (if any)
@@ -169,10 +196,14 @@ export class ActivityManager {
       return existingActivities || [];
     }
 
-    // Create templates for remaining time
+    // Create templates for remaining time: a template block starting before
+    // the saved schedule ends would overlap it (two lines at 18:45), so only
+    // the blocks after its end fill the rest of the meeting.
+    const savedEnd = this.scheduleEndMinutes(existingActivities);
     const templates = getSectionActivityTemplates(
       this.sectionConfig,
-    );
+    ).filter((template) => savedEnd === null
+      || (this.clockMinutes(template.time) ?? Infinity) >= savedEnd);
 
     const placeholders = templates.map((template, index) => {
       const activityKey = template.activityKey;

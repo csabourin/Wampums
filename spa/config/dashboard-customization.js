@@ -59,14 +59,15 @@ export const PALETTES = {
     id: 'domains',
     label: 'dashboard_palette_domains',
     description: 'dashboard_palette_domains_desc',
-    swatches: ['#0f7a5a', '#1f6feb', '#b9591e', '#9a3f38', '#7a3eb1'],
+    swatches: ['#0f7a5a', '#1f6feb', '#b9591e', '#3b4a8c', '#7a3eb1'],
     domains: {
       neutral: { bg: '#374151', fg: '#ffffff', accent: '#1f2937' },
       people: { bg: '#0f7a5a', fg: '#ffffff', accent: '#0b5b43' },
       attendance: { bg: '#0d6e6e', fg: '#ffffff', accent: '#08504f' },
       progression: { bg: '#1f6feb', fg: '#ffffff', accent: '#174fb0' },
       logistics: { bg: '#b9591e', fg: '#ffffff', accent: '#8c4117' },
-      safety: { bg: '#9a3f38', fg: '#ffffff', accent: '#732c27' },
+      // Not the error red (--color-error): an ordinary task must not read as a failure.
+      safety: { bg: '#3b4a8c', fg: '#ffffff', accent: '#2a3566' },
       communications: { bg: '#7a3eb1', fg: '#ffffff', accent: '#5a2c83' },
       money: { bg: '#a35a0c', fg: '#ffffff', accent: '#794108' },
       admin: { bg: '#374151', fg: '#ffffff', accent: '#1f2937' },

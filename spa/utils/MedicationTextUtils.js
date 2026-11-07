@@ -60,6 +60,23 @@ export function splitDeclaredMedications(text) {
 }
 
 /**
+ * Separate a declared medication's name from what the parent wrote after it.
+ * The details start at the first word holding a digit after the name ("10mg",
+ * "2 comprimés"): "Ritalin 10mg le matin" names "Ritalin" with "10mg le matin".
+ * An entry without such a word is kept whole as the name.
+ * @param {string} text - One declared medication
+ * @returns {{name: string, details: string}} Name, and the rest (empty when none)
+ */
+export function splitMedicationNameAndDetails(text) {
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+  const firstDetail = words.findIndex((word, index) => index > 0 && /\d/.test(word));
+  if (firstDetail <= 0) {
+    return { name: words.join(' '), details: '' };
+  }
+  return { name: words.slice(0, firstDetail).join(' '), details: words.slice(firstDetail).join(' ') };
+}
+
+/**
  * Whether two medication names designate the same medication.
  * @param {string} a - Name
  * @param {string} b - Name

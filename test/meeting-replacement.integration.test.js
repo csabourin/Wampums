@@ -160,6 +160,23 @@ describe.skipIf(!DATABASE_URL)('An outing that replaces a meeting', () => {
     expect(listed).toMatchObject({ replaced_by_activity_id: activityId, replaced_by_activity_name: 'Fictional zoo outing', is_cancelled: false });
   });
 
+  test('the list of meeting dates names the outing replacing a meeting, and leaves the others alone', async () => {
+    const replacedDate = nextDate();
+    await meeting(replacedDate);
+    const activityId = await outing(replacedDate, { name: 'Fictional aquarium outing' });
+    const plainDate = nextDate();
+    await meeting(plainDate);
+
+    const response = await api('get', '/meetings/dates');
+
+    expect(response.status).toBe(200);
+    const byDate = new Map(response.body.data.map((row) => [row.date, row]));
+    expect(byDate.get(replacedDate)).toMatchObject({
+      replaced_by_activity_id: activityId, replaced_by_activity_name: 'Fictional aquarium outing', is_cancelled: false,
+    });
+    expect(byDate.get(plainDate)).toMatchObject({ replaced_by_activity_id: null, replaced_by_activity_name: null });
+  });
+
   test('the day follows the outing: no meeting programme, and the roster no longer treats it as a meeting day', async () => {
     const date = nextDate();
     await meeting(date);
