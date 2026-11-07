@@ -21,6 +21,7 @@ const STATUS_MESSAGE_KEYS = Object.freeze({
 const CODE_MESSAGE_KEYS = Object.freeze({
   camp_lot_not_prepared: 'camp_lot_not_prepared',
   online_required: 'family_operation_online_required',
+  offline_write_unavailable: 'offline.writeUnavailable',
   demo_read_only: 'demo_read_only_explained',
   operation_unconfirmed: 'family_operation_unconfirmed',
   AI_BUDGET_EXCEEDED: 'ai_budget_exceeded',
