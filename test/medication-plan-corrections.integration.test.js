@@ -167,6 +167,20 @@ describe.skipIf(!DATABASE_URL)('Correcting a medication plan', () => {
     ]));
   });
 
+  test('only the authorization in force counts: its signer correcting the plan is not asked to sign again', async () => {
+    const syrup = await plan(ids.unit, ids.rosalind, ids.mother);
+    const older = await signedBy(ids.mother, ids.rosalind, syrup);
+    await pool.query("UPDATE medication_admin_authorizations SET created_at = NOW() - interval '1 day' WHERE id = $1", [older]);
+    const current = await signedBy(ids.father, ids.rosalind, syrup);
+
+    const response = await call('put', `/requirements/${syrup}`, ids.father, await correction(syrup, ids.rosalind, { default_dose_amount: 8 }));
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.revision.requires_new_signature).toBe(false);
+    expect(await one('SELECT status FROM medication_admin_authorizations WHERE id = $1', [current])).toBe('signed');
+    expect(await one('SELECT status FROM medication_admin_authorizations WHERE id = $1', [older])).toBe('signed');
+  });
+
   test('a leader corrects a plan filled in for a family; the parent who signed signs again', async () => {
     const syrup = await plan(ids.unit, ids.rosalind, ids.leader);
     const authorization = await signedBy(ids.mother, ids.rosalind, syrup);

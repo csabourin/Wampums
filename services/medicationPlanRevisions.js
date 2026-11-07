@@ -143,9 +143,11 @@ async function followCorrectedDose(client, { organizationId, requirementId, befo
 }
 
 /**
- * Ask for a new signature when an adult other than the signer changed what is given: the signed
- * administration authorizations covering this plan become `plan_changed`, and are then listed
- * with those to sign again. The signer correcting their own plan is not asked to sign twice.
+ * Ask for a new signature when anyone but the signer changed what is given. Only the child's
+ * latest administration authorization is in force (the screens and the to-do list read that one);
+ * when it is signed and covers this plan, it becomes `plan_changed` and is listed with those to
+ * sign again. The signer correcting their own plan is not asked to sign twice, and an older,
+ * replaced authorization is left as it was.
  *
  * @param {Object} client - Transaction client
  * @param {Object} plan - `{ organizationId, participantId, requirementId, userId }`
@@ -153,15 +155,21 @@ async function followCorrectedDose(client, { organizationId, requirementId, befo
  */
 async function requireNewSignatureFromOthers(client, { organizationId, participantId, requirementId, userId }) {
   const result = await client.query(
-    `UPDATE medication_admin_authorizations maa
+    `WITH latest AS (
+       SELECT id, status, created_by FROM medication_admin_authorizations
+        WHERE organization_id = $1 AND participant_id = $2
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+     )
+     UPDATE medication_admin_authorizations maa
         SET status = $5, updated_at = NOW()
-      WHERE maa.organization_id = $1
-        AND maa.participant_id = $2
-        AND maa.status = 'signed'
-        AND maa.created_by IS DISTINCT FROM $4::uuid
+       FROM latest
+      WHERE maa.id = latest.id
+        AND latest.status = 'signed'
+        AND latest.created_by IS DISTINCT FROM $4::uuid
         AND EXISTS (
           SELECT 1 FROM medication_admin_authorization_requirements maar
-           WHERE maar.authorization_id = maa.id AND maar.medication_requirement_id = $3
+           WHERE maar.authorization_id = latest.id AND maar.medication_requirement_id = $3
         )`,
     [organizationId, participantId, requirementId, userId, PLAN_CHANGED_STATUS]
   );
