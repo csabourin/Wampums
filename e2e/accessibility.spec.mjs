@@ -366,7 +366,378 @@ test.describe('keyboard', () => {
       // Use the same confirmation as a save, without writing to the shared fixture.
       await page.evaluate(() => window.app.showMessage('medication_requirement_saved', 'success'));
       await page.keyboard.press('Enter');
-      await expect(page).toHaveURL(new RegExp(`/medication-authorizations/${participantId}$`));
+      await expect(page).toHaveURL(new RegExp(`/medication-authorizations/${participantId}/**
+ * WCAG 2.2 AA in a real browser, for the screens a parent, a leader and an
+ * admin use, at phone and desktop size: axe (contrast included), no sideways
+ * scroll, titles, the skip link, focus after navigation, visible and
+ * unobscured focus, and a dialog driven from the keyboard.
+ */
+import { test, expect } from '@playwright/test';
+import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViolations, waitForAnimations,seededActivityId, seededParticipantId, seededProgrammeDate, seededRecord } from './helpers.mjs';
+
+/**
+ * Screens each person reaches from their dashboard or from an emailed link.
+ * Paths are canonical (no redirects); a query names a tab or the record a
+ * screen opens on.
+ */
+const SCREENS = {
+  public: [
+    '/login', '/register', '/reset-password',
+    // Opened from emails. Without a token each shows its "invalid link" state.
+    '/alumni-consent', '/alumni-unsubscribe', '/reactivate-account', '/complete-registration', '/family-link',
+    `/permission-slip/${seededRecord('slipToken')}`,
+  ],
+  parent: [
+    '/personal-equipment', `/personal-equipment/${seededRecord('campMeetingId')}`,
+    '/parent-dashboard', '/parent-finance', '/parent-fundraisers', '/family-access',
+    '/messages', '/account-info', '/parent-program-progress', '/activities',
+    '/parent-onboarding', `/messages/${seededRecord('messageId')}`,
+    `/medication-authorizations/${seededParticipantId()}`,
+  ],
+  leader: [
+    '/dashboard', '/attendance', '/manage-points', '/progression', '/walk-in-children', '/display-settings',
+    '/activities', '/manageHonors', '/reunions',
+    '/progression?tab=programme', '/reunions?tab=preparation',
+  ],
+  admin: [
+    '/dashboard', '/manage-participants', '/invitations',
+    '/unit-settings', '/roles', '/finance', '/budgets', '/expenses', '/reports',
+    `/personal-equipment/${seededRecord('campMeetingId')}/manage`,
+    '/tasks', '/volunteers', '/volunteer-space', `/volunteer-space/${seededRecord('winterCampId')}`,
+    `/camp-readiness/activity-${seededRecord('winterCampId')}`,
+    '/messages', '/yearly-planner', '/medication-management', '/material', '/material?tab=articles', '/permission-slips',
+    `/permission-slips/${seededActivityId()}`,
+    '/carpool', '/form-builder', '/manage-groups', '/mailing-list', '/communication-history',
+    '/incident-reports', '/scout-year', '/participant-duplicates', '/fundraisers', '/resources',
+    '/external-revenue', '/revenue-dashboard', '/roles?tab=formulaires', '/district',
+    '/parent-contact-list', '/view-participant-documents', '/account-info',
+    '/time-since-registration', '/formulaire-inscription', `/carpool/${seededActivityId()}`,
+    '/material-management', '/equipment-loans',
+    '/medication-dispensing', '/medication-reception',
+    '/create-organization', '/units',
+    `/badge-form/${seededParticipantId()}`,
+    '/prepare-offline', '/communications',
+    '/main-dashboard', '/manage-users-participants', '/group-participant-report',
+    `/guardian-management?participant_id=${seededParticipantId()}&participant_name=Lea`,
+    '/district?tab=outils', '/district?tab=roles', '/roles?tab=permissions',
+    '/incident-reports/new',
+    `/incident-reports/${seededRecord('incidentId')}`,
+    `/incident-reports/${seededRecord('incidentId')}/edit`,
+    `/medication-planning/${seededParticipantId()}`,
+    `/medication-authorizations/${seededParticipantId()}`,
+    `/preparation-reunions/${seededProgrammeDate()}`,
+    `/yearly-planner/${seededRecord('yearPlanId')}`,
+    '/yearly-planner/starter-activities',
+    `/camp-material/${seededRecord('campMeetingId')}`,
+    `/camp-readiness/${seededRecord('campMeetingId')}`,
+    `/camp-lots/${seededRecord('campMeetingId')}`,
+    '/camp-sites',
+    `/camp-site/${seededRecord('campMeetingId')}`,
+    `/camp-review/${seededRecord('campMeetingId')}`,
+    '/camp-reviews',
+    `/camp-plan/${seededRecord('campMeetingId')}`,
+    '/camp-plan-templates',
+    '/camp-plans',
+    `/camp-roster/${seededRecord('campMeetingId')}`,
+    `/my-camp-lots/${seededRecord('campMeetingId')}`,
+    `/calendars/${seededRecord('fundraiserId')}`,
+  ],
+};
+
+/**
+ * Violations that predate this suite: each rule lists the exact elements
+ * (axe targets) that break it, so a new element breaking the same rule on the
+ * same screen still fails. Fix an entry when you touch its screen
+ * (CLAUDE.md §7) and delete it here. A listed element that no longer fails
+ * fails the test, so this list only shrinks; it is empty now. The seeded unit
+ * speaks French, so targets name French labels.
+ */
+const KNOWN_VIOLATIONS = {};
+
+/** Screens that stay marked busy after loading, for the same reason. */
+const KNOWN_STAYS_BUSY = {};
+
+/**
+ * @param {string} who - Key of SCREENS
+ */
+function signedInAs(who) {
+  if (who !== 'public') {
+    test.use({ storageState: storageStateFor(ACCOUNTS[who]) });
+  }
+}
+
+for (const [who, paths] of Object.entries(SCREENS)) {
+  test.describe(`${who} screens`, () => {
+    signedInAs(who);
+
+    for (const target of paths) {
+      test(`${target} meets WCAG 2.2 AA for ${who}`, async ({ page }, testInfo) => {
+        const pageErrors = [];
+        page.on('pageerror', (error) => pageErrors.push(error.message));
+        await openScreen(page, target);
+
+        const expected = new URL(target, page.url());
+        const reached = new URL(page.url());
+        expect(reached.pathname, 'the screen is reachable, not redirected').toBe(expected.pathname);
+        for (const [name, value] of expected.searchParams) {
+          expect(reached.searchParams.get(name), `the screen keeps ?${name}`).toBe(value);
+        }
+        // A 404 or 403 page passes axe too: the screen itself must be what was audited.
+        await expect(page.locator('#app .not-found-state'), 'the screen opens, not a 404 or 403 page').toHaveCount(0);
+
+        const known = KNOWN_VIOLATIONS[target] || {};
+        const violations = await axeViolations(page);
+        const unexpected = violations
+          .map((violation) => ({
+            ...violation,
+            targets: violation.targets.filter((element) => !known[violation.id]?.targets.includes(element)),
+          }))
+          .filter((violation) => violation.targets.length > 0);
+        expect(unexpected, 'axe WCAG 2.2 A/AA violations').toEqual([]);
+        const fixed = Object.entries(known).flatMap(([id, entry]) => entry.targets
+          .filter((element) => !violations.some((violation) => violation.id === id && violation.targets.includes(element)))
+          .map((element) => `${id} ${element}`));
+        expect(fixed, 'fixed: remove these from KNOWN_VIOLATIONS').toEqual([]);
+
+        const busy = await page.locator('#app [aria-busy="true"]').count();
+        if (KNOWN_STAYS_BUSY[target]) {
+          expect(busy, 'fixed: remove this screen from KNOWN_STAYS_BUSY').toBeGreaterThan(0);
+        } else {
+          expect(busy, 'nothing is still announced as loading').toBe(0);
+        }
+
+        const heading = page.locator('#app h1').first();
+        if (await heading.count()) {
+          const text = (await heading.innerText()).replace(/\s+/g, ' ').trim();
+          await expect(page).toHaveTitle(`${text} - ${APP_NAME}`);
+        } else {
+          await expect(page).toHaveTitle(new RegExp(` - ${APP_NAME}$|^${APP_NAME}$`));
+        }
+
+        if (testInfo.project.name === 'phone') {
+          const scrollsSideways = await page.evaluate(
+            () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          );
+          expect(scrollsSideways, 'nothing scrolls the page sideways at 390px').toBe(false);
+        }
+
+        expect(pageErrors).toEqual([]);
+      });
+    }
+  });
+}
+
+/**
+ * Where the focused element is, whether focus changes how it is drawn, and
+ * whether something else covers it (WCAG 2.4.7, 2.4.11). The indicator is
+ * what differs between the focused and unfocused element, so a shadow the
+ * element always has does not count as a focus ring.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+function describeFocus(page) {
+  return page.evaluate(async () => {
+    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    // Measure settled states: no transition on the ring, no scroll moving.
+    const settle = async () => {
+      await frame();
+      // An endless animation (an urgent badge's pulse) never finishes: wait
+      // only for those that end, such as the focus ring's transition.
+      const ending = document.getAnimations()
+        .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime));
+      await Promise.all(ending.map((animation) => animation.finished.catch(() => {})));
+      let previous = -1;
+      while (previous !== window.scrollY) {
+        previous = window.scrollY;
+        // eslint-disable-next-line no-await-in-loop -- waits frame by frame until scrolling stops
+        await frame();
+      }
+    };
+    // The ring may be drawn by a pseudo-element (a stretched link's ::after).
+    const ring = (element) => [null, '::before', '::after'].map((pseudo) => {
+      const box = getComputedStyle(element, pseudo);
+      const outline = box.outlineStyle !== 'none' && parseFloat(box.outlineWidth) > 0
+        ? `${box.outlineStyle} ${box.outlineWidth} ${box.outlineColor} ${box.outlineOffset}` : '';
+      const shadow = box.boxShadow && box.boxShadow !== 'none' ? box.boxShadow : '';
+      return { outline, shadow };
+    });
+
+    await settle();
+    const element = document.activeElement;
+    if (!element || element === document.body) {
+      return null;
+    }
+    const rect = element.getBoundingClientRect();
+    const points = [
+      [rect.left + rect.width / 2, rect.top + rect.height / 2],
+      [rect.left + 2, rect.top + 2],
+      [rect.right - 2, rect.bottom - 2],
+    ].filter(([x, y]) => x >= 0 && y >= 0 && x < innerWidth && y < innerHeight);
+    const unobscured = points.some(([x, y]) => {
+      const hit = document.elementFromPoint(x, y);
+      return hit && (hit === element || element.contains(hit) || hit.contains(element));
+    });
+
+    const focused = ring(element);
+    element.blur();
+    await settle();
+    const unfocused = ring(element);
+    element.focus({ preventScroll: true });
+    await settle();
+    const indicator = focused.some((layer, index) => (layer.outline || layer.shadow)
+      && (layer.outline !== unfocused[index].outline || layer.shadow !== unfocused[index].shadow));
+
+    return {
+      name: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''} "${(element.textContent || element.getAttribute('aria-label') || '').trim().slice(0, 40)}"`,
+      indicator,
+      unobscured,
+    };
+  });
+}
+
+/**
+ * Press Tab `steps` times from the top of the page, and list every stop whose
+ * focus is not visible or is covered.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {number} steps
+ * @returns {Promise<Array<Object>>} Problems found
+ */
+async function focusProblemsWhileTabbing(page, steps) {
+  await page.locator('body').focus();
+  const problems = [];
+  for (let step = 0; step < steps; step += 1) {
+    // eslint-disable-next-line no-await-in-loop -- each key press moves on from the previous one
+    await page.keyboard.press('Tab');
+    // eslint-disable-next-line no-await-in-loop -- measured where that key press left focus
+    const focus = await describeFocus(page);
+    if (focus && (!focus.indicator || !focus.unobscured)) {
+      problems.push(focus);
+    }
+  }
+  return problems;
+}
+
+test.describe('keyboard', () => {
+  test.describe('signed out', () => {
+    test('focus is visible and never hidden while tabbing through the sign-in screen', async ({ page }) => {
+      await openScreen(page, '/login');
+      expect(await focusProblemsWhileTabbing(page, 8)).toEqual([]);
+    });
+
+    test('when the app cannot start, it says so in French with a reload button, and meets WCAG 2.2 AA', async ({ page }) => {
+      // The worst start: the unit cannot be found and no translation arrives.
+      await page.route(/\/lang\/|\/api\/v1\/.*organization/, (route) => route.fulfill({ status: 503, body: '{}' }));
+      await page.goto('/login');
+
+      await expect(page.locator('#app h1')).toHaveText('Erreur d’application');
+      await expect(page.locator('#app [role="alert"]')).toContainText('Un problème est survenu');
+      await expect(page).toHaveTitle(`Erreur d’application - ${APP_NAME}`);
+      expect(await page.locator('#app').innerText()).not.toMatch(/\b[a-z]+(?:_[a-z]+)+\b/);
+      expect(await axeViolations(page)).toEqual([]);
+
+      await page.locator('body').focus();
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('button', { name: 'Recharger' })).toBeFocused();
+    });
+
+    test('the skip link stays readable under the mouse', async ({ page }) => {
+      await openScreen(page, '/login');
+      await page.locator('body').focus();
+      await page.keyboard.press('Tab');
+      await page.locator('.skip-link').hover();
+      expect(await axeViolations(page)).toEqual([]);
+    });
+  });
+
+  test.describe('leader', () => {
+    signedInAs('leader');
+
+    test('the first Tab reaches the skip link, which leads to the screen heading', async ({ page }) => {
+      await openScreen(page, '/activities');
+      await page.locator('body').focus();
+      await page.keyboard.press('Tab');
+
+      const skip = page.locator('.skip-link');
+      await expect(skip).toBeFocused();
+      await expect(skip).toBeInViewport();
+      const focus = await describeFocus(page);
+      expect(focus.indicator).toBe(true);
+      expect(focus.unobscured).toBe(true);
+
+      await page.keyboard.press('Enter');
+      await expect(page.locator('#app h1').first()).toBeFocused();
+    });
+
+    test('following a link puts focus on the new screen and names the tab after it', async ({ page }) => {
+      await openScreen(page, '/dashboard');
+      await page.locator('#app a[href="/activities"]').first().focus();
+      await page.keyboard.press('Enter');
+      await page.waitForURL('**/activities');
+      await settleScreen(page);
+
+      const heading = page.locator('#app h1').first();
+      await expect(heading).toBeFocused();
+      await expect(page).toHaveTitle(`${(await heading.innerText()).trim()} - ${APP_NAME}`);
+    });
+
+    test('the dashboard and attendance screens each name themselves with one <h1>, where focus lands', async ({ page }) => {
+      await openScreen(page, '/dashboard');
+      await expect(page.locator('#app h1')).toHaveCount(1);
+      await page.locator('#app a[href="/attendance"]').first().focus();
+      await page.keyboard.press('Enter');
+      await page.waitForURL('**/attendance');
+      await settleScreen(page);
+
+      const heading = page.locator('#app h1');
+      await expect(heading).toHaveCount(1);
+      await expect(heading).toBeFocused();
+      await expect(page).toHaveTitle(`${(await heading.innerText()).trim()} - ${APP_NAME}`);
+    });
+
+    test('focus is visible and never hidden while tabbing through the dashboard', async ({ page }) => {
+      await openScreen(page, '/dashboard');
+      expect(await focusProblemsWhileTabbing(page, 15)).toEqual([]);
+    });
+
+    test('the display tile opens the theme choice, which the arrow keys change', async ({ page }) => {
+      await openScreen(page, '/dashboard');
+      await page.locator('#app a[href="/display-settings"]').first().focus();
+      await page.keyboard.press('Enter');
+      await page.waitForURL('**/display-settings');
+      await settleScreen(page);
+
+      const checked = page.locator('input[name="display_palette"]:checked');
+      const before = await checked.getAttribute('value');
+      await checked.focus();
+      await page.keyboard.press('ArrowDown');
+      await expect(checked).not.toHaveAttribute('value', before);
+      await expect(page.locator('#display-settings-status')).not.toBeEmpty();
+      expect(await axeViolations(page)).toEqual([]);
+    });
+  });
+
+  test.describe('parent', () => {
+    signedInAs('parent');
+
+    test('focus is visible and never hidden while tabbing through the parent dashboard', async ({ page }) => {
+      await openScreen(page, '/parent-dashboard');
+      expect(await focusProblemsWhileTabbing(page, 15)).toEqual([]);
+    });
+
+    test('the medication confirmation leaves Back visible and focused on the next screen', async ({ page }) => {
+      const participantId = seededParticipantId();
+      await openScreen(page, `/medication-planning/${participantId}`);
+      const authorizations = page.getByRole('link', { name: 'Voir les autorisations' });
+      await authorizations.focus();
+      // Use the same confirmation as a save, without writing to the shared fixture.
+      await page.evaluate(() => window.app.showMessage('medication_requirement_saved', 'success'));
+      await page.keyboard.press('Enter');
+));
+      // The authorization form is drawn again after the guardian list arrives.
+      await expect(page.locator('#treatmentAuthForm select[name="guardian_id"] option:not([value=""])').first())
+        .toBeAttached();
       const back = page.locator('#app').getByRole('link', { name: '← Retour', exact: true });
       await back.focus();
 
