@@ -24,6 +24,7 @@ jest.mock('../../spa/config.js', () => ({
 jest.mock('../../spa/utils/DateUtils.js', () => ({
   formatDate: (value) => String(value ?? ''),
   formatClockTime: (value) => String(value ?? ''),
+  formatTimestamp: (value) => `at ${value}`,
   getTodayISO: () => '2026-11-15',
   parseDate: (value) => (value ? new Date(`${String(value).slice(0, 10)}T00:00:00`) : null),
 }));
@@ -69,6 +70,7 @@ import * as api from '../../spa/api/api-endpoints.js';
 import { confirm } from '../../spa/utils/DialogUtils.js';
 import { canManageMedication } from '../../spa/utils/PermissionUtils.js';
 import { MedicationManagement } from '../../spa/modules/medication/MedicationManagement.js';
+import { describeGivenChanges } from '../../spa/modules/medication/MedicationPlanCorrection.js';
 
 const AXE_OPTIONS = {
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
@@ -266,6 +268,24 @@ describe('a parent correcting their child\'s plan', () => {
   });
 });
 
+describe('the check before saving', () => {
+  test('a schedule worded differently but given at the same times is not shown as a change', () => {
+    const before = { ...PLAN, frequency_text: 'Times of day' };
+    const after = { ...PLAN, frequency_text: 'Moments de la journée' };
+    expect(describeGivenChanges(before, after, 'fr')).toEqual([]);
+  });
+
+  test('a time added to the schedule is shown, and so is a new dose', () => {
+    const after = { ...PLAN, frequency_times: ['08:00', '20:00'], default_dose_amount: 4 };
+    expect(describeGivenChanges(PLAN, after, 'fr')).toHaveLength(2);
+  });
+
+  test('notes and dates alone change nothing that is given', () => {
+    const after = { ...PLAN, general_notes: 'Autre note', start_date: '2026-12-01', end_date: '2026-12-10' };
+    expect(describeGivenChanges(PLAN, after, 'fr')).toEqual([]);
+  });
+});
+
 describe('what everyone sees of a corrected plan', () => {
   test('the plan says when it was modified and lists who changed what, names as text', async () => {
     load({ ...PLAN, revisions: [{
@@ -278,6 +298,8 @@ describe('what everyone sees of a corrected plan', () => {
     expect(history.tagName).toBe('DETAILS');
     expect(history.textContent).toContain(HOSTILE);
     expect(history.textContent).toContain('medication_plan_history_signature');
+    // The moment of the change, with its time of day, not only its date.
+    expect(history.textContent).toContain('at 2026-11-07T15:00:00.000Z');
     expect(page().querySelector('.medication-plan-modified').textContent).toBe('medication_plan_modified_on');
     expect(page().querySelector('img')).toBeNull();
     expect((await axe.run(page(), AXE_OPTIONS)).violations).toEqual([]);

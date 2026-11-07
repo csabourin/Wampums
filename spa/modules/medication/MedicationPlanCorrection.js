@@ -8,15 +8,12 @@
  */
 import { translate } from '../../app.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { formatDate } from '../../utils/DateUtils.js';
+import { formatDate, formatTimestamp } from '../../utils/DateUtils.js';
 import { ISO_DATE_LENGTH } from '../../utils/TimeUnits.js';
 import { describeMedicationDose, describeMedicationFrequency } from '../../utils/MedicationTextUtils.js';
 
 /** Length of a clock time written HH:MM. */
 const CLOCK_TIME_LENGTH = 5;
-
-/** How a correction's date reads in the plan's history. */
-const HISTORY_DATE_FORMAT = Object.freeze({ year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 /** The label of each field a correction can change, as the form names it. */
 const FIELD_LABEL_KEYS = Object.freeze({
@@ -76,6 +73,30 @@ function changeLine(label, from, to) {
 }
 
 /**
+ * A plan's schedule as one comparable value: type, times, meal slots and interval.
+ *
+ * @param {Object} plan - Listed plan, or the plan the form will send
+ * @returns {string} Comparable schedule
+ */
+function scheduleKey(plan) {
+  const times = Array.isArray(plan.frequency_times) ? plan.frequency_times : [];
+  const slots = plan.frequency_slots && typeof plan.frequency_slots === 'object' ? plan.frequency_slots : {};
+  const hours = plan.frequency_interval_hours ? Number(plan.frequency_interval_hours) : null;
+  const start = plan.frequency_interval_start ? String(plan.frequency_interval_start).slice(0, CLOCK_TIME_LENGTH) : null;
+  return JSON.stringify([plan.frequency_preset_type || null, times, Object.entries(slots).sort(), hours, start]);
+}
+
+/**
+ * The schedule's type in the page's language, so both sides of the check read alike.
+ *
+ * @param {Object} plan - Listed plan, or the plan the form will send
+ * @returns {string} Schedule type, or the recorded wording when it has none
+ */
+function scheduleName(plan) {
+  return plan.frequency_preset_type ? translate(`medication_frequency_${plan.frequency_preset_type}`) : (plan.frequency_text || '');
+}
+
+/**
  * What a correction changes in what is given, one line each, for the confirmation:
  * "Dose : 5 ml → 7,5 ml". Notes and dates are not listed: they do not change what is given.
  *
@@ -93,9 +114,13 @@ export function describeGivenChanges(before, after, lang) {
   };
   line('medication_name_label', before.medication_name || '', after.medication_name || '');
   line('dose', describeMedicationDose(before, lang), describeMedicationDose(after, lang));
-  const frequency = (plan) => describeMedicationFrequency(plan, lang, translate('medication_frequency_prn_text'),
-    translate('medication_frequency_with_times'));
-  line('medication_frequency_label', frequency(before), frequency(after));
+  // The schedule is compared by what it is, not by its wording: a plan written in another
+  // language reads differently without being given at other times.
+  if (scheduleKey(before) !== scheduleKey(after)) {
+    const frequency = (plan) => describeMedicationFrequency({ ...plan, frequency_text: scheduleName(plan) }, lang,
+      translate('medication_frequency_prn_text'), translate('medication_frequency_with_times'));
+    lines.push(changeLine(translate('medication_frequency_label'), frequency(before) || '—', frequency(after) || '—'));
+  }
   line('medication_route_label', before.route || '', after.route || '');
   return lines;
 }
@@ -113,10 +138,10 @@ export function renderPlanHistory(requirement, lang) {
   if (revisions.length === 0) {
     return '';
   }
-  const latest = formatDate(revisions[0].changed_at, lang, HISTORY_DATE_FORMAT);
+  const latest = formatTimestamp(revisions[0].changed_at, lang);
   const entries = revisions.map((revision) => {
     const who = revision.changed_by_name || translate('unknown');
-    const when = formatDate(revision.changed_at, lang, HISTORY_DATE_FORMAT);
+    const when = formatTimestamp(revision.changed_at, lang);
     const changes = Object.entries(revision.changes || {}).map(([field, change]) => `
       <li>${escapeHTML(changeLine(translate(FIELD_LABEL_KEYS[field] || 'medication'),
     readableValue(field, change?.from, lang), readableValue(field, change?.to, lang)))}</li>`).join('');
