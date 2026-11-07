@@ -200,3 +200,60 @@ describe('Toggling a dependency live', () => {
     expect(box.closest('.form-group').className).toContain('form-group--hidden');
   });
 });
+
+describe('the EpiPen question follows the allergy answer, without losing a saved EpiPen (#1405)', () => {
+  const { fields } = require('../../config/default-form-formats.json').forms
+    .find((form) => form.form_type === 'fiche_sante').form_structure;
+  const CATALOG = { fields };
+
+  /**
+   * Open the catalog's health form through the real handler, as a parent would.
+   *
+   * @param {Object} saved - Saved answers
+   * @returns {Promise<HTMLFormElement>} The rendered form
+   */
+  async function openHealthForm(saved) {
+    document.body.innerHTML = '<div id="app"></div>';
+    const { getFormSubmission } = require('../../spa/ajax-functions.js');
+    getFormSubmission.mockResolvedValue({ success: true, form_data: saved });
+    const handler = new DynamicFormHandler({ showMessage: jest.fn() });
+    await handler.init('fiche_sante', 7, {}, null, false, null, CATALOG);
+    return document.querySelector('form');
+  }
+  const epipen = (form) => form.querySelector('input[name="epipen"]');
+  const hidden = (input) => input.closest('.form-group').classList.contains('form-group--hidden');
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('is asked only once the family answers yes to allergies', async () => {
+    const form = await openHealthForm({ has_allergies: 'no' });
+    expect(hidden(epipen(form))).toBe(true);
+    expect(epipen(form).disabled).toBe(true);
+
+    const yes = form.querySelector('input[name="has_allergies"][value="yes"]');
+    yes.checked = true;
+    yes.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(hidden(epipen(form))).toBe(false);
+    expect(epipen(form).disabled).toBe(false);
+  });
+
+  it('keeps an EpiPen saved on a form that answered no to allergies, shown and ticked', async () => {
+    const form = await openHealthForm({ has_allergies: 'no', epipen: 'yes' });
+
+    expect(hidden(epipen(form))).toBe(false);
+    expect(epipen(form).checked).toBe(true);
+    expect(new FormData(form).get('epipen')).toBe('1');
+  });
+
+  it('hides it again only when the family itself changes its answer', async () => {
+    const form = await openHealthForm({ has_allergies: 'yes', epipen: 'yes' });
+    const no = form.querySelector('input[name="has_allergies"][value="no"]');
+    no.checked = true;
+    no.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(hidden(epipen(form))).toBe(true);
+  });
+});

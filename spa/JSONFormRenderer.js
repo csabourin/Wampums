@@ -1,6 +1,6 @@
 import { app, translate } from './app.js';
 import { debugLog, debugWarn } from './utils/DebugUtils.js';
-import { isDependencyMet, isDependencySatisfied } from './utils/FormDependencyUtils.js';
+import { hasSavedAnswer, isDependencyMet, isDependencySatisfied } from './utils/FormDependencyUtils.js';
 import { formInfoHtml, formLabelHtml } from './utils/FormTextUtils.js';
 import { DEFAULT_LANG } from './config/languages.js';
 
@@ -147,7 +147,11 @@ export class JSONFormRenderer {
     // uneditable, and — on the standalone form, which submits through
     // FormData — dropped that allergy from the next save, because a
     // disabled input is not submitted.
-    const disabled = dependsOn && !this.isDependencyMet(dependsOn) ? 'disabled' : '';
+    // A field marked `keepSavedAnswer` that already holds an answer stays
+    // shown and kept even when its condition is not met: hiding it would empty
+    // it (an EpiPen ticked on a form saved with "no" to allergies).
+    const keepsSavedAnswer = field.keepSavedAnswer === true && hasSavedAnswer(this.formData[name]);
+    const disabled = dependsOn && !this.isDependencyMet(dependsOn) && !keepsSavedAnswer ? 'disabled' : '';
 
     const fieldId = this.useUniqueIds ? `${name}-${this.formIndex}-${index}` : name;
 

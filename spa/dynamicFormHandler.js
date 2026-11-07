@@ -1,7 +1,7 @@
 // dynamicFormHandler.js
 import { translate } from './app.js';
 import { debugLog, debugError, debugWarn } from './utils/DebugUtils.js';
-import { shouldKeepSavedDependency, isControllerAnswerMatching, clearDependentValues, readControllingValue } from './utils/FormDependencyUtils.js';
+import { shouldKeepSavedDependency, isControllerAnswerMatching, clearDependentValues, readControllingValue, hasSavedAnswer } from './utils/FormDependencyUtils.js';
 import { JSONFormRenderer } from './JSONFormRenderer.js';
 import {
   getOrganizationFormFormats,
@@ -287,7 +287,11 @@ export class DynamicFormHandler {
           readControllingValue(controllingElements, controller),
           field.dependsOn.value
         );
-        if (controllingElements.length > 0 && !keepAsRendered) {
+        // A field marked `keepSavedAnswer` holding a saved answer is not
+        // emptied on opening either: the family sees it, and only their own
+        // change to the controlling answer hides it.
+        const keepSavedAnswer = field.keepSavedAnswer === true && hasSavedAnswer(savedAnswers[field.name]);
+        if (controllingElements.length > 0 && !keepAsRendered && !keepSavedAnswer) {
           sync();
         }
       }
