@@ -156,5 +156,21 @@ describe('Medication planning prefill', () => {
     expect(listed()).toEqual([{ name: 'Ritalin', planned: true }]);
     expect(form.elements.medication_name.value).toBe('');
   });
+
+  it('two doses of one medication are planned separately: planning the morning leaves the evening offered', () => {
+    planning.ficheDeclarations = new Map([[5, 'Ritalin 10mg le matin; Ritalin 5mg le soir']]);
+    planning.requirements = [{ id: 1, medication_name: 'Ritalin', dosage_instructions: '10mg le matin' }];
+    planning.participantMedications = [{ participant_id: 5, medication_requirement_id: 1 }];
+    const form = buildForm();
+
+    planning.applyDeclaredPrefill(form, 5);
+
+    expect(listed()).toEqual([
+      { name: 'Ritalin', planned: true },
+      { name: 'Ritalin', planned: false },
+    ]);
+    expect(form.elements.medication_name.value).toBe('Ritalin');
+    expect(form.elements.dosage_instructions.value).toBe('5mg le soir');
+  });
 });
 

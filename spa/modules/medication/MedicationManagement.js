@@ -2075,9 +2075,7 @@ export class MedicationManagement {
     const plannedIds = new Set(this.participantMedications
       .filter((pm) => pm.participant_id === participantId)
       .map((pm) => pm.medication_requirement_id));
-    const plannedNames = this.requirements
-      .filter((req) => plannedIds.has(req.id))
-      .map((req) => req.medication_name);
+    const planned = this.requirements.filter((req) => plannedIds.has(req.id));
     return splitDeclaredMedications(this.ficheDeclarations.get(participantId))
       .map((text) => {
         const { name, details } = splitMedicationNameAndDetails(text);
@@ -2085,8 +2083,13 @@ export class MedicationManagement {
           text,
           name: name.slice(0, MEDICATION_NAME_MAX_LENGTH),
           details,
-          // A requirement saved before names were separated holds the whole text.
-          planned: plannedNames.some((planned) => isSameMedication(planned, name) || isSameMedication(planned, text))
+          // A requirement saved before names were separated holds the whole
+          // text. Otherwise the name and, when the parent wrote them, the
+          // instructions must both match: "Ritalin 10mg le matin" planned does
+          // not cover "Ritalin 5mg le soir".
+          planned: planned.some((req) => isSameMedication(req.medication_name, text)
+            || (isSameMedication(req.medication_name, name)
+              && (!details || isSameMedication(req.dosage_instructions || '', details))))
         };
       });
   }
