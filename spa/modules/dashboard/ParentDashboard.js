@@ -1042,8 +1042,10 @@ export class ParentDashboard {
                 </a>
         ` : '';
 
-    // Offered when the health form declares a medication, or a plan is already under way.
-    const medicationButton = (participant.declares_medication === true || participant.has_planned_medication === true) && !this.hiddenButtons.has('medications') ? `
+    // Offered for every child, unless the unit hides it: a medication prescribed
+    // after the health form was filled in must be addable without editing the
+    // form first. The page itself opens on the form to add a first medication.
+    const medicationButton = !this.hiddenButtons.has('medications') ? `
                 <a href="/medication-planning/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">💊</span>
                         <span class="form-btn__label">${translate('manage_medications')}</span>
