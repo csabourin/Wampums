@@ -29,7 +29,7 @@ import { formatDateShort, getTodayISO, isoToDateString } from '../../utils/DateU
 import { canViewReports, isParent } from '../../utils/PermissionUtils.js';
 import { setContent, setText } from '../../utils/DOMUtils.js';
 import { exportToCSV } from '../../utils/ExportUtils.js';
-import { buildReportExport, isAffirmativeAnswer } from './reportExportDefinitions.js';
+import { buildReportExport, describeMissingForms, isAffirmativeAnswer } from './reportExportDefinitions.js';
 import { CONFIG } from '../../config.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 
@@ -795,6 +795,7 @@ export class Reports {
       lang,
       formatDateShort,
       isoToDateString,
+      formLabel: formTypeLabel,
     });
 
     if (exportDefinition.error) {
@@ -964,20 +965,17 @@ export class Reports {
     ]);
   }
 
+  /**
+	 * One card per youth naming the forms still to hand in. The API lists them
+	 * as form type keys under `missing_forms`; they are shown by name.
+	 *
+	 * @param {Array<Object>} reportData - Missing-documents rows
+	 * @returns {string} HTML
+	 */
   renderMissingDocumentsReport(reportData) {
     return this.renderParticipantCardsReport(reportData, 'missing_documents_report', (item) => [
-      [translate('missing_documents'), this.formatMissingDocuments(item.missing_documents)],
+      [translate('missing_documents'), describeMissingForms(item.missing_forms, { translate, formLabel: formTypeLabel })],
     ]);
-  }
-
-  formatMissingDocuments(missingDocs) {
-    if (Array.isArray(missingDocs)) {
-      return missingDocs.join(', ');
-    } else if (typeof missingDocs === 'object' && missingDocs !== null) {
-      return Object.values(missingDocs).join(', ');
-    } else {
-      return translate('no_missing_documents');
-    }
   }
 
   renderAttendanceReport(data) {

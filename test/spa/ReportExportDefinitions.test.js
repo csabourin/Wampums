@@ -131,6 +131,14 @@ describe('reports that used to be guessed', () => {
     expect(cells(definition, definition.rows[1]).slice(3)).toEqual(['no_missing_documents']);
   });
 
+  test('the missing-documents export names the forms the way the screen does', () => {
+    const definition = buildReportExport('missing-documents', [
+      { first_name: 'Ada', last_name: 'Lovelace', group_name: 'Rouge', missing_forms: ['fiche_sante'] },
+    ], { ...helpers, formLabel: (formType) => `label:${formType}` });
+
+    expect(cells(definition, definition.rows[0]).slice(3)).toEqual(['label:fiche_sante']);
+  });
+
   test('the points export names its columns and leaves out the internal id', () => {
     const definition = exportOf('points', [
       { id: 7, first_name: 'Léa', last_name: 'Roy', group_name: 'Rouge', total_points: 12, honors_count: 2 },

@@ -87,6 +87,21 @@ function formatList(list) {
 }
 
 /**
+ * The forms a youth has not handed in, by name, or a line saying none is missing.
+ * The API lists them as form type keys under `missing_forms`.
+ *
+ * @param {*} missingForms - Form type keys (an array, or an object of them)
+ * @param {{translate: Function, formLabel?: Function}} helpers - `formLabel` names a form type
+ * @returns {string} The forms on one line
+ */
+export function describeMissingForms(missingForms, { translate, formLabel = (formType) => formType }) {
+  const forms = Array.isArray(missingForms)
+    ? missingForms
+    : Object.values(missingForms && typeof missingForms === 'object' ? missingForms : {});
+  return forms.length ? forms.map((formType) => formLabel(formType)).join(LIST_SEPARATOR) : translate('no_missing_documents');
+}
+
+/**
  * @param {Object} row - Attendance row with a `summary` of counts per status
  * @param {string} status - `present`, `absent`, `late` or `excused`
  * @returns {number} Days recorded with that status
@@ -173,7 +188,7 @@ function reportRows(reportType, reportData) {
  *
  * @param {string} reportType - The report's key (`allergies`, `health`…)
  * @param {*} reportData - What the report loaded
- * @param {{translate: Function, lang?: string, formatDateShort: Function, isoToDateString: Function}} helpers
+ * @param {{translate: Function, lang?: string, formatDateShort: Function, isoToDateString: Function, formLabel?: Function}} helpers
  * @returns {{rows: Array<Object>, columns: Array<Object>}|{error: string}} What to export, or why nothing can be
  */
 export function buildReportExport(reportType, reportData, helpers) {
@@ -250,7 +265,7 @@ export function buildReportExport(reportType, reportData, helpers) {
         {
           key: 'missing_documents',
           label: translate('missing_documents'),
-          format: (_, row) => formatList(row.missing_forms) || translate('no_missing_documents'),
+          format: (_, row) => describeMissingForms(row.missing_forms, helpers),
         },
       ];
       break;

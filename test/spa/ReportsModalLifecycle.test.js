@@ -458,7 +458,8 @@ describe('reports listing youth', () => {
     ['leave alone', 'renderLeaveAloneReport', { ...row, can_leave_alone: 'on' }, 'can_leave_alone', 'yes'],
     ['leave alone answered "oui"', 'renderLeaveAloneReport', { ...row, can_leave_alone: 'oui' }, 'can_leave_alone', 'yes'],
     ['media', 'renderMediaAuthorizationReport', { ...row, media_authorized: false }, 'media_authorized', 'no'],
-    ['missing documents', 'renderMissingDocumentsReport', { ...row, missing_documents: ['fiche_sante'] }, 'missing_documents', 'fiche_sante'],
+    ['missing documents', 'renderMissingDocumentsReport', { ...row, missing_forms: ['fiche_sante'] }, 'missing_documents', 'fiche sante'],
+    ['complete documents', 'renderMissingDocumentsReport', { ...row, missing_forms: [] }, 'missing_documents', 'no_missing_documents'],
     ['age', 'renderParticipantAgeReport', { ...row, date_naissance: '2015-01-01', age: 11 }, 'age', '11'],
   ])('the %s report is one labelled card per youth, with names shown as text', async (_name, method, item, label, value) => {
     const { reports } = setup();
