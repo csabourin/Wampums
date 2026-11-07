@@ -157,6 +157,41 @@ const MEDICATION_REQUIREMENT_WRITE_POLICY = {
 };
 
 /**
+ * Whether the caller is linked to the child of the plan named by `:id`.
+ * @param {Object} req - Request
+ * @param {{pool: Object, organizationId: number}} context - Current unit and pool
+ * @returns {Promise<boolean|null>} null when the unit has no such plan
+ */
+async function linkedToPlanChild(req, { pool, organizationId }) {
+  const requirementId = validId(req.params.id);
+  if (!requirementId) {return false;}
+  const result = await pool.query(
+    `SELECT EXISTS (
+       SELECT 1 FROM user_participants up
+        WHERE up.participant_id = mr.participant_id AND up.user_id = $3
+     ) AS linked
+       FROM medication_requirements mr
+      WHERE mr.id = $1 AND mr.organization_id = $2`,
+    [requirementId, organizationId, req.user.id]
+  );
+  return result.rows.length === 0 ? null : result.rows[0].linked === true;
+}
+
+/**
+ * Correcting a medication plan is the family's (#1379): only an adult linked to the plan's child
+ * (`user_participants`) may change it, whatever medication keys a role holds. The team plans
+ * with the family when a plan is created, then administers what the family wrote; it does not
+ * rewrite it. A team member asking for a plan this unit does not have is answered 404 by the
+ * handler; anyone else without the link is refused.
+ */
+const MEDICATION_PLAN_EDIT_POLICY = {
+  permissions: ['medication.manage'],
+  organizationScope: true,
+  resourceScope: async (req, context) => (await linkedToPlanChild(req, context)) !== false,
+  resourceAccess: async (req, context) => (await linkedToPlanChild(req, context)) === true,
+};
+
+/**
  * Doses and medication brought to an activity are the team's work (#1339): listing the unit's
  * doses, scheduling, confirming a dose, and recording what was received. A role that sees only
  * its own children is refused, whatever keys a unit gave it; families plan through
@@ -166,6 +201,7 @@ const MEDICATION_STAFF_POLICY = { permissions: ['medication.manage'], organizati
 
 module.exports = {
   MEDICATION_REQUIREMENT_WRITE_POLICY,
+  MEDICATION_PLAN_EDIT_POLICY,
   MEDICATION_STAFF_POLICY,
   validId,
   medicationParticipantInUnit,

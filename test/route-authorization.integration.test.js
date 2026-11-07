@@ -254,9 +254,9 @@ describe.skipIf(!DATABASE_URL)('Shared route authorization', () => {
     expect(created.body.data.participant_id).toBe(ids.child);
 
     const edited = await call('put', `/api/v1/medication/requirements/${created.body.data.id}`, parent,
-      { medication_name: 'Ventolin HFA', participant_ids: [ids.child] });
+      { medication_name: 'Ventolin HFA', participant_ids: [ids.child], expected_updated_at: created.body.data.updated_at });
     expect(edited.status).toBe(200);
-    expect(edited.body.data.medication_name).toBe('Ventolin HFA');
+    expect(edited.body.data.requirement.medication_name).toBe('Ventolin HFA');
 
     const [forSibling, takeOver, distribution, reception] = await Promise.all([
       call('post', '/api/v1/medication/requirements', parent, { medication_name: 'X', participant_ids: [sibling] }),

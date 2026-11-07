@@ -20,7 +20,6 @@ import {
   getMedicationReceptions,
   getFicheMedicationDeclarations,
   saveMedicationReception,
-  saveMedicationRequirement,
 } from '../../api/api-endpoints.js';
 
 /** How long typing in a quantity or a note pauses before it is saved. */
@@ -46,7 +45,6 @@ export class MedicationReception {
     this.declinedParticipantIds = new Set();
     this.selectedActivityId = options.activityId || null;
     this.showAllParticipants = false;
-    this.editingMedications = new Set(); // Track which medications are being edited
     // Set when the receptions of the chosen activity did not load: the list is
     // then an error, never every medication shown as not received.
     this.receptionsFailed = false;
@@ -283,50 +281,6 @@ export class MedicationReception {
         margin-bottom: 0.5rem;
       }
 
-      .edit-toggle-btn {
-        background: transparent;
-        border: 1px solid #d1d5db;
-        color: #6b7280;
-        padding: 0.25rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.85rem;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-
-      .edit-toggle-btn:hover {
-        border-color: #0b3c5d;
-        color: #0b3c5d;
-      }
-
-      .med-item-editable-fields {
-        display: none;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.5rem;
-        margin-top: 0.5rem;
-        padding-top: 0.5rem;
-        border-top: 1px solid #e5e7eb;
-      }
-
-      .med-item-editable-fields.visible {
-        display: grid;
-      }
-
-      .med-item-editable-fields label {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-        font-size: 0.85rem;
-        color: #374151;
-      }
-
-      .med-item-editable-fields input,
-      .med-item-editable-fields textarea {
-        padding: 0.5rem;
-        border: 1px solid #d1d5db;
-        border-radius: 4px;
-        font-size: 0.9rem;
-      }
 
       .med-item-reception {
         display: grid;
@@ -424,10 +378,6 @@ export class MedicationReception {
           flex-direction: column;
           align-items: flex-start;
           gap: 0.5rem;
-        }
-
-        .med-item-editable-fields {
-          grid-template-columns: 1fr;
         }
 
         .med-item-reception {
@@ -693,7 +643,6 @@ export class MedicationReception {
   renderMedicationItem(participant, medication) {
     const req = medication.requirement;
     const reception = this.getReception(participant.id, req.id);
-    const isEditing = this.editingMedications.has(`${participant.id}-${req.id}`);
 
     const doseInfo = describeMedicationDose(req, this.app.lang);
     const route = req.route ? ` · ${req.route}` : '';
@@ -705,7 +654,7 @@ export class MedicationReception {
     const notes = reception?.reception_notes || '';
 
     return `
-      <div class="medication-reception-item ${isEditing ? 'editing' : ''}"
+      <div class="medication-reception-item"
            data-participant-id="${participant.id}"
            data-requirement-id="${req.id}">
         <div class="med-item-header">
@@ -719,25 +668,6 @@ export class MedicationReception {
               ${escapeHTML(req.general_notes)}
             </div>` : ''}
           </div>
-          <button type="button" class="edit-toggle-btn" data-participant-id="${participant.id}" data-requirement-id="${req.id}"
-                  aria-expanded="${isEditing}" aria-controls="edit-fields-${participant.id}-${req.id}">
-            ${isEditing ? translate('med_reception_done_editing') : translate('med_reception_edit')}
-          </button>
-        </div>
-
-        <div class="med-item-editable-fields ${isEditing ? 'visible' : ''}" id="edit-fields-${participant.id}-${req.id}">
-          <label>
-            ${translate('medication_name_label')}
-            <input type="text" data-field="medication_name" value="${escapeHTML(req.medication_name)}" />
-          </label>
-          <label>
-            ${translate('medication_dosage_label')}
-            <input type="text" data-field="dosage" value="${escapeHTML(req.dosage_instructions || '')}" />
-          </label>
-          <label style="grid-column: 1 / -1;">
-            ${translate('medication_general_notes_label')}
-            <textarea data-field="notes" rows="2">${escapeHTML(req.general_notes || '')}</textarea>
-          </label>
         </div>
 
         <div class="med-item-reception">
@@ -834,15 +764,8 @@ export class MedicationReception {
     const { signal } = this.delegation;
     const appContainer = document.getElementById('app');
 
-    // Edit toggle buttons
+    // The team records what it received; the plan itself is the family's (#1379).
     appContainer?.addEventListener('click', (e) => {
-      const editBtn = e.target.closest('.edit-toggle-btn');
-      if (editBtn) {
-        const participantId = parseInt(editBtn.dataset.participantId);
-        const requirementId = parseInt(editBtn.dataset.requirementId);
-        this.toggleEdit(participantId, requirementId);
-      }
-
       // Mark all received button
       const markAllBtn = e.target.closest('.mark-all-received');
       if (markAllBtn) {
@@ -869,44 +792,6 @@ export class MedicationReception {
         }, QUANTITY_SAVE_DELAY_MS);
       }
     }, { signal });
-
-    // Save editable fields on blur
-    appContainer?.addEventListener('blur', (e) => {
-      if (e.target.dataset.field === 'medication_name' ||
-          e.target.dataset.field === 'dosage' ||
-          e.target.dataset.field === 'notes') {
-        const item = e.target.closest('.medication-reception-item');
-        if (item) {
-          const participantId = parseInt(item.dataset.participantId);
-          const requirementId = parseInt(item.dataset.requirementId);
-          this.saveRequirementEdits(requirementId, item);
-        }
-      }
-    }, { capture: true, signal });
-  }
-
-  toggleEdit(participantId, requirementId) {
-    const key = `${participantId}-${requirementId}`;
-
-    if (this.editingMedications.has(key)) {
-      this.editingMedications.delete(key);
-    } else {
-      this.editingMedications.add(key);
-    }
-
-    // Re-render just this medication item
-    const item = document.querySelector(`.medication-reception-item[data-participant-id="${participantId}"][data-requirement-id="${requirementId}"]`);
-    if (item) {
-      const participant = this.participants.find(p => p.id === participantId);
-      const medication = this.getParticipantMedications(participantId).find(m => m.requirement.id === requirementId);
-
-      if (participant && medication) {
-        const newHtml = this.renderMedicationItem(participant, medication);
-        const temp = document.createElement('div');
-        setContent(temp, newHtml);
-        item.replaceWith(temp.firstElementChild);
-      }
-    }
   }
 
   async markAllReceived(participantId) {
@@ -988,54 +873,6 @@ export class MedicationReception {
     this.showSaveStatus(participantId, requirementId, 'success');
     await this.loadReceptions();
     return true;
-  }
-
-  async saveRequirementEdits(requirementId, item) {
-    try {
-      const requirement = this.requirements.find(r => r.id === requirementId);
-      if (!requirement) {return;}
-
-      const editFields = item.querySelector('.med-item-editable-fields');
-      if (!editFields) {return;}
-
-      const medicationName = editFields.querySelector('[data-field="medication_name"]')?.value?.trim();
-      const dosage = editFields.querySelector('[data-field="dosage"]')?.value?.trim();
-      const notes = editFields.querySelector('[data-field="notes"]')?.value?.trim();
-
-      const payload = {
-        id: requirementId,
-        medication_name: medicationName || requirement.medication_name,
-        dosage_instructions: dosage || requirement.dosage_instructions,
-        general_notes: notes || requirement.general_notes,
-        // Include other required fields
-        frequency_preset_type: requirement.frequency_preset_type,
-        frequency_times: requirement.frequency_times,
-        frequency_text: requirement.frequency_text,
-        route: requirement.route,
-        default_dose_amount: requirement.default_dose_amount,
-        default_dose_unit: requirement.default_dose_unit,
-        start_date: requirement.start_date,
-        end_date: requirement.end_date,
-        participant_ids: [item.dataset.participantId]
-      };
-
-      const result = await saveMedicationRequirement(payload);
-
-      if (result?.success) {
-        this.app.showMessage(translate('med_reception_requirement_updated'), 'success');
-        // Update local cache
-        Object.assign(requirement, {
-          medication_name: medicationName,
-          dosage_instructions: dosage,
-          general_notes: notes
-        });
-      } else {
-        throw Object.assign(new Error('requirement_not_saved'), { status: result?.status });
-      }
-    } catch (error) {
-      debugError('Error updating requirement', error);
-      this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
-    }
   }
 
   showSaveStatus(participantId, requirementId, type) {

@@ -92,7 +92,7 @@
     "spa/modules/honors/ManageHonors.js": 5,
     "spa/modules/incident-report/incident-report.js": 1,
     "spa/modules/medication/MedicationManagement.js": 6,
-    "spa/modules/medication/MedicationReception.js": 2,
+    "spa/modules/medication/MedicationReception.js": 1,
     "spa/modules/meetings/ActivityManager.js": 15,
     "spa/modules/meetings/MeetingAutosave.js": 5,
     "spa/modules/meetings/UpcomingMeeting.js": 11,

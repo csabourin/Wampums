@@ -9,6 +9,7 @@ const {
   familyMedicationAccess,
   MEDICATION_LIST_READ_POLICY,
   MEDICATION_REQUIREMENT_WRITE_POLICY,
+  MEDICATION_PLAN_EDIT_POLICY,
   MEDICATION_STAFF_POLICY,
   validId,
   listParticipantFilter
@@ -17,6 +18,13 @@ const { areUnitLeaders } = require('../services/unitLeaders');
 const { getActivityParticipation } = require('../services/activityInvitations');
 const { declaresMedication, medicationText } = require('../utils/health-form');
 const { isCalendarDate } = require('../utils/calendar-date');
+const {
+  planChanges,
+  changesWhatIsGiven,
+  followCorrectedDose,
+  requireNewSignatureFromOthers,
+  recordRevision,
+} = require('../services/medicationPlanRevisions');
 
 const MEDICATION_READ_PERMISSIONS = ['medication.view'];
 const MEDICATION_MANAGE_PERMISSIONS = ['medication.manage'];
@@ -155,7 +163,19 @@ module.exports = (pool, logger) => {
               frequency_text, frequency_preset_type, frequency_times, frequency_slots,
               frequency_interval_hours, frequency_interval_start,
               route, default_dose_amount, default_dose_unit, general_notes,
-              start_date, end_date, created_by, created_at, updated_at
+              start_date, end_date, created_by, created_at, updated_at, participant_id,
+              COALESCE((
+                SELECT json_agg(json_build_object(
+                         'changes', r.changes,
+                         'changed_by', r.changed_by,
+                         'changed_by_name', u.full_name,
+                         'changed_at', r.changed_at,
+                         'requires_new_signature', r.requires_new_signature
+                       ) ORDER BY r.changed_at DESC, r.id DESC)
+                  FROM medication_requirement_revisions r
+                  LEFT JOIN users u ON u.id = r.changed_by
+                 WHERE r.medication_requirement_id = mr.id AND r.organization_id = mr.organization_id
+              ), '[]'::json) AS revisions
        FROM medication_requirements mr
        WHERE organization_id = $1
          AND ($2::int IS NULL OR mr.participant_id = $2 OR EXISTS (
@@ -359,68 +379,102 @@ module.exports = (pool, logger) => {
 
   /**
    * PUT /v1/medication/requirements/:id
-   * Update a medication requirement and participant assignments
-   * Permission: medication.manage for the unit; a parent, for a linked child
+   * Correct a medication plan in place (#1379): same id, same child. Only an adult linked to the
+   * child may (MEDICATION_PLAN_EDIT_POLICY). The body names the version it started from
+   * (`expected_updated_at`); a plan changed since answers 409 `medication_requirement_changed`,
+   * another child 409 `medication_participant_immutable`. Each correction is recorded in
+   * medication_requirement_revisions; doses already given never change.
    */
-  router.put('/v1/medication/requirements/:id', authenticate, blockDemoRoles, requirePermission(MEDICATION_REQUIREMENT_WRITE_POLICY), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
+  router.put('/v1/medication/requirements/:id', authenticate, blockDemoRoles, validateIdParam('id'), checkValidation, requirePermission(MEDICATION_PLAN_EDIT_POLICY), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-
     const requirementId = Number(req.params.id);
+    const body = req.body || {};
 
-    const {
-      medication_name,
-      dosage_instructions,
-      frequency_text,
-      frequency_preset_type,
-      frequency_times,
-      frequency_slots,
-      frequency_interval_hours,
-      frequency_interval_start,
-      route,
-      default_dose_amount,
-      default_dose_unit,
-      general_notes,
-      start_date,
-      end_date,
-      participant_ids
-    } = req.body || {};
-
-    const normalizedName = normalizeText(medication_name, TEXT_LIMITS.MEDICATION_NAME);
-    const participants = parseParticipantIds(participant_ids);
-
+    const normalizedName = normalizeText(body.medication_name, TEXT_LIMITS.MEDICATION_NAME);
     if (!normalizedName) {
       return error(res, 'Medication name and a participant are required', HTTP_STATUS.BAD_REQUEST);
     }
 
-    if (!participants || participants.length !== 1) {
+    // A correction names the version it started from, so two adults correcting one plan at
+    // once cannot silently overwrite each other.
+    const expectedVersion = typeof body.expected_updated_at === 'string' ? Date.parse(body.expected_updated_at) : NaN;
+    if (!Number.isFinite(expectedVersion)) {
+      return error(res, 'medication_requirement_version_required', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    const participants = body.participant_ids === undefined ? null : parseParticipantIds(body.participant_ids);
+    if (body.participant_ids !== undefined && (!participants || participants.length !== 1)) {
       return error(res, 'Medication requirements must target exactly one participant', HTTP_STATUS.BAD_REQUEST);
     }
 
-    const numericDoseAmount = default_dose_amount !== undefined && default_dose_amount !== null
-      ? Number(default_dose_amount)
+    const numericDoseAmount = body.default_dose_amount !== undefined && body.default_dose_amount !== null
+      ? Number(body.default_dose_amount)
       : null;
-
     if (numericDoseAmount !== null && !Number.isFinite(numericDoseAmount)) {
       return error(res, 'Default dose amount must be a valid number', HTTP_STATUS.BAD_REQUEST);
     }
 
-    const scheduleProblem = requirementScheduleProblem(req.body, numericDoseAmount);
+    const scheduleProblem = requirementScheduleProblem(body, numericDoseAmount);
     if (scheduleProblem) {
       return error(res, scheduleProblem, HTTP_STATUS.BAD_REQUEST);
     }
+
+    const next = {
+      medication_name: normalizedName,
+      dosage_instructions: normalizeText(body.dosage_instructions),
+      frequency_text: normalizeText(body.frequency_text, TEXT_LIMITS.FREQUENCY_TEXT),
+      frequency_preset_type: normalizeText(body.frequency_preset_type, TEXT_LIMITS.FREQUENCY_PRESET),
+      frequency_times: body.frequency_times ? JSON.stringify(body.frequency_times) : null,
+      frequency_slots: body.frequency_slots ? JSON.stringify(body.frequency_slots) : null,
+      frequency_interval_hours: body.frequency_interval_hours ? Number(body.frequency_interval_hours) : null,
+      frequency_interval_start: body.frequency_interval_start || null,
+      route: normalizeText(body.route, TEXT_LIMITS.ROUTE),
+      default_dose_amount: numericDoseAmount,
+      default_dose_unit: normalizeText(body.default_dose_unit, TEXT_LIMITS.DOSE_UNIT),
+      general_notes: normalizeText(body.general_notes),
+      start_date: readTreatmentDate(body.start_date),
+      end_date: readTreatmentDate(body.end_date),
+    };
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
       const existing = await client.query(
-        'SELECT id FROM medication_requirements WHERE id = $1 AND organization_id = $2',
+        `SELECT id, participant_id, medication_name, dosage_instructions, frequency_preset_type,
+                frequency_times, frequency_slots, frequency_interval_hours,
+                to_char(frequency_interval_start, 'HH24:MI') AS frequency_interval_start,
+                route, default_dose_amount, default_dose_unit, general_notes,
+                to_char(start_date, 'YYYY-MM-DD') AS start_date,
+                to_char(end_date, 'YYYY-MM-DD') AS end_date, updated_at
+           FROM medication_requirements
+          WHERE id = $1 AND organization_id = $2
+          FOR UPDATE`,
         [requirementId, organizationId]
       );
 
       if (existing.rows.length === 0) {
         await client.query('ROLLBACK');
         return error(res, 'Medication requirement not found', HTTP_STATUS.NOT_FOUND);
+      }
+      const current = existing.rows[0];
+
+      // The child is what the plan is for; giving it to another child would detach the doses
+      // already given. Another child gets a plan of their own.
+      if (participants && participants[0] !== current.participant_id) {
+        await client.query('ROLLBACK');
+        return error(res, 'medication_participant_immutable', HTTP_STATUS.CONFLICT);
+      }
+
+      if (new Date(current.updated_at).getTime() !== expectedVersion) {
+        await client.query('ROLLBACK');
+        return error(res, 'medication_requirement_changed', HTTP_STATUS.CONFLICT);
+      }
+
+      const changes = planChanges(current, next);
+      if (Object.keys(changes).length === 0) {
+        await client.query('ROLLBACK');
+        return success(res, { requirement: current, revision: null }, 'Medication requirement unchanged');
       }
 
       const updatedRequirement = await client.query(
@@ -439,57 +493,33 @@ module.exports = (pool, logger) => {
              general_notes = $12,
              start_date = $13,
              end_date = $14,
-             participant_id = $17,
              updated_at = NOW()
          WHERE id = $15 AND organization_id = $16
          RETURNING *`,
         [
-          normalizedName,
-          normalizeText(dosage_instructions),
-          normalizeText(frequency_text, TEXT_LIMITS.FREQUENCY_TEXT),
-          normalizeText(frequency_preset_type, TEXT_LIMITS.FREQUENCY_PRESET),
-          frequency_times ? JSON.stringify(frequency_times) : null,
-          frequency_slots ? JSON.stringify(frequency_slots) : null,
-          frequency_interval_hours ? Number(frequency_interval_hours) : null,
-          frequency_interval_start || null,
-          normalizeText(route, TEXT_LIMITS.ROUTE),
-          numericDoseAmount,
-          normalizeText(default_dose_unit, TEXT_LIMITS.DOSE_UNIT),
-          normalizeText(general_notes),
-          readTreatmentDate(start_date),
-          readTreatmentDate(end_date),
-          requirementId,
-          organizationId,
-          participants[0]
+          next.medication_name, next.dosage_instructions, next.frequency_text, next.frequency_preset_type,
+          next.frequency_times, next.frequency_slots, next.frequency_interval_hours, next.frequency_interval_start,
+          next.route, next.default_dose_amount, next.default_dose_unit, next.general_notes,
+          next.start_date, next.end_date, requirementId, organizationId,
         ]
       );
 
-      // Batch insert all participant medications in a single query
-      if (participants.length > 0) {
-        const values = participants.map((participantId, idx) =>
-          `($1, $2, $${idx + SHARED_PARAMS_BEFORE_PARTICIPANTS + 1}, NULL)`
-        ).join(', ');
-
-        await client.query(
-          `INSERT INTO participant_medications (
-            organization_id, medication_requirement_id, participant_id, participant_notes
-          ) VALUES ${values}
-          ON CONFLICT (organization_id, medication_requirement_id, participant_id)
-          DO UPDATE SET updated_at = NOW()`,
-          [organizationId, requirementId, ...participants]
-        );
+      let requiresNewSignature = false;
+      if (changesWhatIsGiven(changes)) {
+        if (changes.default_dose_amount || changes.default_dose_unit) {
+          await followCorrectedDose(client, { organizationId, requirementId, before: current, after: next });
+        }
+        requiresNewSignature = await requireNewSignatureFromOthers(client, {
+          organizationId, participantId: current.participant_id, requirementId, userId: req.user.id,
+        });
       }
 
-      await client.query(
-        `DELETE FROM participant_medications
-         WHERE organization_id = $1
-           AND medication_requirement_id = $2
-           AND participant_id <> ALL($3::int[])`,
-        [organizationId, requirementId, participants]
-      );
+      const revision = await recordRevision(client, {
+        organizationId, requirementId, changes, userId: req.user.id, requiresNewSignature,
+      });
 
       await client.query('COMMIT');
-      return success(res, updatedRequirement.rows[0], 'Medication requirement updated');
+      return success(res, { requirement: updatedRequirement.rows[0], revision }, 'Medication requirement updated');
     } catch (err) {
       await client.query('ROLLBACK');
       logger.error('Error updating medication requirement', err);
