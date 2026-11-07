@@ -100,7 +100,7 @@
     "@babel/core": "^7.29.0",
     "@babel/preset-env": "^7.29.0",
     "@eslint/js": "^9.39.5",
-    "@playwright/test": "1.56.1",
+    "@playwright/test": "1.65.0",
     "axe-core": "^4.14.0",
     "babel-jest": "^30.5.2",
     "eslint": "^9.39.5",
