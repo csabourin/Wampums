@@ -59,7 +59,7 @@
     "services/socket.js": 1,
     "services/whatsapp-baileys.js": 13,
     "services/whatsapp-database-auth.js": 1,
-    "spa/api/api-core.js": 16,
+    "spa/api/api-core.js": 14,
     "spa/api/api-endpoints.js": 77,
     "spa/api/api-helpers.js": 6,
     "spa/api/api-yearly-planner.js": 11,

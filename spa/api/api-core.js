@@ -39,7 +39,7 @@ function addCacheBuster(url) {
 /**
  * Build API URL with parameters
  */
-export function buildApiUrl(endpoint, params = {}) {
+export function buildApiUrl(endpoint, params = {}, authenticated = false) {
   const normalizedEndpoint = String(endpoint || '').replace(/^\/+/, '');
 
   let requestPath;
@@ -55,28 +55,27 @@ export function buildApiUrl(endpoint, params = {}) {
 
   const url = new URL(requestPath, CONFIG.API_BASE_URL);
 
-  // Guard: ensure params is a plain object, and copy it so the caller's
-  // object is never mutated (organization_id is injected below)
+  // The signed-in unit comes from the bearer token. Keep the legacy query
+  // fallback for signed-out callers, including direct links.
+  let query = params;
   if (typeof params !== 'object' || params === null || Array.isArray(params)) {
     debugWarn('buildApiUrl received non-object params, ignoring:', params);
-    params = {};
-  } else {
-    params = { ...params };
+    query = {};
+  }
+  const organizationId = authenticated ? null : getCurrentOrganizationId();
+  if (organizationId && !query.organization_id && !url.searchParams.has('organization_id')
+    && !endpoint.includes('organizations/get_organization_id')) {
+    url.searchParams.set('organization_id', organizationId);
   }
 
-  // Add organization ID if not already present
-  const organizationId = getCurrentOrganizationId();
-  const shouldSkipOrgId = endpoint.includes('organizations/get_organization_id');
-  if (organizationId && !params.organization_id && !shouldSkipOrgId) {
-    params.organization_id = organizationId;
-  }
-
-  // Add all parameters to URL
-  Object.entries(params).forEach(([key, value]) => {
+  Object.entries(query).forEach(([key, value]) => {
     if (value !== null && value !== undefined) {
       url.searchParams.append(key, value);
     }
   });
+  if (authenticated) {
+    url.searchParams.delete('organization_id');
+  }
 
   return url.toString();
 }
@@ -377,7 +376,9 @@ async function sendApiRequest(endpoint, options = {}) {
     cached = false
   } = options;
 
-  let url = buildApiUrl(endpoint, params);
+  const requestHeaders = { ...getAuthHeader(), ...headers };
+  const requestToken = requestSessionToken(requestHeaders);
+  let url = buildApiUrl(endpoint, params, Boolean(requestToken));
   if (cacheBuster) {
     url = addCacheBuster(url);
   }
@@ -407,13 +408,11 @@ async function sendApiRequest(endpoint, options = {}) {
     method,
     headers: {
       'Accept': 'application/json',
-      ...getAuthHeader(),
       ...(liveSyncClientId && method !== 'GET' ? { [LIVE_SYNC_CLIENT_HEADER]: liveSyncClientId } : {}),
-      ...headers
+      ...requestHeaders
     },
     signal
   };
-  const requestToken = requestSessionToken(requestConfig.headers);
   noteRequestSession(requestToken);
 
   if (body && method !== 'GET') {

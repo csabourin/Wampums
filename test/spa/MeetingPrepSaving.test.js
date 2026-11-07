@@ -45,7 +45,7 @@ jest.mock('../../spa/api/api-yearly-planner.js', () => ({
 }));
 jest.mock('../../spa/api/api-endpoints.js', () => ({
   getMeetingActivities: jest.fn(() => Promise.resolve({ data: [] })),
-  getAnimateurs: jest.fn(() => Promise.resolve({ data: [{ id: 'u1', full_name: 'Akela' }] })),
+  getLeaders: jest.fn(() => Promise.resolve({ data: { users: [{ id: 'u1', full_name: 'Akela' }] } })),
   getHonorsHistory: jest.fn(() => Promise.resolve({ data: { honors: [] } })),
   getParticipants: jest.fn(() => Promise.resolve({ data: [] })),
   getBadgeSystemSettings: jest.fn(() => Promise.resolve({ data: { templates: [] } })),
@@ -208,3 +208,59 @@ test('a date an outing replaces is named after the outing in the date list', () 
   expect(option.textContent).toContain('yearly_planner_replaced_by');
 });
 
+
+describe('meeting reference information', () => {
+  const { hasPermission } = require('../../spa/utils/PermissionUtils.js');
+
+  afterEach(() => hasPermission.mockImplementation(() => true));
+
+  test('a leader without directory access sees the assigned leader and learns why prior honors are missing', async () => {
+    hasPermission.mockImplementation((key) => !['users.view', 'honors.view'].includes(key));
+    endpoints.getLeaders.mockResolvedValueOnce({
+      data: { users: [{ id: 'u2', full_name: '<img src=x> Akela' }] },
+    });
+    endpoints.getReunionDates.mockResolvedValueOnce({ data: [{ date: '2026-10-28' }, { date: DATE }] });
+    endpoints.getReunionPreparation.mockResolvedValueOnce({
+      data: { meeting: { animateur_responsable: 'u2', youth_of_honor: ['Camille'] } },
+    });
+    await screen.fetchData();
+    await screen.loadMeeting(DATE);
+
+    const leader = document.getElementById('animateur-responsable');
+    expect(leader.selectedOptions[0].textContent).toBe('<img src=x> Akela');
+    expect(leader.querySelector('img')).toBeNull();
+    expect(endpoints.getHonorsHistory).not.toHaveBeenCalled();
+    expect(document.getElementById('youth-of-honor').value).toBe('Camille');
+    expect(document.getElementById('meeting-honors-error').textContent).toContain('meeting_honors_permission_required');
+
+    const axe = require('axe-core');
+    const results = await axe.run(document.getElementById('app'), {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
+  });
+
+  test('refused reference reads are explained and saving a note keeps the existing assignment', async () => {
+    const refusal = Object.assign(new Error('Forbidden'), { status: 403 });
+    endpoints.getLeaders.mockRejectedValueOnce(refusal);
+    endpoints.getHonorsHistory.mockRejectedValueOnce(refusal);
+    endpoints.getReunionDates.mockResolvedValueOnce({ data: [{ date: '2026-10-28' }, { date: DATE }] });
+    endpoints.getReunionPreparation.mockResolvedValueOnce({
+      data: { meeting: { animateur_responsable: 'u2' } },
+    });
+    await screen.fetchData();
+    await screen.loadMeeting(DATE);
+
+    expect(document.getElementById('meeting-leaders-error').textContent).toContain('api_error_forbidden');
+    expect(document.getElementById('meeting-honors-error').textContent).toContain('api_error_forbidden');
+    expect(document.getElementById('animateur-responsable').disabled).toBe(true);
+    const notes = document.getElementById('notes');
+    notes.value = 'Une note';
+    notes.dispatchEvent(new Event('input', { bubbles: true }));
+    await letAutosaveRun();
+    expect(endpoints.saveReunionPreparation).toHaveBeenCalledWith(
+      expect.objectContaining({ animateur_responsable: 'u2', notes: 'Une note' }),
+    );
+  });
+});

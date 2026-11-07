@@ -4,7 +4,7 @@ jest.mock('../../spa/config.js', () => ({ CONFIG: { API_BASE_URL: 'https://unit.
 jest.mock('../../spa/api/api-helpers.js', () => ({
   getCurrentOrganizationId: jest.fn(() => 1),
   getCurrentUserId: jest.fn(() => 'first-user'),
-  getAuthHeader: () => ({}),
+  getAuthHeader: jest.fn(() => ({})),
 }));
 jest.mock('../../spa/indexedDB.js', () => ({
   setCachedData: jest.fn(), getCachedData: jest.fn(() => Promise.resolve(null)),
@@ -18,7 +18,7 @@ jest.mock('../../spa/modules/scout-year/ScoutYearContext.js', () => ({ isArchive
 jest.mock('../../spa/modules/live-sync/LiveDataSync.js', () => ({ isLiveSyncActive: () => false }));
 
 import { API, makeApiRequest } from '../../spa/api/api-core.js';
-import { getCurrentOrganizationId, getCurrentUserId } from '../../spa/api/api-helpers.js';
+import { getAuthHeader, getCurrentOrganizationId, getCurrentUserId } from '../../spa/api/api-helpers.js';
 
 function response(data) {
   return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: () => Promise.resolve({ success: true, data }) };
@@ -29,6 +29,21 @@ beforeEach(() => {
   getCurrentOrganizationId.mockReturnValue(1);
   getCurrentUserId.mockReturnValue('first-user');
   global.fetch = jest.fn();
+});
+
+test('a signed-in read sends filters without the unit ID in its query', async () => {
+  getAuthHeader.mockReturnValueOnce({ Authorization: 'Bearer session' });
+  global.fetch.mockResolvedValue(response([]));
+  await makeApiRequest('v1/participants?organization_id=7', { params: { organization_id: 8, limit: 20 } });
+  const url = new URL(global.fetch.mock.calls[0][0]);
+  expect(url.searchParams.has('organization_id')).toBe(false);
+  expect(url.searchParams.get('limit')).toBe('20');
+});
+
+test('a signed-out read still sends the unit fallback in its query', async () => {
+  global.fetch.mockResolvedValue(response([]));
+  await makeApiRequest('v1/organizations/settings/public');
+  expect(new URL(global.fetch.mock.calls[0][0]).searchParams.get('organization_id')).toBe('1');
 });
 
 test('simultaneous identical reads share one network request', async () => {

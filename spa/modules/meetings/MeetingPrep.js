@@ -6,7 +6,7 @@ import { canUseAI, aiActionLabel } from '../../utils/AIUtils.js';
 import { translate } from '../../app.js';
 import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { isoToDateString, formatDate } from '../../utils/DateUtils.js';
 import { formatHonorText, honorForMeetingPlan } from '../../utils/HonorUtils.js';
 import { BaseModule } from '../../utils/BaseModule.js';
@@ -38,7 +38,7 @@ import { getMaterialOptions } from '../../api/api-equipment-catalog.js';
 import { MeetingAutosave, MEETING_SAVE_STATES } from './MeetingAutosave.js';
 import {
   getMeetingActivities,
-  getAnimateurs,
+  getLeaders,
   getHonorsHistory,
   getParticipants,
   getBadgeSystemSettings,
@@ -77,6 +77,8 @@ export class MeetingPrep extends BaseModule {
     this.meetingDates = []; // [{ date, is_cancelled, theme, is_prepared }]
     this.activitiesCatalog = [];
     this.animateurs = [];
+    this.leadersError = null;
+    this.honorsError = null;
     this.participants = [];
     this.badgeTemplates = [];
     this.recentHonors = [];
@@ -137,15 +139,17 @@ export class MeetingPrep extends BaseModule {
 
     // Those who plan meetings pick what activities need from the unit's material.
     this.canPickMaterial = hasPermission('meetings.manage') || hasPermission('equipment_catalog.manage');
+    this.leadersError = null;
     const [catalogResponse, animateursResponse, badgeResponse, participantsResponse, datesResponse, reminderResponse, materialResponse] =
       await Promise.all([
         getMeetingActivities().catch(err => {
           debugError('Error loading activity catalog:', err);
           return { data: [] };
         }),
-        getAnimateurs().catch(err => {
-          debugError('Error loading animateurs:', err);
-          return { data: [] };
+        getLeaders().catch(err => {
+          debugError('Error loading meeting leaders:', err);
+          this.leadersError = apiErrorMessage(err, 'error_loading_data');
+          return null;
         }),
         getBadgeSystemSettings().catch(err => {
           debugError('Error loading badge settings:', err);
@@ -172,7 +176,7 @@ export class MeetingPrep extends BaseModule {
       ]);
 
     this.activitiesCatalog = catalogResponse?.data || [];
-    this.animateurs = animateursResponse?.data || [];
+    this.animateurs = animateursResponse?.data?.users || [];
     const badgeSettings = badgeResponse?.data || badgeResponse || {};
     this.badgeTemplates = badgeSettings.templates || [];
     this.participants = participantsResponse?.data || [];
@@ -218,9 +222,14 @@ export class MeetingPrep extends BaseModule {
   async updateHonorsForMeeting(meetingDate) {
     const dateList = this.meetingDates.map(d => d.date);
     const previousMeetingDate = previousDateBefore(dateList, meetingDate);
+    this.recentHonors = [];
+    this.recentHonorsRaw = [];
+    this.honorsError = null;
     if (!previousMeetingDate) {
-      this.recentHonors = [];
-      this.recentHonorsRaw = [];
+      return;
+    }
+    if (!hasPermission('honors.view')) {
+      this.honorsError = translate('meeting_honors_permission_required');
       return;
     }
 
@@ -234,8 +243,7 @@ export class MeetingPrep extends BaseModule {
       this.recentHonors = honors.map(h => formatHonorText(h)).filter(Boolean);
     } catch (err) {
       debugError('Error loading honors for previous meeting:', err);
-      this.recentHonors = [];
-      this.recentHonorsRaw = [];
+      this.honorsError = apiErrorMessage(err, 'error_loading_data');
     }
   }
 
@@ -478,6 +486,8 @@ export class MeetingPrep extends BaseModule {
     }
 
     const meeting = this.meeting;
+    const leaderId = String(meeting.animateur_responsable || '');
+    const leaderMissing = leaderId && !this.animateurs.some(leader => String(leader.id) === leaderId);
     const honorLabel = getHonorLabel(this.sectionConfig, translate);
     const honorText = (Array.isArray(meeting.youth_of_honor) && meeting.youth_of_honor.length > 0
       ? meeting.youth_of_honor
@@ -536,10 +546,12 @@ export class MeetingPrep extends BaseModule {
           <div class="form-row">
             <div class="form-group">
               <label for="animateur-responsable">${translate('animateur_responsable')}:</label>
-              <select id="animateur-responsable">
+              <select id="animateur-responsable" ${this.leadersError ? 'disabled aria-describedby="meeting-leaders-error"' : ''}>
                 <option value="">${translate('select_animateur')}</option>
-                ${this.animateurs.map(a => `<option value="${a.id}" ${String(a.id) === String(meeting.animateur_responsable || '') ? 'selected' : ''}>${escapeHTML(memberDisplayName(a))}</option>`).join('')}
+                ${leaderMissing ? `<option value="${escapeAttribute(leaderId)}" selected>${escapeHTML(translate('meeting_saved_leader_unavailable'))}</option>` : ''}
+                ${this.animateurs.map(a => `<option value="${escapeAttribute(a.id)}" ${String(a.id) === leaderId ? 'selected' : ''}>${escapeHTML(memberDisplayName(a))}</option>`).join('')}
               </select>
+              ${this.leadersError ? `<p id="meeting-leaders-error">${escapeHTML(translate('meeting_leaders_unavailable'))} ${escapeHTML(this.leadersError)}</p>` : ''}
             </div>
             <div class="form-group">
               <label for="date">${translate('date')}:</label>
@@ -552,7 +564,8 @@ export class MeetingPrep extends BaseModule {
                 ${honorLabel}:
                 <small style="font-weight: normal; color: var(--color-text-muted); font-size: var(--font-size-xs);">(${translate('one_per_line')})</small>
               </label>
-              <textarea id="youth-of-honor" class="honor-textarea" rows="3" placeholder="${translate('enter_names_one_per_line')}">${escapeHTML(honorText)}</textarea>
+              <textarea id="youth-of-honor" class="honor-textarea" rows="3" placeholder="${translate('enter_names_one_per_line')}" ${this.honorsError ? 'aria-describedby="meeting-honors-error"' : ''}>${escapeHTML(honorText)}</textarea>
+              ${this.honorsError ? `<p id="meeting-honors-error">${escapeHTML(translate('meeting_previous_honors_unavailable'))} ${escapeHTML(this.honorsError)}</p>` : ''}
             </div>
             <div class="form-group">
               <label for="endroit">${translate('endroit')}:</label>
