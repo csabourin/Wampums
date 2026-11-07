@@ -252,6 +252,31 @@ describe('a parent correcting their child\'s plan', () => {
     screen.destroy();
   });
 
+  test('coming back online redraws the page without losing the correction or its starting version', async () => {
+    load();
+    confirm.mockResolvedValue(true);
+    api.saveMedicationRequirement.mockResolvedValue({ success: true, data: { requirement: { id: 11 }, revision: {} } });
+    const screen = await openChildPage();
+    editButton().click();
+    form().elements.default_dose_amount.value = '4';
+    form().elements.default_dose_amount.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Someone else's change arrives with the reload that follows the reconnection.
+    load({ ...PLAN, general_notes: 'Changée ailleurs', updated_at: '2026-11-07T16:00:00.000Z' });
+    await screen.refreshData(true);
+    screen.render();
+    screen.attachEventListeners();
+
+    expect(form().elements.default_dose_amount.value).toBe('4');
+    expect(form().elements.medication_name.value).toBe('Ventolin');
+    form().querySelector('button[type="submit"]').click();
+    await flush(); await flush();
+    expect(api.saveMedicationRequirement).toHaveBeenCalledWith(expect.objectContaining({
+      default_dose_amount: 4, expected_updated_at: '2026-11-07T15:00:00.000Z',
+    }));
+    screen.destroy();
+  });
+
   test('another adult\'s correction that sets the signature aside says it must be signed again', async () => {
     load();
     confirm.mockResolvedValue(true);

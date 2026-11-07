@@ -74,8 +74,11 @@ export class MedicationManagement {
     this.view = options.view || 'planning';
     this.enableAlerts = options.enableAlerts ?? this.view === 'dispensing';
     this.participantId = options.participantId || null;
-    // The plan being corrected in the requirement form (#1379), or null while adding one.
+    // The plan being corrected in the requirement form (#1379), or null while adding one; the
+    // plan as it was when "Edit" was chosen, and what has been typed since.
     this.editingRequirementId = null;
+    this.editingSnapshot = null;
+    this.editingDraft = null;
     this.returnUrl = options.returnUrl || null;
     this.alertInterval = null;
     this.alertWindowMinutes = 90;
@@ -2058,12 +2061,13 @@ export class MedicationManagement {
       && Number(requirement.participant_id ?? this.participantId) === Number(this.participantId);
   }
 
-  /** @returns {Object|null} The plan being corrected, while the form corrects one */
+  /**
+   * The plan being corrected, as it was when "Edit" was chosen: a reload meanwhile must not
+   * change the version the correction started from, or it would overwrite someone else's change.
+   * @returns {Object|null} Plan, while the form corrects one
+   */
   editingRequirement() {
-    if (this.editingRequirementId === null) {
-      return null;
-    }
-    return this.requirements.find((req) => String(req.id) === String(this.editingRequirementId)) || null;
+    return this.editingRequirementId === null ? null : this.editingSnapshot;
   }
 
   /**
@@ -2071,19 +2075,23 @@ export class MedicationManagement {
    * @param {string|number} requirementId - Plan to correct
    */
   startCorrectingPlan(requirementId) {
-    this.editingRequirementId = requirementId;
-    const requirement = this.editingRequirement();
+    const requirement = this.requirements.find((req) => String(req.id) === String(requirementId));
     if (!requirement) {
-      this.editingRequirementId = null;
       return;
     }
+    this.editingRequirementId = requirementId;
+    this.editingSnapshot = JSON.parse(JSON.stringify(requirement));
+    this.editingDraft = null;
     this.render();
     this.attachEventListeners();
-    const form = document.getElementById('medicationRequirementForm');
-    if (form) {
-      fillRequirementForm(form, requirement);
-    }
     document.getElementById('medicationRequirementFormTitle')?.focus();
+  }
+
+  /** Forget the plan being corrected and what was typed into it. */
+  clearCorrection() {
+    this.editingRequirementId = null;
+    this.editingSnapshot = null;
+    this.editingDraft = null;
   }
 
   /**
@@ -2091,7 +2099,7 @@ export class MedicationManagement {
    * @param {string|number|null} [returnTo] - Plan whose button takes the focus
    */
   stopCorrectingPlan(returnTo = this.editingRequirementId) {
-    this.editingRequirementId = null;
+    this.clearCorrection();
     this.render();
     this.attachEventListeners();
     this.focusEditButton(returnTo);
@@ -2419,6 +2427,29 @@ export class MedicationManagement {
         this.handleMarkGiven(ids, markGiven.dataset.markGivenSlot);
       }
     });
+
+    this.keepCorrectionDraft(requirementForm);
+  }
+
+  /**
+   * While a plan is corrected, any redraw (coming back online, a reload) puts back what the
+   * person typed, or the plan as it was when they started. Every change is kept as it is typed.
+   * @param {HTMLFormElement|null} form - Requirement form just drawn
+   */
+  keepCorrectionDraft(form) {
+    if (!form || this.editingRequirementId === null || !this.editingSnapshot) {
+      return;
+    }
+    if (this.editingDraft) {
+      this.restoreRequirementForm(this.editingDraft);
+    } else {
+      fillRequirementForm(form, this.editingSnapshot);
+    }
+    const keep = () => {
+      this.editingDraft = this.readRequirementFormValues(form);
+    };
+    form.addEventListener('input', keep);
+    form.addEventListener('change', keep);
   }
 
   prefillFromRequirement(requirementId) {
@@ -2698,7 +2729,7 @@ export class MedicationManagement {
       }
       if (this.isPlanChangedMeanwhile(error)) {
         // Someone else's correction wins; show it, then this person corrects again from it.
-        this.editingRequirementId = null;
+        this.clearCorrection();
         await this.reloadAfterWrite(null);
         this.app.showMessage(translate('medication_requirement_changed'), 'error');
         return;
@@ -2711,7 +2742,7 @@ export class MedicationManagement {
 
     this.savingRequirement = false;
     const correctedId = requirement.id;
-    this.editingRequirementId = null;
+    this.clearCorrection();
     const revision = response.data?.revision;
     let messageKey = 'medication_plan_corrected';
     if (!revision) {
