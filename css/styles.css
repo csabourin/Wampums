@@ -2257,13 +2257,23 @@ tr:hover {
    5.13 TOAST NOTIFICATIONS
    ---------------------------------------------------------------------------- */
 
-#toast-container {
-  position: fixed;
+/* Keep the toast in the page flow so a new screen starts below it. */
+#toast-container:not(:empty) {
+  display: flow-root;
+  position: sticky;
   inset-block-start: 0;
-  inset-inline: 0;
   z-index: var(--z-toast);
   pointer-events: none;
   padding-block-start: var(--safe-area-top);
+}
+
+/* Move the fixed account control's clearance from the page to the toast. */
+body:has(> .settings-icon) #toast-container:not(:empty) {
+  padding-block-start: calc(var(--touch-target-min) + var(--space-md) + var(--safe-area-top));
+}
+
+body:has(> .settings-icon) #toast-container:not(:empty) + #app {
+  padding-block-start: 0;
 }
 
 .toast {
@@ -2276,14 +2286,12 @@ tr:hover {
   box-shadow: var(--shadow-lg);
   pointer-events: auto;
   opacity: 0;
-  transform: translateY(-100%);
-  transition: all var(--transition-base);
+  transition: opacity var(--transition-base);
   backdrop-filter: blur(8px);
 }
 
 .toast-show {
   opacity: 1;
-  transform: translateY(0);
 }
 
 .toast-info {

@@ -687,7 +687,7 @@ export const app = {
     container.id = 'toast-container';
     container.setAttribute('aria-live', 'polite');
     container.setAttribute('aria-relevant', 'additions');
-    document.body.appendChild(container);
+    document.getElementById('app').before(container);
   },
 
   /**
