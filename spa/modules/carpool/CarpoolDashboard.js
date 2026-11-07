@@ -22,7 +22,7 @@ import { debugError, debugLog } from '../../utils/DebugUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { CONFIG } from '../../config.js';
 import { offlineManager } from '../OfflineManager.js';
-import { getCachedData, setCachedData } from '../../indexedDB.js';
+import { getCachedData } from '../../indexedDB.js';
 import { confirmDestructive, prompt as promptDialog } from '../../utils/DialogUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
@@ -89,19 +89,6 @@ export class CarpoolDashboard {
     this.render();
     if (!this.loadError) {
       this.attachEventListeners();
-    }
-  }
-
-  async updateCarpoolCache() {
-    try {
-      await setCachedData(
-        `carpool_offers_activity_${this.activityId}`,
-        { success: true, data: this.carpoolOffers },
-        CONFIG.CACHE_DURATION?.SHORT || 300000
-      );
-      debugLog('CarpoolDashboard: Cache updated with optimistic state');
-    } catch (error) {
-      debugError('CarpoolDashboard: Failed to update cache', error);
     }
   }
 
@@ -918,13 +905,10 @@ export class CarpoolDashboard {
           return await assignParticipantToCarpool(data);
         },
 
-        successFn: (result) => {
-          if (result?.queued) {
-            // Offline: persist optimistic state to cache
-            this.updateCarpoolCache();
-            this.app.showMessage(translate('participant_assigned_success'), 'success');
-            return;
-          }
+        // Carpool writes are never queued offline (they are not in the outbox's
+        // replayable list): offline, the request fails and rollbackFn restores
+        // the screen. Success is announced only once the server has confirmed.
+        successFn: () => {
           // Reload fresh data from server to replace optimistic data
           this.loadData().then(() => {
             this.render();
@@ -992,6 +976,7 @@ export class CarpoolDashboard {
 
     if (!confirmed) {return;}
 
+    // rollbackFn has already restored the screen and explained the failure.
     await this.optimisticManager.execute(`cancel-offer-${offerId}`, {
       optimisticFn: () => {
         // Save original state for rollback
@@ -1012,13 +997,8 @@ export class CarpoolDashboard {
         return await cancelCarpoolOffer(offerId, reason);
       },
 
-      successFn: (result) => {
-        if (result?.queued) {
-          // Offline: persist optimistic state to cache
-          this.updateCarpoolCache();
-          this.app.showMessage(translate('ride_cancelled_success'), 'success');
-          return;
-        }
+      // Never queued offline: success follows the server's confirmation.
+      successFn: () => {
         // Reload fresh data from server
         this.loadData().then(() => {
           this.render();
@@ -1035,7 +1015,7 @@ export class CarpoolDashboard {
         debugError('Error cancelling ride:', error);
         this.app.showMessage(apiErrorMessage(error, 'error_cancelling_ride'), 'error');
       }
-    });
+    }).catch((error) => debugError('Carpool change not saved:', error));
   }
 
   async handleRemoveAssignment(assignmentId) {
@@ -1043,6 +1023,7 @@ export class CarpoolDashboard {
       return;
     }
 
+    // rollbackFn has already restored the screen and explained the failure.
     await this.optimisticManager.execute(`remove-assignment-${assignmentId}`, {
       optimisticFn: () => {
         // Save original state for rollback
@@ -1082,13 +1063,8 @@ export class CarpoolDashboard {
         return await removeAssignment(assignmentId);
       },
 
-      successFn: (result) => {
-        if (result?.queued) {
-          // Offline: persist optimistic state to cache
-          this.updateCarpoolCache();
-          this.app.showMessage(translate('assignment_removed_success'), 'success');
-          return;
-        }
+      // Never queued offline: success follows the server's confirmation.
+      successFn: () => {
         // Reload fresh data from server to ensure consistency
         this.loadData().then(() => {
           this.render();
@@ -1104,7 +1080,7 @@ export class CarpoolDashboard {
         this.attachEventListeners();
         this.app.showMessage(apiErrorMessage(error, 'error_removing_assignment'), 'error');
       }
-    });
+    }).catch((error) => debugError('Carpool change not saved:', error));
   }
 
   /**

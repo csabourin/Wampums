@@ -198,7 +198,7 @@ export class RoleManagement {
       <div class="role-card ${isExpanded ? 'expanded' : ''}" data-role-id="${role.id}">
         <div class="role-card-header">
           <div class="role-info">
-            <h3 class="role-name">${this.escapeHtml(roleLabel(role))}</h3>
+            <h3 class="role-name">${escapeHTML(roleLabel(role))}</h3>
             ${role.hidden ? `<p class="role-hidden-note">${translate('role_hidden_badge')}</p>` : ''}
           </div>
           <button type="button" class="toggle-permissions-btn" data-role-id="${role.id}"
@@ -208,7 +208,7 @@ export class RoleManagement {
           </button>
         </div>
 
-        <p class="role-description">${this.escapeHtml(roleDescription(role) || translate('district_management_generic_bundle_description'))}</p>
+        <p class="role-description">${escapeHTML(roleDescription(role) || translate('district_management_generic_bundle_description'))}</p>
 
         <div class="role-permissions-container ${isExpanded ? 'visible' : 'hidden'}" id="role-permissions-${role.id}">
           ${isExpanded ? `<div class="loading-spinner" role="status">${translate('loading')}</div>` : ''}
@@ -299,11 +299,11 @@ export class RoleManagement {
       <div class="user-item ${isSelected ? 'selected' : ''}" data-user-id="${user.id}">
         <div class="user-info">
           <div class="user-name">
-            ${this.escapeHtml(user.full_name || user.email)}
+            ${escapeHTML(user.full_name || user.email)}
             ${user.status === 'inactive' ? `<span class="member-inactive-badge">${translate('member_access_inactive_badge')}</span>` : ''}
           </div>
-          <div class="user-email">${this.escapeHtml(user.email)}</div>
-          ${roleNames ? `<div class="user-roles-summary">${this.escapeHtml(roleNames)}</div>` : ''}
+          <div class="user-email">${escapeHTML(user.email)}</div>
+          ${roleNames ? `<div class="user-roles-summary">${escapeHTML(roleNames)}</div>` : ''}
         </div>
         <div class="user-action">
           <button class="button button--small btn-manage-roles" data-user-id="${user.id}"${isSelected ? ' aria-current="true"' : ''}>
@@ -335,8 +335,8 @@ export class RoleManagement {
         <div class="assignment-header">
           <h2 id="user-assignment-heading" tabindex="-1">${translate('manage_roles_for')}:</h2>
           <div class="user-details">
-            <div class="user-name-large">${this.escapeHtml(user.full_name || user.email)}</div>
-            <div class="user-email-small">${this.escapeHtml(user.email)}</div>
+            <div class="user-name-large">${escapeHTML(user.full_name || user.email)}</div>
+            <div class="user-email-small">${escapeHTML(user.email)}</div>
           </div>
         </div>
 
@@ -349,7 +349,7 @@ export class RoleManagement {
               ${userRoles.length > 0
     ? userRoles.map(role => `
                     <span class="role-badge role-badge-${role.role_name}">
-                      ${this.escapeHtml(roleLabel(role))}
+                      ${escapeHTML(roleLabel(role))}
                     </span>
                   `).join('')
     : `<span class="empty-badge">${translate('no_roles_assigned')}</span>`
@@ -383,9 +383,9 @@ export class RoleManagement {
                     />
                     <div class="role-checkbox-content">
                       <div class="role-checkbox-header">
-                        <strong>${this.escapeHtml(roleLabel(role))}</strong>
+                        <strong>${escapeHTML(roleLabel(role))}</strong>
                       </div>
-                      <small class="role-checkbox-description">${this.escapeHtml(roleDescription(role))}</small>
+                      <small class="role-checkbox-description">${escapeHTML(roleDescription(role))}</small>
                     </div>
                   </label>
                   ${locked ? `<small class="role-locked-note" id="${noteId}">${translate('role_not_assignable')}</small>` : ''}
@@ -637,12 +637,12 @@ export class RoleManagement {
       <div class="permissions-list">
         ${Object.entries(grouped).map(([category, perms]) => `
           <div class="permission-category">
-            <h4 class="category-name">${this.escapeHtml(category)}</h4>
+            <h4 class="category-name">${escapeHTML(category)}</h4>
             <ul class="permission-items">
               ${perms.map(p => `
-                <li class="permission-item" title="${this.escapeHtml(p.description || '')}">
-                  <span class="permission-key">${this.escapeHtml(p.permission_key)}</span>
-                  <span class="permission-name">${this.escapeHtml(p.permission_name)}</span>
+                <li class="permission-item" title="${escapeHTML(p.description || '')}">
+                  <span class="permission-key">${escapeHTML(p.permission_key)}</span>
+                  <span class="permission-name">${escapeHTML(p.permission_name)}</span>
                 </li>
               `).join('')}
             </ul>
@@ -754,9 +754,5 @@ export class RoleManagement {
         messageDiv.className = 'status-message';
       }, 5000);
     }
-  }
-
-  escapeHtml(text) {
-    return escapeHTML(text);
   }
 }

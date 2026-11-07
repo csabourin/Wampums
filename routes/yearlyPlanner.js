@@ -866,7 +866,7 @@ module.exports = (pool, logger) => {
          RETURNING *`,
         [
           title || null, start_date || null, end_date || null,
-          sort_order != null ? sort_order : null,
+          sort_order ?? null,
           settings ? JSON.stringify(settings) : null,
           periodId, organizationId
         ]
@@ -1012,7 +1012,7 @@ module.exports = (pool, logger) => {
          RETURNING *`,
         [
           title || null, description, period_id, parent_id,
-          scope || null, sort_order != null ? sort_order : null,
+          scope || null, sort_order ?? null,
           objId, organizationId
         ]
       );
@@ -1851,7 +1851,7 @@ module.exports = (pool, logger) => {
         sort_order, objective_ids, series_id, series_occurrence, metadata,
         day_offset, start_time, activity_type, responsable, material
       } = req.body;
-      const dayOffset = day_offset == null ? 0 : parseInt(day_offset, 10);
+      const dayOffset = day_offset === null || day_offset === undefined ? 0 : parseInt(day_offset, 10);
       if (!isDayInSpan(dayOffset, context)) {
         return error(res, 'day_offset is outside the meeting span', HTTP_STATUS.BAD_REQUEST);
       }

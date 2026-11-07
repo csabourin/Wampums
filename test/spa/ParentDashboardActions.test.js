@@ -117,7 +117,7 @@ describe('parent dashboard buttons', () => {
     expect(hrefs).toContain('/reports?participantId=4');
   });
 
-  test('medication planning is offered when the health form declares a medication or one is planned', () => {
+  test('medication planning is offered for every child, even one whose health form declares none', () => {
     mockHeld.clear();
     PARENT_PERMISSIONS.forEach((key) => mockHeld.add(key));
     const page = new ParentDashboard({});
@@ -128,11 +128,15 @@ describe('parent dashboard buttons', () => {
     };
 
     expect(render(CHILD)).toContain('/medication-planning/4');
-    expect(render({ ...CHILD, declares_medication: false })).not.toContain('/medication-planning/4');
-    expect(render({ id: 4, first_name: 'Léa' })).not.toContain('/medication-planning/4');
-    // A plan made earlier stays reachable even once the form says "no".
+    // A medication prescribed after the health form said "no" can still be added.
+    expect(render({ ...CHILD, declares_medication: false })).toContain('/medication-planning/4');
+    expect(render({ id: 4, first_name: 'Léa' })).toContain('/medication-planning/4');
     expect(render({ ...CHILD, declares_medication: false, has_planned_medication: true }))
       .toContain('/medication-planning/4');
+  });
+
+  test('medication planning is not offered when the unit hides it', () => {
+    expect(childButtonHrefs(PARENT_PERMISSIONS, ['medications'])).not.toContain('/medication-planning/4');
   });
 
   test('asks the roster for the account\'s own children with the medication flags it renders', async () => {

@@ -343,7 +343,8 @@ export class OfflineManager {
                   rule.method === method && rule.path.test(mutationUrl.pathname)
                 );
       if (!isSafeMutation) {
-        throw new Error(this.getTranslation('offline.writeUnavailable'));
+        // Not replayable: the write needs the network, and the screen says so.
+        throw Object.assign(new Error(this.getTranslation('offline.writeUnavailable')), { code: 'offline_write_unavailable' });
       }
 
       if (mutationKind(url, method) === 'camp_lots') { await assertPreparedLotMutation(url, options.body); }

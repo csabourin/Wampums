@@ -1,12 +1,4 @@
 {
-  "routes/yearlyPlanner.js": {
-    "eqeqeq": {
-      "count": 3
-    },
-    "no-eq-null": {
-      "count": 3
-    }
-  },
   "scripts/find-mismatches.js": {
     "no-empty": {
       "count": 1
@@ -30,11 +22,6 @@
   "spa/functions.js": {
     "no-useless-escape": {
       "count": 1
-    }
-  },
-  "spa/modules/reports/Reports.js": {
-    "no-case-declarations": {
-      "count": 2
     }
   },
   "spa/router.js": {

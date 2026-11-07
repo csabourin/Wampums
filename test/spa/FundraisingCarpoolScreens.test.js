@@ -282,6 +282,53 @@ describe('carpool dashboard', () => {
     expect(page().textContent).toContain('activity_not_found');
   });
 
+  describe('cancelling a ride', () => {
+    const OFFER = {
+      id: 7, user_id: 'user-ada', driver_name: 'Ada Lovelace', trip_direction: 'both',
+      total_seats_available: 3, assignments: [],
+    };
+    const { confirmDestructive } = jest.requireMock('../../spa/utils/DialogUtils.js');
+
+    async function openWithOffer(app) {
+      localStorage.setItem('userId', 'user-ada');
+      loaded();
+      carpools.getCarpoolOffers.mockResolvedValue([OFFER]);
+      confirmDestructive.mockResolvedValue(true);
+      await new CarpoolDashboard(app, '1').init();
+    }
+
+    afterEach(() => localStorage.removeItem('userId'));
+
+    test('a cancellation that cannot reach the server says it needs a connection and keeps the ride', async () => {
+      const app = makeApp();
+      await openWithOffer(app);
+      carpools.cancelCarpoolOffer.mockRejectedValue(Object.assign(
+        new Error('Failed to save offline'), { code: 'offline_write_unavailable' },
+      ));
+
+      page().querySelector('.delete-offer-btn').click();
+      await flush();
+      await flush();
+
+      expect(app.showMessage).toHaveBeenCalledWith('offline.writeUnavailable', 'error');
+      expect(app.showMessage).not.toHaveBeenCalledWith('ride_cancelled_success', 'success');
+      expect(page().querySelector('[data-offer-id="7"]')).not.toBeNull();
+    });
+
+    test('a cancellation is announced as done once the server confirms it', async () => {
+      const app = makeApp();
+      await openWithOffer(app);
+      carpools.cancelCarpoolOffer.mockResolvedValue({ success: true });
+
+      page().querySelector('.delete-offer-btn').click();
+      await flush();
+      await flush();
+
+      expect(carpools.cancelCarpoolOffer).toHaveBeenCalledWith(7, '');
+      expect(app.showMessage).toHaveBeenCalledWith('ride_cancelled_success', 'success');
+    });
+  });
+
   test('offline without prepared data, the page keeps its title and the way back', async () => {
     offlineManager.isOffline = true;
     await new CarpoolDashboard(makeApp(), '1').init();

@@ -33,6 +33,7 @@ jest.mock('../../spa/utils/SecurityUtils.js', () => ({
 
 jest.mock('../../spa/utils/DateUtils.js', () => ({
   formatDateShort: (date) => `DATE(${date})`,
+  getTodayISO: () => '2026-11-07',
   isoToDateString: (value) => value,
 }));
 
@@ -48,7 +49,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
 }));
 
 jest.mock('../../spa/utils/ExportUtils.js', () => ({ exportToCSV: jest.fn() }));
-jest.mock('../../spa/config.js', () => ({ CONFIG: { API_BASE_URL: '' } }));
+jest.mock('../../spa/config.js', () => ({ CONFIG: { API_BASE_URL: '', FEATURES: { EXPORT_REPORTS: true } } }));
 
 const mockGetParticipantAgeReport = jest.fn();
 const mockGetAllergiesReport = jest.fn();
@@ -83,6 +84,8 @@ jest.mock('../../spa/api/api-reports.js', () => ({
 import axe from 'axe-core';
 import { Reports } from '../../spa/modules/reports/Reports.js';
 import { openPrintWindow, setPrintContent } from '../../spa/utils/PrintUtils.js';
+import { exportToCSV } from '../../spa/utils/ExportUtils.js';
+import { getFinanceReport } from '../../spa/ajax-functions.js';
 import { isBodyScrollLocked, releaseAllScrollLocks } from '../../spa/utils/ScrollLockUtils.js';
 
 const AXE_OPTIONS = {
@@ -292,6 +295,55 @@ describe('allergy report', () => {
     expect(printWindow.print).toHaveBeenCalled();
   });
 
+  test('Export CSV downloads the report on screen, named after it and the day, in the page language', async () => {
+    const { reports } = setup();
+    mockGetAllergiesReport.mockResolvedValue({
+      success: true,
+      data: [{ id: 1, first_name: 'Alex', last_name: 'Tremblay', group_name: 'Rouge', allergies: 'Arachides', epipen: true }],
+    });
+
+    await reports.loadReport('allergies');
+    document.getElementById('export-report').click();
+
+    const [rows, columns, filename, options] = exportToCSV.mock.calls[0];
+    expect(filename).toBe('allergies_report_2026-11-07');
+    expect(options).toEqual({ lang: 'fr' });
+    expect(rows.map((item) => item.first_name)).toEqual(['Alex']);
+    expect(columns.map((column) => column.key)).not.toContain('id');
+  });
+
+  test('Export CSV of the financial report writes one row per youth', async () => {
+    const { reports } = setup();
+    getFinanceReport.mockResolvedValue({
+      success: true,
+      data: {
+        totals: { total_billed: 150, total_paid: 25, total_outstanding: 125 },
+        definitions: [],
+        participants: [{ participant_id: 4, first_name: 'Léa', last_name: 'Tremblay', total_billed: 150, total_paid: 25, total_outstanding: 125 }],
+        payment_methods: [],
+      },
+    });
+
+    await reports.loadReport('financial');
+    document.getElementById('export-report').click();
+
+    const [rows, , filename] = exportToCSV.mock.calls[0];
+    expect(filename).toBe('financial_report_2026-11-07');
+    expect(rows.map((item) => item.last_name)).toEqual(['Tremblay']);
+    expect(reports.app.showMessage).not.toHaveBeenCalled();
+  });
+
+  test('Export CSV with nothing loaded says there is nothing to export and downloads nothing', () => {
+    const { reports } = setup();
+    reports.currentReportType = 'allergies';
+    reports.currentReportData = [];
+
+    reports.exportCurrentReport();
+
+    expect(exportToCSV).not.toHaveBeenCalled();
+    expect(reports.app.showMessage).toHaveBeenCalledWith('no_data_to_export', 'info');
+  });
+
   test('does not leak unrelated medical data into the allergy report', () => {
     const { reports } = setup();
 
@@ -404,8 +456,10 @@ describe('reports listing youth', () => {
     ['medication', 'renderMedicationReport', { ...row, medication: 'Ventolin' }, 'medication', 'Ventolin'],
     ['vaccines', 'renderVaccineReport', { ...row, vaccines_up_to_date: true }, 'vaccines_up_to_date', 'yes'],
     ['leave alone', 'renderLeaveAloneReport', { ...row, can_leave_alone: 'on' }, 'can_leave_alone', 'yes'],
+    ['leave alone answered "oui"', 'renderLeaveAloneReport', { ...row, can_leave_alone: 'oui' }, 'can_leave_alone', 'yes'],
     ['media', 'renderMediaAuthorizationReport', { ...row, media_authorized: false }, 'media_authorized', 'no'],
-    ['missing documents', 'renderMissingDocumentsReport', { ...row, missing_documents: ['fiche_sante'] }, 'missing_documents', 'fiche_sante'],
+    ['missing documents', 'renderMissingDocumentsReport', { ...row, missing_forms: ['fiche_sante'] }, 'missing_documents', 'fiche sante'],
+    ['complete documents', 'renderMissingDocumentsReport', { ...row, missing_forms: [] }, 'missing_documents', 'no_missing_documents'],
     ['age', 'renderParticipantAgeReport', { ...row, date_naissance: '2015-01-01', age: 11 }, 'age', '11'],
   ])('the %s report is one labelled card per youth, with names shown as text', async (_name, method, item, label, value) => {
     const { reports } = setup();
