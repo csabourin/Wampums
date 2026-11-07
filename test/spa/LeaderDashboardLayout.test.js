@@ -9,6 +9,8 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+// spa/config.js reads import.meta, which Jest cannot load; only its roles are needed here.
+jest.mock('../../spa/config.js', () => ({ CONFIG: { ROLES: {} } }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn() }));
 
 import { PALETTES, DEFAULT_PALETTE_ID } from '../../spa/config/dashboard-customization.js';
