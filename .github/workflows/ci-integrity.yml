@@ -126,7 +126,9 @@ jobs:
 
   accessibility:
     name: Accessibility in a real browser (WCAG 2.2 AA)
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04, on which Playwright 1.56.1 cannot install Chromium
+    # ("Playwright does not support chromium on ubuntu26.04-x64"). Unpin once Playwright supports it.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
 
     # jsdom cannot compute contrast, layout, focus visibility or what covers

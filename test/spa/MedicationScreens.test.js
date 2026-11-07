@@ -43,6 +43,8 @@ jest.mock('../../spa/indexedDB.js', () => ({
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   canManageMedication: jest.fn(() => true),
   canViewMedication: () => true,
+  // Correcting a plan has its own suite (MedicationPlanCorrection.test.js).
+  holdsFamilyRole: () => false,
 }));
 jest.mock('../../spa/utils/OfflineCacheKeys.js', () => ({ buildApiCacheKey: jest.fn((key) => key) }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({
@@ -600,6 +602,30 @@ describe('medication reception', () => {
     expect(page().textContent).toContain(HOSTILE);
     expect(await violations()).toEqual([]);
     screen.destroy();
+  });
+
+  test('the team corrects a plan from the planning page, not in the reception list', async () => {
+    loadAll();
+    const screen = new MedicationReception(makeApp(), { activityId: 3 });
+    await screen.init();
+
+    const item = page().querySelector('.medication-reception-item');
+    expect(item.querySelector('input[data-field="medication_name"], input[data-field="dosage"]')).toBeNull();
+    const link = item.querySelector('a[href="/medication-planning/5"]');
+    expect(link.textContent).toBe('med_reception_edit_plan');
+    expect(link.getAttribute('aria-label')).toBe('medication_edit_plan_for');
+    screen.destroy();
+  });
+
+  test('without medication.manage, the reception list offers no plan correction', async () => {
+    canManageMedication.mockReturnValue(false);
+    loadAll();
+    const screen = new MedicationReception(makeApp(), { activityId: 3 });
+    await screen.init();
+
+    expect(page().querySelector('a[href^="/medication-planning/"]')).toBeNull();
+    screen.destroy();
+    canManageMedication.mockReturnValue(true);
   });
 
   test('receptions that did not load are an error with a retry, never "not received"', async () => {

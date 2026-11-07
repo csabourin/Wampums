@@ -157,6 +157,40 @@ const MEDICATION_REQUIREMENT_WRITE_POLICY = {
 };
 
 /**
+ * Whether the caller is linked to the child of the plan named by `:id`.
+ * @param {Object} req - Request
+ * @param {{pool: Object, organizationId: number}} context - Current unit and pool
+ * @returns {Promise<boolean|null>} null when the unit has no such plan
+ */
+async function linkedToPlanChild(req, { pool, organizationId }) {
+  const requirementId = validId(req.params.id);
+  if (!requirementId) {return false;}
+  const result = await pool.query(
+    `SELECT EXISTS (
+       SELECT 1 FROM user_participants up
+        WHERE up.participant_id = mr.participant_id AND up.user_id = $3
+     ) AS linked
+       FROM medication_requirements mr
+      WHERE mr.id = $1 AND mr.organization_id = $2`,
+    [requirementId, organizationId, req.user.id]
+  );
+  return result.rows.length === 0 ? null : result.rows[0].linked === true;
+}
+
+/**
+ * Correcting a medication plan (#1379): the team holding `medication.manage` for the whole unit
+ * (a leader may fill in the plan for a family, then have it signed), or an adult linked to the
+ * plan's child (`user_participants`). The handler finds the plan within the authenticated unit
+ * only, so a plan of another unit answers 404. A correction to what is given by anyone but the
+ * signer sets the signed authorization aside (services/medicationPlanRevisions.js).
+ */
+const MEDICATION_PLAN_EDIT_POLICY = {
+  permissions: ['medication.manage'],
+  organizationScope: true,
+  resourceAccess: async (req, context) => (await linkedToPlanChild(req, context)) === true,
+};
+
+/**
  * Doses and medication brought to an activity are the team's work (#1339): listing the unit's
  * doses, scheduling, confirming a dose, and recording what was received. A role that sees only
  * its own children is refused, whatever keys a unit gave it; families plan through
@@ -166,6 +200,7 @@ const MEDICATION_STAFF_POLICY = { permissions: ['medication.manage'], organizati
 
 module.exports = {
   MEDICATION_REQUIREMENT_WRITE_POLICY,
+  MEDICATION_PLAN_EDIT_POLICY,
   MEDICATION_STAFF_POLICY,
   validId,
   medicationParticipantInUnit,

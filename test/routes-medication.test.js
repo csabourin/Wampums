@@ -387,59 +387,6 @@ describe('POST /api/v1/medication/requirements', () => {
     expect(queries.some((query) => query.includes('INSERT INTO medication_requirements'))).toBe(false);
   });
 
-  test('an update sending back the dates as the list returned them keeps those days', async () => {
-    const { __mClient, __mPool } = require('pg');
-    const updates = [];
-    __mPool.connect.mockResolvedValue(__mClient);
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
-      if (query.includes('SELECT id FROM medication_requirements')) {
-        return Promise.resolve({ rows: [{ id: 7 }] });
-      }
-      if (query.includes('UPDATE medication_requirements')) {
-        updates.push(params);
-        return Promise.resolve({ rows: [{ id: 7, medication_name: 'Advil' }] });
-      }
-      if (['BEGIN', 'COMMIT'].includes(query) || query.includes('participant_medications')) {
-        return Promise.resolve({ rows: [] });
-      }
-      if (query.includes('permission_key')) {
-        return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }] });
-      }
-      if (query.includes('JOIN roles r')) {
-        return Promise.resolve({ rows: [{ role_name: 'district', data_scope: 'organization' }] });
-      }
-      if (query.includes('FROM user_organizations')) {
-        return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });
-      }
-      return undefined;
-    });
-
-    const res = await request(app)
-      .put('/api/v1/medication/requirements/7')
-      .set('Authorization', `Bearer ${generateToken({ permissions: ['medication.manage'] })}`)
-      .send({
-        medication_name: 'Advil', frequency_preset_type: 'prn', participant_ids: [50],
-        start_date: '2026-12-01T00:00:00.000Z', end_date: '2026-12-03T00:00:00.000Z',
-      });
-
-    expect(res.status).toBe(200);
-    expect(updates[0]).toEqual(expect.arrayContaining(['2026-12-01', '2026-12-03']));
-  });
-
-  test('an update cannot remove the unit of a dose either', async () => {
-    const { __mClient, __mPool } = require('pg');
-    const queries = asUnitAdmin(__mClient, __mPool);
-
-    const res = await request(app)
-      .put('/api/v1/medication/requirements/7')
-      .set('Authorization', `Bearer ${generateToken({ permissions: ['medication.manage'] })}`)
-      .send({ medication_name: 'Advil', default_dose_amount: 200, participant_ids: [50] });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toBe('medication_dose_unit_required');
-    expect(queries.some((query) => query.includes('UPDATE medication_requirements'))).toBe(false);
-  });
-
   test('stores user ID in created_by field for audit trail', async () => {
     const { __mClient, __mPool } = require('pg');
     const userId = 42;
@@ -542,6 +489,251 @@ describe('POST /api/v1/medication/requirements', () => {
 // ============================================
 // MEDICATION DISTRIBUTION TESTS
 // ============================================
+
+/** The plan as stored, the way the correction reads it back. */
+const STORED_PLAN = Object.freeze({
+  id: 7, participant_id: 50, medication_name: 'Advil', dosage_instructions: 'Avec un repas',
+  frequency_preset_type: 'time_of_day', frequency_times: ['08:00'], frequency_slots: null,
+  frequency_interval_hours: null, frequency_interval_start: null, route: 'Orale',
+  default_dose_amount: '200.00', default_dose_unit: 'mg', general_notes: null,
+  start_date: '2026-12-01', end_date: '2026-12-03', updated_at: new Date('2026-11-07T15:00:00.000Z'),
+});
+const PLAN_VERSION = '2026-11-07T15:00:00.000Z';
+
+/** A correction sending back the plan as the screen shows it, with `changes` applied. */
+function correction(changes = {}) {
+  return {
+    medication_name: 'Advil', dosage_instructions: 'Avec un repas', frequency_preset_type: 'time_of_day',
+    frequency_times: ['08:00'], route: 'Orale', default_dose_amount: 200, default_dose_unit: 'mg',
+    start_date: '2026-12-01', end_date: '2026-12-03', participant_ids: [50],
+    expected_updated_at: PLAN_VERSION, ...changes,
+  };
+}
+
+/**
+ * Answer as a parent (linked scope, no medication key) or a leader (organization scope,
+ * medication.manage), linked or not to the plan's child.
+ * @returns {Array<{query: string, params: Array}>} Every query sent
+ */
+function asAdult(client, pool, { staff = false, linked = true, plan = STORED_PLAN, signedByOther = false } = {}) {
+  const queries = [];
+  pool.connect.mockResolvedValue(client);
+  mockQueryImplementation(client, pool, (query, params) => {
+    queries.push({ query, params });
+    if (query.includes('permission_key')) {
+      return Promise.resolve({ rows: staff ? [{ permission_key: 'medication.manage' }] : [] });
+    }
+    if (query.includes('JOIN roles r') || query.includes('r.data_scope')) {
+      return Promise.resolve({ rows: [{ role_name: staff ? 'animation' : 'parent', data_scope: staff ? 'organization' : 'linked' }] });
+    }
+    if (query.includes('AS linked') && query.includes('FROM medication_requirements mr')) {
+      return Promise.resolve({ rows: plan ? [{ linked }] : [] });
+    }
+    if (query.includes('FOR UPDATE')) {
+      return Promise.resolve({ rows: plan ? [plan] : [] });
+    }
+    if (query.includes('UPDATE medication_requirements')) {
+      return Promise.resolve({ rows: [{ ...plan, medication_name: params[0] }] });
+    }
+    if (query.includes('UPDATE medication_distributions')) {
+      return Promise.resolve({ rows: [], rowCount: 2 });
+    }
+    if (query.includes('UPDATE medication_admin_authorizations')) {
+      return Promise.resolve({ rows: [], rowCount: signedByOther ? 1 : 0 });
+    }
+    if (query.includes('INSERT INTO medication_requirement_revisions')) {
+      return Promise.resolve({ rows: [{ changes: JSON.parse(params[2]), changed_by: params[3], requires_new_signature: params[4] }] });
+    }
+    if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(query)) {
+      return Promise.resolve({ rows: [] });
+    }
+    return undefined;
+  });
+  return queries;
+}
+
+const sent = (queries, fragment) => queries.filter(({ query }) => query.includes(fragment));
+
+describe('PUT /api/v1/medication/requirements/:id (correcting a plan, #1379)', () => {
+  const put = (body, token = generateToken({ permissions: [] })) => request(app)
+    .put('/api/v1/medication/requirements/7')
+    .set('Authorization', `Bearer ${token}`)
+    .send(body);
+
+  test('a parent corrects the dose of their child\'s plan on the same plan, and the correction is recorded', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asAdult(__mClient, __mPool);
+
+    const res = await put(correction({ default_dose_amount: 400 }));
+
+    expect(res.status).toBe(200);
+    expect(sent(queries, 'UPDATE medication_requirements')[0].params).toEqual(expect.arrayContaining([400, 'mg', 7]));
+    expect(sent(queries, 'INSERT INTO medication_requirements')).toHaveLength(0);
+    expect(sent(queries, 'participant_medications')).toHaveLength(0);
+    const revision = JSON.parse(sent(queries, 'INSERT INTO medication_requirement_revisions')[0].params[2]);
+    expect(revision).toEqual({ default_dose_amount: { from: 200, to: 400 } });
+  });
+
+  test('the dates sent back as the list returned them keep their days and are not a change', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asAdult(__mClient, __mPool);
+
+    const res = await put(correction({
+      start_date: '2026-12-01T00:00:00.000Z', end_date: '2026-12-03T00:00:00.000Z', general_notes: 'Dans son sac',
+    }));
+
+    expect(res.status).toBe(200);
+    const revision = JSON.parse(sent(queries, 'INSERT INTO medication_requirement_revisions')[0].params[2]);
+    expect(revision).toEqual({ general_notes: { from: null, to: 'Dans son sac' } });
+  });
+
+  test('a change to what is given moves later scheduled doses and asks another signer to sign again', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asAdult(__mClient, __mPool, { signedByOther: true });
+
+    const res = await put(correction({ default_dose_amount: 400 }));
+
+    expect(res.status).toBe(200);
+    const doses = sent(queries, 'UPDATE medication_distributions')[0];
+    expect(doses.query).toContain("status = 'scheduled'");
+    expect(doses.query).toContain('scheduled_for > NOW()');
+    const signatures = sent(queries, 'UPDATE medication_admin_authorizations')[0];
+    expect(signatures.query).toContain('created_by IS DISTINCT FROM');
+    expect(signatures.params).toEqual(expect.arrayContaining(['plan_changed']));
+    expect(res.body.data.revision.requires_new_signature).toBe(true);
+  });
+
+  test('a note alone asks no one to sign again and leaves scheduled doses alone', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asAdult(__mClient, __mPool, { signedByOther: true });
+
+    const res = await put(correction({ general_notes: 'Dans son sac' }));
+
+    expect(res.status).toBe(200);
+    expect(sent(queries, 'UPDATE medication_admin_authorizations')).toHaveLength(0);
+    expect(sent(queries, 'UPDATE medication_distributions')).toHaveLength(0);
+  });
+
+  test('meal times stored by jsonb in another key order, or times typed in another order, are not a change', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asAdult(__mClient, __mPool, {
+      signedByOther: true,
+      plan: { ...STORED_PLAN, frequency_preset_type: 'meal', frequency_times: ['12:00', '08:00'],
+        frequency_slots: { lunch: '12:00', breakfast: '08:00' } },
+    });
+
+    const res = await put(correction({
+      frequency_preset_type: 'meal', frequency_times: ['08:00', '12:00'],
+      frequency_slots: { breakfast: '08:00', lunch: '12:00' }, general_notes: 'Dans son sac',
+    }));
+
+    expect(res.status).toBe(200);
+    const revision = JSON.parse(sent(queries, 'INSERT INTO medication_requirement_revisions')[0].params[2]);
+    expect(revision).toEqual({ general_notes: { from: null, to: 'Dans son sac' } });
+    expect(sent(queries, 'UPDATE medication_admin_authorizations')).toHaveLength(0);
+  });
+
+  test('a correction that changes nothing writes nothing', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asAdult(__mClient, __mPool);
+
+    const res = await put(correction());
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.revision).toBeNull();
+    expect(sent(queries, 'UPDATE medication_requirements')).toHaveLength(0);
+    expect(sent(queries, 'INSERT INTO medication_requirement_revisions')).toHaveLength(0);
+  });
+
+  test('a plan corrected by someone else since it was opened is not overwritten', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asAdult(__mClient, __mPool);
+
+    const res = await put(correction({ default_dose_amount: 400, expected_updated_at: '2026-11-07T14:00:00.000Z' }));
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toBe('medication_requirement_changed');
+    expect(sent(queries, 'UPDATE medication_requirements')).toHaveLength(0);
+  });
+
+  test('a correction must say which version it started from', async () => {
+    const { __mClient, __mPool } = require('pg');
+    asAdult(__mClient, __mPool);
+
+    const res = await put(correction({ expected_updated_at: undefined }));
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('medication_requirement_version_required');
+  });
+
+  test('a plan cannot be moved to another child', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asAdult(__mClient, __mPool);
+
+    const res = await put(correction({ participant_ids: [51] }));
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toBe('medication_participant_immutable');
+    expect(sent(queries, 'UPDATE medication_requirements')).toHaveLength(0);
+  });
+
+  test('a correction cannot remove the unit of a dose', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asAdult(__mClient, __mPool);
+
+    const res = await put(correction({ default_dose_unit: '' }));
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('medication_dose_unit_required');
+    expect(sent(queries, 'UPDATE medication_requirements')).toHaveLength(0);
+  });
+
+  test('a leader holding medication.manage corrects a plan filled in for a family; its signer must sign again', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asAdult(__mClient, __mPool, { staff: true, linked: false, signedByOther: true });
+
+    const res = await put(correction({ default_dose_amount: 400 }), generateToken());
+
+    expect(res.status).toBe(200);
+    expect(sent(queries, 'UPDATE medication_requirements')).toHaveLength(1);
+    expect(sent(queries, 'UPDATE medication_admin_authorizations')).toHaveLength(1);
+    expect(res.body.data.revision.requires_new_signature).toBe(true);
+  });
+
+  test('a parent cannot correct the plan of a child they are not linked to', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asAdult(__mClient, __mPool, { linked: false });
+
+    const res = await put(correction({ default_dose_amount: 400 }));
+
+    expect(res.status).toBe(403);
+    expect(res.body.required).toEqual(['medication.manage']);
+    expect(res.body.missing).toEqual(['medication.manage']);
+    expect(sent(queries, 'UPDATE medication_requirements')).toHaveLength(0);
+  });
+
+  test('a leader asking for a plan this unit does not have is told it does not exist', async () => {
+    const { __mClient, __mPool } = require('pg');
+    asAdult(__mClient, __mPool, { staff: true, plan: null });
+
+    const res = await put(correction(), generateToken());
+
+    expect(res.status).toBe(404);
+  });
+
+  test('a correction requires authentication', async () => {
+    const res = await request(app).put('/api/v1/medication/requirements/7').send(correction());
+    expect(res.status).toBe(401);
+  });
+
+  test('a malformed plan id is refused before anything is read', async () => {
+    const res = await request(app)
+      .put('/api/v1/medication/requirements/7abc')
+      .set('Authorization', `Bearer ${generateToken({ permissions: [] })}`)
+      .send(correction());
+    expect(res.status).toBe(400);
+  });
+});
 
 describe('POST /api/v1/medication/distributions', () => {
   test('records medication distribution with required witness', async () => {
