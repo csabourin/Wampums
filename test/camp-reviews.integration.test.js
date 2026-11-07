@@ -365,6 +365,25 @@ describe.skipIf(!DATABASE_URL)('Camp review', () => {
       expect(first.body.data).toEqual({ basis: null, reviews: [] });
     });
 
+    test('“last time” passes over newer reviews that kept and fixed nothing, to reach an older one that did', async () => {
+      const quiet = await site(ids.unit, 'Fictional Quiet Site');
+      const lessons = await reviewed('2023-07-07', '2023-07-09', quiet, 'summer', 'Été 2023');
+      // Two later camps at the same site, their reviews closed without sorting anything.
+      const closedUnsorted = async (start) => {
+        const { meeting } = await camp(ids.unit, ids.leader, start, start);
+        await held(meeting, ids.unit, quiet, 'summer');
+        await call('put', `/camps/${meeting}/notes/${randomUUID()}`).send(note({ text: 'Pas encore trié' }));
+        expect((await call('put', `/camps/${meeting}/status`).send({ status: 'closed', expected_version: 1 })).status).toBe(200);
+      };
+      await closedUnsorted('2024-07-05');
+      await closedUnsorted('2025-07-04');
+      const { meeting: next } = await camp(ids.unit, ids.leader, '2026-07-03', '2026-07-05');
+      await held(next, ids.unit, quiet, 'summer');
+      const response = await call('get', `/camps/${next}/previous`);
+      expect(response.body.data.basis).toBe('site');
+      expect(response.body.data.reviews.map((review) => review.camp.id)).toEqual([Number(lessons)]);
+    });
+
     test('“last time” for another unit’s camp is not found', async () => {
       expect((await call('get', `/camps/${coming}/previous`, ids.outsider, ids.otherUnit)).status).toBe(404);
     });

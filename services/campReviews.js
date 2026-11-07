@@ -629,6 +629,11 @@ const CLOSED_REVIEWS_SQL = `SELECT r.meeting_id, r.closed_at, m.theme, m.meeting
    AND ($2::int IS NULL OR d.camp_site_id = $2)
    AND ($3::text IS NULL OR d.season = $3)
    AND ($4::date IS NULL OR m.meeting_date < $4)
+   -- Only reviews that kept or fixed something, when asked: filtered before the limit, so empty
+   -- recent reviews never hide an older one with lessons.
+   AND (NOT $6::boolean OR EXISTS (SELECT 1 FROM camp_review_notes n
+         WHERE n.organization_id = r.organization_id AND n.meeting_id = r.meeting_id
+           AND n.merged_into_id IS NULL AND n.outcome IN ('keep', 'fix')))
  ORDER BY m.meeting_date DESC, r.meeting_id DESC
  LIMIT $5`;
 
@@ -659,8 +664,9 @@ function lessonsOf(notes) {
  * @param {{siteId?: ?number, season?: ?string, before?: ?string, limit?: number}} filters
  * @returns {Promise<Object[]>} Newest camp first
  */
-async function closedReviews(db, organizationId, { siteId = null, season = null, before = null, limit = HISTORY_MAX } = {}) {
-  const { rows } = await db.query(CLOSED_REVIEWS_SQL, [organizationId, siteId, season, before, limit]);
+async function closedReviews(db, organizationId,
+  { siteId = null, season = null, before = null, limit = HISTORY_MAX, withLessons = false } = {}) {
+  const { rows } = await db.query(CLOSED_REVIEWS_SQL, [organizationId, siteId, season, before, limit, withLessons]);
   if (!rows.length) {
     return [];
   }
@@ -696,7 +702,7 @@ async function listReviewHistory(db, organizationId, query = {}) {
   }
   const [reviews, all] = await Promise.all([
     closedReviews(db, organizationId, { siteId, season }),
-    db.query(CLOSED_REVIEWS_SQL, [organizationId, null, null, null, HISTORY_MAX]),
+    db.query(CLOSED_REVIEWS_SQL, [organizationId, null, null, null, HISTORY_MAX, false]),
   ]);
   const sites = new Map();
   all.rows.filter((row) => row.site_id).forEach((row) => sites.set(Number(row.site_id), row.site_name));
@@ -726,17 +732,16 @@ async function previousLessons(db, organizationId, meetingId) {
       WHERE m.organization_id = $1 AND m.id = $2`,
     [organizationId, meetingId]);
   const camp = rows[0];
-  const keepUseful = (reviews) => reviews.filter((review) => review.keep.length || review.fix.length);
   if (camp.camp_site_id) {
-    const reviews = keepUseful(await closedReviews(db, organizationId,
-      { siteId: Number(camp.camp_site_id), before: camp.date_from, limit: PREVIOUS_REVIEWS }));
+    const reviews = await closedReviews(db, organizationId,
+      { siteId: Number(camp.camp_site_id), before: camp.date_from, limit: PREVIOUS_REVIEWS, withLessons: true });
     if (reviews.length) {
       return { basis: 'site', reviews };
     }
   }
   if (camp.season) {
-    const reviews = keepUseful(await closedReviews(db, organizationId,
-      { season: camp.season, before: camp.date_from, limit: PREVIOUS_REVIEWS }));
+    const reviews = await closedReviews(db, organizationId,
+      { season: camp.season, before: camp.date_from, limit: PREVIOUS_REVIEWS, withLessons: true });
     if (reviews.length) {
       return { basis: 'season', reviews };
     }
