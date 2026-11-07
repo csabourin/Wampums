@@ -67,7 +67,12 @@ function comparable(field, value) {
   if (field === 'frequency_times' || field === 'frequency_slots') {
     const parsed = typeof value === 'string' ? JSON.parse(value) : value;
     const empty = Array.isArray(parsed) ? parsed.length === 0 : Object.keys(parsed || {}).length === 0;
-    return empty ? null : JSON.stringify(parsed);
+    // Compared by content: jsonb stores object keys in its own order, and the order the times
+    // were typed in changes nothing that is given.
+    if (empty) {return null;}
+    return JSON.stringify(Array.isArray(parsed)
+      ? [...parsed].sort()
+      : Object.fromEntries(Object.entries(parsed).sort(([a], [b]) => a.localeCompare(b))));
   }
   return value;
 }

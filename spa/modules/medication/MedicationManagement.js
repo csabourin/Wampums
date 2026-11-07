@@ -1988,7 +1988,7 @@ export class MedicationManagement {
       const timeLabel = new Date(dist.scheduled_for).toLocaleTimeString(this.app.lang || 'en', { hour: '2-digit', minute: '2-digit' });
       // A correction removed this time from the plan (#1379): the team decides what to do with it.
       const slots = this.buildSlotsForRequirement(requirement, this.toLocalDateString(dist.scheduled_for), '08:00');
-      const offPlan = isOffPlanDose(dist, slots, (value) => this.toLocalTimeString(value))
+      const offPlan = isOffPlanDose(dist, slots, (value) => this.toLocalTimeString(value), requirement)
         ? ` <span class="pill medication-off-plan">${escapeHTML(translate('medication_dose_off_plan'))}</span>`
         : '';
       return `

@@ -614,6 +614,25 @@ describe('PUT /api/v1/medication/requirements/:id (correcting a plan, #1379)', (
     expect(sent(queries, 'UPDATE medication_distributions')).toHaveLength(0);
   });
 
+  test('meal times stored by jsonb in another key order, or times typed in another order, are not a change', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const queries = asAdult(__mClient, __mPool, {
+      signedByOther: true,
+      plan: { ...STORED_PLAN, frequency_preset_type: 'meal', frequency_times: ['12:00', '08:00'],
+        frequency_slots: { lunch: '12:00', breakfast: '08:00' } },
+    });
+
+    const res = await put(correction({
+      frequency_preset_type: 'meal', frequency_times: ['08:00', '12:00'],
+      frequency_slots: { breakfast: '08:00', lunch: '12:00' }, general_notes: 'Dans son sac',
+    }));
+
+    expect(res.status).toBe(200);
+    const revision = JSON.parse(sent(queries, 'INSERT INTO medication_requirement_revisions')[0].params[2]);
+    expect(revision).toEqual({ general_notes: { from: null, to: 'Dans son sac' } });
+    expect(sent(queries, 'UPDATE medication_admin_authorizations')).toHaveLength(0);
+  });
+
   test('a correction that changes nothing writes nothing', async () => {
     const { __mClient, __mPool } = require('pg');
     const queries = asAdult(__mClient, __mPool);

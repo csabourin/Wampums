@@ -189,6 +189,22 @@ describe.skipIf(!DATABASE_URL)('Correcting a medication plan', () => {
     expect(Number(await one('SELECT default_dose_amount FROM medication_requirements WHERE id = $1', [syrup]))).toBe(5);
   });
 
+  test('a note added to a meal plan by another parent keeps the signature: jsonb key order is not a change', async () => {
+    const syrup = await plan(ids.unit, ids.rosalind, ids.mother);
+    await pool.query(`UPDATE medication_requirements SET frequency_preset_type = 'meal', frequency_times = '["08:00","12:00"]',
+      frequency_slots = '{"breakfast":"08:00","lunch":"12:00"}' WHERE id = $1`, [syrup]);
+    const authorization = await signedBy(ids.mother, ids.rosalind, syrup);
+
+    const response = await call('put', `/requirements/${syrup}`, ids.father, await correction(syrup, ids.rosalind, {
+      frequency_preset_type: 'meal', frequency_times: ['08:00', '12:00'],
+      frequency_slots: { breakfast: '08:00', lunch: '12:00' }, general_notes: 'Dans son sac',
+    }));
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.revision.changes).toEqual({ general_notes: { from: null, to: 'Dans son sac' } });
+    expect(await one('SELECT status FROM medication_admin_authorizations WHERE id = $1', [authorization])).toBe('signed');
+  });
+
   test('a plan is not moved to another child, nor overwritten by a correction started from an older version', async () => {
     const syrup = await plan(ids.unit, ids.rosalind, ids.mother);
 

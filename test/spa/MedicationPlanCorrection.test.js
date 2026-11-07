@@ -270,6 +270,10 @@ describe('a parent correcting their child\'s plan', () => {
 });
 
 describe('the check before saving', () => {
+  test('times typed in another order are not a change', () => {
+    expect(describeGivenChanges({ ...PLAN, frequency_times: ['20:00', '08:00'] }, { ...PLAN, frequency_times: ['08:00', '20:00'] }, 'fr')).toEqual([]);
+  });
+
   test('a schedule worded differently but given at the same times is not shown as a change', () => {
     const before = { ...PLAN, frequency_text: 'Times of day' };
     const after = { ...PLAN, frequency_text: 'Moments de la journée' };
@@ -357,6 +361,26 @@ describe('what everyone sees of a corrected plan', () => {
     const rows = [...document.querySelectorAll('#medication-upcoming-table-body tr')];
     expect(rows.map((row) => Boolean(row.querySelector('.medication-off-plan')))).toEqual([false, true]);
     expect(rows[1].querySelector('.medication-off-plan').textContent).toBe('medication_dose_off_plan');
+    screen.destroy();
+  });
+
+  test('after a plan became "as needed", doses scheduled before are pointed out, not those the team adds after', async () => {
+    mockFamily.value = false;
+    canManageMedication.mockReturnValue(true);
+    const at = (day) => new Date(2026, 10, day, 8, 0).toISOString();
+    const prn = { ...PLAN, frequency_preset_type: 'prn', frequency_times: null, revisions: [{
+      changed_at: '2026-11-07T15:00:00.000Z', changed_by_name: 'Léa Tremblay', requires_new_signature: false,
+      changes: { frequency_preset_type: { from: 'time_of_day', to: 'prn' }, frequency_times: { from: ['08:00'], to: null } },
+    }] };
+    load(prn, [
+      { id: 1, medication_requirement_id: 11, participant_id: 5, scheduled_for: at(16), status: 'scheduled', created_at: '2026-11-06T10:00:00.000Z' },
+      { id: 2, medication_requirement_id: 11, participant_id: 5, scheduled_for: at(17), status: 'scheduled', created_at: '2026-11-08T10:00:00.000Z' },
+    ]);
+    const screen = new MedicationManagement(makeApp(), { view: 'dispensing' });
+    await screen.init();
+
+    const rows = [...document.querySelectorAll('#medication-upcoming-table-body tr')];
+    expect(rows.map((row) => Boolean(row.querySelector('.medication-off-plan')))).toEqual([true, false]);
     screen.destroy();
   });
 

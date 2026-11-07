@@ -83,7 +83,7 @@ function scheduleKey(plan) {
   const slots = plan.frequency_slots && typeof plan.frequency_slots === 'object' ? plan.frequency_slots : {};
   const hours = plan.frequency_interval_hours ? Number(plan.frequency_interval_hours) : null;
   const start = plan.frequency_interval_start ? String(plan.frequency_interval_start).slice(0, CLOCK_TIME_LENGTH) : null;
-  return JSON.stringify([plan.frequency_preset_type || null, times, Object.entries(slots).sort(), hours, start]);
+  return JSON.stringify([plan.frequency_preset_type || null, [...times].sort(), Object.entries(slots).sort(), hours, start]);
 }
 
 /**
@@ -165,17 +165,41 @@ export function renderPlanHistory(requirement, lang) {
 }
 
 /**
+ * When a correction last took the plan's fixed times away (made it "as needed", or emptied its
+ * times), from the plan's history.
+ *
+ * @param {Object} requirement - Listed plan, with its `revisions`
+ * @returns {number|null} Milliseconds, or null when no correction did
+ */
+function fixedTimesRemovedAt(requirement) {
+  const removal = (requirement?.revisions || []).find(({ changes }) => (
+    changes?.frequency_preset_type?.to === 'prn'
+    || (changes?.frequency_times && changes.frequency_times.to === null)
+  ));
+  const at = removal ? Date.parse(removal.changed_at) : NaN;
+  return Number.isFinite(at) ? at : null;
+}
+
+/**
  * Whether a dose still scheduled sits at a time its plan no longer has, read in this device's
  * time zone: a correction removed that time, and the team decides what to do with the dose.
+ * A plan left with no fixed times ("as needed") flags only the doses scheduled before the
+ * correction that removed them: the team may schedule an as-needed dose by hand afterwards.
  *
  * @param {Object} distribution - Scheduled dose
  * @param {Array<{iso: string}>} slots - The plan's times on that day
  * @param {Function} localTime - Instant → "HH:MM" on this device
+ * @param {Object} [requirement] - The plan, with its `revisions`
  * @returns {boolean} True for a scheduled dose at a time the plan no longer has
  */
-export function isOffPlanDose(distribution, slots, localTime) {
-  if (distribution?.status !== 'scheduled' || !Array.isArray(slots) || slots.length === 0) {
+export function isOffPlanDose(distribution, slots, localTime, requirement = null) {
+  if (distribution?.status !== 'scheduled' || !Array.isArray(slots)) {
     return false;
+  }
+  if (slots.length === 0) {
+    const removedAt = fixedTimesRemovedAt(requirement);
+    const scheduledAt = Date.parse(distribution.created_at);
+    return removedAt !== null && Number.isFinite(scheduledAt) && scheduledAt < removedAt;
   }
   const time = localTime(distribution.scheduled_for);
   return !slots.some((slot) => localTime(slot.iso) === time);
