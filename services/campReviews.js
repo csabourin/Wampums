@@ -32,6 +32,7 @@
  */
 const RULES = require('../config/camp_reviews.json');
 const { isCalendarDate } = require('../utils/calendar-date');
+const { SEASONS } = require('../config/camp_sites.json');
 
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
@@ -604,7 +605,161 @@ async function setReviewStatus(db, organizationId, userId, meetingId, body) {
   return { review: await reviewState(db, organizationId, meetingId) };
 }
 
+/** The notes of several camps at once, as NOTES_SQL reads one camp's. */
+const NOTES_OF_CAMPS_SQL = NOTES_SQL.replace('n.meeting_id = $2', 'n.meeting_id = ANY($2::int[])');
+
+/** How many kept and fixed notes a review offers as its lessons, heaviest first. */
+const LESSONS_PER_OUTCOME = 5;
+/** How many earlier camps "Last time" draws on. */
+const PREVIOUS_REVIEWS = 2;
+/** The largest id a PostgreSQL integer holds: a larger one is malformed input. */
+const PG_INTEGER_MAX = 2147483647;
+/** The most reviews the history lists. */
+const HISTORY_MAX = 100;
+
+const CLOSED_REVIEWS_SQL = `SELECT r.meeting_id, r.closed_at, m.theme, m.meeting_date::text AS date_from,
+       COALESCE(a.activity_end_date, m.meeting_date)::text AS date_to,
+       d.season, s.id AS site_id, s.name AS site_name
+  FROM camp_reviews r
+  JOIN year_plan_meetings m ON m.id = r.meeting_id AND m.organization_id = r.organization_id
+  LEFT JOIN activities a ON a.id = m.activity_id AND a.organization_id = m.organization_id AND a.is_active = TRUE
+  LEFT JOIN camp_details d ON d.meeting_id = m.id AND d.organization_id = m.organization_id
+  LEFT JOIN camp_sites s ON s.id = d.camp_site_id AND s.organization_id = d.organization_id
+ WHERE r.organization_id = $1 AND r.status = 'closed'
+   AND ($2::int IS NULL OR d.camp_site_id = $2)
+   AND ($3::text IS NULL OR d.season = $3)
+   AND ($4::date IS NULL OR m.meeting_date < $4)
+   AND ($7::int IS NULL OR r.meeting_id = $7)
+   -- Only reviews that kept or fixed something, when asked: filtered before the limit, so empty
+   -- recent reviews never hide an older one with lessons.
+   AND (NOT $6::boolean OR EXISTS (SELECT 1 FROM camp_review_notes n
+         WHERE n.organization_id = r.organization_id AND n.meeting_id = r.meeting_id
+           AND n.merged_into_id IS NULL AND n.outcome IN ('keep', 'fix')))
+ ORDER BY m.meeting_date DESC, r.meeting_id DESC
+ LIMIT $5`;
+
+const REVIEWED_SITES_SQL = `SELECT DISTINCT s.id, s.name
+  FROM camp_reviews r
+  JOIN camp_details d ON d.meeting_id = r.meeting_id AND d.organization_id = r.organization_id
+  JOIN camp_sites s ON s.id = d.camp_site_id AND s.organization_id = d.organization_id
+ WHERE r.organization_id = $1 AND r.status = 'closed'
+ ORDER BY s.name, s.id`;
+
+/**
+ * What a closed review keeps and fixes, heaviest first.
+ *
+ * @param {Object[]} notes - The review's notes, assembled
+ * @returns {{keep: Object[], fix: Object[], counts: {notes: number, keep: number, fix: number}}}
+ */
+function lessonsOf(notes) {
+  const pick = (outcome) => notes.filter((note) => note.outcome === outcome)
+    .sort((a, b) => b.weight - a.weight)
+    .map((note) => ({ id: note.id, category: note.category, text: note.text, action_text: note.action_text, weight: note.weight }));
+  const keep = pick('keep');
+  const fix = pick('fix');
+  return {
+    keep: keep.slice(0, LESSONS_PER_OUTCOME),
+    fix: fix.slice(0, LESSONS_PER_OUTCOME),
+    counts: { notes: notes.length, keep: keep.length, fix: fix.length },
+  };
+}
+
+/**
+ * Closed reviews of the unit with their lessons.
+ *
+ * @param {Object} db - pg pool or client
+ * @param {number} organizationId - The authenticated unit
+ * @param {{siteId?: ?number, season?: ?string, before?: ?string, limit?: number}} filters
+ * @returns {Promise<Object[]>} Newest camp first
+ */
+async function closedReviews(db, organizationId,
+  { siteId = null, season = null, before = null, limit = HISTORY_MAX, withLessons = false, meetingId = null } = {}) {
+  const { rows } = await db.query(CLOSED_REVIEWS_SQL, [organizationId, siteId, season, before, limit, withLessons, meetingId]);
+  if (!rows.length) {
+    return [];
+  }
+  const ids = rows.map((row) => Number(row.meeting_id));
+  const notes = await db.query(NOTES_OF_CAMPS_SQL, [organizationId, ids, null]);
+  const byCamp = new Map(ids.map((id) => [id, []]));
+  notes.rows.forEach((row) => byCamp.get(Number(row.meeting_id))?.push(row));
+  return rows.map((row) => ({
+    camp: { id: Number(row.meeting_id), theme: row.theme, date_from: row.date_from, date_to: row.date_to, season: row.season || null },
+    site: row.site_id ? { id: Number(row.site_id), name: row.site_name } : null,
+    closed_at: row.closed_at,
+    ...lessonsOf(assemble(byCamp.get(Number(row.meeting_id)))),
+  }));
+}
+
+/**
+ * The unit's closed camp reviews, year after year, to repeat its good moves
+ * and fix its weaknesses. They belong to the unit, not to a scout year.
+ *
+ * @param {Object} db - pg pool or client
+ * @param {number} organizationId - The authenticated unit
+ * @param {{site_id?: string, season?: string}} query - Filters from the request
+ * @returns {Promise<{reviews: Object[], sites: Object[]}>} The reviews, and the sites they were held at
+ */
+async function listReviewHistory(db, organizationId, query = {}) {
+  const readId = (field) => {
+    const value = query[field] === undefined || query[field] === '' ? null : Number(query[field]);
+    if (value !== null && !(Number.isInteger(value) && value > 0 && value <= PG_INTEGER_MAX)) {
+      refuse('camp_review_invalid_filter', HTTP_BAD_REQUEST, field);
+    }
+    return value;
+  };
+  const siteId = readId('site_id');
+  // One camp's closed review, however old: what the dialog reusing an earlier camp shows.
+  const meetingId = readId('meeting_id');
+  const season = query.season === undefined || query.season === '' ? null : query.season;
+  if (season !== null && !SEASONS.includes(season)) {
+    refuse('camp_review_invalid_filter', HTTP_BAD_REQUEST, 'season');
+  }
+  const [reviews, sites] = await Promise.all([
+    closedReviews(db, organizationId, { siteId, season, meetingId }),
+    // Every site a closed review was held at, however old: the list of reviews is capped, the filter is not.
+    db.query(REVIEWED_SITES_SQL, [organizationId]),
+  ]);
+  return { reviews, sites: sites.rows.map((row) => ({ id: Number(row.id), name: row.name })) };
+}
+
+/**
+ * "Last time": what earlier closed reviews kept and fixed, for the camp being
+ * prepared. Camps held at the same site come first; without any, camps of the
+ * same season; without either, none (a review of another kind of camp would
+ * mislead more than help).
+ *
+ * @param {Object} db - pg pool or client
+ * @param {number} organizationId - The authenticated unit
+ * @param {number} meetingId - The camp being prepared
+ * @returns {Promise<{basis: ?string, reviews: Object[]}>} basis: 'site', 'season' or null
+ */
+async function previousLessons(db, organizationId, meetingId) {
+  await findCamp(db, organizationId, meetingId);
+  const { rows } = await db.query(
+    `SELECT m.meeting_date::text AS date_from, d.camp_site_id, d.season
+       FROM year_plan_meetings m
+       LEFT JOIN camp_details d ON d.meeting_id = m.id AND d.organization_id = m.organization_id
+      WHERE m.organization_id = $1 AND m.id = $2`,
+    [organizationId, meetingId]);
+  const camp = rows[0];
+  if (camp.camp_site_id) {
+    const reviews = await closedReviews(db, organizationId,
+      { siteId: Number(camp.camp_site_id), before: camp.date_from, limit: PREVIOUS_REVIEWS, withLessons: true });
+    if (reviews.length) {
+      return { basis: 'site', reviews };
+    }
+  }
+  if (camp.season) {
+    const reviews = await closedReviews(db, organizationId,
+      { season: camp.season, before: camp.date_from, limit: PREVIOUS_REVIEWS, withLessons: true });
+    if (reviews.length) {
+      return { basis: 'season', reviews };
+    }
+  }
+  return { basis: null, reviews: [] };
+}
+
 module.exports = {
   CampReviewError, RULES, readCampReview, readNote, saveNote, deleteNote, addVote, removeVote,
-  sortNote, mergeNote, unmergeNote, setReviewStatus,
+  sortNote, mergeNote, unmergeNote, setReviewStatus, listReviewHistory, previousLessons,
 };

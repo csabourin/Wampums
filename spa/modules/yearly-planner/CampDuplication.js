@@ -9,14 +9,17 @@
  */
 import { translate } from '../../app.js';
 import rules from '../../../config/camp_duplication.json';
-import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
+import { setContent, withFormBusy, loadStylesheet } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
-import { hasAllPermissions, hasOrganizationScope } from '../../utils/PermissionUtils.js';
+import { hasAllPermissions, hasOrganizationScope, hasPermission } from '../../utils/PermissionUtils.js';
 import { getCampDuplication, duplicateCamp } from '../../api/api-yearly-planner.js';
+import { getCampReviewHistory } from '../../api/api-camp-reviews.js';
+import { lessonsListMarkup } from '../camp-review/CampLessons.js';
+import lessonStyles from '../../../css/camp-lessons.css?url';
 
 const FORM_ID = 'yp-camp-duplicate-form';
 
@@ -46,6 +49,9 @@ export class CampDuplication {
     this.onDone = onDone;
     this.data = null;
     this.sourceId = null;
+    // What each earlier camp's closed review kept and fixed (#1257), read camp by camp as each is chosen.
+    this.lessons = new Map();
+    this.lessonsFailed = new Set();
     this.modal = null;
     this.saving = false;
   }
@@ -80,6 +86,53 @@ export class CampDuplication {
     }
   }
 
+  /**
+   * Read the chosen camp's closed review itself, however old, so the dialog shows what it kept and fixed.
+   * @param {number} sourceId - The earlier camp
+   */
+  async loadLessons(sourceId) {
+    if (!hasPermission('camp_reviews.view') || !sourceId || this.lessons.has(sourceId)) {
+      return;
+    }
+    loadStylesheet(lessonStyles).catch((err) => debugError('Camp lessons stylesheet failed', err));
+    try {
+      const response = await getCampReviewHistory({ meeting_id: sourceId });
+      this.lessons.set(sourceId, (response?.data?.reviews || []).find((review) => Number(review.camp.id) === sourceId) || null);
+      this.lessonsFailed.delete(sourceId);
+    } catch (err) {
+      debugError('Lessons of the earlier camp could not be loaded', err);
+      this.lessonsFailed.add(sourceId);
+    }
+  }
+
+  /** Read the chosen camp's lessons if needed, then draw them, unless another camp was chosen meanwhile. */
+  async showLessons() {
+    const sourceId = Number(this.sourceId);
+    await this.loadLessons(sourceId);
+    const container = this.body()?.querySelector('#yp-camp-duplicate-lessons');
+    if (container && Number(this.sourceId) === sourceId) {
+      setContent(container, this.lessonsMarkup());
+    }
+  }
+
+  /** @returns {string} What the chosen camp's review kept and fixed, when it was closed */
+  lessonsMarkup() {
+    if (!hasPermission('camp_reviews.view')) {
+      return '';
+    }
+    if (this.lessonsFailed.has(Number(this.sourceId))) {
+      return `<p class="status-message warning">${escapeHTML(translate('camp_lessons_load_failed'))}</p>`;
+    }
+    const review = this.lessons.get(Number(this.sourceId));
+    if (!review || (!review.keep.length && !review.fix.length)) {
+      return '';
+    }
+    return `<section class="camp-lessons" aria-labelledby="yp-camp-duplicate-lessons-title">
+        <h3 id="yp-camp-duplicate-lessons-title">${escapeHTML(translate('camp_duplicate_lessons'))}</h3>
+        ${lessonsListMarkup(review, 'h4')}
+      </section>`;
+  }
+
   async load() {
     try {
       const response = await getCampDuplication(this.meetingId);
@@ -93,6 +146,7 @@ export class CampDuplication {
     if (!sources.some((source) => source.id === this.sourceId)) {
       this.sourceId = sources[0]?.id ?? null;
     }
+    await this.loadLessons(Number(this.sourceId));
     this.render();
   }
 
@@ -195,6 +249,7 @@ export class CampDuplication {
             `).join('')}
           </select>
         </div>
+        <div id="yp-camp-duplicate-lessons">${this.lessonsMarkup()}</div>
         <fieldset id="yp-camp-duplicate-parts" aria-describedby="yp-camp-duplicate-parts-error">
           <legend>${escapeHTML(translate('camp_duplicate_parts'))}</legend>
           ${parts}
@@ -225,6 +280,7 @@ export class CampDuplication {
       this.sourceId = Number(event.target.value);
       this.render();
       this.body()?.querySelector('#yp-camp-duplicate-source')?.focus();
+      void this.showLessons();
     });
     body.querySelectorAll('input[name="parts"]').forEach((input) => {
       input.addEventListener('change', () => {

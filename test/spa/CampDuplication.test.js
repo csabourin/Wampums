@@ -39,10 +39,15 @@ jest.mock('../../spa/config.js', () => ({
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   hasAllPermissions: jest.fn(() => true),
   hasOrganizationScope: jest.fn(() => true),
+  hasPermission: jest.fn(() => false),
 }));
 
 jest.mock('../../spa/utils/DialogUtils.js', () => ({
   hasActiveDialog: () => false,
+}));
+
+jest.mock('../../spa/api/api-camp-reviews.js', () => ({
+  getCampReviewHistory: jest.fn(),
 }));
 
 jest.mock('../../spa/api/api-yearly-planner.js', () => ({
@@ -51,7 +56,8 @@ jest.mock('../../spa/api/api-yearly-planner.js', () => ({
 }));
 
 const api = require('../../spa/api/api-yearly-planner.js');
-const { hasAllPermissions, hasOrganizationScope } = require('../../spa/utils/PermissionUtils.js');
+const { hasAllPermissions, hasOrganizationScope, hasPermission } = require('../../spa/utils/PermissionUtils.js');
+const reviewsApi = require('../../spa/api/api-camp-reviews.js');
 const { closeAllModals } = require('../../spa/utils/ModalUtils.js');
 const { CampDuplication } = require('../../spa/modules/yearly-planner/CampDuplication.js');
 
@@ -323,3 +329,77 @@ describe('accessibility', () => {
     expect(document.activeElement.id).toBe('opener');
   });
 });
+
+describe('what the earlier camp’s review kept and fixed', () => {
+  const REVIEW = {
+    camp: { id: 41, theme: 'Camp d’hiver 2026' },
+    keep: [{ id: 'k', text: '<b>Le grand jeu</b>', action_text: 'Le refaire', weight: 3 }],
+    fix: [{ id: 'f', text: 'La vaisselle', action_text: null, weight: 1 }],
+  };
+
+  beforeEach(() => {
+    hasPermission.mockImplementation((key) => key === 'camp_reviews.view');
+    reviewsApi.getCampReviewHistory.mockReset();
+    reviewsApi.getCampReviewHistory.mockResolvedValue({ success: true, data: { reviews: [REVIEW], sites: [] } });
+  });
+
+  afterEach(() => {
+    hasPermission.mockImplementation(() => false);
+  });
+
+  test('the camp chosen shows what its closed review kept and fixed, as text', async () => {
+    await openDialog();
+    const box = dialog();
+    const lessons = box.querySelector('.camp-lessons');
+    expect(lessons.textContent).toContain('<b>Le grand jeu</b>');
+    expect(lessons.querySelector('b')).toBeNull();
+    expect(lessons.textContent).toContain('camp_review_action_value');
+    expect(lessons.textContent).toContain('La vaisselle');
+  });
+
+  test('a camp without a closed review shows none, and the dialog stays accessible', async () => {
+    await openDialog();
+    const box = dialog();
+    const select = box.querySelector('#yp-camp-duplicate-source');
+    select.value = '40';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.querySelector('.camp-lessons')).toBeNull();
+    const results = await axe.run(document.querySelector('.modal-dialog'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('lessons that could not be read say so, and the earlier camps are still offered', async () => {
+    reviewsApi.getCampReviewHistory.mockRejectedValue(new Error('boom'));
+    await openDialog();
+    const box = dialog();
+    expect(box.textContent).toContain('camp_lessons_load_failed');
+    expect(box.querySelectorAll('#yp-camp-duplicate-source option')).toHaveLength(2);
+  });
+
+  test('each camp chosen has its own review read, however old, and only once', async () => {
+    reviewsApi.getCampReviewHistory.mockImplementation(({ meeting_id: id }) => Promise.resolve({ success: true,
+      data: { reviews: id === 40 ? [{ ...REVIEW, camp: { id: 40 }, keep: [{ id: 'o', text: 'Le rallye', weight: 2 }], fix: [] }] : [REVIEW], sites: [] } }));
+    await openDialog();
+    expect(reviewsApi.getCampReviewHistory).toHaveBeenCalledWith({ meeting_id: 41 });
+    const select = dialog().querySelector('#yp-camp-duplicate-source');
+    select.value = '40';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    await flush();
+    await flush();
+    expect(reviewsApi.getCampReviewHistory).toHaveBeenLastCalledWith({ meeting_id: 40 });
+    expect(dialog().querySelector('.camp-lessons').textContent).toContain('Le rallye');
+    const back = dialog().querySelector('#yp-camp-duplicate-source');
+    back.value = '41';
+    back.dispatchEvent(new Event('change', { bubbles: true }));
+    await flush();
+    expect(reviewsApi.getCampReviewHistory).toHaveBeenCalledTimes(2);
+    expect(dialog().querySelector('.camp-lessons').textContent).toContain('<b>Le grand jeu</b>');
+  });
+
+  test('without the right to read reviews, none is asked for', async () => {
+    hasPermission.mockImplementation(() => false);
+    await openDialog();
+    expect(reviewsApi.getCampReviewHistory).not.toHaveBeenCalled();
+  });
+});
+

@@ -29,6 +29,7 @@ import { debugError } from '../../utils/DebugUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { hasPermission, hasOrganizationScope, isDemoUser } from '../../utils/PermissionUtils.js';
+import { mountPreviousLessons } from '../camp-review/CampLessons.js';
 import { richTextOrPlain } from '../../utils/RichTextUtils.js';
 import { sanitizeRichText } from '../../utils/FormTextUtils.js';
 import { confirm } from '../../utils/DialogUtils.js';
@@ -378,11 +379,14 @@ export class CampPlan {
         <p class="camp-plan__camp"><strong>${escapeHTML(camp.theme || translate('camp_readiness_camp'))}</strong> <span>${escapeHTML(dates)}</span></p>
         ${camp.is_cancelled ? `<p role="status">${escapeHTML(translate('camp_readiness_cancelled'))}</p>` : ''}
         <div id="camp-plan-summary">${this.summaryMarkup()}</div>
+        <div id="camp-plan-lessons"></div>
         <nav class="camp-plan__nav" id="camp-plan-nav" aria-label="${escapeAttribute(translate('camp_plan_nav_label'))}">${this.navMarkup()}</nav>
         ${panels}
       </section>`);
     this.root().querySelectorAll('.camp-plan__section').forEach((block) => this.wireSection(block));
     this.wireRainGames();
+    // What earlier camps at this site, or of this season, kept and fixed (#1257).
+    void mountPreviousLessons(this.root().querySelector('#camp-plan-lessons'), this.meetingId, this.lang(), 'camp-plan-lessons');
     // One listener for the quick navigation and every pager, which survive redraws of the navigation.
     this.root().querySelector('.camp-plan').addEventListener('click', (event) => {
       const button = event.target.closest('[data-camp-plan-part]');

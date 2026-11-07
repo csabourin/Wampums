@@ -17,8 +17,10 @@ const { validateIdParam, checkValidation } = require('../middleware/validation')
 const { HTTP_STATUS } = require('../utils/http-status');
 const transaction = require('../utils/transaction');
 const {
-  CampReviewError, readCampReview, saveNote, deleteNote, addVote, removeVote, sortNote, mergeNote, unmergeNote, setReviewStatus,
+  CampReviewError, readCampReview, saveNote, deleteNote, addVote, removeVote, sortNote, mergeNote, unmergeNote, setReviewStatus, listReviewHistory, previousLessons,
 } = require('../services/campReviews');
+
+const QUERY_FIELDS = ['site_id', 'season', 'meeting_id'];
 
 /** Answer known refusals with their translation key, naming the field when there is one. */
 const handle = (handler) => asyncHandler(async (req, res) => {
@@ -26,7 +28,9 @@ const handle = (handler) => asyncHandler(async (req, res) => {
     return await handler(req, res);
   } catch (err) {
     if (err instanceof CampReviewError) {
-      const fields = err.field ? [{ path: err.field, location: 'body', msg: err.message }] : undefined;
+      // The history's filters come from the query string; every other field from the body.
+      const location = QUERY_FIELDS.includes(err.field) ? 'query' : 'body';
+      const fields = err.field ? [{ path: err.field, location, msg: err.message }] : undefined;
       return error(res, err.message, err.status, fields);
     }
     throw err;
@@ -45,6 +49,30 @@ const ids = (req) => ({
 module.exports = (pool) => {
   const router = express.Router();
   router.use(authenticate);
+
+  // The unit's closed reviews, year after year (they belong to the unit, not to a scout year).
+  router.get('/',
+    requirePermission('camp_reviews.view'),
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      res.set('Cache-Control', 'no-store');
+      return success(res, await listReviewHistory(pool, organizationId, {
+        site_id: typeof req.query.site_id === 'string' ? req.query.site_id : undefined,
+        season: typeof req.query.season === 'string' ? req.query.season : undefined,
+        meeting_id: typeof req.query.meeting_id === 'string' ? req.query.meeting_id : undefined,
+      }));
+    }));
+
+  // "Last time": what earlier camps at the same site (or of the same season) kept and fixed.
+  router.get('/camps/:meetingId/previous',
+    requirePermission('camp_reviews.view'),
+    validateIdParam('meetingId'),
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      res.set('Cache-Control', 'no-store');
+      return success(res, await previousLessons(pool, organizationId, Number(req.params.meetingId)));
+    }));
 
   router.get('/camps/:meetingId',
     requirePermission('camp_reviews.view'),

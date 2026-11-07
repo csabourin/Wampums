@@ -14,6 +14,7 @@ jest.mock('../services/campReviews', () => {
     ...actual,
     readCampReview: jest.fn(), saveNote: jest.fn(), deleteNote: jest.fn(), addVote: jest.fn(), removeVote: jest.fn(),
     sortNote: jest.fn(), mergeNote: jest.fn(), unmergeNote: jest.fn(), setReviewStatus: jest.fn(),
+    listReviewHistory: jest.fn(), previousLessons: jest.fn(),
   };
 });
 const service = require('../services/campReviews');
@@ -66,6 +67,8 @@ beforeEach(() => {
   service.mergeNote.mockResolvedValue({ note: { id: VOTE_ID, weight: 2 } });
   service.unmergeNote.mockResolvedValue({ note: { id: NOTE_ID, weight: 1 } });
   service.setReviewStatus.mockResolvedValue({ review: { status: 'closed', version: 2 } });
+  service.listReviewHistory.mockResolvedValue({ reviews: [], sites: [] });
+  service.previousLessons.mockResolvedValue({ basis: null, reviews: [] });
 });
 
 test('without a token, nothing is read or written', async () => {
@@ -232,3 +235,39 @@ test('a closed review answers its refusal as a translation key', async () => {
   expect(response.status).toBe(409);
   expect(response.body.message).toBe('camp_review_closed');
 });
+
+test('the unit’s history and “last time” are read with camp_reviews.view, for the authenticated unit only', async () => {
+  expect((await request(app).get('/api/v1/camp-reviews/')).status).toBe(401);
+  const history = await call('get', '/?site_id=4&season=autumn&organization_id=99');
+  expect(history.status).toBe(200);
+  expect(service.listReviewHistory).toHaveBeenCalledWith(pool, UNIT_ID, { site_id: '4', season: 'autumn', meeting_id: undefined });
+  expect((await call('get', '/camps/12/previous')).status).toBe(200);
+  expect(service.previousLessons).toHaveBeenCalledWith(pool, UNIT_ID, 12);
+  expect((await call('get', '/camps/12abc/previous')).status).toBe(400);
+
+  permissions = [];
+  const refused = await call('get', '/');
+  expect(refused.status).toBe(403);
+  expect(refused.body.missing).toEqual(['camp_reviews.view']);
+  expect((await call('get', '/camps/12/previous')).status).toBe(403);
+});
+
+test('a malformed history filter is refused, naming it', async () => {
+  service.listReviewHistory.mockImplementation(jest.requireActual('../services/campReviews').listReviewHistory);
+  const response = await call('get', '/?season=monsoon');
+  expect(response.status).toBe(400);
+  expect(response.body.errors).toEqual([{ path: 'season', location: 'query', msg: 'camp_review_invalid_filter' }]);
+});
+
+test('the site filter offers every site a closed review was held at, however many reviews the list keeps', async () => {
+  const { listReviewHistory } = jest.requireActual('../services/campReviews');
+  const db = { query: jest.fn((sql) => (sql.includes('SELECT DISTINCT s.id, s.name')
+    ? { rows: [{ id: 3, name: 'Fictional Old Site' }, { id: 4, name: 'Fictional Lake' }] }
+    : { rows: [] })) };
+  const history = await listReviewHistory(db, UNIT_ID, {});
+  expect(history.sites).toEqual([{ id: 3, name: 'Fictional Old Site' }, { id: 4, name: 'Fictional Lake' }]);
+  const sitesQuery = db.query.mock.calls.find(([sql]) => sql.includes('SELECT DISTINCT s.id, s.name'));
+  expect(sitesQuery[0]).not.toMatch(/LIMIT/);
+  expect(sitesQuery[1]).toEqual([UNIT_ID]);
+});
+
