@@ -1,12 +1,4 @@
 {
-  "routes/yearlyPlanner.js": {
-    "eqeqeq": {
-      "count": 3
-    },
-    "no-eq-null": {
-      "count": 3
-    }
-  },
   "scripts/find-mismatches.js": {
     "no-empty": {
       "count": 1
