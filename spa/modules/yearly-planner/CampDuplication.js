@@ -49,9 +49,9 @@ export class CampDuplication {
     this.onDone = onDone;
     this.data = null;
     this.sourceId = null;
-    // What each earlier camp's closed review kept and fixed (#1257), by camp; null when it could not be read.
+    // What each earlier camp's closed review kept and fixed (#1257), read camp by camp as each is chosen.
     this.lessons = new Map();
-    this.lessonsFailed = false;
+    this.lessonsFailed = new Set();
     this.modal = null;
     this.saving = false;
   }
@@ -86,19 +86,32 @@ export class CampDuplication {
     }
   }
 
-  /** Read the unit's closed reviews, so the camp chosen shows what its review kept and fixed. */
-  async loadLessons() {
-    if (!hasPermission('camp_reviews.view')) {
+  /**
+   * Read the chosen camp's closed review itself, however old, so the dialog shows what it kept and fixed.
+   * @param {number} sourceId - The earlier camp
+   */
+  async loadLessons(sourceId) {
+    if (!hasPermission('camp_reviews.view') || !sourceId || this.lessons.has(sourceId)) {
       return;
     }
     loadStylesheet(lessonStyles).catch((err) => debugError('Camp lessons stylesheet failed', err));
     try {
-      const response = await getCampReviewHistory();
-      this.lessons = new Map((response?.data?.reviews || []).map((review) => [Number(review.camp.id), review]));
-      this.lessonsFailed = false;
+      const response = await getCampReviewHistory({ meeting_id: sourceId });
+      this.lessons.set(sourceId, (response?.data?.reviews || []).find((review) => Number(review.camp.id) === sourceId) || null);
+      this.lessonsFailed.delete(sourceId);
     } catch (err) {
-      debugError('Lessons of earlier camps could not be loaded', err);
-      this.lessonsFailed = true;
+      debugError('Lessons of the earlier camp could not be loaded', err);
+      this.lessonsFailed.add(sourceId);
+    }
+  }
+
+  /** Read the chosen camp's lessons if needed, then draw them, unless another camp was chosen meanwhile. */
+  async showLessons() {
+    const sourceId = Number(this.sourceId);
+    await this.loadLessons(sourceId);
+    const container = this.body()?.querySelector('#yp-camp-duplicate-lessons');
+    if (container && Number(this.sourceId) === sourceId) {
+      setContent(container, this.lessonsMarkup());
     }
   }
 
@@ -107,7 +120,7 @@ export class CampDuplication {
     if (!hasPermission('camp_reviews.view')) {
       return '';
     }
-    if (this.lessonsFailed) {
+    if (this.lessonsFailed.has(Number(this.sourceId))) {
       return `<p class="status-message warning">${escapeHTML(translate('camp_lessons_load_failed'))}</p>`;
     }
     const review = this.lessons.get(Number(this.sourceId));
@@ -122,7 +135,7 @@ export class CampDuplication {
 
   async load() {
     try {
-      const [response] = await Promise.all([getCampDuplication(this.meetingId), this.loadLessons()]);
+      const response = await getCampDuplication(this.meetingId);
       this.data = response?.data || null;
     } catch (err) {
       debugError('Failed to load earlier camps:', err);
@@ -133,6 +146,7 @@ export class CampDuplication {
     if (!sources.some((source) => source.id === this.sourceId)) {
       this.sourceId = sources[0]?.id ?? null;
     }
+    await this.loadLessons(Number(this.sourceId));
     this.render();
   }
 
@@ -235,7 +249,7 @@ export class CampDuplication {
             `).join('')}
           </select>
         </div>
-        ${this.lessonsMarkup()}
+        <div id="yp-camp-duplicate-lessons">${this.lessonsMarkup()}</div>
         <fieldset id="yp-camp-duplicate-parts" aria-describedby="yp-camp-duplicate-parts-error">
           <legend>${escapeHTML(translate('camp_duplicate_parts'))}</legend>
           ${parts}
@@ -266,6 +280,7 @@ export class CampDuplication {
       this.sourceId = Number(event.target.value);
       this.render();
       this.body()?.querySelector('#yp-camp-duplicate-source')?.focus();
+      void this.showLessons();
     });
     body.querySelectorAll('input[name="parts"]').forEach((input) => {
       input.addEventListener('change', () => {

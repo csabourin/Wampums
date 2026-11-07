@@ -130,7 +130,7 @@ export function removeCampReviewVoteOnline(meetingId, noteId, voteId) {
 /**
  * The unit's closed camp reviews, year after year.
  *
- * @param {{site_id?: number, season?: string}} [filters] - A site or a season to keep to
+ * @param {{site_id?: number, season?: string, meeting_id?: number}} [filters] - A site, a season or one camp to keep to
  * @returns {Promise<Object>} { reviews, sites }
  */
 export function getCampReviewHistory(filters = {}) {

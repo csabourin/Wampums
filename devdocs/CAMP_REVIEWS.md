@@ -61,7 +61,9 @@ reading closed reviews year after year and "last time" while preparing a camp.
 - `GET /api/v1/camp-reviews` (`camp_reviews.view`) lists the unit's **closed** reviews, newest camp
   first (at most 100), with the camp, its site and season, counts and its five heaviest notes kept
   and fixed with their actions. `site_id` and `season` narrow it (400 `camp_review_invalid_filter`
-  otherwise); `sites` lists the sites reviews were held at. Reviews belong to the unit, not to a
+  otherwise); `sites` lists every site a closed review was held at, without the list's cap.
+  `meeting_id` returns one camp's closed review, however old (the dialog reusing a camp reads the
+  chosen camp's this way, camp by camp). Reviews belong to the unit, not to a
   scout year: an archived year shows the same history. Screen: `/camp-reviews`.
 - `GET /api/v1/camp-reviews/camps/:meetingId/previous` gives "last time" for a camp: the two latest
   closed reviews of camps that started before it **at the same site** (`basis: 'site'`), or, without

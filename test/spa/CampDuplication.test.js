@@ -376,6 +376,26 @@ describe('what the earlier camp’s review kept and fixed', () => {
     expect(box.querySelectorAll('#yp-camp-duplicate-source option')).toHaveLength(2);
   });
 
+  test('each camp chosen has its own review read, however old, and only once', async () => {
+    reviewsApi.getCampReviewHistory.mockImplementation(({ meeting_id: id }) => Promise.resolve({ success: true,
+      data: { reviews: id === 40 ? [{ ...REVIEW, camp: { id: 40 }, keep: [{ id: 'o', text: 'Le rallye', weight: 2 }], fix: [] }] : [REVIEW], sites: [] } }));
+    await openDialog();
+    expect(reviewsApi.getCampReviewHistory).toHaveBeenCalledWith({ meeting_id: 41 });
+    const select = dialog().querySelector('#yp-camp-duplicate-source');
+    select.value = '40';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    await flush();
+    await flush();
+    expect(reviewsApi.getCampReviewHistory).toHaveBeenLastCalledWith({ meeting_id: 40 });
+    expect(dialog().querySelector('.camp-lessons').textContent).toContain('Le rallye');
+    const back = dialog().querySelector('#yp-camp-duplicate-source');
+    back.value = '41';
+    back.dispatchEvent(new Event('change', { bubbles: true }));
+    await flush();
+    expect(reviewsApi.getCampReviewHistory).toHaveBeenCalledTimes(2);
+    expect(dialog().querySelector('.camp-lessons').textContent).toContain('<b>Le grand jeu</b>');
+  });
+
   test('without the right to read reviews, none is asked for', async () => {
     hasPermission.mockImplementation(() => false);
     await openDialog();

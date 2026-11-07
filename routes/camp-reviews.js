@@ -20,7 +20,7 @@ const {
   CampReviewError, readCampReview, saveNote, deleteNote, addVote, removeVote, sortNote, mergeNote, unmergeNote, setReviewStatus, listReviewHistory, previousLessons,
 } = require('../services/campReviews');
 
-const QUERY_FIELDS = ['site_id', 'season'];
+const QUERY_FIELDS = ['site_id', 'season', 'meeting_id'];
 
 /** Answer known refusals with their translation key, naming the field when there is one. */
 const handle = (handler) => asyncHandler(async (req, res) => {
@@ -59,6 +59,7 @@ module.exports = (pool) => {
       return success(res, await listReviewHistory(pool, organizationId, {
         site_id: typeof req.query.site_id === 'string' ? req.query.site_id : undefined,
         season: typeof req.query.season === 'string' ? req.query.season : undefined,
+        meeting_id: typeof req.query.meeting_id === 'string' ? req.query.meeting_id : undefined,
       }));
     }));
 

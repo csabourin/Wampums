@@ -629,6 +629,7 @@ const CLOSED_REVIEWS_SQL = `SELECT r.meeting_id, r.closed_at, m.theme, m.meeting
    AND ($2::int IS NULL OR d.camp_site_id = $2)
    AND ($3::text IS NULL OR d.season = $3)
    AND ($4::date IS NULL OR m.meeting_date < $4)
+   AND ($7::int IS NULL OR r.meeting_id = $7)
    -- Only reviews that kept or fixed something, when asked: filtered before the limit, so empty
    -- recent reviews never hide an older one with lessons.
    AND (NOT $6::boolean OR EXISTS (SELECT 1 FROM camp_review_notes n
@@ -672,8 +673,8 @@ function lessonsOf(notes) {
  * @returns {Promise<Object[]>} Newest camp first
  */
 async function closedReviews(db, organizationId,
-  { siteId = null, season = null, before = null, limit = HISTORY_MAX, withLessons = false } = {}) {
-  const { rows } = await db.query(CLOSED_REVIEWS_SQL, [organizationId, siteId, season, before, limit, withLessons]);
+  { siteId = null, season = null, before = null, limit = HISTORY_MAX, withLessons = false, meetingId = null } = {}) {
+  const { rows } = await db.query(CLOSED_REVIEWS_SQL, [organizationId, siteId, season, before, limit, withLessons, meetingId]);
   if (!rows.length) {
     return [];
   }
@@ -699,16 +700,22 @@ async function closedReviews(db, organizationId,
  * @returns {Promise<{reviews: Object[], sites: Object[]}>} The reviews, and the sites they were held at
  */
 async function listReviewHistory(db, organizationId, query = {}) {
-  const siteId = query.site_id === undefined || query.site_id === '' ? null : Number(query.site_id);
-  if (siteId !== null && !(Number.isInteger(siteId) && siteId > 0 && siteId <= PG_INTEGER_MAX)) {
-    refuse('camp_review_invalid_filter', HTTP_BAD_REQUEST, 'site_id');
-  }
+  const readId = (field) => {
+    const value = query[field] === undefined || query[field] === '' ? null : Number(query[field]);
+    if (value !== null && !(Number.isInteger(value) && value > 0 && value <= PG_INTEGER_MAX)) {
+      refuse('camp_review_invalid_filter', HTTP_BAD_REQUEST, field);
+    }
+    return value;
+  };
+  const siteId = readId('site_id');
+  // One camp's closed review, however old: what the dialog reusing an earlier camp shows.
+  const meetingId = readId('meeting_id');
   const season = query.season === undefined || query.season === '' ? null : query.season;
   if (season !== null && !SEASONS.includes(season)) {
     refuse('camp_review_invalid_filter', HTTP_BAD_REQUEST, 'season');
   }
   const [reviews, sites] = await Promise.all([
-    closedReviews(db, organizationId, { siteId, season }),
+    closedReviews(db, organizationId, { siteId, season, meetingId }),
     // Every site a closed review was held at, however old: the list of reviews is capped, the filter is not.
     db.query(REVIEWED_SITES_SQL, [organizationId]),
   ]);

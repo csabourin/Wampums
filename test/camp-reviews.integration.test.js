@@ -339,6 +339,10 @@ describe.skipIf(!DATABASE_URL)('Camp review', () => {
       expect(bySeason.body.data.reviews.map((review) => review.camp.id)).toEqual([Number(past), Number(older)]);
       expect((await call('get', '/?season=monsoon')).status).toBe(400);
       expect((await call('get', '/?site_id=12abc')).status).toBe(400);
+      // One camp's closed review, however far back: what reusing an earlier camp shows.
+      const one = await call('get', `/?meeting_id=${older}`);
+      expect(one.body.data.reviews.map((review) => review.camp.id)).toEqual([Number(older)]);
+      expect((await call('get', '/?meeting_id=0')).status).toBe(400);
     });
 
     test('an open review, and another unit’s, stay out of the history', async () => {

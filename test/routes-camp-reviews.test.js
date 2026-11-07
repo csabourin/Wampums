@@ -240,7 +240,7 @@ test('the unit’s history and “last time” are read with camp_reviews.view, 
   expect((await request(app).get('/api/v1/camp-reviews/')).status).toBe(401);
   const history = await call('get', '/?site_id=4&season=autumn&organization_id=99');
   expect(history.status).toBe(200);
-  expect(service.listReviewHistory).toHaveBeenCalledWith(pool, UNIT_ID, { site_id: '4', season: 'autumn' });
+  expect(service.listReviewHistory).toHaveBeenCalledWith(pool, UNIT_ID, { site_id: '4', season: 'autumn', meeting_id: undefined });
   expect((await call('get', '/camps/12/previous')).status).toBe(200);
   expect(service.previousLessons).toHaveBeenCalledWith(pool, UNIT_ID, 12);
   expect((await call('get', '/camps/12abc/previous')).status).toBe(400);
