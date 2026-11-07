@@ -3,8 +3,8 @@
 At the end of a camp, the unit goes round the circle: what was liked, less liked, what to
 improve (the "Evaluated" of the V.C.P.R.E.F.). A leader notes it as it is said, often without a
 network. An idea said again weighs more. The first slice covers noting and weighing; the second,
-sorting (keep / fix), merging, removing one particular "+1" and closing the review. Reading reviews
-year after year ("Last year") comes next (see the issue).
+sorting (keep / fix), merging, removing one particular "+1" and closing the review; the third,
+reading closed reviews year after year and "last time" while preparing a camp.
 
 ## Rules
 
@@ -56,6 +56,24 @@ year after year ("Last year") comes next (see the issue).
   Quiet refreshes also redraw status controls when server decisions become available after reconnecting,
   keeping a note being typed and its focus.
 
+## Year after year
+
+- `GET /api/v1/camp-reviews` (`camp_reviews.view`) lists the unit's **closed** reviews, newest camp
+  first (at most 100), with the camp, its site and season, counts and its five heaviest notes kept
+  and fixed with their actions. `site_id` and `season` narrow it (400 `camp_review_invalid_filter`
+  otherwise); `sites` lists every site a closed review was held at, without the list's cap.
+  `meeting_id` returns one camp's closed review, however old (the dialog reusing a camp reads the
+  chosen camp's this way, camp by camp). Reviews belong to the unit, not to a
+  scout year: an archived year shows the same history. Screen: `/camp-reviews`.
+- `GET /api/v1/camp-reviews/camps/:meetingId/previous` gives "last time" for a camp: the two latest
+  closed reviews of camps that started before it **at the same site** (`basis: 'site'`), or, without
+  any, **of the same season** (`basis: 'season'`), keeping only reviews that kept or fixed something.
+  Without either, nothing (`basis: null`): another kind of camp would mislead more than help.
+- `CampLessons.js` draws it in the camp plan and camp readiness (`mountPreviousLessons`, into a
+  container the page owns; a failed read says so), and the dialog reusing an earlier camp shows what
+  the chosen camp's closed review kept and fixed. None is asked for without `camp_reviews.view`.
+- The camp permit's "camp evaluation" line (#1320) is not linked yet.
+
 ## Offline
 
 - Writes are in `SAFE_OFFLINE_MUTATIONS` with kind `camp_review` (`sync.rejected_kind_camp_review`).
@@ -76,7 +94,9 @@ year after year ("Last year") comes next (see the issue).
 
 - `test/routes-camp-reviews.test.js`: 401, 403 with `required`/`missing`, `isDemo`, 400 ids, field checks.
 - `test/camp-reviews.integration.test.js`: replayed notes and votes count once, undo, versions,
-  unit isolation, offline pack; sorting, merge weights and limits, closing.
+  unit isolation, offline pack; sorting, merge weights and limits, closing; history filters and
+  "last time" by site, then season.
 - `test/spa/CampReview.test.js` (axe, keyboard, escaping, offline) and `CampReviewOffline.test.js`
   (outbox order, overlay, replay into the copy, refusals, duplicate matching).
-- `e2e/accessibility.spec.mjs`: `/camp-review/<seeded camp>` at phone and desktop size.
+- `test/spa/CampReviews.test.js`: the history and the lessons panel (axe, escaping, filters, states).
+- `e2e/accessibility.spec.mjs`: `/camp-review/<seeded camp>` and `/camp-reviews` at phone and desktop size.

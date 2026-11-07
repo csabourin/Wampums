@@ -413,6 +413,36 @@ try {
     }
   }
 
+  // Last year's autumn camp at the same site, its review sorted and closed, so the history
+  // of camp reviews has one to show and this year's plan and overview show "last time".
+  const lastYearCampId = await one(
+    `INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+                             meeting_time_going, departure_time_going, activity_start_date, activity_start_time,
+                             activity_end_date, activity_end_time, is_camp)
+     VALUES ($1, $2, 'Camp d''automne de l''an dernier', CURRENT_DATE - 368, 'Local scout', '17:30', '18:00',
+             CURRENT_DATE - 368, '18:00', CURRENT_DATE - 366, '15:00', TRUE)
+     RETURNING id`,
+    [organizationId, adminId]
+  );
+  const lastYearMeetingId = await one(
+    `INSERT INTO year_plan_meetings (organization_id, meeting_date, meeting_kind, theme, activity_id)
+     VALUES ($1, CURRENT_DATE - 368, 'camp', 'Camp d''automne de l''an dernier', $2) RETURNING id`,
+    [organizationId, lastYearCampId]
+  );
+  await saveCampSite(pool, organizationId, adminId, lastYearMeetingId, {
+    camp_site_id: campSite.id, season: 'autumn', accommodation: 'tent', expected_version: 0,
+  });
+  const lastYearNotes = [
+    { category: 'liked', moment: 'youth_council', text: 'La chasse au trésor en forêt', outcome: 'keep', action_text: 'La garder le samedi matin' },
+    { category: 'improve', moment: 'team_after', text: 'Les repas arrivaient en retard', outcome: 'fix', action_text: 'Commencer le souper à 16 h 30' },
+  ];
+  for (const { outcome, action_text: actionText, ...note } of lastYearNotes) {
+    const noteId = randomUUID();
+    await campReviews.saveNote(pool, organizationId, adminId, lastYearMeetingId, noteId, note);
+    await campReviews.sortNote(pool, organizationId, adminId, lastYearMeetingId, noteId, { outcome, action_text: actionText, expected_version: 1 });
+  }
+  await campReviews.setReviewStatus(pool, organizationId, adminId, lastYearMeetingId, { status: 'closed', expected_version: 1 });
+
   // A camp in ten days, recorded as an activity marked as a camp, with volunteer shifts:
   // cooks (one place still open), a driver (filled), and camp aides, whose place stays to
   // verify until a background check and training are recorded.

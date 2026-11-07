@@ -18,6 +18,7 @@ import { formatEquipmentQuantity } from '../../utils/EquipmentUnitUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
+import { mountPreviousLessons } from '../camp-review/CampLessons.js';
 import { CAMP_LOTS } from '../../config/camp-lots.js';
 import { getCampReadiness, getActivityCampReadiness } from '../../api/api-camp-readiness.js';
 import { shiftName } from '../../utils/VolunteerTypeUtils.js';
@@ -296,6 +297,7 @@ export class CampReadiness {
       ${camp.is_cancelled ? `<p role="status">${escapeHTML(translate('camp_readiness_cancelled'))}</p>` : ''}
       ${camp.scheduled === false ? `<p class="camp-readiness__notice">${escapeHTML(translate('camp_readiness_unscheduled'))}</p>` : ''}
       ${this.leftMarkup()}
+      <div id="camp-readiness-lessons"></div>
       <p class="camp-readiness__explanation">${escapeHTML(translate('camp_readiness_explanation'))}</p>
       <div class="camp-readiness__actions">
         <button class="button button--secondary button--small" type="button" id="camp-readiness-refresh">${escapeHTML(translate('refresh'))}</button>
@@ -304,5 +306,9 @@ export class CampReadiness {
       </div>
       ${this.sectionsMarkup()}</section>`);
     this.root().querySelector('#camp-readiness-refresh').addEventListener('click', () => this.init());
+    // What earlier camps at this site, or of this season, kept and fixed (#1257); a camp known only by its activity has none to draw on.
+    if (camp.id && camp.scheduled !== false) {
+      void mountPreviousLessons(this.root().querySelector('#camp-readiness-lessons'), Number(camp.id), this.lang(), 'camp-readiness-lessons');
+    }
   }
 }
