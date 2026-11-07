@@ -357,6 +357,26 @@ test.describe('keyboard', () => {
       await openScreen(page, '/parent-dashboard');
       expect(await focusProblemsWhileTabbing(page, 15)).toEqual([]);
     });
+
+    test('the medication confirmation leaves Back visible and focused on the next screen', async ({ page }) => {
+      const participantId = seededParticipantId();
+      await openScreen(page, `/medication-planning/${participantId}`);
+      const authorizations = page.getByRole('link', { name: 'Voir les autorisations' });
+      await authorizations.focus();
+      // Use the same confirmation as a save, without writing to the shared fixture.
+      await page.evaluate(() => window.app.showMessage('medication_requirement_saved', 'success'));
+      await page.keyboard.press('Enter');
+      await expect(page).toHaveURL(new RegExp(`/medication-authorizations/${participantId}$`));
+      const back = page.locator('#app').getByRole('link', { name: '← Retour', exact: true });
+      await back.focus();
+
+      const toast = page.locator('#toast-container .toast-show');
+      await expect(toast).toContainText('Besoins de médication enregistrés');
+      const [toastBox, backBox] = await Promise.all([toast.boundingBox(), back.boundingBox()]);
+      expect(toastBox.y + toastBox.height).toBeLessThanOrEqual(backBox.y);
+      expect(await describeFocus(page)).toMatchObject({ indicator: true, unobscured: true });
+      await expect(back).toBeFocused();
+    });
   });
 });
 
