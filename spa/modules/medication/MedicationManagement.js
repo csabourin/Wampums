@@ -6,7 +6,14 @@ import { deleteCachedData, getCachedData, getCachedDataIgnoreExpiration, setCach
 import { setContent } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { OptimisticUpdateManager } from '../../utils/OptimisticUpdateManager.js';
-import { canManageMedication, canViewMedication } from '../../utils/PermissionUtils.js';
+import { canManageMedication, canViewMedication, holdsFamilyRole } from '../../utils/PermissionUtils.js';
+import { confirm as confirmDialog } from '../../utils/DialogUtils.js';
+import {
+  describeGivenChanges,
+  fillRequirementForm,
+  isOffPlanDose,
+  renderPlanHistory
+} from './MedicationPlanCorrection.js';
 import {
   describeMedicationDose,
   describeMedicationFrequency,
@@ -67,6 +74,8 @@ export class MedicationManagement {
     this.view = options.view || 'planning';
     this.enableAlerts = options.enableAlerts ?? this.view === 'dispensing';
     this.participantId = options.participantId || null;
+    // The plan being corrected in the requirement form (#1379), or null while adding one.
+    this.editingRequirementId = null;
     this.returnUrl = options.returnUrl || null;
     this.alertInterval = null;
     this.alertWindowMinutes = 90;
@@ -139,7 +148,9 @@ export class MedicationManagement {
    * @returns {Promise<void>}
    */
   async reloadAfterWrite(successKey) {
-    this.app.showMessage(translate(successKey), 'success');
+    if (successKey) {
+      this.app.showMessage(translate(successKey), successKey === 'medication_plan_corrected_signature_needed' ? 'info' : 'success');
+    }
     try {
       await this.invalidateCaches();
       await this.refreshData(true);
@@ -687,6 +698,57 @@ export class MedicationManagement {
         margin-top: 0.25rem;
       }
 
+      /* Correcting a plan (#1379): never colour alone, every state also says it in words. */
+      .medication-page .status-message.warning,
+      .medication-off-plan {
+        background: #fef3c7;
+        color: var(--color-warning-text, #80520d);
+        border: 1px solid var(--color-warning, #f1b746);
+      }
+
+      .medication-page .status-message.warning {
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+      }
+
+      .medication-off-plan {
+        display: inline-block;
+        margin-left: 0.35rem;
+        font-size: 0.8rem;
+      }
+
+      .medication-plan-modified {
+        margin: 0.35rem 0 0;
+        font-size: 0.85rem;
+        color: var(--color-text-light, #47665d);
+      }
+
+      .medication-plan-history summary {
+        cursor: pointer;
+        min-height: var(--touch-target-min, 44px);
+        display: flex;
+        align-items: center;
+      }
+
+      .medication-plan-history ol,
+      .medication-plan-history ul {
+        margin: 0.25rem 0 0;
+        padding-left: 1.25rem;
+      }
+
+      .medication-plan-history__signature {
+        color: var(--color-warning-text, #80520d);
+        font-weight: 600;
+      }
+
+      .medication-form-actions {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
       .medication-time-slots {
         margin-top: 0.75rem;
         padding-top: 0.75rem;
@@ -1168,10 +1230,22 @@ export class MedicationManagement {
         </label>
       `;
 
+    const editing = this.editingRequirement();
+    const formTitle = editing
+      ? translate('medication_edit_plan_title').replace('{medication}', editing.medication_name || '')
+      : translate('medication_requirement_form_title');
+    const editHint = editing
+      ? `<p class="help-text" id="medicationEditHint">${escapeHTML(translate('medication_edit_plan_hint'))}</p>`
+      : '';
+    const cancelEdit = editing
+      ? `<button class="button button--secondary" type="button" id="medicationRequirementCancelEdit">${escapeHTML(translate('cancel'))}</button>`
+      : '';
+
     return `
       <div class="card">
-        <h2>${escapeHTML(translate('medication_requirement_form_title'))}</h2>
-        <form id="medicationRequirementForm" class="medication-grid">
+        <h2 id="medicationRequirementFormTitle" tabindex="-1">${escapeHTML(formTitle)}</h2>
+        ${editHint}
+        <form id="medicationRequirementForm" class="medication-grid"${editing ? ' aria-describedby="medicationEditHint"' : ''}>
           <label class="field-group">
             <span>${escapeHTML(translate('medication_name_label'))}</span>
             <input type="text" name="medication_name" list="ficheMedicationsList" required maxlength="200" />
@@ -1225,7 +1299,10 @@ export class MedicationManagement {
             <p class="error-text" id="medicationEndDateError" role="alert" hidden></p>
           </label>
           ${participantSelectorHtml}
-          <button class="button button--primary" type="submit">${escapeHTML(translate('medication_save_requirement'))}</button>
+          <div class="medication-form-actions">
+            <button class="button button--primary" type="submit">${escapeHTML(translate(editing ? 'medication_save_changes' : 'medication_save_requirement'))}</button>
+            ${cancelEdit}
+          </div>
         </form>
       </div>
       <div class="card">
@@ -1405,7 +1482,7 @@ export class MedicationManagement {
             </label>
           </div>
 
-          ${aa ? `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate('signed_on'))} ${escapeHTML(formatDate(aa.date_signature, this.app.lang))}</p>` : ''}
+          ${this.renderAdministrationSignatureState(aa)}
 
           <button type="submit" class="button button--primary" id="saveAdminAuth">
             ${escapeHTML(translate('save'))}
@@ -1413,6 +1490,26 @@ export class MedicationManagement {
         </form>
       </div>
     `;
+  }
+
+  /**
+   * Where the administration authorization stands. Signed is said with its date; one a
+   * correction by another adult set aside (#1379), or one from an ended scout year, asks to be
+   * signed again, as an alert so it is not mistaken for a signed one.
+   * @param {Object|null} authorization - Latest administration authorization
+   * @returns {string} HTML
+   */
+  renderAdministrationSignatureState(authorization) {
+    if (!authorization) {
+      return '';
+    }
+    if (authorization.status === 'plan_changed') {
+      return `<p class="status-message warning" role="alert">${escapeHTML(translate('medication_auth_plan_changed'))}</p>`;
+    }
+    if (authorization.status && authorization.status !== 'signed') {
+      return `<p class="status-message warning" role="alert">${escapeHTML(translate('authorization_sign_again'))}</p>`;
+    }
+    return `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate('signed_on'))} ${escapeHTML(formatDate(authorization.date_signature, this.app.lang))}</p>`;
   }
 
   renderDispensingSection({ today, timeValue, requirementOptions, participantOptions }) {
@@ -1884,10 +1981,15 @@ export class MedicationManagement {
       const participantName = escapeHTML(this.getParticipantName(dist.participant_id));
       const dateLabel = formatDate(new Date(dist.scheduled_for), this.app.lang || 'en', { year: 'numeric', month: 'short', day: 'numeric' });
       const timeLabel = new Date(dist.scheduled_for).toLocaleTimeString(this.app.lang || 'en', { hour: '2-digit', minute: '2-digit' });
+      // A correction removed this time from the plan (#1379): the team decides what to do with it.
+      const slots = this.buildSlotsForRequirement(requirement, this.toLocalDateString(dist.scheduled_for), '08:00');
+      const offPlan = isOffPlanDose(dist, slots, (value) => this.toLocalTimeString(value))
+        ? ` <span class="pill medication-off-plan">${escapeHTML(translate('medication_dose_off_plan'))}</span>`
+        : '';
       return `
         <tr>
           <td data-label="${escapeAttribute(translate('date'))}">${escapeHTML(dateLabel)}</td>
-          <td data-label="${escapeAttribute(translate('time'))}">${escapeHTML(timeLabel)}</td>
+          <td data-label="${escapeAttribute(translate('time'))}">${escapeHTML(timeLabel)}${offPlan}</td>
           <td data-label="${escapeAttribute(translate('participants'))}">${participantName}</td>
           <td data-label="${escapeAttribute(translate('medication'))}">${escapeHTML(requirement.medication_name || translate('medication'))}</td>
           <td data-label="${escapeAttribute(translate('medication_default_dose'))}">${escapeHTML(dist.dose_notes || requirement.dosage_instructions || '-')}</td>
@@ -1932,11 +2034,75 @@ export class MedicationManagement {
     return formatDate(String(value).slice(0, ISO_DATE_LENGTH), this.app.lang, REQUIREMENT_DATE_FORMAT) || String(value);
   }
 
+  /**
+   * Whether this screen offers to correct a plan. Correcting is the family's (#1379): offered on
+   * a child's own page to an account holding a family role, for a plan already saved. The server
+   * decides, from the account's link to the child.
+   * @param {Object} requirement - Listed plan
+   * @returns {boolean} True when the "Edit" button is shown
+   */
+  canCorrectPlan(requirement) {
+    return Boolean(this.participantId) && holdsFamilyRole() && !requirement.isOptimistic
+      && Number(requirement.participant_id ?? this.participantId) === Number(this.participantId);
+  }
+
+  /** @returns {Object|null} The plan being corrected, while the form corrects one */
+  editingRequirement() {
+    if (this.editingRequirementId === null) {
+      return null;
+    }
+    return this.requirements.find((req) => String(req.id) === String(this.editingRequirementId)) || null;
+  }
+
+  /**
+   * Open the form on a plan to correct it: filled in, titled after the plan, focus on its title.
+   * @param {string|number} requirementId - Plan to correct
+   */
+  startCorrectingPlan(requirementId) {
+    this.editingRequirementId = requirementId;
+    const requirement = this.editingRequirement();
+    if (!requirement) {
+      this.editingRequirementId = null;
+      return;
+    }
+    this.render();
+    this.attachEventListeners();
+    const form = document.getElementById('medicationRequirementForm');
+    if (form) {
+      fillRequirementForm(form, requirement);
+    }
+    document.getElementById('medicationRequirementFormTitle')?.focus();
+  }
+
+  /**
+   * Leave the correction without changing the plan; focus returns to that plan's "Edit" button.
+   * @param {string|number|null} [returnTo] - Plan whose button takes the focus
+   */
+  stopCorrectingPlan(returnTo = this.editingRequirementId) {
+    this.editingRequirementId = null;
+    this.render();
+    this.attachEventListeners();
+    this.focusEditButton(returnTo);
+  }
+
+  /**
+   * Put the focus back on a plan's "Edit" button, when the page still shows it.
+   * @param {string|number|null} requirementId - Plan
+   */
+  focusEditButton(requirementId) {
+    if (requirementId === null || requirementId === undefined) {
+      return;
+    }
+    [...document.querySelectorAll('[data-edit-requirement]')]
+      .find((button) => button.dataset.editRequirement === String(requirementId))?.focus();
+  }
+
   renderRequirementTable() {
     if (!this.requirements.length) {
       return `<p>${escapeHTML(translate('medication_requirements_empty'))}</p>`;
     }
 
+    const showActions = this.requirements.some((req) => this.canCorrectPlan(req));
     const rows = this.requirements.map((req) => {
       const assigned = this.participantMedications.find((assignment) => assignment.medication_requirement_id === req.id);
       const participantName = assigned ? this.getParticipantName(assigned.participant_id) : translate('unknown');
@@ -1944,14 +2110,19 @@ export class MedicationManagement {
       const dateRange = req.start_date || req.end_date
         ? `${this.formatRequirementDate(req.start_date)} → ${this.formatRequirementDate(req.end_date)}`
         : '-';
+      const editButton = this.canCorrectPlan(req)
+        ? `<button type="button" class="button button--secondary button--small" data-edit-requirement="${escapeAttribute(String(req.id))}"
+            aria-label="${escapeAttribute(translate('medication_edit_plan_for').replace('{medication}', req.medication_name || '').replace('{child}', participantName))}">${escapeHTML(translate('medication_edit_plan'))}</button>`
+        : '';
       return `
         <tr>
-          <td data-label="${escapeAttribute(translate('medication'))}">${escapeHTML(nameLabel)}</td>
+          <td data-label="${escapeAttribute(translate('medication'))}">${escapeHTML(nameLabel)}${renderPlanHistory(req, this.app.lang)}</td>
           <td data-label="${escapeAttribute(translate('participants'))}">${escapeHTML(participantName)}</td>
           <td data-label="${escapeAttribute(translate('dose'))}">${escapeHTML(describeMedicationDose(req, this.app.lang) || '-')}</td>
           <td data-label="${escapeAttribute(translate('medication_frequency'))}">${escapeHTML(describeMedicationFrequency(req, this.app.lang, translate('medication_frequency'), translate('medication_frequency_with_times')))}</td>
           <td data-label="${escapeAttribute(translate('dates'))}">${escapeHTML(dateRange)}</td>
           <td data-label="${escapeAttribute(translate('notes'))}">${escapeHTML(req.general_notes || '-')}</td>
+          ${showActions ? `<td data-label="${escapeAttribute(translate('actions'))}">${editButton}</td>` : ''}
         </tr>
       `;
     }).join('');
@@ -1967,6 +2138,7 @@ export class MedicationManagement {
               <th>${escapeHTML(translate('medication_frequency'))}</th>
               <th>${escapeHTML(translate('dates'))}</th>
               <th>${escapeHTML(translate('notes'))}</th>
+              ${showActions ? `<th>${escapeHTML(translate('actions'))}</th>` : ''}
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -2166,8 +2338,12 @@ export class MedicationManagement {
     });
 
     requirementForm?.addEventListener('submit', (event) => this.handleRequirementSubmit(event));
+    document.querySelectorAll('[data-edit-requirement]').forEach((button) => {
+      button.addEventListener('click', () => this.startCorrectingPlan(button.dataset.editRequirement));
+    });
+    document.getElementById('medicationRequirementCancelEdit')?.addEventListener('click', () => this.stopCorrectingPlan());
 
-    if (requirementForm && this.participantId) {
+    if (requirementForm && this.participantId && this.editingRequirementId === null) {
       this.applyDeclaredPrefill(requirementForm, this.participantId);
     }
     document.getElementById('requirementParticipantSelect')?.addEventListener('change', (event) => {
@@ -2396,6 +2572,11 @@ export class MedicationManagement {
     if (this.savingRequirement) {
       return;
     }
+    const corrected = this.editingRequirement();
+    if (corrected) {
+      await this.saveCorrection(form, corrected, payload);
+      return;
+    }
     this.savingRequirement = true;
     const typedValues = this.readRequirementFormValues(form);
 
@@ -2463,6 +2644,87 @@ export class MedicationManagement {
   }
 
   /**
+   * Send a correction of a saved plan (#1379). A change to what is given is shown as
+   * "before → after" to confirm first. It needs the network: nothing is queued, and nothing
+   * typed is lost when it fails. A plan corrected by someone else meanwhile is reloaded and the
+   * person told, rather than overwritten.
+   * @param {HTMLFormElement} form - Requirement form
+   * @param {Object} requirement - The plan as listed
+   * @param {Object} payload - The plan as the form reads it
+   */
+  async saveCorrection(form, requirement, payload) {
+    const lines = describeGivenChanges(requirement, payload, this.app.lang);
+    if (lines.length > 0) {
+      const confirmed = await confirmDialog({
+        title: translate('medication_confirm_plan_changes_title'),
+        message: [translate('medication_confirm_plan_changes'), ...lines].join('\n'),
+        confirmLabel: translate('medication_save_changes'),
+      });
+      if (!confirmed || this.destroyed) {
+        return;
+      }
+    }
+
+    this.savingRequirement = true;
+    const typedValues = this.readRequirementFormValues(form);
+    this.setRequirementFormSaving(form, true);
+    let response;
+    try {
+      response = await saveMedicationRequirement({
+        ...payload,
+        id: requirement.id,
+        expected_updated_at: requirement.updated_at,
+      });
+      if (!response?.success) {
+        throw Object.assign(new Error('requirement_not_saved'), { status: response?.status });
+      }
+    } catch (error) {
+      debugError('Error correcting medication plan', error);
+      this.savingRequirement = false;
+      if (this.destroyed) {
+        return;
+      }
+      if (this.isPlanChangedMeanwhile(error)) {
+        // Someone else's correction wins; show it, then this person corrects again from it.
+        this.editingRequirementId = null;
+        await this.reloadAfterWrite(null);
+        this.app.showMessage(translate('medication_requirement_changed'), 'error');
+        return;
+      }
+      this.setRequirementFormSaving(this.restoreRequirementForm(typedValues), false);
+      document.querySelector('#medicationRequirementForm button[type="submit"]')?.focus();
+      this.app.showMessage(apiErrorMessage(error, 'error_saving'), 'error');
+      return;
+    }
+
+    this.savingRequirement = false;
+    const correctedId = requirement.id;
+    this.editingRequirementId = null;
+    const revision = response.data?.revision;
+    let messageKey = 'medication_plan_corrected';
+    if (!revision) {
+      messageKey = 'medication_plan_unchanged';
+    } else if (revision.requires_new_signature) {
+      messageKey = 'medication_plan_corrected_signature_needed';
+    }
+    // Saved on the server: nothing below rolls it back.
+    await this.reloadAfterWrite(messageKey);
+    if (!this.destroyed) {
+      this.focusEditButton(correctedId);
+    }
+  }
+
+  /**
+   * Whether a correction was refused because the plan changed since it was opened.
+   * @param {Error} error - Failed save
+   * @returns {boolean} True for the server's 409 `medication_requirement_changed`
+   */
+  isPlanChangedMeanwhile(error) {
+    const message = String(error?.data?.message ?? error?.cause?.message ?? error?.message ?? '');
+    return Number(error?.status) === HTTP_CONFLICT && message.includes('medication_requirement_changed');
+  }
+
+  /**
    * What the person typed in the requirement form, kept in memory only.
    * @param {HTMLFormElement} form - Requirement form
    * @returns {Array<{name: string, value: string, checked: boolean}>} Field values, in order
@@ -2524,7 +2786,8 @@ export class MedicationManagement {
     }
     if (submit) {
       submit.disabled = saving;
-      submit.textContent = translate(saving ? 'saving' : 'medication_save_requirement');
+      const readyLabel = this.editingRequirementId === null ? 'medication_save_requirement' : 'medication_save_changes';
+      submit.textContent = translate(saving ? 'saving' : readyLabel);
     }
   }
 

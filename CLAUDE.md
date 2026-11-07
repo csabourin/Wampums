@@ -500,6 +500,7 @@ only then. The rules there are as binding as this file; update the devdoc in the
 | Family access, invitations, links | `services/participantAccess.js`, `/invitations` | `devdocs/FAMILY_ACCESS.md` |
 | Scout years, archives, alumni, erasure | `spa/modules/scout-year/` | `devdocs/GESTION_ANNEE_SCOUTE.md` (French) |
 | Unit vocabulary, hidden tiles | `UnitVocabularyUtils.js`, `dashboard-tiles.js` | `devdocs/UNIT_CUSTOMIZATION.md` |
+| Correcting a medication plan (who, history, signatures, doses) | `PUT /api/v1/medication/requirements/:id`, `services/medicationPlanRevisions.js`, `MedicationPlanCorrection.js` | `devdocs/MEDICATION_PLANS.md` |
 
 ### 7) Frontend Best Practices
 

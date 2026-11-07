@@ -43,6 +43,8 @@ jest.mock('../../spa/indexedDB.js', () => ({
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   canManageMedication: jest.fn(() => true),
   canViewMedication: () => true,
+  // Correcting a plan has its own suite (MedicationPlanCorrection.test.js).
+  holdsFamilyRole: () => false,
 }));
 jest.mock('../../spa/utils/OfflineCacheKeys.js', () => ({ buildApiCacheKey: jest.fn((key) => key) }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({
