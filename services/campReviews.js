@@ -637,6 +637,13 @@ const CLOSED_REVIEWS_SQL = `SELECT r.meeting_id, r.closed_at, m.theme, m.meeting
  ORDER BY m.meeting_date DESC, r.meeting_id DESC
  LIMIT $5`;
 
+const REVIEWED_SITES_SQL = `SELECT DISTINCT s.id, s.name
+  FROM camp_reviews r
+  JOIN camp_details d ON d.meeting_id = r.meeting_id AND d.organization_id = r.organization_id
+  JOIN camp_sites s ON s.id = d.camp_site_id AND s.organization_id = d.organization_id
+ WHERE r.organization_id = $1 AND r.status = 'closed'
+ ORDER BY s.name, s.id`;
+
 /**
  * What a closed review keeps and fixes, heaviest first.
  *
@@ -700,16 +707,12 @@ async function listReviewHistory(db, organizationId, query = {}) {
   if (season !== null && !SEASONS.includes(season)) {
     refuse('camp_review_invalid_filter', HTTP_BAD_REQUEST, 'season');
   }
-  const [reviews, all] = await Promise.all([
+  const [reviews, sites] = await Promise.all([
     closedReviews(db, organizationId, { siteId, season }),
-    db.query(CLOSED_REVIEWS_SQL, [organizationId, null, null, null, HISTORY_MAX, false]),
+    // Every site a closed review was held at, however old: the list of reviews is capped, the filter is not.
+    db.query(REVIEWED_SITES_SQL, [organizationId]),
   ]);
-  const sites = new Map();
-  all.rows.filter((row) => row.site_id).forEach((row) => sites.set(Number(row.site_id), row.site_name));
-  return {
-    reviews,
-    sites: [...sites].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
-  };
+  return { reviews, sites: sites.rows.map((row) => ({ id: Number(row.id), name: row.name })) };
 }
 
 /**

@@ -259,3 +259,15 @@ test('a malformed history filter is refused, naming it', async () => {
   expect(response.body.errors).toEqual([{ path: 'season', location: 'query', msg: 'camp_review_invalid_filter' }]);
 });
 
+test('the site filter offers every site a closed review was held at, however many reviews the list keeps', async () => {
+  const { listReviewHistory } = jest.requireActual('../services/campReviews');
+  const db = { query: jest.fn((sql) => (sql.includes('SELECT DISTINCT s.id, s.name')
+    ? { rows: [{ id: 3, name: 'Fictional Old Site' }, { id: 4, name: 'Fictional Lake' }] }
+    : { rows: [] })) };
+  const history = await listReviewHistory(db, UNIT_ID, {});
+  expect(history.sites).toEqual([{ id: 3, name: 'Fictional Old Site' }, { id: 4, name: 'Fictional Lake' }]);
+  const sitesQuery = db.query.mock.calls.find(([sql]) => sql.includes('SELECT DISTINCT s.id, s.name'));
+  expect(sitesQuery[0]).not.toMatch(/LIMIT/);
+  expect(sitesQuery[1]).toEqual([UNIT_ID]);
+});
+
