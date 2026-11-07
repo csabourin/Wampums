@@ -178,16 +178,15 @@ async function linkedToPlanChild(req, { pool, organizationId }) {
 }
 
 /**
- * Correcting a medication plan is the family's (#1379): only an adult linked to the plan's child
- * (`user_participants`) may change it, whatever medication keys a role holds. The team plans
- * with the family when a plan is created, then administers what the family wrote; it does not
- * rewrite it. A team member asking for a plan this unit does not have is answered 404 by the
- * handler; anyone else without the link is refused.
+ * Correcting a medication plan (#1379): the team holding `medication.manage` for the whole unit
+ * (a leader may fill in the plan for a family, then have it signed), or an adult linked to the
+ * plan's child (`user_participants`). The handler finds the plan within the authenticated unit
+ * only, so a plan of another unit answers 404. A correction to what is given by anyone but the
+ * signer sets the signed authorization aside (services/medicationPlanRevisions.js).
  */
 const MEDICATION_PLAN_EDIT_POLICY = {
   permissions: ['medication.manage'],
   organizationScope: true,
-  resourceScope: async (req, context) => (await linkedToPlanChild(req, context)) !== false,
   resourceAccess: async (req, context) => (await linkedToPlanChild(req, context)) === true,
 };
 

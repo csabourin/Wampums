@@ -5991,13 +5991,13 @@
   "medication_edit_plan": "Modifier",
   "medication_edit_plan_for": "Modifier {medication} — {child}",
   "medication_edit_plan_title": "Modifier : {medication}",
-  "medication_edit_plan_hint": "Votre correction remplace ce plan; les doses déjà données gardent ce qui a été donné. Si un autre adulte a signé l’autorisation d’administration, un changement de dose, d’heures, de voie ou de nom demande une nouvelle signature.",
+  "medication_edit_plan_hint": "Votre correction remplace ce plan; les doses déjà données gardent ce qui a été donné. Si l’autorisation d’administration a été signée par quelqu’un d’autre, un changement de dose, d’heures, de voie ou de nom lui demande de la signer de nouveau.",
   "medication_save_changes": "Enregistrer les modifications",
   "medication_confirm_plan_changes_title": "Vérifier la modification",
   "medication_confirm_plan_changes": "Ceci change ce que l’équipe donnera :",
   "medication_plan_change_line": "{field} : {from} → {to}",
   "medication_plan_corrected": "Plan de médicament modifié.",
-  "medication_plan_corrected_signature_needed": "Plan de médicament modifié. L’autorisation d’administration signée par un autre adulte doit maintenant être signée de nouveau.",
+  "medication_plan_corrected_signature_needed": "Plan de médicament modifié. L’autorisation d’administration doit maintenant être signée de nouveau par la personne qui l’avait signée.",
   "medication_plan_unchanged": "Rien n’a changé dans ce plan.",
   "medication_requirement_changed": "Quelqu’un d’autre a modifié ce plan pendant que vous le corrigiez. Sa version à jour est affichée : vérifiez-la, puis refaites votre correction.",
   "medication_participant_immutable": "Un plan ne peut pas être déplacé vers un autre enfant. Ajoutez plutôt un plan pour cet enfant.",
@@ -6005,6 +6005,7 @@
   "medication_plan_modified_on": "Modifié le {date}",
   "medication_plan_history": "Historique des modifications ({count})",
   "medication_plan_history_signature": "Une nouvelle signature a été demandée.",
-  "medication_auth_plan_changed": "Le plan de médicament a été modifié par un autre adulte après la signature de cette autorisation. Signez-la de nouveau pour que l’équipe puisse donner le médicament.",
-  "medication_dose_off_plan": "Heure retirée du plan"
+  "medication_auth_plan_changed": "Le plan de médicament a été modifié après la signature de cette autorisation. Signez-la de nouveau pour que l’équipe puisse donner le médicament.",
+  "medication_dose_off_plan": "Heure retirée du plan",
+  "med_reception_edit_plan": "Modifier le plan"
 }

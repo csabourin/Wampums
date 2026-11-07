@@ -1,9 +1,9 @@
 /**
  * Correcting a medication plan on a disposable database (#1379): a family corrects its child's
  * plan in place, the correction is recorded, doses already given never change, later scheduled
- * doses follow a corrected dose, and an adult other than the signer changing what is given asks
- * for a new signature. The team administers the plan; it cannot rewrite it. Every person here is
- * invented.
+ * doses follow a corrected dose, and anyone but the signer changing what is given asks for a
+ * new signature. A leader may correct a plan filled in for a family; a parent only their own
+ * child's. Every person here is invented.
  */
 const express = require('express');
 const request = require('supertest');
@@ -167,16 +167,25 @@ describe.skipIf(!DATABASE_URL)('Correcting a medication plan', () => {
     ]));
   });
 
-  test('the team cannot rewrite a family\'s plan, and nobody can rewrite a plan of a child they are not linked to', async () => {
+  test('a leader corrects a plan filled in for a family; the parent who signed signs again', async () => {
+    const syrup = await plan(ids.unit, ids.rosalind, ids.leader);
+    const authorization = await signedBy(ids.mother, ids.rosalind, syrup);
+
+    const leader = await call('put', `/requirements/${syrup}`, ids.leader, await correction(syrup, ids.rosalind, { default_dose_amount: 6 }));
+
+    expect(leader.status).toBe(200);
+    expect(Number(await one('SELECT default_dose_amount FROM medication_requirements WHERE id = $1', [syrup]))).toBe(6);
+    expect(await one('SELECT status FROM medication_admin_authorizations WHERE id = $1', [authorization])).toBe('plan_changed');
+    expect(await one('SELECT changed_by FROM medication_requirement_revisions WHERE medication_requirement_id = $1', [syrup])).toBe(ids.leader);
+  });
+
+  test('a parent cannot correct the plan of a child they are not linked to', async () => {
     const syrup = await plan(ids.unit, ids.rosalind, ids.mother);
-    const body = await correction(syrup, ids.rosalind, { default_dose_amount: 50 });
 
-    const leader = await call('put', `/requirements/${syrup}`, ids.leader, body);
-    expect(leader.status).toBe(403);
-    expect(leader.body).toEqual(expect.objectContaining({ required: ['medication.manage'], missing: [] }));
+    const stranger = await call('put', `/requirements/${syrup}`, ids.otherParent, await correction(syrup, ids.rosalind, { default_dose_amount: 50 }));
 
-    const stranger = await call('put', `/requirements/${syrup}`, ids.otherParent, body);
     expect(stranger.status).toBe(403);
+    expect(stranger.body).toEqual(expect.objectContaining({ required: ['medication.manage'], missing: ['medication.manage'] }));
     expect(Number(await one('SELECT default_dose_amount FROM medication_requirements WHERE id = $1', [syrup]))).toBe(5);
   });
 

@@ -6,8 +6,9 @@
  * Correcting a medication plan (#1379), as a parent does it on their child's page: an "Edit"
  * button per plan, the form filled with that plan, a "before → after" check of what changes what
  * is given, a save on the same plan naming the version it started from, nothing typed lost on a
- * failure, and a plan changed by someone else meanwhile shown rather than overwritten. The team
- * sees who changed a plan and when, a dose left at a time the plan no longer has, and an
+ * failure, and a plan changed by someone else meanwhile shown rather than overwritten. A leader
+ * managing medication may correct a plan filled in for a family. Everyone sees who changed a plan
+ * and when; the team sees a dose left at a time the plan no longer has, and an
  * authorization a correction set aside. Every person here is invented.
  */
 
@@ -306,9 +307,35 @@ describe('what everyone sees of a corrected plan', () => {
     screen.destroy();
   });
 
-  test('the team, holding no family role, is not offered to edit a plan', async () => {
+  test('a leader managing medication may correct a plan filled in for a family', async () => {
     mockFamily.value = false;
     canManageMedication.mockReturnValue(true);
+    load();
+    const screen = await openChildPage();
+
+    expect(editButton()).not.toBeNull();
+    screen.destroy();
+  });
+
+  test('on the unit\'s planning page, a plan being corrected names its child instead of offering to choose one', async () => {
+    mockFamily.value = false;
+    canManageMedication.mockReturnValue(true);
+    load();
+    const screen = new MedicationManagement(makeApp(), { view: 'planning' });
+    await screen.init();
+    expect(document.getElementById('requirementParticipantSelect')).not.toBeNull();
+
+    editButton().click();
+
+    expect(document.getElementById('requirementParticipantSelect')).toBeNull();
+    expect(form().elements.participant_id.value).toBe('5');
+    expect(form().textContent).toContain('Rosalind Tremblay');
+    expect((await axe.run(page(), AXE_OPTIONS)).violations).toEqual([]);
+    screen.destroy();
+  });
+
+  test('an account neither managing medication nor holding a family role is not offered to edit', async () => {
+    mockFamily.value = false;
     load();
     const screen = await openChildPage();
 

@@ -1,18 +1,19 @@
 # Correcting a medication plan (#1379)
 
-A family corrects its child's medication plan **in place**: same plan, same child, with a record of
-what changed. These rules are binding; tests: `test/routes-medication.test.js` (PUT block),
+A family, or the team managing medication, corrects a child's medication plan **in place**: same
+plan, same child, with a record of what changed. These rules are binding; tests: `test/routes-medication.test.js` (PUT block),
 `test/medication-plan-corrections.integration.test.js`, `test/spa/MedicationPlanCorrection.test.js`.
 
 ## Who may correct a plan
 
-- Only an adult **linked to the plan's child** (`user_participants`), through
-  `MEDICATION_PLAN_EDIT_POLICY` (`middleware/medicationAuthorizationPolicy.js`). Holding
-  `medication.manage` is not enough: the team administers a plan, it does not rewrite it. A team
-  member who is also the child's parent corrects it as the parent.
-- The reception screen (`MedicationReception.js`) records what was handed in; it has no plan editing.
-- The SPA offers "Edit" on a child's own page (`/medication-planning/:id`) to an account holding a
-  family role. The server decides.
+- The team holding `medication.manage` for the whole unit: a leader may fill in a plan for a
+  family (at registration, on the phone), correct it, and have it signed.
+- An adult **linked to the plan's child** (`user_participants`), for that child only.
+- Both through `MEDICATION_PLAN_EDIT_POLICY` (`middleware/medicationAuthorizationPolicy.js`).
+- In the SPA, "Edit" is on the planning page (`/medication-planning`, `/medication-planning/:id`):
+  for the team on every plan, for a family on its child's page. The reception screen
+  (`MedicationReception.js`) records what was handed in and links to the plan; it has no inline
+  plan editing (it saved on blur, without a version check).
 
 ## What a correction does — `PUT /api/v1/medication/requirements/:id`
 
@@ -45,8 +46,9 @@ When one of them changes:
 
 ## Signatures
 
-- An administration authorization covering the plan, **signed by another adult** than the one
-  correcting, becomes `plan_changed`. It is then listed with those to sign again
+- An administration authorization covering the plan, **signed by anyone but the person
+  correcting** (another parent, or the parent after a leader's correction), becomes
+  `plan_changed`. It is then listed with those to sign again
   (`GET /v1/medication/authorizations/pending-signature`, the family's to-do list), and the
   authorization form says so as an alert.
 - The signer correcting their own plan is not asked to sign twice.

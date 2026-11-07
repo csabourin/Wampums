@@ -604,6 +604,30 @@ describe('medication reception', () => {
     screen.destroy();
   });
 
+  test('the team corrects a plan from the planning page, not in the reception list', async () => {
+    loadAll();
+    const screen = new MedicationReception(makeApp(), { activityId: 3 });
+    await screen.init();
+
+    const item = page().querySelector('.medication-reception-item');
+    expect(item.querySelector('input[data-field="medication_name"], input[data-field="dosage"]')).toBeNull();
+    const link = item.querySelector('a[href="/medication-planning/5"]');
+    expect(link.textContent).toBe('med_reception_edit_plan');
+    expect(link.getAttribute('aria-label')).toBe('medication_edit_plan_for');
+    screen.destroy();
+  });
+
+  test('without medication.manage, the reception list offers no plan correction', async () => {
+    canManageMedication.mockReturnValue(false);
+    loadAll();
+    const screen = new MedicationReception(makeApp(), { activityId: 3 });
+    await screen.init();
+
+    expect(page().querySelector('a[href^="/medication-planning/"]')).toBeNull();
+    screen.destroy();
+    canManageMedication.mockReturnValue(true);
+  });
+
   test('receptions that did not load are an error with a retry, never "not received"', async () => {
     loadAll();
     api.getMedicationReceptions.mockRejectedValueOnce(new Error('offline'));

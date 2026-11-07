@@ -1,5 +1,6 @@
 import { translate } from '../../app.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
+import { canManageMedication } from '../../utils/PermissionUtils.js';
 import { debugError, debugLog } from '../../utils/DebugUtils.js';
 import { formatDate, getTodayISO, parseDate } from '../../utils/DateUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
@@ -668,6 +669,10 @@ export class MedicationReception {
               ${escapeHTML(req.general_notes)}
             </div>` : ''}
           </div>
+          ${canManageMedication() ? `<a class="button button--secondary button--small" href="/medication-planning/${participant.id}"
+              aria-label="${escapeAttribute(translate('medication_edit_plan_for')
+    .replace('{medication}', req.medication_name || '')
+    .replace('{child}', `${participant.first_name || ''} ${participant.last_name || ''}`.trim()))}">${escapeHTML(translate('med_reception_edit_plan'))}</a>` : ''}
         </div>
 
         <div class="med-item-reception">

@@ -1208,14 +1208,20 @@ export class MedicationManagement {
       ? `<datalist id="ficheMedicationsList">${medicationSuggestions}</datalist>`
       : '';
 
-    // When participantId is set (parent view), hide the participant selector and auto-populate it
-    const participantSelectorHtml = this.participantId
+    // A child's page, or a plan being corrected, names the child instead of offering to choose:
+    // a correction never moves a plan to another child.
+    const editing = this.editingRequirement();
+    const fixedChildId = editing?.participant_id ?? this.participantId;
+    const fixedChildName = editing?.participant_id
+      ? this.getParticipantName(editing.participant_id)
+      : `${this.participants[0]?.first_name || ''} ${this.participants[0]?.last_name || ''}`.trim();
+    const participantSelectorHtml = fixedChildId
       ? `
-        <input type="hidden" name="participant_id" value="${this.participantId}" />
+        <input type="hidden" name="participant_id" value="${escapeAttribute(String(fixedChildId))}" />
         <div class="field-group" style="grid-column: 1 / -1;">
           <span>${escapeHTML(translate('participants'))}</span>
           <p style="padding: 0.5rem; background: #f3f4f6; border-radius: 8px; margin: 0;">
-            ${escapeHTML(this.participants[0]?.first_name || '')} ${escapeHTML(this.participants[0]?.last_name || '')}
+            ${escapeHTML(fixedChildName)}
           </p>
         </div>
       `
@@ -1230,7 +1236,6 @@ export class MedicationManagement {
         </label>
       `;
 
-    const editing = this.editingRequirement();
     const formTitle = editing
       ? translate('medication_edit_plan_title').replace('{medication}', editing.medication_name || '')
       : translate('medication_requirement_form_title');
@@ -2035,14 +2040,21 @@ export class MedicationManagement {
   }
 
   /**
-   * Whether this screen offers to correct a plan. Correcting is the family's (#1379): offered on
-   * a child's own page to an account holding a family role, for a plan already saved. The server
-   * decides, from the account's link to the child.
+   * Whether this screen offers to correct a saved plan (#1379): to the team managing medication,
+   * and on a child's own page to an account holding a family role. The server decides, from the
+   * account's keys or its link to the child.
    * @param {Object} requirement - Listed plan
    * @returns {boolean} True when the "Edit" button is shown
    */
   canCorrectPlan(requirement) {
-    return Boolean(this.participantId) && holdsFamilyRole() && !requirement.isOptimistic
+    if (requirement.isOptimistic) {
+      return false;
+    }
+    // The team may fill in a plan for a family and correct it, then have it signed.
+    if (canManageMedication()) {
+      return true;
+    }
+    return Boolean(this.participantId) && holdsFamilyRole()
       && Number(requirement.participant_id ?? this.participantId) === Number(this.participantId);
   }
 

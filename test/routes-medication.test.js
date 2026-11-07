@@ -669,15 +669,16 @@ describe('PUT /api/v1/medication/requirements/:id (correcting a plan, #1379)', (
     expect(sent(queries, 'UPDATE medication_requirements')).toHaveLength(0);
   });
 
-  test('a leader holding medication.manage cannot rewrite a family\'s plan', async () => {
+  test('a leader holding medication.manage corrects a plan filled in for a family; its signer must sign again', async () => {
     const { __mClient, __mPool } = require('pg');
-    const queries = asAdult(__mClient, __mPool, { staff: true, linked: false });
+    const queries = asAdult(__mClient, __mPool, { staff: true, linked: false, signedByOther: true });
 
     const res = await put(correction({ default_dose_amount: 400 }), generateToken());
 
-    expect(res.status).toBe(403);
-    expect(res.body).toEqual(expect.objectContaining({ required: ['medication.manage'], missing: [] }));
-    expect(sent(queries, 'UPDATE medication_requirements')).toHaveLength(0);
+    expect(res.status).toBe(200);
+    expect(sent(queries, 'UPDATE medication_requirements')).toHaveLength(1);
+    expect(sent(queries, 'UPDATE medication_admin_authorizations')).toHaveLength(1);
+    expect(res.body.data.revision.requires_new_signature).toBe(true);
   });
 
   test('a parent cannot correct the plan of a child they are not linked to', async () => {
