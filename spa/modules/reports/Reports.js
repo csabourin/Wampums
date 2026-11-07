@@ -25,10 +25,11 @@ import {
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { badgeLabel } from '../../utils/BadgeLabelUtils.js';
 import { openPrintWindow, setPrintContent, REPORT_PRINT_STYLES } from '../../utils/PrintUtils.js';
-import { formatDateShort, isoToDateString } from '../../utils/DateUtils.js';
+import { formatDateShort, getTodayISO, isoToDateString } from '../../utils/DateUtils.js';
 import { canViewReports, isParent } from '../../utils/PermissionUtils.js';
 import { setContent, setText } from '../../utils/DOMUtils.js';
 import { exportToCSV } from '../../utils/ExportUtils.js';
+import { buildReportExport, isAffirmativeAnswer } from './reportExportDefinitions.js';
 import { CONFIG } from '../../config.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 
@@ -779,176 +780,35 @@ export class Reports {
   }
 
 
+  /**
+	 * Download the report on screen as a CSV file.
+	 *
+	 * Each report's columns are described in `reportExportDefinitions.js`. The
+	 * file is named after the report and the day (`allergies_report_2026-11-07`),
+	 * and its delimiter follows the interface language (a semicolon in French,
+	 * so the spreadsheet opens it in columns).
+	 */
   exportCurrentReport() {
-    if (!this.currentReportData) {
-      this.app.showMessage(translate('no_data_to_export'), 'warning');
+    const lang = this.app.lang;
+    const exportDefinition = buildReportExport(this.currentReportType, this.currentReportData, {
+      translate,
+      lang,
+      formatDateShort,
+      isoToDateString,
+    });
+
+    if (exportDefinition.error) {
+      this.app.showMessage(translate(exportDefinition.error), 'info');
       return;
     }
 
-    const dateStr = formatDateShort(new Date()).replace(/\//g, '-');
-    const filename = `${this.currentReportType}_report_${dateStr}`;
-    let columns = [];
-    let data = this.currentReportData;
-
-    switch (this.currentReportType) {
-      case 'health':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'allergies', label: translate('allergies') },
-          { key: 'epipen', label: translate('epipen'), format: (v) => (v === '1' || v === true || v === 'true') ? translate('yes') : translate('no') },
-          { key: 'medications', label: translate('medication') },
-          { key: 'probleme_sante', label: translate('health_issues') },
-          { key: 'limitations', label: translate('limitations') },
-          { key: 'blessures_operations', label: translate('injuries') },
-          { key: 'niveau_natation', label: translate('swimming_level') },
-          { key: 'doit_porter_vfi', label: translate('doit_porter_vfi'), format: (v) => (v === '1' || v === true || v === 'true') ? translate('yes') : translate('no') },
-          { key: 'vaccins_a_jour', label: translate('vaccines_up_to_date'), format: (v) => (v === '1' || v === true || v === 'true') ? translate('yes') : translate('no') },
-          { key: 'nom_medecin', label: translate('nom_medecin_label') },
-          {
-            key: 'emergency_contacts',
-            label: translate('emergency_contacts'),
-            format: (contacts) => (Array.isArray(contacts) ? contacts : [])
-              .map((contact) => [
-                contact.name,
-                contact.relationship,
-                contact.phone_mobile || contact.phone_home || contact.phone_work,
-              ].filter(Boolean).join(' '))
-              .join(' | '),
-          }
-        ];
-        break;
-      case 'allergies':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'allergies', label: translate('allergies') },
-          { key: 'allergy_severity', label: translate('allergy_severity') },
-          { key: 'allergy_reaction', label: translate('allergy_reaction') },
-          { key: 'allergy_action', label: translate('allergy_action') },
-          { key: 'epipen', label: translate('epipen'), format: (v) => (v === '1' || v === true || v === 'true') ? translate('yes') : translate('no') },
-          { key: 'emergency_medication', label: translate('emergency_medication') },
-          { key: 'notes', label: translate('notes') }
-        ];
-        break;
-      case 'medication':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'medication', label: translate('medication') }
-        ];
-        break;
-      case 'vaccines':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'vaccines_up_to_date', label: translate('vaccines_up_to_date'), format: (v) => (v === true ? translate('yes') : translate('no')) }
-        ];
-        break;
-      case 'leave-alone':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'leave_alone', label: translate('leave_alone'), format: (v) => (v === '1' || v === true || v === 'true') ? translate('yes') : translate('no') }
-        ];
-        break;
-      case 'media-authorization':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'media_consent', label: translate('media_consent'), format: (v) => (v === '1' || v === true || v === 'true') ? translate('yes') : translate('no') }
-        ];
-        break;
-      case 'attendance':
-        // Attendance is special - dynamic columns based on dates
-        // data is { data: [...participants] } - we stored 'reportData' which contains .data
-        // Wait, we stored `this.currentReportData = reportData;` where reportData has .data array
-
-        const attendanceData = data.data || [];
-        if (!attendanceData.length) {
-          this.app.showMessage(translate('no_data_to_export'), 'warning');
-          return;
-        }
-
-        data = attendanceData; // Override data to be the array of participants
-
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'total_days', label: translate('total_days') },
-          { key: 'days_absent', label: translate('days_absent') },
-          { key: 'days_late', label: translate('days_late') }
-        ];
-
-        // Extract unique dates
-        const uniqueDates = new Set();
-        data.forEach(p => {
-          (p.attendance || []).forEach(a => {
-            if (a.date) {uniqueDates.add(isoToDateString(a.date));}
-          });
-        });
-
-        Array.from(uniqueDates).sort().forEach(date => {
-          columns.push({
-            key: `date_${date}`,
-            label: formatDateShort(date),
-            format: (_, row) => {
-              const att = (row.attendance || []).find(a => isoToDateString(a.date) === date);
-              return att ? (translate(att.status) || att.status) : '';
-            }
-          });
-        });
-        break;
-      case 'missing-fields':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'missing_fields', label: translate('missing_fields') }
-        ];
-        break;
-      case 'financial':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'total_billed', label: translate('total_billed'), format: v => Number(v || 0).toFixed(2) },
-          { key: 'total_paid', label: translate('total_paid'), format: v => Number(v || 0).toFixed(2) },
-          { key: 'total_outstanding', label: translate('outstanding_balance'), format: v => Number(v || 0).toFixed(2) }
-        ];
-        break;
-      case 'participant-age':
-        columns = [
-          { key: 'first_name', label: translate('first_name') },
-          { key: 'last_name', label: translate('last_name') },
-          { key: 'group_name', label: translate('group') },
-          { key: 'date_naissance', label: translate('birthdate'), format: v => v ? formatDateShort(v) : '' },
-          { key: 'age', label: translate('age') }
-        ];
-        break;
-      default:
-        // Fallback for types not explicitly handled or generic types
-        // check if data is array of objects
-        if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') {
-          // Try to auto-detect columns from first item
-          Object.keys(data[0]).forEach(key => {
-            if (typeof data[0][key] !== 'object' && typeof data[0][key] !== 'function') {
-              columns.push({ key, label: translate(key) || key });
-            }
-          });
-        } else {
-          this.app.showMessage(translate('export_not_supported_for_type'), 'warning');
-          return;
-        }
-    }
-
-    exportToCSV(data, columns, filename);
+    const reportName = String(this.currentReportType).replace(/-/g, '_');
+    exportToCSV(
+      exportDefinition.rows,
+      exportDefinition.columns,
+      `${reportName}_report_${getTodayISO()}`,
+      { lang },
+    );
   }
 
 
@@ -1045,7 +905,7 @@ export class Reports {
 	 * @returns {string} Translated yes or no
 	 */
   yesNoAnswer(value) {
-    return value === 'on' || value === 'true' || value === true ? translate('yes') : translate('no');
+    return isAffirmativeAnswer(value) ? translate('yes') : translate('no');
   }
 
   renderMedicationReport(data) {
