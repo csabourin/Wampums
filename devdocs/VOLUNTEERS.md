@@ -16,6 +16,14 @@ a cook or driver takes part without any youth, family or health permission. Invi
 keys to `unitadmin` (and roles customized from it), `volunteers.view` to `leader`, and both to
 `demoadmin` (read-only through `blockDemoRoles`). The district role receives them through its trigger.
 
+**Parents volunteer without being given another role** (migration 084): the built-in `parent` role,
+every unit role customized from it, and `demoparent` hold `volunteers.view` and `volunteer_space.view`.
+The cooks and drivers of a camp are most often the youth's parents. Neither key opens a youth, family
+or health record; other volunteers' names stay with managers. A parent's place stays pending until a
+manager records their background check, and taking one lists them under "Vérification des
+antécédents". The parent dashboard invites them under "Lend a hand" (`ParentVolunteering.js`) when
+places are open, and leads to their own places in the volunteer space.
+
 ## Types and requirements
 
 Each shift has a type from a fixed bilingual list in `config/volunteer_shifts.json` (read by the
@@ -90,7 +98,8 @@ The binding rules for this area, formerly in CLAUDE.md.
 each activity's or camp's needs by time slot. Writes go through `services/volunteerShifts.js`, which
 locks the shift so its last place goes to one person (409 `volunteer_shift_full` for the other). The
 built-in `volunteer` role holds only `volunteers.view`, `tasks.view` and `volunteer_space.view`: no youth,
-family or health record. What a member needs at the camps they take part in is gathered in the volunteer
+family or health record. The `parent` role holds `volunteers.view` and `volunteer_space.view` too
+(migration 084), so a parent takes a place without another role. What a member needs at the camps they take part in is gathered in the volunteer
 space (`devdocs/VOLUNTEER_SPACE.md`). Other volunteers' names go to managers only. Each shift has a type (`config/volunteer_shifts.json`); a type's
 requirements keep a place pending until a manager records them. Every adult of the team and every
 volunteer needs a background check, valid three years from the day it was done (the server sets the

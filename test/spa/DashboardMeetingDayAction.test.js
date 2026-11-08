@@ -185,6 +185,17 @@ test('before attendance is taken, taking attendance is the primary action', asyn
   dashboard.destroy();
 });
 
+test('the primary action shows a visible Start button, part of its own link name', async () => {
+  atTime(18, 45);
+  const dashboard = await openDashboard();
+
+  const go = primaryAction().querySelector('.dashboard-v2__hero-go');
+  expect(go).not.toBeNull();
+  expect(go.textContent.trim()).toBe('dashboard_hero_start');
+  expect(go.closest('a')).toBe(primaryAction());
+  dashboard.destroy();
+});
+
 test('once attendance is taken, giving points becomes the primary action', async () => {
   atTime(18, 45);
   getAttendance.mockResolvedValue({ data: [{ participant_id: 1, status: 'present' }] });

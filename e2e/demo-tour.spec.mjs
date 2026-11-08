@@ -56,6 +56,7 @@ test.describe('the parent tour of the sample unit', () => {
     await dialog.getByRole('textbox').fill('Demo Parent');
     await dialog.getByRole('button', { name: 'OK' }).click();
     await expect(page.locator('#toast-container')).toContainText(READ_ONLY);
-    await expect(page.locator('#app')).toContainText('En attente de signature');
+    // Still pending: the slip is still there to sign, among the family's tasks.
+    await expect(tasks.getByRole('button', { name: 'Signer', exact: true })).toBeVisible();
   });
 });

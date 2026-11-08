@@ -1152,6 +1152,10 @@ export class Dashboard extends BaseModule {
               <span class="dashboard-v2__hero-eyebrow">${eyebrow}</span>
               <h3 class="dashboard-v2__hero-title">${title}</h3>
               ${meta}
+              <span class="dashboard-v2__hero-go">
+                ${escapeHTML(translate(isMeetingHero ? 'dashboard_hero_open_meeting' : 'dashboard_hero_start'))}
+                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+              </span>
             </a>
             ${this._canSeeCampSchedule() ? this._campScheduleSlot() : ''}
             ${chipsHtml ? `<div class="dashboard-v2__hero-actions">${chipsHtml}</div>` : ''}

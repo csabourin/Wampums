@@ -13,9 +13,14 @@ import {
 } from '../../ajax-functions.js';
 import {
   declinePermissionSlip,
+  getNextMeetingInfo,
   getPermissionSlips,
   signPermissionSlip,
 } from '../../api/api-endpoints.js';
+import { getActivities } from '../../api/api-activities.js';
+import { buildUpcomingEvents, renderUpcomingSection } from './ParentUpcoming.js';
+import { getVolunteerShifts } from '../../api/api-volunteers.js';
+import { renderVolunteeringSection, summarizeVolunteering } from './ParentVolunteering.js';
 import { formTypeLabel } from '../../utils/FormLabelUtils.js';
 import { loadHiddenParentDashboardButtons } from '../../config/parent-dashboard-buttons.js';
 import {
@@ -47,6 +52,7 @@ import {
 } from '../../utils/DialogUtils.js';
 import {
   ALL_CHILDREN,
+  FAMILY_TASK_KIND,
   buildFamilyTasks,
   isSlipAnswerable,
   renderFamilyFilter,
@@ -74,6 +80,11 @@ export class ParentDashboard {
     this.childFilter = ALL_CHILDREN;
     this.familyTasks = [];
     this.packingLists = [];
+    // "Coming up": the next meeting and activities; a failed load is said, never "nothing planned".
+    this.upcomingEvents = [];
+    this.upcomingFailed = false;
+    // Places to take on the unit's volunteer shifts; null when unknown.
+    this.volunteering = null;
     // Delegated listeners on #app, which outlives this screen: released in destroy().
     this.listeners = new AbortController();
     this.destroyed = false;
@@ -120,6 +131,8 @@ export class ParentDashboard {
     const packingReady = hasPermission('personal_equipment.view')
       ? Promise.resolve().then(async () => { this.packingLists = (await getPersonalEquipmentTasks()).data || []; }).catch((err) => { debugError('Personal equipment tasks failed', err); this.packingLists = []; this.taskSourcesFailed = true; })
       : Promise.resolve();
+    const upcomingReady = this.loadUpcoming();
+    const volunteeringReady = this.loadVolunteering();
     const formFormatsReady = attempt(() => this.fetchFormFormats(), 'Error fetching form formats:');
     const hiddenButtonsReady = loadHiddenParentDashboardButtons(this.app?.organizationSettings, getPublicOrganizationSettings);
 
@@ -136,6 +149,8 @@ export class ParentDashboard {
       hiddenButtonsReady,
       remindersReady,
       packingReady,
+      upcomingReady,
+      volunteeringReady,
     ]);
     this.hiddenButtons = hiddenButtons;
 
@@ -180,6 +195,80 @@ export class ParentDashboard {
       debugError('Error rendering parent dashboard:', error);
       this.renderError();
     }
+  }
+
+  /**
+   * Load what is coming up for the family. Never throws: a failure is kept
+   * in `upcomingFailed`, so the section says so and offers a retry.
+   *
+   * @returns {Promise<void>}
+   */
+  async loadUpcoming() {
+    this.upcomingFailed = false;
+    if (!canViewActivities()) {
+      this.upcomingEvents = [];
+      return;
+    }
+    try {
+      const [meetingResponse, activities] = await Promise.all([
+        getNextMeetingInfo(),
+        getActivities(),
+      ]);
+      this.upcomingEvents = buildUpcomingEvents({
+        nextMeeting: meetingResponse?.data || null,
+        activities,
+        today: getTodayISO(),
+      });
+    } catch (error) {
+      debugError('Error loading upcoming events:', error);
+      this.upcomingEvents = [];
+      this.upcomingFailed = true;
+    }
+  }
+
+  /**
+   * Load the places open on volunteer shifts. An invitation, not a record:
+   * when it cannot load, the section is simply left out.
+   *
+   * @returns {Promise<void>}
+   */
+  async loadVolunteering() {
+    this.volunteering = null;
+    if (!hasPermission('volunteers.view')) {
+      return;
+    }
+    try {
+      const response = await getVolunteerShifts();
+      this.volunteering = summarizeVolunteering(response?.data);
+    } catch (error) {
+      debugError('Error loading volunteer shifts:', error);
+    }
+  }
+
+  /** @returns {string} The "Coming up" section, or nothing for an account that cannot read activities. */
+  renderUpcoming() {
+    if (!canViewActivities()) {
+      return '';
+    }
+    return renderUpcomingSection(this.upcomingEvents, {
+      lang: this.app?.language || CONFIG.DEFAULT_LANG || 'en',
+      failed: this.upcomingFailed,
+      calendarLink: true,
+    });
+  }
+
+  /** Retry the "Coming up" section alone, keeping focus in it. */
+  async retryUpcoming() {
+    await this.loadUpcoming();
+    const section = document.querySelector('.parent-upcoming');
+    if (!section || this.destroyed) {
+      return;
+    }
+    const wrapper = document.createElement('div');
+    setContent(wrapper, this.renderUpcoming());
+    const fresh = wrapper.firstElementChild;
+    section.replaceWith(fresh);
+    document.getElementById('parent-upcoming-title')?.focus();
   }
 
   checkAndShowLinkParticipantsDialog() {
@@ -539,6 +628,10 @@ export class ParentDashboard {
 
                                 ${this.renderFamilySection()}
 
+                                ${this.renderUpcoming()}
+
+                                ${renderVolunteeringSection(this.volunteering, { space: hasPermission('volunteer_space.view') })}
+
                                 <section class="parent-dashboard__participants">
                                         <h2 class="${this.participants.length > 1 ? 'parent-dashboard__section-title' : 'visually-hidden'}">${translate('participants_list')}</h2>
                                         ${this.renderParticipantsList()}
@@ -665,6 +758,7 @@ export class ParentDashboard {
     const focusedFilter = container.contains(active) ? active?.dataset?.familyFilter : undefined;
     const hadFocus = container.contains(active);
     setContent(container, this.renderFamilyContent());
+    this.refreshChildTodos();
     this.applyChildFilter();
     if (focusedFilter !== undefined) {
       [...container.querySelectorAll('[data-family-filter]')]
@@ -727,10 +821,19 @@ export class ParentDashboard {
         this.showStatementModal(statement.dataset.participantId);
         return;
       }
-      if (event.target.closest('.js-family-goto-tasks')) {
+      const gotoTasks = event.target.closest('.js-family-goto-tasks');
+      if (gotoTasks) {
+        if (gotoTasks.dataset.childId && this.participants.length > 1) {
+          this.childFilter = Number(gotoTasks.dataset.childId);
+          this.refreshFamilyView();
+        }
         const heading = document.getElementById('family-tasks-title');
         heading?.scrollIntoView?.({ block: 'start' });
         heading?.focus();
+        return;
+      }
+      if (event.target.closest('#parent-upcoming-retry')) {
+        this.retryUpcoming();
         return;
       }
       if (event.target.closest('#family-tasks-retry')) {
@@ -945,6 +1048,9 @@ export class ParentDashboard {
                                                 ${translate('modifier')}<span class="visually-hidden"> — ${participantName}</span>
                                         </a>
                                 </header>
+                                <div class="participant-card__todo" data-child-todo="${Number(participant.id)}">
+                                        ${this.renderChildTodo(participant)}
+                                </div>
                                 <details class="participant-card__details">
                                         <summary class="participant-card__summary">
                                                 ${translate('family_child_file_show')}<span class="visually-hidden"> — ${participantName}</span>
@@ -962,6 +1068,49 @@ export class ParentDashboard {
                 `;
       })
       .join('');
+  }
+
+  /**
+   * What is left to do for one child, said once: the tasks themselves live in
+   * "To do for your family", and this leads there, narrowed to the child.
+   *
+   * @param {Object} participant - Child
+   * @returns {string} Markup
+   */
+  renderChildTodo(participant) {
+    if (this.participantsFailed) {
+      return '';
+    }
+    const childId = Number(participant.id);
+    const count = buildFamilyTasks(this.familyTaskData(), childId).length;
+    const name = escapeHTML(`${participant.first_name} ${participant.last_name}`);
+    // A source that failed to load leaves the count unknown: never an all-clear.
+    if (count === 0 && !this.taskSourcesFailed) {
+      return `<p class="participant-card__todo-text">${translate('family_child_todo_none')}</p>`;
+    }
+    let text;
+    if (count === 0) {
+      text = translate('family_child_todo_incomplete');
+    } else {
+      text = translate(count === 1 ? 'family_child_todo_one' : 'family_child_todo_other').replace('{count}', String(count));
+    }
+    return `
+      <p class="participant-card__todo-text">${text}</p>
+      <button type="button" class="button button--secondary button--small js-family-goto-tasks" data-child-id="${childId}">
+        ${translate('family_child_todo_show')}<span class="visually-hidden"> — ${name}</span>
+      </button>`;
+  }
+
+  /**
+   * Refresh each child's "left to do" line after the tasks change.
+   */
+  refreshChildTodos() {
+    this.participants.forEach((participant) => {
+      const container = document.querySelector(`[data-child-todo="${Number(participant.id)}"]`);
+      if (container) {
+        setContent(container, this.renderChildTodo(participant));
+      }
+    });
   }
 
   /**
@@ -990,9 +1139,13 @@ export class ParentDashboard {
     debugLog('this.formFormats:', this.formFormats);
     debugLog('Form format keys:', Object.keys(this.formFormats));
 
-    // The backend now filters forms based on user permissions
-    // We no longer need to hardcode exclusions here
+    // A form still to fill is a family task: the file lists the others
+    // (filled in, or not the family's to fill), so nothing shows twice.
+    const formTasks = new Set(buildFamilyTasks(this.familyTaskData(), Number(participant.id))
+      .filter((task) => task.kind === FAMILY_TASK_KIND.FORM)
+      .map((task) => task.formType));
     const formButtons = Object.keys(this.formFormats)
+      .filter((formType) => !formTasks.has(formType))
       .map((formType) => {
         const formLabel = formTypeLabel(
           formType,
@@ -1065,12 +1218,25 @@ export class ParentDashboard {
     );
   }
 
+  /**
+   * Slips already answered, or left unanswered for a past activity. A slip
+   * still to answer is a family task, never repeated in the child's file.
+   *
+   * @param {number} participantId - Child
+   * @returns {Array<Object>} Slips for the file's history
+   */
+  permissionSlipHistory(participantId) {
+    const slips = this.permissionSlips.get(participantId) || [];
+    const today = getTodayISO();
+    return Array.isArray(slips) ? slips.filter((slip) => !isSlipAnswerable(slip, today)) : [];
+  }
+
   renderPermissionSlipSection(participant) {
+    const empty = this.permissionSlipHistory(participant.id).length === 0;
     return `
-                        <div class="participant-card__section">
+                        <div class="participant-card__section" data-permission-slip-history="${Number(participant.id)}"${empty ? ' hidden' : ''}>
                                 <div class="participant-card__section-header">
-                                        <h4>${translate('permission_slip_section_title')}</h4>
-                                        <p class="muted-text">${translate('permission_slip_parent_hint')}</p>
+                                        <h4>${translate('permission_slip_history_title')}</h4>
                                 </div>
                                 <div class="permission-slip-section" data-permission-slips-for="${participant.id}">
                                         ${this.renderPermissionSlipItems(participant.id)}
@@ -1080,10 +1246,10 @@ export class ParentDashboard {
   }
 
   renderPermissionSlipItems(participantId) {
-    const slips = this.permissionSlips.get(participantId) || [];
+    const slips = this.permissionSlipHistory(participantId);
 
-    if (!Array.isArray(slips) || slips.length === 0) {
-      return `<p class="muted-text">${translate('no_permission_slips')}</p>`;
+    if (slips.length === 0) {
+      return '';
     }
 
     return `
@@ -1127,9 +1293,8 @@ export class ParentDashboard {
                                                             slip.declined_by,
                                                           )
                                                           : '';
-      const canSign = isSlipAnswerable(slip, getTodayISO());
       // Pending for an event already past: nothing left to answer, and said so.
-      const pastUnanswered = slip.status === 'pending' && !canSign;
+      const pastUnanswered = slip.status === 'pending';
       const shownStatus = pastUnanswered ? escapeHTML(translate('permission_slip_past_unanswered')) : statusLabel;
 
       const signedMeta =
@@ -1139,10 +1304,7 @@ export class ParentDashboard {
                                                             ? `<p class="muted-text">${[declinedDate ? `${translate('permission_slip_declined_at')}: ${declinedDate}` : '', declinedBy ? `${translate('permission_slip_declined_by')}: ${declinedBy}` : ''].filter(Boolean).join(' · ')}</p>`
                                                             : '';
 
-      // One way to answer: the family task, which names the activity and every child it concerns.
-      const actionArea = canSign
-        ? `<button type="button" class="button button--secondary button--small js-family-goto-tasks">${translate('permission_slip_answer_in_tasks')}</button>`
-        : `<span class="status-badge status-${escapeHTML(pastUnanswered ? 'expired' : slip.status)}">${shownStatus}</span>`;
+      const actionArea = `<span class="status-badge status-${escapeHTML(pastUnanswered ? 'expired' : slip.status)}">${shownStatus}</span>`;
       const activityTitle = slip.activity_title || slip.activity_name || '';
 
       return `
@@ -1168,6 +1330,10 @@ export class ParentDashboard {
     );
     if (!container) {
       return;
+    }
+    const section = container.closest('[data-permission-slip-history]');
+    if (section) {
+      section.hidden = this.permissionSlipHistory(participantId).length === 0;
     }
 
     setContent(

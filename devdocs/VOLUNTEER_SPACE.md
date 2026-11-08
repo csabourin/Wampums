@@ -8,7 +8,7 @@ Migration `075_volunteer_space.sql`.
 
 | Permission | Grants |
 |---|---|
-| `volunteer_space.view` | Open the space. Migration 075 gives it to every role holding `volunteers.view` (the built-in volunteer role, leaders, the unit's management, the demo admin, and roles customized from them); the district role receives it through its trigger. |
+| `volunteer_space.view` | Open the space. Migration 075 gives it to every role holding `volunteers.view` (the built-in volunteer role, leaders, the unit's management, the demo admin, and roles customized from them); migration 084 to the parent role, the roles customized from it and the demo parent; the district role receives it through its trigger. |
 
 **Which camps open comes from taking part, never from a role's name** (`services/volunteerSpace.js`,
 `TAKES_PART_SQL`): a place on one of the camp's volunteer shifts, or a seat on the team of its planned

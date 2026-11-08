@@ -143,8 +143,19 @@ function loginList(name) {
 
 /** @returns {string[]} The kinds of family task the parent dashboard labels, read from its source */
 function familyTaskKinds() {
-  const source = code(path.join(ROOT, 'spa/modules/dashboard/FamilyTasks.js'));
-  const table = source.match(/FAMILY_TASK_KIND = Object\.freeze\(\{([^}]*)\}/)[1];
+  return frozenKinds('spa/modules/dashboard/FamilyTasks.js', 'FAMILY_TASK_KIND');
+}
+
+/**
+ * The values of a frozen kind table, read from its source.
+ *
+ * @param {string} file - Source file, from the repository root
+ * @param {string} name - The table's name
+ * @returns {string[]} Its values
+ */
+function frozenKinds(file, name) {
+  const source = code(path.join(ROOT, file));
+  const table = source.match(new RegExp(`${name} = Object\\.freeze\\(\\{([^}]*)\\}`))[1];
   return [...table.matchAll(/: '([a-z_]+)'/g)].map((match) => match[1]);
 }
 
@@ -190,6 +201,11 @@ test('every key built from a state exists for each state the server returns', ()
     ...loginList('DEMO_REFUSALS').map((refusal) => [refusal, 'Login']),
     ...familyTaskKinds().map((kind) => [`family_tasks_kind_${kind}`, 'FamilyTasks']),
     ...['one', 'other'].map((form) => [`family_tasks_count_${form}`, 'FamilyTasks']),
+    ...['none', 'one', 'other', 'incomplete'].map((form) => [`family_child_todo_${form}`, 'ParentDashboard']),
+    ...['open', 'mine'].flatMap((what) => ['one', 'other']
+      .map((form) => [`parent_volunteering_${what}_${form}`, 'ParentVolunteering'])),
+    ...frozenKinds('spa/modules/dashboard/ParentUpcoming.js', 'UPCOMING_KIND')
+      .map((kind) => [`parent_upcoming_kind_${kind}`, 'ParentUpcoming']),
     ...['treatment', 'administration'].map((kind) => [`authorization_kind_${kind}`, 'FamilyTasks']),
     ...equipmentCategories().map((key) => [`equipment_category_${key}`, 'EquipmentCategoryUtils']),
     ...equipmentUnits().map((key) => [`equipment_unit_${key}`, 'EquipmentUnitUtils']),
@@ -207,6 +223,7 @@ test('every key built from a state exists for each state the server returns', ()
   expect(offlineMutationKinds()).toEqual(expect.arrayContaining(['attendance', 'medication', 'badges']));
   expect(loginList('DEMO_VIEWS')).toEqual(['parent', 'leader']);
   expect(familyTaskKinds()).toEqual(['permission', 'form', 'review', 'authorization', 'payment', 'equipment']);
+  expect(frozenKinds('spa/modules/dashboard/ParentUpcoming.js', 'UPCOMING_KIND')).toEqual(['meeting', 'activity', 'camp']);
   expect(equipmentCategories()).toContain('other');
   expect(equipmentUnits()).toContain('each');
   expect(materialSorts()).toEqual(['category', 'name', 'available']);
