@@ -1164,7 +1164,13 @@ export class UnitSettings extends BaseModule {
         };
       }
 
-      this.app?.showMessage?.(translate('unit_settings_details_saved'), 'success');
+      // The upcoming meetings still at the old usual hour moved with it: say how many.
+      const moved = Number(response?.data?.meetings_moved) || 0;
+      const savedMessage = moved > 0
+        ? translate(moved === 1 ? 'unit_settings_meetings_moved_one' : 'unit_settings_meetings_moved_other')
+          .replace('{count}', String(moved))
+        : translate('unit_settings_details_saved');
+      this.app?.showMessage?.(savedMessage, 'success');
       this.render();
       this.attachEventListeners();
     } catch (error) {

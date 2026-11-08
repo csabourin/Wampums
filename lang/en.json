@@ -491,6 +491,8 @@
   "unit_settings_meeting_duration": "Usual meeting duration (minutes)",
   "unit_settings_logo_url": "Logo URL or site path",
   "unit_settings_details_saved": "Unit settings saved.",
+  "unit_settings_meetings_moved_one": "Unit settings saved. 1 upcoming meeting now starts at the new time.",
+  "unit_settings_meetings_moved_other": "Unit settings saved. {count} upcoming meetings now start at the new time.",
   "unit_settings_invalid_settings": "Some unit settings are invalid. Review the fields and try again.",
   "login_language_hint": "The page switches to the chosen language right away.",
   "unit_languages_title": "Unit languages",

@@ -121,8 +121,9 @@ const DERIVED_RESOURCES = {
   'equipment-loans': ['equipment-loans', 'resources'],
   // The announcement composer lists the unit's roles.
   roles: ['roles', 'announcements', 'users', 'forms'],
-  // Creating a unit adds it to the list of the creator's units.
-  organizations: ['organizations', 'users/me/organizations']
+  // Creating a unit adds it to the list of the creator's units. Changing its usual meeting
+  // time moves the upcoming planned meetings still at the old hour.
+  organizations: ['organizations', 'users/me/organizations', 'meetings', 'yearly-planner', 'dashboards']
 };
 
 /**

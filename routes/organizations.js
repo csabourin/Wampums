@@ -17,6 +17,7 @@ const meetingSectionDefaults = require('../config/meeting_sections.json');
 const { check, validationResult } = require('express-validator');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { asyncHandler, success, forbidden, error: errorResponse } = require('../middleware/response');
+const { currentMeetingTime, moveUpcomingMeetings } = require('../services/meetingTimeChange');
 const { validateIdBody, validateIdParam, checkValidation, normalizeEmailValue } = require('../middleware/validation');
 const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 const {
@@ -620,6 +621,10 @@ module.exports = (pool, logger) => {
         return errorResponse(res, 'Organization not found', HTTP_STATUS.NOT_FOUND);
       }
 
+      // Upcoming meetings still at the old usual hour follow a new one.
+      const nextMeetingTime = validation.value.meeting_time;
+      const previousMeetingTime = nextMeetingTime ? await currentMeetingTime(client, organizationId) : null;
+
       const infoResult = await client.query(
         `INSERT INTO organization_settings
            (organization_id, setting_key, setting_value, created_at, updated_at)
@@ -645,12 +650,16 @@ module.exports = (pool, logger) => {
         );
       }
 
+      const meetingsMoved = nextMeetingTime
+        ? await moveUpcomingMeetings(client, organizationId, previousMeetingTime, nextMeetingTime)
+        : 0;
+
       await client.query('COMMIT');
       orgSettingsCache.delete(`org_${organizationId}`);
 
       return success(
         res,
-        { organization_info: infoResult.rows[0].setting_value },
+        { organization_info: infoResult.rows[0].setting_value, meetings_moved: meetingsMoved },
         'Organization information updated'
       );
     } catch (updateError) {

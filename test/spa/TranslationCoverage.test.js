@@ -204,6 +204,7 @@ test('every key built from a state exists for each state the server returns', ()
     ...['none', 'one', 'other', 'incomplete'].map((form) => [`family_child_todo_${form}`, 'ParentDashboard']),
     ...['one', 'other'].map((form) => [`family_tasks_show_more_${form}`, 'FamilyTasks']),
     ...['done', 'todo'].map((state) => [`family_form_status_${state}`, 'ParentDashboard']),
+    ...['one', 'other'].map((form) => [`unit_settings_meetings_moved_${form}`, 'UnitSettings']),
     ...['open', 'mine'].flatMap((what) => ['one', 'other']
       .map((form) => [`parent_volunteering_${what}_${form}`, 'ParentVolunteering'])),
     ...frozenKinds('spa/modules/dashboard/ParentUpcoming.js', 'UPCOMING_KIND')

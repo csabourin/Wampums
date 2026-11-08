@@ -138,5 +138,6 @@ module.exports = {
   getMeetingDefaults,
   computeEndTime,
   formatLocalDate,
-  DEFAULT_MEETING_DURATION_MINUTES
+  DEFAULT_MEETING_DURATION_MINUTES,
+  DEFAULT_MEETING_TIME
 };
