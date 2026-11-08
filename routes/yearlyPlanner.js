@@ -40,6 +40,7 @@ const {
   copySchedule
 } = require('../services/campDuplication');
 const { TaskError } = require('../services/activityTasks');
+const { ScheduleLeaderError, readLeaderIds, replaceLineLeaders, withLeaders } = require('../services/scheduleLeaders');
 const { HTTP_STATUS } = require('../utils/http-status');
 const { ISO_MONTH_LENGTH, TIME_HH_MM_LENGTH } = require('../utils/time-units');
 
@@ -50,6 +51,8 @@ const { ISO_MONTH_LENGTH, TIME_HH_MM_LENGTH } = require('../utils/time-units');
  * special = a one-off that is neither.
  */
 const MEETING_KINDS = ['regular', 'weekend', 'camp', 'special'];
+/** Longest logistic notes a schedule line keeps (#1417). */
+const SCHEDULE_NOTES_MAX_LENGTH = 4000;
 
 /**
  * Write a schedule line and its catalogue articles in one transaction.
@@ -82,6 +85,9 @@ async function inScheduleTransaction(pool, write) {
  * @returns {Object} The response sent
  */
 function catalogRefusal(res, err) {
+  if (err instanceof ScheduleLeaderError) {
+    return error(res, err.message, err.status, [{ path: err.field, location: 'body', msg: err.message }]);
+  }
   if (err instanceof CatalogError) {
     return error(res, err.message, err.status, [{ path: err.field || 'material_items', location: 'body', msg: err.message }]);
   }
@@ -1612,7 +1618,14 @@ module.exports = (pool, logger) => {
         )
       ]);
 
-      const activities = await withMaterialItems(pool, organizationId, activitiesResult.rows);
+      const activities = await withLeaders(pool, organizationId,
+        await withMaterialItems(pool, organizationId, activitiesResult.rows));
+      // The camp's named team, offered first when choosing who leads a line.
+      const team = await pool.query(
+        `SELECT t.user_id FROM camp_team_members t
+          WHERE t.organization_id = $1 AND t.meeting_id = $2`,
+        [organizationId, meetingId]
+      );
       const activitiesByDay = new Map();
       for (const activity of activities) {
         const offset = Number(activity.day_offset) || 0;
@@ -1628,6 +1641,7 @@ module.exports = (pool, logger) => {
         meeting_kind: context.meeting_kind,
         span_days: Number(context.span_days),
         copy_sources: sourcesResult.rows,
+        team_user_ids: team.rows.map((row) => row.user_id),
         days: daysResult.rows.map(day => ({
           ...day,
           day_offset: Number(day.day_offset),
@@ -1830,6 +1844,7 @@ module.exports = (pool, logger) => {
       check('day_offset').optional().isInt({ min: 0, max: 59 }),
       check('start_time').optional({ nullable: true }).matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
       check('responsable').optional({ nullable: true }).trim().isLength({ max: 255 }),
+      check('description').optional({ nullable: true }).isString().isLength({ max: SCHEDULE_NOTES_MAX_LENGTH }),
       check('material').optional({ nullable: true }).isString().isLength({ max: 10000 }),
       materialItemsCheck(),
       validateIdParam('meetingId'),
@@ -1860,6 +1875,7 @@ module.exports = (pool, logger) => {
         ? null : readMaterialItems(req.body.material_items);
       let created;
       try {
+        const leaderIds = req.body.leader_ids === undefined ? null : readLeaderIds(req.body.leader_ids);
         created = await inScheduleTransaction(pool, async (client) => {
           const inserted = await client.query(
             `INSERT INTO year_plan_meeting_activities
@@ -1880,7 +1896,10 @@ module.exports = (pool, logger) => {
           if (materialItems) {
             await replaceActivityMaterialItems(client, organizationId, inserted.rows[0].id, materialItems);
           }
-          const [line] = await withMaterialItems(client, organizationId, inserted.rows);
+          if (leaderIds) {
+            await replaceLineLeaders(client, organizationId, inserted.rows[0].id, leaderIds);
+          }
+          const [line] = await withLeaders(client, organizationId, await withMaterialItems(client, organizationId, inserted.rows));
           return line;
         });
       } catch (err) {
@@ -1913,7 +1932,9 @@ module.exports = (pool, logger) => {
       check('day_offset').optional().isInt({ min: 0, max: 59 }),
       check('start_time').optional({ nullable: true }).matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
       check('responsable').optional({ nullable: true }).trim().isLength({ max: 255 }),
+      check('description').optional({ nullable: true }).isString().isLength({ max: SCHEDULE_NOTES_MAX_LENGTH }),
       check('material').optional({ nullable: true }).isString().isLength({ max: 10000 }),
+      check('expected_updated_at').optional({ nullable: true }).isISO8601(),
       materialItemsCheck(),
       validateIdParam('id'),
       checkValidation
@@ -1956,19 +1977,34 @@ module.exports = (pool, logger) => {
 
       const materialItems = req.body.material_items === undefined
         ? null : readMaterialItems(req.body.material_items);
-      if (updates.length === 0 && !materialItems) {
+      let leaderIds = null;
+      try {
+        leaderIds = req.body.leader_ids === undefined ? null : readLeaderIds(req.body.leader_ids);
+      } catch (err) {
+        return catalogRefusal(res, err);
+      }
+      if (updates.length === 0 && !materialItems && !leaderIds) {
         return success(res, existing.rows[0], 'No changes detected');
       }
 
-      values.push(activityId, organizationId);
+      values.push(activityId);
+      const idIndex = values.length;
+      values.push(organizationId);
+      // An editor naming the version it loaded is refused when someone changed the line since (#1417).
+      const expectsVersion = Object.prototype.hasOwnProperty.call(req.body, 'expected_updated_at');
+      let versionCondition = '';
+      if (expectsVersion) {
+        values.push(req.body.expected_updated_at || null);
+        versionCondition = ` AND date_trunc('milliseconds', updated_at) IS NOT DISTINCT FROM $${values.length}::timestamptz`;
+      }
       let updated;
       try {
         updated = await inScheduleTransaction(pool, async (client) => {
-          // Lock the line even when only its articles change.
+          // Lock the line even when only its articles or the members in charge change.
           const result = await client.query(
             `UPDATE year_plan_meeting_activities
                 SET ${[...updates, 'updated_at = NOW()'].join(', ')}
-              WHERE id = $${values.length - 1} AND organization_id = $${values.length}
+              WHERE id = $${idIndex} AND organization_id = $${idIndex + 1}${versionCondition}
               RETURNING *`,
             values
           );
@@ -1978,14 +2014,19 @@ module.exports = (pool, logger) => {
           if (materialItems) {
             await replaceActivityMaterialItems(client, organizationId, activityId, materialItems);
           }
-          const [line] = await withMaterialItems(client, organizationId, result.rows);
+          if (leaderIds) {
+            await replaceLineLeaders(client, organizationId, activityId, leaderIds);
+          }
+          const [line] = await withLeaders(client, organizationId, await withMaterialItems(client, organizationId, result.rows));
           return line;
         });
       } catch (err) {
         return catalogRefusal(res, err);
       }
       if (!updated) {
-        return error(res, 'Activity not found', HTTP_NOT_FOUND);
+        return expectsVersion
+          ? error(res, 'schedule_line_changed', HTTP_STATUS.CONFLICT)
+          : error(res, 'Activity not found', HTTP_NOT_FOUND);
       }
 
       return success(res, updated, 'Activity updated');

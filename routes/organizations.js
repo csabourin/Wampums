@@ -48,6 +48,7 @@ const { resolveUnitRoleId } = require('../services/roleVisibility');
 const { createInvitation, resolveInvitationLanguage } = require('../services/parentInvitations');
 const { deliverParentInvitation } = require('../services/familyDelivery');
 const { installDefaultStarterActivities } = require('../services/activityLibraryStarter');
+const CAMP_PERMIT_RULES = require('../config/camp_permit.json');
 const {
   EMAIL_SENDER_SETTING_KEY,
   getDefaultSenderEmail,
@@ -240,6 +241,15 @@ function validateOrganizationInfo(input) {
       });
     } else {
       value.meeting_duration = duration;
+    }
+  }
+
+  // Whether the unit is mixed, girls only or boys only, as the camp permit's header asks (#1416). Empty clears it.
+  if (Object.prototype.hasOwnProperty.call(input, 'coeducation')) {
+    if (input.coeducation === '' || CAMP_PERMIT_RULES.COEDUCATION.includes(input.coeducation)) {
+      value.coeducation = input.coeducation;
+    } else {
+      errors.push({ field: 'coeducation', msg: 'Invalid coeducation' });
     }
   }
 

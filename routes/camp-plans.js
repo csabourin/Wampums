@@ -5,18 +5,22 @@
  * `meetings.view`, and reading the unit's templates `meetings.view` or
  * `camp_plan_templates.manage`; writing a camp's sections and choosing its
  * bad-weather games takes `meetings.manage`, as planning the camp does;
- * writing the unit's templates takes `camp_plan_templates.manage`.
+ * writing the unit's templates takes `camp_plan_templates.manage`. The permit
+ * checklist (#1416) takes `meetings.view` with a unit-wide scope.
  *
  * @module routes/camp-plans
  */
 const express = require('express');
 const { param } = require('express-validator');
-const { authenticate, requirePermission, requireAnyPermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const {
+  authenticate, requirePermission, requireAnyPermission, blockDemoRoles, getOrganizationId, userHasPermission,
+} = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 const {
   CampPlanError, ALL_SECTIONS, UNIT_SECTIONS, listTemplates, listCampPlans, saveTemplate, readCampPlan, saveCampSection, saveRainGames,
 } = require('../services/campPlan');
+const { readCampPermit } = require('../services/campPermit');
 
 /** Answer known refusals with their translation key, naming the field when there is one. */
 const handle = (handler) => asyncHandler(async (req, res) => {
@@ -69,6 +73,21 @@ module.exports = (pool) => {
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       return success(res, await readCampPlan(pool, organizationId, Number(req.params.meetingId)));
+    }));
+
+  // The permit checklist (#1416) reads the whole camp, its lists included: unit-wide members only.
+  // Each line whose source takes another right is "not verified" without it.
+  router.get('/camps/:meetingId/permit',
+    requirePermission({ permissions: ['meetings.view'], organizationScope: true }),
+    validateIdParam('meetingId'),
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const [participants, carpools, reviews] = await Promise.all(['participants.view', 'carpools.view', 'camp_reviews.view']
+        .map((key) => userHasPermission(req, pool, organizationId, key)));
+      res.set('Cache-Control', 'no-store');
+      return success(res, await readCampPermit(pool, organizationId, Number(req.params.meetingId),
+        { participants, carpools, reviews }));
     }));
 
   router.put('/camps/:meetingId/sections/:sectionKey',

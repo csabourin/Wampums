@@ -103,6 +103,7 @@ export class CampPlans {
         <div class="camp-plan__actions">
           <a class="button button--primary button--small" href="/camp-plan/${id}">${escapeHTML(translate('camp_plans_open_plan'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a>
           <a class="button button--secondary button--small" href="/camp-site/${id}">${escapeHTML(translate('camp_site_title'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a>
+          ${this.canSeeReadiness ? `<a class="button button--secondary button--small" href="/camp-permit/${id}">${escapeHTML(translate('camp_permit_title'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a>` : ''}
           ${this.canSeeRoster ? `<a class="button button--secondary button--small" href="/camp-roster/${id}">${escapeHTML(translate('camp_plans_open_roster'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a>` : ''}
           ${this.canSeeReadiness ? `<a class="button button--secondary button--small" href="/camp-readiness/${id}">${escapeHTML(translate('camp_readiness_title'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a>` : ''}
           ${this.canSeeReview ? `<a class="button button--secondary button--small" href="/camp-review/${id}">${escapeHTML(translate('camp_review_title'))}<span class="sr-only"> : ${escapeHTML(name)}</span></a>` : ''}

@@ -487,6 +487,7 @@ only then. The rules there are as binding as this file; update the devdoc in the
 | Reusing an earlier camp | `services/campDuplication.js` | `devdocs/CAMP_DUPLICATION.md` |
 | Camp sites | `/camp-sites`, `/camp-site/:id`, `services/campSites.js` | `devdocs/CAMP_SITES.md` |
 | Camp plan written sections | `/camp-plan`, `/camp-plans`, `services/campPlan.js` | `devdocs/CAMP_PLAN_SECTIONS.md` |
+| Camp permit request (checklist, header, document, approvals) | `/camp-permit/:id`, `services/campPermit.js`, `config/camp_permit.json` | `devdocs/CAMP_PERMIT.md` |
 | Camp lists (youth, team, camp aides) | `/camp-roster/:id`, `services/campRoster.js`, `camp_team_members` | `devdocs/CAMP_ROSTERS.md` |
 | Team camp readiness, camp dates | `/camp-readiness`, `services/campDates.js` | `devdocs/CAMP_READINESS.md` |
 | Camp review (notes, +1, offline, history) | `/camp-review/:id`, `/camp-reviews`, `services/campReviews.js`, `CampReviewOffline.js`, `CampLessons.js` | `devdocs/CAMP_REVIEWS.md` |

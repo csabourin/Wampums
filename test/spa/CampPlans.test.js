@@ -62,7 +62,7 @@ test('coming camps come first, each saying what its plan still lacks and leading
   expect(first.textContent).toContain('camp_readiness_left_plan_review');
   expect(first.classList.contains('is-attention')).toBe(true);
   expect(Array.from(first.querySelectorAll('a')).map((link) => link.getAttribute('href')))
-    .toEqual(['/camp-plan/12', '/camp-site/12', '/camp-roster/12', '/camp-readiness/12', '/camp-review/12']);
+    .toEqual(['/camp-plan/12', '/camp-site/12', '/camp-permit/12', '/camp-roster/12', '/camp-readiness/12', '/camp-review/12']);
   expect(document.querySelectorAll('.camp-plans__camp')[1].textContent).toContain('camp_plan_all_written');
 });
 

@@ -316,6 +316,7 @@ test('reads every visible control when saving unit settings', async () => {
   document.getElementById('unit-organization-name').value = '12e Unité';
   document.getElementById('unit-name').value = '12e';
   document.getElementById('unit-district').value = 'District du Nord';
+  document.getElementById('unit-coeducation').value = 'mixed';
   document.getElementById('unit-group-leader').value = 'Alex Tremblay';
   document.getElementById('unit-meeting-location').value = 'Centre communautaire';
   document.getElementById('unit-meeting-day').value = 'Thursday';
@@ -329,6 +330,7 @@ test('reads every visible control when saving unit settings', async () => {
     name: '12e Unité',
     unit: '12e',
     district: 'District du Nord',
+    coeducation: 'mixed',
     animateur_responsable: 'Alex Tremblay',
     endroit: 'Centre communautaire',
     meeting_day: 'Thursday',
@@ -336,6 +338,19 @@ test('reads every visible control when saving unit settings', async () => {
     meeting_duration: 105,
     logo: '/images/12e.png'
   });
+});
+
+test('the unit’s coeducation is a labelled choice, shown as saved, and may be left unspecified', async () => {
+  const module = new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} });
+  await module.init();
+  const select = document.getElementById('unit-coeducation');
+  expect(document.querySelector('label[for="unit-coeducation"]').textContent).toBe('unit_coeducation_label');
+  expect(select.getAttribute('aria-describedby')).toBe('unit-coeducation-hint');
+  expect([...select.options].map((option) => option.value)).toEqual(['', 'mixed', 'girls', 'boys']);
+  expect(select.value).toBe('');
+
+  await module.handleSaveUnitDetails({ preventDefault: jest.fn() });
+  expect(mockUpdateOrganizationInfo.mock.calls.at(-1)[0].coeducation).toBe('');
 });
 
 test('shows a localized validation message instead of the English API detail', async () => {

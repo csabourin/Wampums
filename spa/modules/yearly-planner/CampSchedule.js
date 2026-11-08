@@ -3,7 +3,7 @@
 import { translate } from '../../app.js';
 import { BaseModule } from '../../utils/BaseModule.js';
 import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
-import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
@@ -11,6 +11,7 @@ import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { hasOrganizationScope, hasPermission } from '../../utils/PermissionUtils.js';
 import { getMaterialOptions } from '../../api/api-equipment-catalog.js';
+import { getCampTeamCandidates } from '../../api/api-camp-rosters.js';
 import { MaterialItemsField, renderMaterialItemsList } from '../equipment-catalog/MaterialItemsField.js';
 import {
   getMeetingSchedule,
@@ -32,6 +33,12 @@ function addMinutes(time, duration) {
   return `${String(Math.floor(total / 60)).padStart(DATE_PART_WIDTH, '0')}:${String(total % 60).padStart(DATE_PART_WIDTH, '0')}`;
 }
 
+/** Longest logistic notes a line keeps, as the server checks (#1417). */
+const NOTES_MAX_LENGTH = 4000;
+/** How many members one line may name, as the server checks. */
+const MAX_LEADERS = 10;
+const HTTP_CONFLICT = 409;
+
 /** Format a database time as HH:MM. */
 function shortTime(value) {
   return value ? String(value).slice(0, TIME_HH_MM_LENGTH) : '';
@@ -52,6 +59,8 @@ export class CampSchedule extends BaseModule {
     // What the unit has or may use; null until loaded, or when it could not be.
     this.materialChoices = null;
     this.itemFields = new Map();
+    // Who may lead a line (#1417): the unit's team members; null until loaded, or when they could not be.
+    this.leaderCandidates = null;
   }
 
   /** Load and open the camp schedule editor. */
@@ -77,7 +86,7 @@ export class CampSchedule extends BaseModule {
       }
     });
     if (this.canManage) {
-      await this.loadMaterialChoices();
+      await Promise.all([this.loadMaterialChoices(), this.loadLeaderCandidates()]);
     }
     await this.reload();
   }
@@ -95,6 +104,95 @@ export class CampSchedule extends BaseModule {
       debugError('Error loading the unit material:', err);
       this.materialChoices = null;
     }
+  }
+
+  /**
+   * Load the members a line may name as in charge. Without them, a line keeps
+   * the members it names and only the free-text field can be edited.
+   */
+  async loadLeaderCandidates() {
+    if (!hasOrganizationScope()) {
+      return;
+    }
+    try {
+      const response = await getCampTeamCandidates(this.chip.meetingId);
+      this.leaderCandidates = Array.isArray(response?.data) ? response.data : null;
+    } catch (err) {
+      debugError('Error loading the members who may lead a line:', err);
+      this.leaderCandidates = null;
+    }
+  }
+
+  /**
+   * The members a line may name: the camp's team first, then the unit's other
+   * team members, then anyone the line already names who is no longer offered.
+   *
+   * @param {Object[]} leaders - The line's members in charge
+   * @returns {{user_id: string, name: string, checked: boolean, left: boolean}[]}
+   */
+  leaderChoices(leaders = []) {
+    const named = new Map(leaders.map((leader) => [leader.user_id, leader]));
+    const team = new Set(this.schedule?.team_user_ids || []);
+    const offered = [...(this.leaderCandidates || [])]
+      .sort((a, b) => Number(team.has(b.user_id)) - Number(team.has(a.user_id)));
+    const choices = offered.map((member) => ({
+      user_id: member.user_id, name: member.name, checked: named.has(member.user_id), left: false,
+    }));
+    leaders.filter((leader) => !offered.some((member) => member.user_id === leader.user_id))
+      .forEach((leader) => choices.push({ user_id: leader.user_id, name: leader.name, checked: true, left: !leader.active_member }));
+    return choices;
+  }
+
+  /**
+   * The members in charge of a line being edited, as checkboxes (no dragging).
+   *
+   * @param {string} idPrefix - Unique prefix for the field's ids
+   * @param {Object[]} leaders - The line's members in charge
+   * @returns {string} HTML, or nothing when the members could not be loaded
+   */
+  leadersFieldset(idPrefix, leaders = []) {
+    if (!this.leaderCandidates) {
+      return '';
+    }
+    const choices = this.leaderChoices(leaders);
+    const body = choices.length
+      ? choices.map((choice, index) => `
+          <label class="yp-schedule-leaders__choice" for="${idPrefix}-${index}">
+            <input type="checkbox" id="${idPrefix}-${index}" value="${escapeAttribute(choice.user_id)}" ${choice.checked ? 'checked' : ''}>
+            <span>${escapeHTML(choice.name)}${choice.left ? ` <span class="yp-schedule-leaders__left">${escapeHTML(translate('yearly_planner_leader_left'))}</span>` : ''}</span>
+          </label>`).join('')
+      : `<p>${escapeHTML(translate('yearly_planner_leaders_none'))}</p>`;
+    return `<fieldset class="yp-schedule-leaders" data-leaders="${idPrefix}" aria-describedby="${idPrefix}-hint">
+        <legend>${escapeHTML(translate('yearly_planner_leaders'))}</legend>
+        <p class="field-hint" id="${idPrefix}-hint">${escapeHTML(translate('yearly_planner_leaders_hint'))}</p>
+        ${body}
+        <p class="field-error" id="${idPrefix}-error" role="alert" hidden></p>
+      </fieldset>`;
+  }
+
+  /**
+   * Read the members chosen in a leaders fieldset.
+   *
+   * @param {HTMLElement} container - Where the fieldset is
+   * @param {string} idPrefix - Its prefix
+   * @returns {string[]|null|undefined} The ids; undefined when the field is absent; null when too many
+   */
+  readLeaders(container, idPrefix) {
+    const fieldset = container.querySelector(`[data-leaders="${idPrefix}"]`);
+    if (!fieldset) {
+      return undefined;
+    }
+    const ids = [...fieldset.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value);
+    const errorNode = fieldset.querySelector('.field-error');
+    if (ids.length > MAX_LEADERS) {
+      errorNode.textContent = translate('schedule_leaders_too_many').replace('{count}', String(MAX_LEADERS));
+      errorNode.hidden = false;
+      fieldset.querySelector('input[type="checkbox"]:checked')?.focus();
+      return null;
+    }
+    errorNode.hidden = true;
+    errorNode.textContent = '';
+    return ids;
   }
 
   /**
@@ -224,7 +322,9 @@ export class CampSchedule extends BaseModule {
           <label><span>${escapeHTML(translate('time'))}</span><input type="time" data-field="start_time" value="${shortTime(activity.start_time)}"></label>
           <label><span>${escapeHTML(translate('activity_label'))}</span><input type="text" data-field="name" maxlength="255" value="${escapeHTML(activity.name)}"></label>
           <label><span>${escapeHTML(translate('duration_minutes'))}</span><input type="number" data-field="duration_minutes" min="1" max="1440" value="${activity.duration_minutes || ''}"></label>
-          <label><span>${escapeHTML(translate('yearly_planner_responsible'))}</span><input type="text" data-field="responsable" maxlength="255" value="${escapeHTML(activity.responsable || '')}"></label>
+          ${this.leadersFieldset(`yp-schedule-leaders-${Number(activity.id)}`, activity.leaders)}
+          <label><span>${escapeHTML(translate(this.leaderCandidates ? 'yearly_planner_responsible_other' : 'yearly_planner_responsible'))}</span><input type="text" data-field="responsable" maxlength="255" value="${escapeHTML(activity.responsable || '')}"></label>
+          <label><span>${escapeHTML(translate('yearly_planner_logistic_notes'))}</span><textarea data-field="description" rows="2" maxlength="${NOTES_MAX_LENGTH}">${escapeHTML(activity.description || '')}</textarea></label>
           <label><span>${escapeHTML(translate('yearly_planner_material'))}</span><textarea data-field="material" rows="2">${escapeHTML(activity.material || '')}</textarea></label>
           ${this.quickEditItems(activity)}
           <div class="yp-schedule-card__actions">
@@ -238,7 +338,8 @@ export class CampSchedule extends BaseModule {
       <article class="yp-schedule-card" data-activity-id="${activity.id}">
         <div class="yp-schedule-card__time">${escapeHTML(shortTime(activity.start_time) || '—')}</div>
         <div><strong>${escapeHTML(activity.name)}</strong>${activity.duration_minutes ? ` <span>· ${Number(activity.duration_minutes)} min</span>` : ''}</div>
-        ${activity.responsable ? `<div><span class="yp-schedule-card__label">${escapeHTML(translate('yearly_planner_responsible'))}</span>${escapeHTML(activity.responsable)}</div>` : ''}
+        ${this.leadersText(activity) ? `<div><span class="yp-schedule-card__label">${escapeHTML(translate('yearly_planner_responsible'))}</span>${escapeHTML(this.leadersText(activity))}</div>` : ''}
+        ${activity.description ? `<div class="yp-schedule-card__notes"><span class="yp-schedule-card__label">${escapeHTML(translate('yearly_planner_logistic_notes'))}</span>${escapeHTML(activity.description)}</div>` : ''}
         ${activity.material ? `<div><span class="yp-schedule-card__label">${escapeHTML(translate('yearly_planner_material'))}</span>${escapeHTML(activity.material)}</div>` : ''}
         ${activity.material_items?.length ? `<div><span class="yp-schedule-card__label">${escapeHTML(translate('equipment_catalog_items_legend'))}</span>${renderMaterialItemsList(activity.material_items, this.lang)}</div>` : ''}
         ${this.canManage ? `
@@ -249,6 +350,21 @@ export class CampSchedule extends BaseModule {
         ` : ''}
       </article>
     `;
+  }
+
+  /**
+   * Who leads a line, in words: the members named, marked when they left the unit, then the free text.
+   *
+   * @param {Object} activity
+   * @returns {string} Plain text, empty when no one is named
+   */
+  leadersText(activity) {
+    const names = (activity.leaders || []).map((leader) => (leader.active_member
+      ? leader.name : `${leader.name} ${translate('yearly_planner_leader_left')}`));
+    if (activity.responsable) {
+      names.push(activity.responsable);
+    }
+    return names.join(', ');
   }
 
   /**
@@ -333,7 +449,9 @@ export class CampSchedule extends BaseModule {
           <label class="form-group"><span>${escapeHTML(translate('activity_label'))}</span><input type="text" id="yp-schedule-new-name" maxlength="255" required aria-required="true"></label>
           <p class="field-error" id="yp-schedule-new-name-error" role="alert" hidden></p>
           <label class="form-group"><span>${escapeHTML(translate('duration_minutes'))}</span><input type="number" id="yp-schedule-new-duration" min="1" max="1440"></label>
-          <label class="form-group"><span>${escapeHTML(translate('yearly_planner_responsible'))}</span><input type="text" id="yp-schedule-new-responsible" maxlength="255"></label>
+          ${this.leadersFieldset('yp-schedule-new-leaders')}
+          <label class="form-group"><span>${escapeHTML(translate(this.leaderCandidates ? 'yearly_planner_responsible_other' : 'yearly_planner_responsible'))}</span><input type="text" id="yp-schedule-new-responsible" maxlength="255"></label>
+          <label class="form-group"><span>${escapeHTML(translate('yearly_planner_logistic_notes'))}</span><textarea id="yp-schedule-new-notes" rows="2" maxlength="${NOTES_MAX_LENGTH}"></textarea></label>
           <label class="form-group"><span>${escapeHTML(translate('yearly_planner_material'))}</span><textarea id="yp-schedule-new-material" rows="2"></textarea></label>
           ${newItems.markup()}
         </form>
@@ -366,10 +484,11 @@ export class CampSchedule extends BaseModule {
         return;
       }
       const materialItems = newItems.value();
-      if (materialItems === null) {
+      const leaderIds = this.readLeaders(form, 'yp-schedule-new-leaders');
+      if (materialItems === null || leaderIds === null) {
         return;
       }
-      withFormBusy(form, () => this.createActivity(modal, position, name, materialItems));
+      withFormBusy(form, () => this.createActivity(modal, position, name, materialItems, leaderIds));
     });
   }
 
@@ -380,12 +499,15 @@ export class CampSchedule extends BaseModule {
    * @param {number} position - Where the activity goes in the day
    * @param {string} name - Its name, already checked
    * @param {Object[]|undefined} materialItems - Catalogue articles; undefined without a catalogue
+   * @param {string[]|undefined} leaderIds - Members in charge; undefined when they could not be loaded
    * @returns {Promise<void>}
    */
-  async createActivity(modal, position, name, materialItems) {
+  async createActivity(modal, position, name, materialItems, leaderIds) {
     try {
       await addMeetingActivity(this.chip.meetingId, {
         ...(materialItems ? { material_items: materialItems } : {}),
+        ...(leaderIds ? { leader_ids: leaderIds } : {}),
+        description: modal.overlay.querySelector('#yp-schedule-new-notes')?.value.trim() || null,
         day_offset: this.dayOffset,
         sort_order: position,
         start_time: modal.overlay.querySelector('#yp-schedule-new-time')?.value || null,
@@ -415,12 +537,18 @@ export class CampSchedule extends BaseModule {
       return;
     }
     const materialItems = this.itemFields.get(activityId)?.value();
-    if (materialItems === null) {
+    const leaderIds = this.readLeaders(card, `yp-schedule-leaders-${activityId}`);
+    if (materialItems === null || leaderIds === null) {
       return;
     }
+    const loaded = this.schedule.days.flatMap((day) => day.activities).find((activity) => Number(activity.id) === activityId);
     try {
       await updateMeetingActivity(activityId, {
         ...(materialItems ? { material_items: materialItems } : {}),
+        ...(leaderIds ? { leader_ids: leaderIds } : {}),
+        // Refused (409) when someone changed the line since it was loaded, rather than overwriting their change.
+        ...(loaded && loaded.updated_at !== undefined ? { expected_updated_at: loaded.updated_at } : {}),
+        description: field('description')?.value.trim() || null,
         name,
         start_time: field('start_time')?.value || null,
         duration_minutes: parseInt(field('duration_minutes')?.value, 10) || null,
@@ -432,6 +560,10 @@ export class CampSchedule extends BaseModule {
     } catch (err) {
       debugError('Error updating camp activity:', err);
       this.app.showMessage(apiErrorMessage(err, 'yearly_planner_error_saving'), 'error');
+      if (err?.status === HTTP_CONFLICT) {
+        // Someone else's change is shown; the person redoes theirs on top of it.
+        await this.reload();
+      }
     }
   }
 
