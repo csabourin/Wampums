@@ -86,8 +86,9 @@ export function submitCampPlanVersion(meetingId) {
 /**
  * @param {number} meetingId - The planned camp
  * @param {number} versionNumber - The version
+ * @param {{signal?: AbortSignal}} [options] - Abort when the screen is left
  * @returns {Promise<{blob: Blob, filename: string|null, sha256: string|null}>} Its PDF
  */
-export function getCampPlanVersionPdf(meetingId, versionNumber) {
-  return API.getFile(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/versions/${encodeURIComponent(versionNumber)}/pdf`);
+export function getCampPlanVersionPdf(meetingId, versionNumber, options = {}) {
+  return API.getFile(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/versions/${encodeURIComponent(versionNumber)}/pdf`, options);
 }

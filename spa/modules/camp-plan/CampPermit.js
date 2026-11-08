@@ -87,12 +87,15 @@ export class CampPermit {
     this.canReadVersions = hasPermission('participants.view')
       && (hasPermission('meetings.manage') || hasPermission('volunteers.manage'));
     this.canSubmit = this.canReadVersions && hasPermission('meetings.manage') && !isDemoUser();
+    // Downloads under way end with the screen: a document never saves itself after the person left.
+    this.downloads = new AbortController();
   }
 
   destroy() {
     this.destroyed = true;
     this.request += 1;
     this.versionsRequest += 1;
+    this.downloads.abort();
   }
 
   /** @returns {HTMLElement|null} */
@@ -392,7 +395,10 @@ export class CampPermit {
   async download(versionNumber, button) {
     button.disabled = true;
     try {
-      const file = await getCampPlanVersionPdf(this.meetingId, versionNumber);
+      const file = await getCampPlanVersionPdf(this.meetingId, versionNumber, { signal: this.downloads.signal });
+      if (this.destroyed) {
+        return;
+      }
       const url = URL.createObjectURL(file.blob);
       const link = document.createElement('a');
       link.href = url;
@@ -403,6 +409,9 @@ export class CampPermit {
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_URL_LIFETIME_MS);
     } catch (err) {
+      if (this.destroyed || err?.name === 'AbortError') {
+        return;
+      }
       debugError('Failed to download the camp plan:', err);
       this.app.showMessage(apiErrorMessage(err, 'camp_plan_version_download_failed'), 'error');
     } finally {

@@ -319,10 +319,30 @@ describe('submitted versions (#1418)', () => {
     await open();
     document.querySelector('[data-version-download="2"]').click();
     await flush();
-    expect(getCampPlanVersionPdf).toHaveBeenCalledWith(12, 2);
+    expect(getCampPlanVersionPdf).toHaveBeenCalledWith(12, 2, { signal: expect.any(AbortSignal) });
     expect(URL.createObjectURL).toHaveBeenCalledWith(blob);
     expect(clicked).toHaveBeenCalled();
     clicked.mockRestore();
+  });
+
+  test('a document arriving after the person left the screen is never saved', async () => {
+    getCampPlanVersions.mockResolvedValue({ success: true, data: VERSIONS });
+    let answer;
+    let signal;
+    getCampPlanVersionPdf.mockImplementation((_meeting, _version, options) => {
+      ({ signal } = options);
+      return new Promise((resolve) => { answer = resolve; });
+    });
+    URL.createObjectURL = jest.fn(() => 'blob:fictional');
+    await open();
+    document.querySelector('[data-version-download="2"]').click();
+    await flush();
+    screen.destroy();
+    expect(signal.aborted).toBe(true);
+    answer({ blob: new Blob(['%PDF-']), filename: 'camp-plan-12-v2.pdf', sha256: DIGEST });
+    await flush();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(app.showMessage).not.toHaveBeenCalled();
   });
 
   test('versions that cannot be loaded say so with a retry, and the checklist stays readable', async () => {
