@@ -36,6 +36,7 @@ import { withButtonLoading, debounce } from '../../utils/PerformanceUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
+import { defaultAttendanceDate } from './AttendanceDefaultDate.js';
 
 /** Wait for every stateful read to settle before allowing a retry or date change. */
 async function waitForAttendanceReads(reads) {
@@ -54,6 +55,8 @@ export class Attendance {
     this.guests = [];
     this.selectedParticipant = null;
     this.availableDates = [];
+    // The day the screen should open on, once the dates are known (see finalizeAvailableDates).
+    this.openingDate = null;
     this.saveGuest = saveGuest;
     this.getGuestsByDate = getGuestsByDate;
     this.groups = [];
@@ -114,6 +117,11 @@ export class Attendance {
       if (document.querySelector('.attendance-container')) {
         this.render();
         this.attachEventListeners();
+      }
+      // Today was loaded alongside the dates; with nothing on today, move to
+      // the meeting of the past week whose attendance is being completed.
+      if (this.openingDate && this.openingDate !== this.currentDate && !this.destroyed) {
+        await this.changeDate(this.openingDate);
       }
     } catch (error) {
       if (this.destroyed) { return; }
@@ -306,6 +314,7 @@ export class Attendance {
    */
   finalizeAvailableDates() {
     const today = getTodayISO();
+    this.openingDate = defaultAttendanceDate(this.availableDates, today);
     if (!this.availableDates.includes(today)) {
       this.availableDates.push(today);
     }
@@ -1352,6 +1361,8 @@ export class Attendance {
     const previousDate = this.currentDate;
     const previousRoster = this.roster;
     const nextRoster = new ActionRoster('attendance');
+    // Another day of the same visit: the explanation stays as the leader left it.
+    nextRoster.helpOpen = previousRoster.helpOpen;
     // The visible screen stays interactive while the new date loads. Keep its
     // data and activity filter together if either concurrent read fails or a
     // newer date supersedes this one.

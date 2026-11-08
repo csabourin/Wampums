@@ -119,6 +119,29 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
     expect(managerView.find((row) => row.id === shift.id).volunteers.map((person) => person.name)).toEqual(['Grace Hopper']);
   });
 
+  test('a parent takes a place without being given the volunteer role, sees no one else\'s name, and joins the background checks', async () => {
+    const parent = await member('Marie Curie', 'parent');
+    const shift = await saveShift(pool, ids.unit, ids.manager, {
+      activity_id: ids.camp, volunteer_type: 'cook', title: 'Souper', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
+      start_time: '16:00', end_time: '18:30', slots: 2, notes: '',
+    });
+    await signUp(pool, ids.unit, shift.id, ids.driver);
+
+    const list = await as(parent).get('/api/v1/volunteer-shifts');
+    expect(list.status).toBe(200);
+    expect(list.body.data.find((row) => row.id === shift.id)).toMatchObject({ taken: 1, mine: false, volunteers: null });
+    expect(JSON.stringify(list.body)).not.toContain('Grace Hopper');
+
+    const taken = await as(parent).post(`/api/v1/volunteer-shifts/${shift.id}/signups`).send({});
+    expect(taken.status).toBeLessThan(300);
+    expect(taken.body.data).toMatchObject({ status: 'pending', missing: ['background_check'] });
+    expect((await teamChecks(pool, ids.unit)).some((row) => row.user_id === parent)).toBe(true);
+
+    // Still a parent: the unit's other lists stay closed.
+    expect((await as(parent).get('/api/v1/volunteer-shifts/checks')).status).toBe(403);
+    expect((await as(parent).delete(`/api/v1/volunteer-shifts/${shift.id}/signups/${ids.driver}`)).status).toBe(403);
+  });
+
   test('two volunteers taking the last place at once: one is confirmed, the other is refused with 409', async () => {
     const shift = await saveShift(pool, ids.unit, ids.manager, {
       activity_id: ids.camp, volunteer_type: 'other', title: 'Veille de nuit', shift_date: await one('SELECT (CURRENT_DATE + 4)::text'),

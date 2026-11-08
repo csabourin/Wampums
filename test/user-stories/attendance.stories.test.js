@@ -1076,3 +1076,69 @@ test('a planned meeting keeps the whole attendance roster without carrying an ov
   expect(document.querySelectorAll('.participant-row')).toHaveLength(4);
   expect(global.fetch.mock.calls.some(([url]) => String(url).includes('carry-forward'))).toBe(false);
 });
+
+describe('the day the screen opens on', () => {
+  const THREE_DAYS_AGO = isoDaysFromToday(-3);
+  const TWO_WEEKS_AGO = isoDaysFromToday(-14);
+
+  test('with nothing on today, a leader lands on the meeting of the past week, today still offered', async () => {
+    seedStandardData();
+    ajax.getAttendanceDates.mockResolvedValue({ success: true, data: [THREE_DAYS_AGO, TWO_WEEKS_AGO] });
+
+    await initPage();
+    await flushPromises();
+
+    const select = document.getElementById('dateSelect');
+    expect(select.value).toBe(THREE_DAYS_AGO);
+    expect([...select.options].map((option) => option.value)).toContain(TODAY);
+    expect(ajax.getAttendance).toHaveBeenLastCalledWith(THREE_DAYS_AGO);
+  });
+
+  test('moving to that meeting on a first visit keeps the explanation open', async () => {
+    localStorage.removeItem('actionRosterHelpSeen');
+    seedStandardData();
+    ajax.getAttendanceDates.mockResolvedValue({ success: true, data: [THREE_DAYS_AGO] });
+
+    await initPage();
+    await flushPromises();
+
+    expect(document.getElementById('dateSelect').value).toBe(THREE_DAYS_AGO);
+    expect(document.querySelector('.action-roster-help').open).toBe(true);
+  });
+
+  test('on a meeting day, the screen opens on today', async () => {
+    seedStandardData();
+    ajax.getAttendanceDates.mockResolvedValue({ success: true, data: [TODAY, THREE_DAYS_AGO] });
+
+    await initPage();
+
+    expect(document.getElementById('dateSelect').value).toBe(TODAY);
+    expect(ajax.getAttendance).not.toHaveBeenCalledWith(THREE_DAYS_AGO);
+  });
+
+  test('a meeting older than a week is not chosen for the leader: the screen stays on today', async () => {
+    seedStandardData();
+    ajax.getAttendanceDates.mockResolvedValue({ success: true, data: [TWO_WEEKS_AGO] });
+
+    await initPage();
+
+    expect(document.getElementById('dateSelect').value).toBe(TODAY);
+  });
+});
+
+describe('how the list works', () => {
+  test('is explained open the first time, then folded on the next visit', async () => {
+    localStorage.removeItem('actionRosterHelpSeen');
+    seedStandardData();
+    await initPage();
+
+    const help = document.querySelector('.action-roster-help');
+    expect(help.open).toBe(true);
+    expect(help.querySelector('summary').textContent).toBe(tr('action_roster_help_summary'));
+    openedPages.splice(0).forEach((page) => page.destroy());
+
+    document.body.innerHTML = '<div id="app"></div>';
+    await initPage();
+    expect(document.querySelector('.action-roster-help').open).toBe(false);
+  });
+});

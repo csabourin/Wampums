@@ -169,6 +169,21 @@
   transform: rotate(90deg);
 }
 
+/* What is left to do for the child, said once; the tasks live above. */
+.participant-card__todo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm, 0.5rem);
+  margin-block: var(--space-sm, 0.5rem);
+}
+
+.participant-card__todo-text {
+  margin: 0;
+  font-weight: var(--font-weight-semibold, 600);
+}
+
 .participant-card__body {
   display: flex;
   flex-direction: column;
@@ -201,4 +216,77 @@
 .permission-slip-title {
   font-weight: var(--font-weight-medium, 500);
   margin: 0;
+}
+
+/* "Coming up": the next meeting and activities, read at a glance. */
+.parent-upcoming {
+  background: var(--color-surface, #fff);
+  border-radius: var(--radius-lg, 0.75rem);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-md, 1rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 0.5rem);
+}
+
+.parent-upcoming__heading {
+  font-size: var(--font-size-lg, 1.125rem);
+  margin: 0;
+}
+
+.parent-upcoming__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 0.5rem);
+}
+
+.parent-upcoming__item {
+  border-inline-start: 4px solid var(--color-primary, #0f7a5a);
+  padding-inline-start: var(--space-sm, 0.5rem);
+}
+
+.parent-upcoming__kind,
+.parent-upcoming__when,
+.parent-upcoming__place,
+.parent-upcoming__empty {
+  margin: 0;
+  color: var(--color-text-secondary, #4b5563);
+}
+
+.parent-upcoming__title {
+  font-size: var(--font-size-base, 1rem);
+  margin: 0;
+}
+
+.parent-upcoming .button {
+  align-self: flex-start;
+}
+
+/* "Lend a hand": places open on volunteer shifts, and one's own. */
+.parent-volunteering {
+  background: var(--color-surface, #fff);
+  border-radius: var(--radius-lg, 0.75rem);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-md, 1rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 0.5rem);
+}
+
+.parent-volunteering__heading {
+  font-size: var(--font-size-lg, 1.125rem);
+  margin: 0;
+}
+
+.parent-volunteering__text {
+  margin: 0;
+}
+
+.parent-volunteering__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm, 0.5rem);
 }

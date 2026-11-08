@@ -13077,6 +13077,14 @@ body:has(> .settings-icon) .demo-banner__inner {
   min-height: var(--touch-target-min);
 }
 .action-roster-controls p { margin: 0; }
+.action-roster-help summary {
+  min-height: var(--touch-target-min);
+  display: list-item;
+  align-content: center;
+  cursor: pointer;
+  color: var(--color-text-secondary, #4b5563);
+}
+.action-roster-help p { margin-block-end: var(--space-sm); }
 
 /* Tasks use the same native controls on phones and desktops. */
 .tasks-page .task-list {

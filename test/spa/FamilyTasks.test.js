@@ -391,18 +391,68 @@ describe('the parent dashboard', () => {
     page.destroy();
   });
 
-  test('a pending slip is answered in one place: the child\'s file shows it and leads to the task', async () => {
+  test('a pending slip is answered in one place: the child\'s card counts it and leads to the task', async () => {
+    mockTemplates.family_child_todo_one = '{count} thing to do';
     const { page } = await renderDashboard([ADA, LEA], twoChildSlips());
     const card = document.querySelector('[data-child-card="4"]');
 
     expect(card.querySelector('.js-family-sign, .js-family-decline, .permission-slip-sign-btn, .permission-slip-decline-btn')).toBeNull();
-    expect(card.querySelector('.permission-slip-title').textContent).toBe('Winter camp');
-    expect(card.querySelector('.permission-slip-meeting').textContent).toContain('activity_date_label');
-    expect(card.textContent).not.toContain('meeting_date_label');
+    // The slip still to answer is not repeated in the file.
+    expect(card.querySelector('.permission-slip-title')).toBeNull();
+    expect(card.querySelector('[data-permission-slip-history]').hidden).toBe(true);
+    expect(card.querySelector('.participant-card__todo-text').textContent).toBe('1 thing to do');
 
     card.querySelector('.js-family-goto-tasks').click();
     expect(document.activeElement).toBe(document.getElementById('family-tasks-title'));
+    // Narrowed to Ada: her tasks, her card.
+    expect(filterButtons()[1].getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('[data-child-card="5"]').hidden).toBe(true);
     expect(prompt).not.toHaveBeenCalled();
+    delete mockTemplates.family_child_todo_one;
+    page.destroy();
+  });
+
+  test('a form still to fill is a task, not repeated in the child\'s file; a filled one stays there', async () => {
+    const { page } = await renderDashboard([LEA], new Map(), {
+      fetchFormFormats: jest.fn(function loadFormats() {
+        this.formFormats = { fiche_sante: {}, acceptation_risque: {} };
+        this.formMeta = {};
+      }),
+    });
+
+    const fileLinks = [...document.querySelectorAll('[data-child-card="5"] .participant-card__forms a')]
+      .map((link) => link.getAttribute('href'));
+    expect(fileLinks).toContain('/dynamic-form/fiche_sante/5');
+    expect(fileLinks).not.toContain('/dynamic-form/acceptation_risque/5');
+    expect(tasks().map((task) => task.querySelector('h3').textContent)).toEqual(['acceptation_risque']);
+    page.destroy();
+  });
+
+  test('a child with nothing left to do is told so, with no link to the tasks', async () => {
+    const { page } = await renderDashboard([LEA], new Map());
+
+    const card = document.querySelector('[data-child-card="5"]');
+    expect(card.querySelector('.participant-card__todo-text').textContent).toBe('family_child_todo_none');
+    expect(card.querySelector('.js-family-goto-tasks')).toBeNull();
+    page.destroy();
+  });
+
+  test('once the slip is signed, the child\'s card shows it answered and nothing left to do', async () => {
+    const { page } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]]));
+    prompt.mockResolvedValue('Marie Tremblay');
+    endpoints.signPermissionSlip.mockResolvedValue({ success: true });
+    page.loadPermissionSlips = jest.fn((participantId) => {
+      page.permissionSlips.set(participantId, [slip(91, 4, { status: 'signed', signed_by: 'Marie Tremblay' })]);
+      return Promise.resolve([]);
+    });
+
+    document.querySelector('.js-family-sign').click();
+    await flush();
+
+    const card = document.querySelector('[data-child-card="4"]');
+    expect(card.querySelector('[data-permission-slip-history]').hidden).toBe(false);
+    expect(card.querySelector('.permission-slip-title').textContent).toBe('Winter camp');
+    expect(card.querySelector('.participant-card__todo-text').textContent).toBe('family_child_todo_none');
     page.destroy();
   });
 

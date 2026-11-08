@@ -5,7 +5,11 @@ import { buildScopedCacheKey, normalizeApiPath } from '../utils/OfflineCacheKeys
 import { escapeHTML } from '../utils/SecurityUtils.js';
 import { getCurrentUserId, getCurrentOrganizationId } from '../api/api-helpers.js';
 import { CONFIG } from '../config.js';
+import { getStorage, setStorage } from '../utils/StorageUtils.js';
 import { offlineManager } from '../modules/OfflineManager.js';
+
+/** Per-device note that the roster's explanation was shown once, open. */
+const HELP_SEEN_KEY = 'actionRosterHelpSeen';
 
 /** Shared activity selection, signed-authorizations filter and explicit exceptions. */
 export class ActionRoster {
@@ -17,6 +21,9 @@ export class ActionRoster {
     this.activityId = null;
     this.showAll = false;
     this.controller = null;
+    // How the roster works is explained once, open, then folded on later
+    // visits (a per-device convenience): it no longer pushes the names down.
+    this.helpOpen = getStorage(HELP_SEEN_KEY) !== 'true';
   }
 
   /** Load the same snapshot online or from camp preparation, then overlay unsent attendance. */
@@ -106,6 +113,13 @@ export class ActionRoster {
 
   render() {
     const id = `action-roster-${this.screen}`;
+    // A notice that follows a choice is announced; the standing explanation is help.
+    let stateNotice = '';
+    if (this.showAll) {
+      stateNotice = translate('action_roster_all_notice');
+    } else if (this.activity?.requires_permission) {
+      stateNotice = translate('action_roster_signed_notice');
+    }
     return `<div class="action-roster-controls">
       <label for="${id}-activity">${translate('action_roster_context')}</label>
       <select id="${id}-activity" data-archive-safe>
@@ -116,8 +130,11 @@ export class ActionRoster {
         <input type="checkbox" id="${id}-all" ${this.showAll ? 'checked' : ''} data-archive-safe>
         ${translate('action_roster_show_all')}
       </label>
-      <p role="status">${escapeHTML(this.showAll ? translate('action_roster_all_notice') : this.activity?.requires_permission
-    ? translate('action_roster_signed_notice') : translate('action_roster_attendance_notice'))}</p>
+      ${stateNotice ? '' : `<details class="action-roster-help" id="${id}-help"${this.helpOpen ? ' open' : ''}>
+        <summary>${translate('action_roster_help_summary')}</summary>
+        <p>${escapeHTML(translate('action_roster_attendance_notice'))}</p>
+      </details>`}
+      <p role="status">${escapeHTML(stateNotice)}</p>
     </div>`;
   }
 
@@ -137,6 +154,11 @@ export class ActionRoster {
       this.showAll = event.target.checked;
       onChange();
     }, { signal });
+    const help = document.getElementById(`${id}-help`);
+    if (help) {
+      setStorage(HELP_SEEN_KEY, 'true');
+      help.addEventListener('toggle', () => { this.helpOpen = help.open; }, { signal });
+    }
   }
 
   destroy() { this.controller?.abort(); }

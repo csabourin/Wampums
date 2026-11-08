@@ -207,6 +207,23 @@ html:has(.dashboard-fab) {
   opacity: 0.9;
 }
 
+/* The hero is one stretched link; this pill makes it read as an action
+   rather than a heading, so people do not reach only for the chips below.
+   Colours are the card's own, inverted, for the same contrast. */
+.dashboard-v2__hero-go {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0.5rem;
+  min-height: var(--touch-target-min, 44px);
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  background: var(--tile-fg-attendance, var(--tile-fg-neutral));
+  color: var(--tile-bg-attendance, var(--tile-bg-neutral));
+  font-weight: 700;
+  font-size: 1rem;
+}
+
 /* At camp: what is on now and next, in the hero's own colours (no opacity, for contrast). */
 .dashboard-v2__camp-schedule {
   position: relative;
