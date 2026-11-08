@@ -22,6 +22,12 @@ import { isoToDateString } from '../../utils/DateUtils.js';
 /** The filter value showing every child. */
 export const ALL_CHILDREN = 'all';
 
+/**
+ * Tasks shown before the rest fold behind "Show N more": five compact lines
+ * fit a phone's first screen with "Coming up" still in view.
+ */
+export const VISIBLE_TASK_COUNT = 5;
+
 /** Kinds of task, in the order a family sees them after the dated events. */
 export const FAMILY_TASK_KIND = Object.freeze({
   PERMISSION: 'permission',
@@ -235,6 +241,30 @@ export function taskChildNames(task, lang) {
 }
 
 /**
+ * The actions of one child's part of a form, re-read or authorization task.
+ *
+ * @param {Object} task - A family task
+ * @param {Object} row - The child's part of it
+ * @param {Function} forTask - Labels a button, naming the child to screen readers
+ * @returns {string} Markup
+ */
+function rowActions(task, row, forTask) {
+  if (task.kind === FAMILY_TASK_KIND.FORM) {
+    return `<a href="/dynamic-form/${encodeURIComponent(task.formType)}/${row.participantId}" class="button button--small button--primary">${forTask('family_tasks_fill', row.name)}</a>`;
+  }
+  if (task.kind === FAMILY_TASK_KIND.REVIEW) {
+    return `
+      <button type="button" class="button button--small button--secondary js-confirm-review" data-submission-id="${row.submissionId}">
+        ${forTask('form_review_confirm', row.name)}
+      </button>
+      <a href="/dynamic-form/${encodeURIComponent(task.formType)}/${row.participantId}" class="button button--small button--primary">
+        ${forTask('form_review_update', row.name)}
+      </a>`;
+  }
+  return `<a href="/medication-authorizations/${row.participantId}" class="button button--small button--primary">${forTask('authorization_sign_again', row.name)}</a>`;
+}
+
+/**
  * Markup of one task's actions.
  *
  * @param {Object} task - A family task
@@ -275,28 +305,15 @@ function renderTaskActions(task, context, titleId) {
           </div>`}`;
     }
     default: {
-      const rows = task.rows.map((row) => {
-        const name = escapeHTML(row.name);
-        let actions = '';
-        if (task.kind === FAMILY_TASK_KIND.FORM) {
-          actions = `<a href="/dynamic-form/${encodeURIComponent(task.formType)}/${row.participantId}" class="button button--small button--primary">${forTask('family_tasks_fill', row.name)}</a>`;
-        } else if (task.kind === FAMILY_TASK_KIND.REVIEW) {
-          actions = `
-            <button type="button" class="button button--small button--secondary js-confirm-review" data-submission-id="${row.submissionId}">
-              ${forTask('form_review_confirm', row.name)}
-            </button>
-            <a href="/dynamic-form/${encodeURIComponent(task.formType)}/${row.participantId}" class="button button--small button--primary">
-              ${forTask('form_review_update', row.name)}
-            </a>`;
-        } else {
-          actions = `<a href="/medication-authorizations/${row.participantId}" class="button button--small button--primary">${forTask('authorization_sign_again', row.name)}</a>`;
-        }
-        return `
+      // One child: the actions alone, the child being named once already.
+      if (task.rows.length === 1) {
+        return `<div class="family-task__actions">${rowActions(task, task.rows[0], forTask)}</div>`;
+      }
+      const rows = task.rows.map((row) => `
           <li class="family-task__row">
-            <span>${name}</span>
-            <span class="family-task__row-actions">${actions}</span>
-          </li>`;
-      }).join('');
+            <span>${escapeHTML(row.name)}</span>
+            <span class="family-task__row-actions">${rowActions(task, row, forTask)}</span>
+          </li>`).join('');
       return `<ul class="family-task__rows">${rows}</ul>`;
     }
   }
@@ -313,6 +330,8 @@ function renderTaskActions(task, context, titleId) {
 function renderTask(task, index, context) {
   const titleId = `family-task-title-${index}`;
   const title = task.title || translate('permission_slip_section_title');
+  // Past its answer-by date: said in words, and only then in the warning colour.
+  const overdue = Boolean(task.deadline && context.today && task.deadline < context.today);
   const when = [];
   if (task.date) {
     when.push(`<span>${escapeHTML(context.formatDate(task.date))}</span>`);
@@ -320,13 +339,17 @@ function renderTask(task, index, context) {
   if (task.deadline) {
     when.push(`<span>${translate('family_tasks_deadline').replace('{date}', escapeHTML(context.formatDate(task.deadline)))}</span>`);
   }
+  if (overdue) {
+    when.push(`<span class="family-task__overdue">${translate('family_tasks_overdue')}</span>`);
+  }
+  const folded = !context.expanded && index >= VISIBLE_TASK_COUNT;
   return `
-    <li class="family-task family-task--${task.kind}" data-task-key="${escapeAttribute(task.key)}">
+    <li class="family-task family-task--${task.kind}${overdue ? ' family-task--overdue' : ''}" data-task-key="${escapeAttribute(task.key)}"${folded ? ' hidden' : ''}>
       <div class="family-task__text">
         <p class="family-task__kind">${translate(`family_tasks_kind_${task.kind}`)}</p>
         <h3 class="family-task__title" id="${titleId}">${escapeHTML(title)}</h3>
         ${when.length ? `<p class="family-task__when">${when.join(' · ')}</p>` : ''}
-        <p class="family-task__children">${translate('family_tasks_concerns').replace('{children}', escapeHTML(taskChildNames(task, context.lang)))}</p>
+        ${context.childName ? '' : `<p class="family-task__children">${translate('family_tasks_concerns').replace('{children}', escapeHTML(taskChildNames(task, context.lang)))}</p>`}
       </div>
       ${renderTaskActions(task, context, titleId)}
     </li>`;
@@ -376,6 +399,9 @@ export function renderFamilyFilter(participants, filter, counts) {
  * @param {Function} context.formatMoney - Formats an amount
  * @param {boolean} context.financeHidden - The unit hides the finance page
  * @param {boolean} context.incomplete - Some tasks could not be loaded
+ * @param {string} [context.childName] - The one child every task concerns: named once, above the list
+ * @param {boolean} [context.expanded] - The tasks beyond VISIBLE_TASK_COUNT are shown
+ * @param {string} [context.today] - Today, YYYY-MM-DD, for answers already late
  * @returns {string} Markup
  */
 export function renderFamilyTaskList(tasks, context) {
@@ -390,8 +416,54 @@ export function renderFamilyTaskList(tasks, context) {
       ${incomplete}
       <p class="family-tasks__empty" role="status">${translate(context.incomplete ? 'family_tasks_none_loaded' : 'family_tasks_empty')}</p>`;
   }
+  const childHeading = context.childName ? `
+    <p class="family-tasks__child">${translate('family_tasks_child_heading')
+    .replace('{name}', () => escapeHTML(context.childName))
+    .replace('{todo}', () => translate(tasks.length === 1 ? 'family_child_todo_one' : 'family_child_todo_other')
+      .replace('{count}', String(tasks.length)))}</p>` : '';
+  const hiddenCount = tasks.length - VISIBLE_TASK_COUNT;
+  const more = hiddenCount > 0 ? `
+    <button type="button" class="button button--ghost button--small family-tasks__more" id="family-tasks-more"
+      aria-controls="family-tasks-list" aria-expanded="${context.expanded ? 'true' : 'false'}" data-hidden-count="${hiddenCount}">
+      ${moreLabel(Boolean(context.expanded), hiddenCount)}
+    </button>` : '';
   return `
     ${incomplete}
+    ${childHeading}
     <p class="visually-hidden" role="status">${translate(countKey).replace('{count}', String(tasks.length))}</p>
-    <ul class="family-tasks__list">${tasks.map((task, index) => renderTask(task, index, context)).join('')}</ul>`;
+    <ul class="family-tasks__list" id="family-tasks-list">${tasks.map((task, index) => renderTask(task, index, context)).join('')}</ul>
+    ${more}`;
+}
+
+/**
+ * Label of the button folding the tasks beyond VISIBLE_TASK_COUNT.
+ *
+ * @param {boolean} expanded - Every task is shown
+ * @param {number} hiddenCount - How many it folds
+ * @returns {string} Plain text
+ */
+export function moreLabel(expanded, hiddenCount) {
+  if (expanded) {
+    return translate('family_tasks_show_fewer');
+  }
+  return translate(hiddenCount === 1 ? 'family_tasks_show_more_one' : 'family_tasks_show_more_other')
+    .replace('{count}', String(hiddenCount));
+}
+
+/**
+ * Show or fold the tasks beyond VISIBLE_TASK_COUNT, in place: the button keeps
+ * focus, and its state and label follow.
+ *
+ * @param {HTMLButtonElement} button - The "Show N more" button
+ * @param {boolean} expanded - Show every task
+ */
+export function setTasksExpanded(button, expanded) {
+  const list = document.getElementById(button.getAttribute('aria-controls'));
+  [...(list?.children || [])].forEach((item, index) => {
+    // eslint-disable-next-line no-param-reassign -- toggling the list's own items
+    item.hidden = !expanded && index >= VISIBLE_TASK_COUNT;
+  });
+  button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  // eslint-disable-next-line no-param-reassign -- the button's own label
+  button.textContent = moreLabel(expanded, Number(button.dataset.hiddenCount));
 }
