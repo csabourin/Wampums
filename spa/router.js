@@ -156,6 +156,7 @@ const lazyModules = {
   AlumniLink: () => import('./modules/alumni/AlumniLink.js').then(m => m.AlumniLink),
   ReactivationLink: () => import('./modules/reactivation/ReactivationLink.js').then(m => m.ReactivationLink),
   CompleteRegistration: () => import('./modules/family-access/CompleteRegistration.js').then(m => m.CompleteRegistration),
+  CampBranchApproval: () => import('./modules/camp-plan/CampBranchApproval.js').then(m => m.CampBranchApproval),
   FamilyLinkReview: () => import('./modules/family-access/FamilyLinkReview.js').then(m => m.FamilyLinkReview),
   ParentInvitations: () => import('./modules/parent-invitations/ParentInvitations.js').then(m => m.ParentInvitations),
   ParticipantDuplicates: () => import('./modules/participant-duplicates/ParticipantDuplicates.js').then(m => m.ParticipantDuplicates),
@@ -218,6 +219,7 @@ const routes = {
   '/reactivate-account': 'reactivateAccount',
   '/complete-registration': 'completeRegistration',
   '/family-link': 'familyLink',
+  '/camp-branch-approval': 'campBranchApproval',
   '/invitations': 'invitations',
   '/participant-duplicates': 'participantDuplicates',
   '/parent-onboarding': 'parentOnboarding',
@@ -502,7 +504,7 @@ export class Router {
       // so requiring a session would make them unusable by design. The
       // invitation and family-link pages are reached by people who may have no
       // account at all yet -- creating one is what those pages are for.
-      if (!this.app.isLoggedIn && !['login', 'register', 'resetPassword', 'permissionSlipSign', 'alumniConsent', 'alumniUnsubscribe', 'reactivateAccount', 'completeRegistration', 'familyLink'].includes(routeName)) {
+      if (!this.app.isLoggedIn && !['login', 'register', 'resetPassword', 'permissionSlipSign', 'alumniConsent', 'alumniUnsubscribe', 'reactivateAccount', 'completeRegistration', 'familyLink', 'campBranchApproval'].includes(routeName)) {
         if (path !== '/login') {
           debugWarn('Redirecting to login from route:', routeName);
           history.pushState(null, '', buildLoginRedirect(path, window.location.href));
@@ -978,6 +980,9 @@ export class Router {
           break;
         case 'completeRegistration':
           await this.loadModuleInstance('CompleteRegistration');
+          break;
+        case 'campBranchApproval':
+          await this.loadModuleInstance('CampBranchApproval');
           break;
         case 'familyLink':
           await this.loadModuleInstance('FamilyLinkReview');

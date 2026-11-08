@@ -38,7 +38,7 @@ const HTTP_CONFLICT = 409;
 /** The parts of a snapshot compared to say what changed since a version. */
 const SNAPSHOT_PARTS = ['camp', 'header', 'checklist', 'sections', 'rain_games', 'schedule', 'site', 'team', 'volunteers', 'youth', 'material'];
 /** Every right a submitted plan is read with: it is the whole plan, for the people who approve it. */
-const FULL_PERMIT_RIGHTS = Object.freeze({ participants: true, carpools: true, reviews: true });
+const FULL_PERMIT_RIGHTS = Object.freeze({ participants: true, carpools: true, reviews: true, frozen: true });
 /** Site facts the document prints, in its order. */
 const SITE_FIELDS = ['name', 'owner_name', 'address', 'province', 'phone', 'site_type', 'accommodation', 'accommodation_note',
   'heating', 'heating_note', 'has_own_insurance', 'insurance_note', 'hospital_name', 'hospital_address', 'hospital_phone',
@@ -197,7 +197,9 @@ function verificationCode(digest) {
 
 /** @returns {string[]} The parts of `current` that differ from `previous` */
 function changedParts(previous, current) {
-  return SNAPSHOT_PARTS.filter((part) => canonicalJson(previous?.[part]) !== canonicalJson(current?.[part]));
+  const comparable = (value, part) => part === 'checklist'
+    ? value?.checklist?.filter((line) => line.key !== 'approvals') : value?.[part];
+  return SNAPSHOT_PARTS.filter((part) => canonicalJson(comparable(previous, part)) !== canonicalJson(comparable(current, part)));
 }
 
 /** The planned camp, locked; refused when the unit has none, or when it is cancelled. */
@@ -247,7 +249,15 @@ const HEALTH_PARAM = { submitted: 4, listed: 3 };
  */
 const versionColumns = (healthParam) => `v.version_number, v.status, v.language, v.snapshot_sha256,
   CASE WHEN $${healthParam}::boolean AND v.pdf_health IS NOT NULL THEN v.pdf_health_sha256 ELSE v.pdf_sha256 END AS pdf_sha256,
-  v.pdf_health IS NOT NULL AS has_health, v.submitted_at, v.redacted_at, u.full_name AS submitted_by_name`;
+  v.pdf_health IS NOT NULL AS has_health, v.submitted_at, v.redacted_at, v.submitted_by, u.full_name AS submitted_by_name,
+  v.pdf_sha256 AS submitted_plain_sha256, v.approved_pdf_sha256,
+  COALESCE((SELECT json_agg(json_build_object(
+      'stage', a.stage, 'decision', a.decision, 'signer_name', a.signer_name, 'signer_function', a.signer_function,
+      'comment', a.comment, 'signed_at', a.signed_at, 'received_on', a.received_on, 'snapshot_sha256', a.snapshot_sha256, 'pdf_sha256', a.pdf_sha256,
+      'before_redaction', a.snapshot_sha256 <> v.snapshot_sha256) ORDER BY a.signed_at, a.stage)
+    FROM camp_plan_attestations a WHERE a.organization_id = v.organization_id AND a.version_id = v.id), '[]'::json) AS attestations,
+  (SELECT l.expires_at FROM camp_plan_branch_links l WHERE l.organization_id = v.organization_id AND l.version_id = v.id
+    AND l.pdf_sha256 = v.pdf_sha256 AND v.status = 'submitted' AND v.redacted_at IS NULL AND l.expires_at > now()) AS branch_link_expires_at`;
 
 /**
  * Submit the plan: freeze its content and generate its document.
@@ -279,6 +289,12 @@ function submitPlanVersion(pool, organizationId, actorId, meetingId, withHealth 
     const pdfHealth = hasHealth ? await renderPlanPdf(snapshot, health, meta) : null;
     // Only a fingerprint of the allergies is kept beside the snapshot, to tell when they change.
     const healthSha256 = sha256(canonicalJson(health));
+    await db.query(
+      `DELETE FROM camp_plan_branch_links l USING camp_plan_versions v
+        WHERE l.version_id = v.id AND l.organization_id = v.organization_id
+          AND v.organization_id = $1 AND v.meeting_id = $2`,
+      [organizationId, meetingId]
+    );
     await db.query(
       `UPDATE camp_plan_versions SET status = 'superseded'
         WHERE organization_id = $1 AND meeting_id = $2 AND status = 'submitted'`,
@@ -331,7 +347,21 @@ async function listPlanVersions(db, organizationId, meetingId, withHealth = fals
   if (withHealth && sha256(canonicalJson(health)) !== latest.health_sha256) {
     changed.push('allergies');
   }
-  return { versions, changed_since_latest: changed };
+  const approved = versions.find((version) => version.status === 'approved' && !version.redacted_at);
+  if (!approved) {
+    return { versions, changed_since_latest: changed };
+  }
+  const approvedSnapshot = approved === versions[0] ? latest : (await db.query(
+    `SELECT snapshot, health_sha256 FROM camp_plan_versions
+      WHERE organization_id = $1 AND meeting_id = $2 AND version_number = $3`,
+    [organizationId, meetingId, approved.version_number]
+  )).rows[0];
+  const sinceApproved = changedParts(approvedSnapshot.snapshot, snapshot);
+  if (withHealth && sha256(canonicalJson(health)) !== approvedSnapshot.health_sha256) {
+    sinceApproved.push('allergies');
+  }
+  return { versions, changed_since_latest: changed, changed_since_approved: sinceApproved,
+    approved_version_number: approved.version_number };
 }
 
 /**
@@ -346,7 +376,7 @@ async function listPlanVersions(db, organizationId, meetingId, withHealth = fals
  */
 async function redactParticipantFromVersions(client, participantId) {
   const versions = (await client.query(
-    `SELECT id, meeting_id, version_number, language, submitted_at, snapshot FROM camp_plan_versions
+    `SELECT id, organization_id, meeting_id, version_number, language, submitted_at, snapshot FROM camp_plan_versions
       WHERE snapshot->'youth' @> jsonb_build_array(jsonb_build_object('participant_id', $1::int))
       FOR UPDATE`,
     [participantId]
@@ -368,10 +398,13 @@ async function redactParticipantFromVersions(client, participantId) {
     await client.query(
       `UPDATE camp_plan_versions
           SET snapshot = $2::jsonb, snapshot_sha256 = $3, pdf = $4, pdf_sha256 = $5,
-              pdf_health = NULL, pdf_health_sha256 = NULL, health_sha256 = $6, redacted_at = NOW()
+              pdf_health = NULL, pdf_health_sha256 = NULL, health_sha256 = $6, redacted_at = NOW(),
+              approved_pdf = NULL, approved_pdf_sha256 = NULL
         WHERE id = $1`,
       [version.id, JSON.stringify(snapshot), snapshotSha256, pdf, sha256(pdf), sha256(canonicalJson(null))]
     );
+    await client.query('DELETE FROM camp_plan_branch_links WHERE organization_id = $1 AND version_id = $2',
+      [version.organization_id, version.id]);
   }
   /* eslint-enable no-await-in-loop */
   return versions.length;
@@ -407,5 +440,5 @@ async function readPlanVersionPdf(db, organizationId, meetingId, versionNumber, 
 }
 
 module.exports = {
-  SNAPSHOT_PARTS, buildPlanSnapshot, changedParts, verificationCode, redactParticipantFromVersions, submitPlanVersion, listPlanVersions, readPlanVersionPdf, unitLanguage,
+  SNAPSHOT_PARTS, buildPlanSnapshot, changedParts, verificationCode, redactParticipantFromVersions, submitPlanVersion, listPlanVersions, readPlanVersionPdf, unitLanguage, lockCamp, sha256,
 };

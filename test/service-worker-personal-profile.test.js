@@ -12,6 +12,8 @@ test.each([
   '/api/v1/member-profile/me', '/api/v1/member-profile/me/health',
   '/api/v1/volunteer-space/camps/7/contacts', '/api/v1/volunteer-space/camps/7/contacts/',
   '/api/v1/camp-rosters/7',
+  '/camp-branch-approval', '/api/v1/public/camp-branch-approval', '/api/v1/public/camp-branch-approval/pdf',
+  '/api/v1/camp-plans/camps/7/versions/2/attestation-pdf',
   '/api/v1/camp-plans/camps/7/versions', '/api/v1/camp-plans/camps/7/versions/2/pdf',
 ])('%s cannot receive an offline cached answer', (pathname) => {
   expect(sandbox.matches({ url: new URL(`https://example.test${pathname}`) })).toBe(true);

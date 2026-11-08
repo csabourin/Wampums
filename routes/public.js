@@ -8,13 +8,13 @@
  */
 
 const express = require('express');
-const { asyncHandler } = require('../middleware/response');
+const { asyncHandler, success, error } = require('../middleware/response');
 const { HTTP_STATUS } = require('../utils/http-status');
 const { MS_PER_HOUR } = require('../utils/time-units');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs').promises;
-const { check, validationResult } = require('express-validator');
+const { body, check, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 
 // Import utilities
@@ -40,6 +40,28 @@ const {
   declineFamilyLinkRequest
 } = require('../services/familyLinks');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
+
+const { CampPlanError } = require('../services/campPlan');
+const { verificationCode } = require('../services/campPlanVersions');
+const { RULES: CAMP_APPROVAL_RULES, DECISIONS, readBranchLink, decideBranchApproval } = require('../services/campPlanApprovals');
+
+const branchApprovalLimiter = rateLimit({
+  windowMs: MS_PER_HOUR, limit: CAMP_APPROVAL_RULES.public_attempts_per_hour,
+  standardHeaders: true, legacyHeaders: false,
+  handler: (_req, res) => error(res, 'camp_approval_rate_limit', HTTP_STATUS.TOO_MANY_REQUESTS),
+});
+
+const branchApprovalResponse = (handler) => asyncHandler(async (req, res) => {
+  res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+  try {
+    return await handler(req, res, req.get('X-Camp-Approval-Token'));
+  } catch (err) {
+    if (err instanceof CampPlanError) {
+      return error(res, err.message, err.status);
+    }
+    throw err;
+  }
+});
 
 /** Answers the demo form's two menus may send, with how the request email names them. */
 const DEMO_UNIT_SIZES = {
@@ -108,6 +130,40 @@ const contactFormLimiter = rateLimit({
  * @returns {Router} Express router with public routes
  */
 module.exports = (pool, logger) => {
+  // The secret stays in the emailed URL's fragment and out of HTTP paths.
+  router.get('/camp-branch-approval',
+    branchApprovalResponse(async (_req, res, token) => {
+      const link = await readBranchLink(pool, token);
+      return success(res, { unit_name: link.unit_name, camp_name: link.camp_name, version_number: link.version_number,
+        language: link.language, code: verificationCode(link.snapshot_sha256), sent_at: link.created_at });
+    }));
+
+  router.get('/camp-branch-approval/pdf',
+    branchApprovalResponse(async (_req, res, token) => {
+      const link = await readBranchLink(pool, token, true);
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="camp-plan-v${link.version_number}.pdf"`,
+        'X-Content-SHA256': link.pdf_sha256,
+      });
+      return res.send(link.pdf);
+    }));
+
+  router.post('/camp-branch-approval',
+    (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); },
+    branchApprovalLimiter,
+    body('decision').isIn(DECISIONS),
+    body('name').isString().bail().trim().isLength({ min: 1, max: CAMP_APPROVAL_RULES.signer_name_max }),
+    body('job').isString().bail().trim().isLength({ min: 1, max: CAMP_APPROVAL_RULES.signer_function_max }),
+    body('comment').isString().bail().trim().isLength({ max: CAMP_APPROVAL_RULES.comment_max }),
+    body('received_on').isDate({ format: 'YYYY-MM-DD', strictMode: true }),
+    checkValidation,
+    branchApprovalResponse(async (req, res, token) => {
+      const { decision, name, job, comment, received_on: receivedOn } = req.body;
+      await decideBranchApproval(pool, token, { decision, name, job, comment, receivedOn, ip: req.ip });
+      return success(res, null, 'camp_approval_saved');
+    }));
+
   /**
    * @swagger
    * /api/translations:
