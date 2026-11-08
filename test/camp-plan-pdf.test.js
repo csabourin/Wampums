@@ -37,11 +37,18 @@ function snapshot() {
       ] },
       { day_offset: 1, date: '2027-07-05', title: null, notes: null, lines: [] },
     ],
-    site: null,
+    site: {
+      name: 'Base fictive', owner_name: null, address: null, province: null, phone: null, site_type: null,
+      accommodation: 'other', accommodation_note: 'Yourtes chauffées', heating: 'other', heating_note: 'Poêle à granules',
+      has_own_insurance: null, insurance_note: null, hospital_name: null, hospital_address: null, hospital_phone: null,
+      hospital_travel_minutes: null, hospital_distance_km: null, poison_centre_phone: null, other_emergency_numbers: null,
+      directions_url: null, hospital_directions_url: null, season: 'winter', camp_accommodation: null, on_site_lead_name: null,
+      contact_phone: null,
+    },
     team: [{ name: 'Ada Lovelace', team_role: 'lead', active_member: true, certifications: ['first_aid_certificate'] }],
     volunteers: [],
     youth: [{ first_name: 'Léa', last_name: 'Tremblay', age_at_camp: 10 }],
-    material: { items: [], free_text: [] },
+    material: { items: [{ name: 'Gants', quantity: 2, unit_of_measure: 'pair', category: 'clothing' }], free_text: [] },
   };
 }
 const HEALTH = {
@@ -67,8 +74,8 @@ test('the first page carries the version’s verification code, in words people 
 
 test('what is missing is printed “to complete”, never left out', async () => {
   await renderPlanPdf(snapshot(), null, META);
-  // The motivation system, the site, the rain games and the second day's schedule have nothing.
-  expect(written.filter((entry) => entry === 'À compléter').length).toBeGreaterThanOrEqual(4);
+  // The motivation system, the rain games and the second day's schedule have nothing, nor several site facts.
+  expect(written.filter((entry) => entry === 'À compléter').length).toBeGreaterThanOrEqual(3);
   expect(written).toContain('Cette journée n’a pas encore de titre.');
   expect(written).toContain('Jours sans titre : 1');
   expect(written).toContain('Bloquant : À compléter');
@@ -115,4 +122,12 @@ test('the verification code is the start of the version’s fingerprint, in capi
   const { verificationCode } = require('../services/campPlanVersions');
   expect(verificationCode(`2cec53a4${'0'.repeat(56)}`)).toBe('2CEC 53A4');
   expect(verificationCode(null)).toBe('');
+});
+
+test('units and the notes beside “other” are printed in the unit’s language, never as internal codes', async () => {
+  await renderPlanPdf(snapshot(), null, META);
+  expect(written).toContain('2 paire(s)');
+  expect(written).not.toContain('2 pair');
+  expect(written).toContain('Autre — Yourtes chauffées');
+  expect(written).toContain('Autre — Poêle à granules');
 });

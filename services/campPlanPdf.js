@@ -19,6 +19,8 @@ const path = require('path');
 const PDFDocument = require('pdfkit');
 
 const TRANSLATIONS = { en: require('../lang/en.json'), fr: require('../lang/fr.json') };
+/** Units of measure the unit's articles use; anything else reads as "each", as the material screen does. */
+const EQUIPMENT_UNITS = require('../config/equipment_units.json').units;
 const PDF_LANGUAGES = Object.keys(TRANSLATIONS);
 const LOCALES = { en: 'en-CA', fr: 'fr-CA' };
 const FONT_DIR = path.join(path.dirname(require.resolve('dejavu-fonts-ttf/package.json')), 'ttf');
@@ -163,8 +165,9 @@ function renderPlanPdf(snapshot, health, { version, submittedAt, language, code 
       [t('camp_plan_pdf_phone'), site.phone],
       [t('camp_plan_pdf_season'), site.season ? t(`camp_site_season_${site.season}`) : null],
       [t('camp_plan_pdf_accommodation'), (site.camp_accommodation || site.accommodation)
-        ? t(`camp_site_accommodation_${site.camp_accommodation || site.accommodation}`) : null],
-      [t('camp_plan_pdf_heating'), site.heating ? t(`camp_site_heating_${site.heating}`) : null],
+        ? [t(`camp_site_accommodation_${site.camp_accommodation || site.accommodation}`), site.accommodation_note].filter(Boolean).join(' — ')
+        : null],
+      [t('camp_plan_pdf_heating'), site.heating ? [t(`camp_site_heating_${site.heating}`), site.heating_note].filter(Boolean).join(' — ') : null],
       [t('camp_plan_pdf_insurance'), site.has_own_insurance === null ? null
         : [t(site.has_own_insurance ? 'camp_plan_pdf_yes' : 'camp_plan_pdf_no'), site.insurance_note].filter(Boolean).join(' — ')],
       [t('camp_plan_pdf_on_site_lead'), site.on_site_lead_name],
@@ -288,7 +291,7 @@ function renderPlanPdf(snapshot, health, { version, submittedAt, language, code 
     }
     if (items.length) {
       table(sect, [t('camp_plan_pdf_article'), t('camp_plan_pdf_quantity')],
-        items.map((item) => [item.name, `${number(item.quantity)} ${item.unit_of_measure === 'each' ? '' : item.unit_of_measure}`.trim()]));
+        items.map((item) => [item.name, `${number(item.quantity)} ${t(`equipment_unit_${EQUIPMENT_UNITS.includes(item.unit_of_measure) ? item.unit_of_measure : 'each'}`)}`]));
     }
     freeText.forEach((entry) => paragraph(sect, `${entry.activity} — ${entry.material}`));
   });
