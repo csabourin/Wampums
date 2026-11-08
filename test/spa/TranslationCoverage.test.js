@@ -319,7 +319,7 @@ test('every camp permit line, group, state, reason and coeducation choice has it
 
 test('every camp team role, age status and list gap has its label in both languages', () => {
   const team = require('../../config/camp_team.json');
-  const gaps = ['no_scout_year', 'no_youth', 'no_lead', 'aide_age_unknown', 'member_left_unit', 'sisc_not_compared'];
+  const gaps = ['no_scout_year', 'no_youth', 'no_lead', 'aide_age_unknown', 'member_left_unit'];
   const uses = [
     ...team.team_roles.map((role) => [`camp_roster_role_${role}`, 'CampRoster']),
     ...['minor', 'adult', 'unknown'].map((state) => [`camp_roster_age_status_${state}`, 'CampRoster']),

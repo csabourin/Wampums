@@ -44,12 +44,13 @@ test('the checklist lists every line of the permit, in its order', () => {
 test('a camp with everything recorded is complete where Wampums can tell, and never compliant where it cannot', () => {
   const lines = byKey(permitLines(complete(), RIGHTS));
   ['identification', 'dates', 'site', 'camp_type', 'emergency', 'insurance', 'directions', 'written_sections',
-    'rain_games', 'schedule', 'group_material', 'personal_material', 'health_forms', 'allergies', 'evaluation']
+    'rain_games', 'schedule', 'group_material', 'personal_material', 'youth_list', 'team_list', 'health_forms', 'allergies', 'evaluation']
     .forEach((key) => expect(lines[key].state).toBe('complete'));
-  // The SISC comparison, the menu, and the letter to parents have no source yet.
-  ['youth_list', 'team_list', 'menu', 'parent_letter', 'transport']
+  // The menu and the letter to parents have no source yet. Transportation is only cited.
+  ['menu', 'parent_letter', 'transport']
     .forEach((key) => expect(lines[key].state).toBe('unverified'));
-  expect(lines.youth_list.reasons).toContain('sisc_not_compared');
+  // Wampums is the source of the camp's lists: no outside comparison is asked for.
+  expect(lines.youth_list.reasons).toEqual([]);
   expect(lines.youth_list.counts.youth).toBe(2);
 });
 
@@ -86,7 +87,7 @@ test('an empty camp is to complete, never complete', () => {
   expect(lines.schedule).toMatchObject({ state: 'to_complete', reasons: ['no_schedule'] });
   expect(lines.group_material.reasons).toEqual(['no_group_material']);
   expect(lines.personal_material.reasons).toEqual(['no_personal_list']);
-  expect(lines.youth_list).toMatchObject({ state: 'to_complete', reasons: ['no_youth', 'sisc_not_compared'] });
+  expect(lines.youth_list).toMatchObject({ state: 'to_complete', reasons: ['no_youth'] });
   expect(lines.team_list).toMatchObject({ state: 'to_complete', blocking: true });
   expect(lines.team_list.reasons).toEqual(expect.arrayContaining(['no_lead', 'no_first_aider']));
   expect(lines.health_forms).toMatchObject({ state: 'unverified', reasons: ['no_youth'] });
@@ -128,11 +129,11 @@ test('pending consent, missing health forms and undeclared adult allergies are t
   const sources = complete();
   sources.roster = { ...sources.roster, consent: { pending: 1 }, gaps: ['youth_health_form_missing', 'adult_allergies_not_declared', 'swimming_supervision'] };
   const lines = byKey(permitLines(sources, RIGHTS));
-  expect(lines.youth_list).toMatchObject({ state: 'to_complete', reasons: ['consent_pending', 'sisc_not_compared'], counts: { pending: 1 } });
+  expect(lines.youth_list).toMatchObject({ state: 'to_complete', reasons: ['consent_pending'], counts: { pending: 1 } });
   expect(lines.health_forms.reasons).toEqual(['youth_health_form_missing']);
   expect(lines.allergies.reasons).toEqual(['youth_health_form_missing', 'adult_allergies_not_declared']);
   // Swimming supervision is to check, never a reason to call the team complete or blocking.
-  expect(lines.team_list).toMatchObject({ state: 'unverified', blocking: false, reasons: ['swimming_supervision', 'sisc_not_compared'] });
+  expect(lines.team_list).toMatchObject({ state: 'unverified', blocking: false, reasons: ['swimming_supervision'] });
 });
 
 test('an unanswered insurance question, a missing on-site lead and an archived site are to complete', () => {

@@ -84,7 +84,7 @@ describe.skipIf(!DATABASE_URL)('Camp permit checklist', () => {
     expect(byKey.written_sections.state).toBe('to_complete');
     expect(byKey.group_material.reasons).toEqual(['no_group_material']);
     expect(byKey.personal_material.reasons).toEqual(['no_personal_list']);
-    expect(byKey.youth_list.reasons).toEqual(['no_scout_year', 'sisc_not_compared']);
+    expect(byKey.youth_list.reasons).toEqual(['no_scout_year']);
     expect(byKey.team_list).toMatchObject({ state: 'to_complete', blocking: true });
     expect(byKey.evaluation.reasons).toEqual(['after_camp']);
     expect(byKey.transport).toMatchObject({ state: 'unverified', counts: { offers: 0 } });

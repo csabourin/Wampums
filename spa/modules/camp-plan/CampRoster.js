@@ -7,7 +7,7 @@
  * `meetings.manage`. Team members' certifications are shown to whoever manages
  * the camp or its volunteers; allergies, to holders of `camp_allergies.view`
  * (the server sends them to no one else). Nothing here says the camp is compliant: what the
- * lists cannot vouch for, including the comparison with the SISC, is listed
+ * lists cannot vouch for is listed
  * under "To check", blocking gaps first and named as such.
  *
  * @module spa/modules/camp-plan/CampRoster
@@ -114,18 +114,19 @@ export class CampRoster {
 
   /**
    * @returns {string} What the lists cannot vouch for, blocking gaps first and named as such
-   *   in words; the SISC comparison is always among them for now
+   *   in words; when nothing is left, it says so
    */
   gapsMarkup() {
     const blocking = Array.isArray(this.data.blocking_gaps) ? this.data.blocking_gaps : [];
-    const others = [...this.data.gaps.filter((gap) => !blocking.includes(gap)), 'sisc_not_compared'];
+    const others = this.data.gaps.filter((gap) => !blocking.includes(gap));
     const items = [
       ...blocking.map((gap) => `<li class="camp-roster__gap--blocking"><strong>${escapeHTML(translate('camp_roster_blocking'))}</strong> ${escapeHTML(translate(`camp_roster_gap_${gap}`))}</li>`),
       ...others.map((gap) => `<li>${escapeHTML(translate(`camp_roster_gap_${gap}`))}</li>`),
     ];
     return `<section class="camp-roster__section" aria-labelledby="camp-roster-gaps">
         <h2 id="camp-roster-gaps">${escapeHTML(translate('camp_roster_to_check'))}</h2>
-        <ul class="camp-roster__gaps">${items.join('')}</ul>
+        ${items.length ? `<ul class="camp-roster__gaps">${items.join('')}</ul>`
+    : `<p>${escapeHTML(translate('camp_roster_nothing_to_check'))}</p>`}
       </section>`;
   }
 

@@ -4,7 +4,7 @@
 
 /**
  * Camp lists (#1319): the youth taking part, the camp's team and the
- * volunteers of its shifts. What cannot be vouched for, the SISC comparison
+ * volunteers of its shifts. What cannot be vouched for
  * among it, is listed under "To check", never as compliant; a manager names the
  * team in a dialog; names are shown as text; the screen and its dialog meet
  * WCAG A/AA.
@@ -86,13 +86,21 @@ afterEach(() => {
   document.querySelectorAll('.modal-overlay').forEach((overlay) => overlay.remove());
 });
 
-test('the lists open with a back link, then what is still to check, the SISC comparison always among it', async () => {
+test('the lists open with a back link, then what is still to check', async () => {
   await open();
   expect($('#app .page').firstElementChild.matches('.back-link, a, nav')).toBe(true);
   expect($('h1').textContent).toBe('camp_roster_title');
   const gaps = Array.from(document.querySelectorAll('.camp-roster__gaps li')).map((item) => item.textContent);
-  expect(gaps).toEqual(['camp_roster_gap_aide_age_unknown', 'camp_roster_gap_sisc_not_compared']);
+  expect(gaps).toEqual(['camp_roster_gap_aide_age_unknown']);
   expect(document.body.textContent).not.toMatch(/compliant|conforme/i);
+});
+
+test('with nothing left to check, the lists say so in words rather than showing an empty list', async () => {
+  api.getCampRoster.mockResolvedValue({ success: true, data: roster({ gaps: [], blocking_gaps: [] }) });
+  await open();
+  expect(document.querySelector('.camp-roster__gaps')).toBeNull();
+  expect(document.body.textContent).toContain('camp_roster_nothing_to_check');
+  expect(document.body.textContent).not.toMatch(/sisc/i);
 });
 
 test('youth are listed with their age at camp, and the list says how it was drawn up', async () => {
@@ -118,7 +126,7 @@ test('an empty camp says what would fill it, and its emptiness is listed to chec
   expect(document.body.textContent).toContain('camp_roster_team_empty');
   expect(document.body.textContent).toContain('camp_roster_volunteers_empty');
   const gaps = Array.from(document.querySelectorAll('.camp-roster__gaps li')).map((item) => item.textContent);
-  expect(gaps).toEqual(['camp_roster_gap_no_youth', 'camp_roster_gap_no_lead', 'camp_roster_gap_sisc_not_compared']);
+  expect(gaps).toEqual(['camp_roster_gap_no_youth', 'camp_roster_gap_no_lead']);
 });
 
 test('team members show their role and their age on the camp’s dates in words', async () => {
@@ -140,7 +148,6 @@ test('a blocking gap comes first and says it is blocking in words, not by colour
     'camp_roster_blocking camp_roster_gap_no_first_aider',
     'camp_roster_gap_aide_age_unknown',
     'camp_roster_gap_swimming_supervision',
-    'camp_roster_gap_sisc_not_compared',
   ]);
 });
 

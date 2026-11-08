@@ -41,7 +41,7 @@ const REASONS = Object.freeze([
   'missing_owner', ...EMERGENCY_FIELDS.map((field) => `missing_${field}`), 'missing_on_site_lead', 'on_site_lead_inactive', 'insurance_unanswered',
   'missing_directions', 'missing_season', 'missing_accommodation', 'sections_to_write', 'sections_to_review', 'no_rain_game',
   'no_schedule', 'days_without_activity', 'days_without_title', 'no_group_material', 'no_first_aid_kit', 'material_free_text', 'no_personal_list',
-  'personal_list_unpublished', 'no_scout_year', 'no_youth', 'consent_pending', 'sisc_not_compared', ...TEAM_TO_COMPLETE,
+  'personal_list_unpublished', 'no_scout_year', 'no_youth', 'consent_pending', ...TEAM_TO_COMPLETE,
   'swimming_supervision', 'youth_health_form_missing', 'adult_allergies_not_declared', 'after_camp', 'review_open',
   'not_in_wampums', 'approvals_coming', 'approval_submit', 'approval_pending', 'approval_changes', 'approval_redacted', 'no_activity', 'no_access', 'cite_transport',
 ]);
@@ -209,7 +209,8 @@ function rosterLines(roster) {
   const gaps = new Set(roster.gaps);
   const youth = roster.youth.length;
   const youthReasons = [];
-  let youthState = UNVERIFIED;
+  // Wampums is the source of the camp's lists: with no gap, they are complete.
+  let youthState = COMPLETE;
   if (gaps.has('no_scout_year') || gaps.has('no_youth')) {
     youthReasons.push(gaps.has('no_scout_year') ? 'no_scout_year' : 'no_youth');
     youthState = TO_COMPLETE;
@@ -217,14 +218,16 @@ function rosterLines(roster) {
     youthReasons.push('consent_pending');
     youthState = TO_COMPLETE;
   }
-  youthReasons.push('sisc_not_compared');
 
   const teamReasons = TEAM_TO_COMPLETE.filter((gap) => gaps.has(gap));
-  const teamState = teamReasons.length ? TO_COMPLETE : UNVERIFIED;
+  let teamState = teamReasons.length ? TO_COMPLETE : COMPLETE;
+  // Swimming supervision cannot be checked from the lists: it is to check, never complete.
   if (gaps.has('swimming_supervision')) {
     teamReasons.push('swimming_supervision');
+    if (teamState === COMPLETE) {
+      teamState = UNVERIFIED;
+    }
   }
-  teamReasons.push('sisc_not_compared');
 
   // Without youth, there is nothing to vouch for: an empty list is not a complete one.
   const healthMissing = gaps.has('youth_health_form_missing');
