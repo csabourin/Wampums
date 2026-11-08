@@ -147,3 +147,21 @@ test('signing in does not abandon reads started before anyone was signed in', as
   expect(publicRead.signal.aborted).toBe(false);
   expect((await pendingRead).data).toEqual({ name: 'Unit' });
 });
+
+test('a file still downloading for the previous session is abandoned when another session starts', async () => {
+  localStorage.setItem('jwtToken', 'session-a');
+  let download;
+  global.fetch.mockImplementationOnce((_url, config) => new Promise((resolve, reject) => {
+    download = config;
+    config.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+  }));
+  const pendingFile = API.getFile('v1/camp-plans/camps/12/versions/1/pdf');
+  await settle();
+
+  localStorage.setItem('jwtToken', 'session-b');
+  global.fetch.mockResolvedValueOnce(ok([]));
+  await API.getNoCache('v1/participants');
+
+  expect(download.signal.aborted).toBe(true);
+  await expect(pendingFile).rejects.toMatchObject({ name: 'AbortError' });
+});

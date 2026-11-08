@@ -147,6 +147,9 @@ détruit vraiment des données : masquer les lignes ne serait pas un effacement.
 - Part : le jeune et tout ce qui en dépend, y compris ce qu'aucune clé étrangère ne cascade ; les
   tuteurs sans autre enfant ; les comptes parents sans autre enfant **et** sans autre rôle. Un compte
   conservé est signalé avec sa raison.
+- Plans de camp soumis (`camp_plan_versions`) : chaque version qui nomme le jeune est réécrite sans lui
+  (instantané et PDF régénérés, copie nommant les allergies supprimée, `redacted_at` posé ; son code de
+  vérification change). Voir `devdocs/CAMP_PERMIT.md`.
 - Reste, anonymisé : ce qui pointe en `ON DELETE SET NULL` (une entrée de financement garde son montant,
   un rapport d'incident son récit). Le texte libre des rapports d'incident n'est pas expurgé ; leur
   nombre est signalé à l'administrateur.

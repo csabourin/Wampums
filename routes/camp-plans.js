@@ -6,7 +6,10 @@
  * `camp_plan_templates.manage`; writing a camp's sections and choosing its
  * bad-weather games takes `meetings.manage`, as planning the camp does;
  * writing the unit's templates takes `camp_plan_templates.manage`. The permit
- * checklist (#1416) takes `meetings.view` with a unit-wide scope.
+ * checklist (#1416) takes `meetings.view` with a unit-wide scope. Its frozen
+ * versions (#1418) name the camp's youth and team: reading them takes
+ * `participants.view` too, and submitting one `meetings.manage`; the copy of a
+ * document that names allergies is served only with `camp_allergies.view`.
  *
  * @module routes/camp-plans
  */
@@ -16,11 +19,22 @@ const {
   authenticate, requirePermission, requireAnyPermission, blockDemoRoles, getOrganizationId, userHasPermission,
 } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { HTTP_STATUS } = require('../utils/http-status');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 const {
   CampPlanError, ALL_SECTIONS, UNIT_SECTIONS, listTemplates, listCampPlans, saveTemplate, readCampPlan, saveCampSection, saveRainGames,
 } = require('../services/campPlan');
 const { readCampPermit } = require('../services/campPermit');
+const { submitPlanVersion, listPlanVersions, readPlanVersionPdf } = require('../services/campPlanVersions');
+
+/**
+ * A submitted plan names the camp's youth and its team with their qualifications: unit-wide
+ * members who may read them, as the camp lists require (qualifications: meetings.manage or
+ * volunteers.manage).
+ */
+const READ_VERSIONS = { permissions: ['meetings.view', 'participants.view'], organizationScope: true };
+const READ_QUALIFICATIONS = requireAnyPermission('meetings.manage', 'volunteers.manage');
+const SUBMIT = { permissions: ['meetings.manage', 'participants.view'], organizationScope: true };
 
 /** Answer known refusals with their translation key, naming the field when there is one. */
 const handle = (handler) => asyncHandler(async (req, res) => {
@@ -88,6 +102,52 @@ module.exports = (pool) => {
       res.set('Cache-Control', 'no-store');
       return success(res, await readCampPermit(pool, organizationId, Number(req.params.meetingId),
         { participants, carpools, reviews }));
+    }));
+
+  // Frozen versions of the plan and their documents (#1418).
+  router.get('/camps/:meetingId/versions',
+    requirePermission(READ_VERSIONS),
+    READ_QUALIFICATIONS,
+    validateIdParam('meetingId'),
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const withHealth = await userHasPermission(req, pool, organizationId, 'camp_allergies.view');
+      res.set('Cache-Control', 'no-store');
+      return success(res, await listPlanVersions(pool, organizationId, Number(req.params.meetingId), withHealth));
+    }));
+
+  router.post('/camps/:meetingId/versions',
+    blockDemoRoles,
+    requirePermission(SUBMIT),
+    validateIdParam('meetingId'),
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const withHealth = await userHasPermission(req, pool, organizationId, 'camp_allergies.view');
+      return success(res, await submitPlanVersion(pool, organizationId, req.user.id, Number(req.params.meetingId), withHealth),
+        'camp_plan_version_submitted', HTTP_STATUS.CREATED);
+    }));
+
+  // The document: with the allergies only for whoever may read them (camp_allergies.view).
+  router.get('/camps/:meetingId/versions/:versionNumber/pdf',
+    requirePermission(READ_VERSIONS),
+    READ_QUALIFICATIONS,
+    validateIdParam('meetingId'),
+    validateIdParam('versionNumber'),
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const withHealth = await userHasPermission(req, pool, organizationId, 'camp_allergies.view');
+      const file = await readPlanVersionPdf(pool, organizationId, Number(req.params.meetingId),
+        Number(req.params.versionNumber), withHealth);
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${file.filename}"`,
+        'Cache-Control': 'no-store',
+        'X-Content-SHA256': file.sha256,
+      });
+      return res.send(file.pdf);
     }));
 
   router.put('/camps/:meetingId/sections/:sectionKey',

@@ -236,11 +236,15 @@ registerRoute(
   new NetworkOnly()
 );
 
-/** Personal health and revocable camp contacts must never be stored or replayed offline. */
+/**
+ * Personal health, revocable camp contacts, and submitted camp plans (which name youth and
+ * may name allergies) must never be stored or replayed offline.
+ */
 function isPersonalProfileRequest({ url }) {
   return url.pathname.startsWith('/api/v1/member-profile/')
     || url.pathname.startsWith('/api/v1/camp-rosters/')
-    || /^\/api\/v1\/volunteer-space\/camps\/[^/]+\/contacts\/?$/.test(url.pathname);
+    || /^\/api\/v1\/volunteer-space\/camps\/[^/]+\/contacts\/?$/.test(url.pathname)
+    || /^\/api\/v1\/camp-plans\/camps\/[^/]+\/versions(?:\/|$)/.test(url.pathname);
 }
 registerRoute(isPersonalProfileRequest, new NetworkOnly());
 

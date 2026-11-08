@@ -15,18 +15,24 @@
 import axe from 'axe-core';
 
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
-jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
+// A version names who submitted it through a placeholder; every other key reads as itself.
+jest.mock('../../spa/app.js', () => ({ translate: (key) => (key === 'camp_plan_version_meta' ? 'by {name}' : key) }));
 jest.mock('../../spa/config.js', () => ({
   CONFIG: { PROGRAM_SECTIONS: { DEFAULT: [{ key: 'general', labelKey: 'program_section_general' }, { key: 'cubs', labelKey: 'program_section_cubs' }] } },
   getStorageKey: (key) => key,
 }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({
   hasPermission: jest.fn(() => true), canAccessAdminPanel: jest.fn(() => true), canViewCarpools: jest.fn(() => true),
+  isDemoUser: jest.fn(() => false),
 }));
-jest.mock('../../spa/api/api-camp-plans.js', () => ({ getCampPermit: jest.fn() }));
+jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirm: jest.fn() }));
+jest.mock('../../spa/api/api-camp-plans.js', () => ({
+  getCampPermit: jest.fn(), getCampPlanVersions: jest.fn(), submitCampPlanVersion: jest.fn(), getCampPlanVersionPdf: jest.fn(),
+}));
 
-const { getCampPermit } = require('../../spa/api/api-camp-plans.js');
-const { hasPermission, canAccessAdminPanel } = require('../../spa/utils/PermissionUtils.js');
+const { getCampPermit, getCampPlanVersions, submitCampPlanVersion, getCampPlanVersionPdf } = require('../../spa/api/api-camp-plans.js');
+const { hasPermission, canAccessAdminPanel, isDemoUser } = require('../../spa/utils/PermissionUtils.js');
+const { confirm } = require('../../spa/utils/DialogUtils.js');
 const { CampPermit } = require('../../spa/modules/camp-plan/CampPermit.js');
 const RULES = require('../../config/camp_permit.json');
 
@@ -59,8 +65,10 @@ function permit(overrides = {}) {
   } };
 }
 
+let app;
 async function open() {
-  screen = new CampPermit({ lang: 'fr' }, { meetingId: 12 });
+  app = { lang: 'fr', showMessage: jest.fn() };
+  screen = new CampPermit(app, { meetingId: 12 });
   await screen.init();
   await flush();
 }
@@ -70,6 +78,11 @@ beforeEach(() => {
   hasPermission.mockImplementation(() => true);
   canAccessAdminPanel.mockReturnValue(true);
   getCampPermit.mockReset().mockResolvedValue(permit());
+  isDemoUser.mockReturnValue(false);
+  confirm.mockReset().mockResolvedValue(true);
+  getCampPlanVersions.mockReset().mockResolvedValue({ success: true, data: { versions: [], changed_since_latest: null } });
+  submitCampPlanVersion.mockReset().mockResolvedValue({ success: true, data: { version_number: 1 } });
+  getCampPlanVersionPdf.mockReset();
 });
 
 afterEach(() => screen?.destroy());
@@ -80,7 +93,8 @@ test('the checklist opens with a back link, then the plan’s header, then every
   expect($('#app .page').firstElementChild.matches('.back-link, a, nav')).toBe(true);
   expect($('h1').textContent).toBe('camp_permit_title');
   const headings = Array.from(document.querySelectorAll('.camp-plan__group > h2')).map((heading) => heading.textContent);
-  expect(headings).toEqual(['camp_permit_header_title', ...RULES.GROUPS.map((group) => `camp_permit_group_${group.key}`)]);
+  expect(headings).toEqual(['camp_permit_header_title', ...RULES.GROUPS.map((group) => `camp_permit_group_${group.key}`),
+    'camp_plan_versions_title']);
   expect(document.querySelectorAll('.camp-permit__line')).toHaveLength(RULES.GROUPS.flatMap((group) => group.lines).length);
   const header = $('.camp-permit__header').textContent;
   expect(header).toContain('Groupe de la Rivière');
@@ -183,4 +197,169 @@ test('the checklist meets WCAG A/AA', async () => {
   await open();
   const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
   expect(results.violations).toEqual([]);
+});
+
+describe('submitted versions (#1418)', () => {
+  const DIGEST = 'ab'.repeat(32);
+  const VERSIONS = { versions: [
+    { version_number: 2, status: 'submitted', snapshot_sha256: `2cec53a4${'0'.repeat(56)}`, pdf_sha256: DIGEST, has_health: true, submitted_at: '2027-06-01T16:00:00.000Z',
+      submitted_by_name: 'Ada <img src=x onerror=alert(1)>' },
+    { version_number: 1, status: 'superseded', snapshot_sha256: 'ef'.repeat(32), pdf_sha256: 'cd'.repeat(32), has_health: false, submitted_at: '2027-05-20T16:00:00.000Z',
+      submitted_by_name: null, redacted_at: '2027-06-10T12:00:00.000Z' },
+  ], changed_since_latest: ['schedule', 'team'] };
+  const versionsBox = () => $('#camp-permit-versions');
+
+  test('each version shows its state, who submitted it, its digest and a download, and what changed since', async () => {
+    getCampPlanVersions.mockResolvedValue({ success: true, data: VERSIONS });
+    await open();
+    expect(getCampPlanVersions).toHaveBeenCalledWith(12);
+    const items = [...document.querySelectorAll('.camp-permit__version')];
+    expect(items.map((item) => item.querySelector('h3').textContent.replace(/\s+/g, ' ').trim()))
+      .toEqual(['camp_plan_version_label camp_plan_version_status_submitted', 'camp_plan_version_label camp_plan_version_status_superseded']);
+    // People compare a short code, also printed on the PDF; the full fingerprint is a technical detail.
+    expect(items[0].querySelector('.camp-permit__code-value').textContent).toBe('2CEC 53A4');
+    expect(items[0].querySelector('details summary').textContent).toBe('camp_plan_version_digest_details');
+    expect(items[0].querySelector('details').open).toBe(false);
+    expect(items[0].querySelector('details code').textContent).toBe(DIGEST);
+    expect(items[0].textContent).toContain('Ada <img src=x onerror=alert(1)>');
+    expect(items[0].textContent).toContain('camp_plan_version_health_note');
+    expect(items[1].textContent).not.toContain('camp_plan_version_health_note');
+    // A version a family's erasure rewrote says so, and why its code changed.
+    expect(items[1].querySelector('.camp-permit__redacted').textContent).toBe('camp_plan_version_redacted');
+    expect(items[0].querySelector('.camp-permit__redacted')).toBeNull();
+    expect(document.querySelector('#app img')).toBeNull();
+    expect([...versionsBox().querySelectorAll('.camp-permit__changes li')].map((item) => item.textContent))
+      .toEqual(['camp_plan_part_schedule', 'camp_plan_part_team']);
+  });
+
+  test('versions show team qualifications: without meetings.manage or volunteers.manage, they are not asked for', async () => {
+    hasPermission.mockImplementation((key) => !['meetings.manage', 'volunteers.manage'].includes(key));
+    await open();
+    expect(versionsBox()).toBeNull();
+    expect(getCampPlanVersions).not.toHaveBeenCalled();
+  });
+
+  test('before any submission, the screen says none was submitted', async () => {
+    await open();
+    expect(versionsBox().textContent).toContain('camp_plan_versions_none');
+    expect(document.querySelectorAll('.camp-permit__version')).toHaveLength(0);
+  });
+
+  test('versions name youth: without participants.view, they are neither shown nor asked for', async () => {
+    hasPermission.mockImplementation((key) => key !== 'participants.view');
+    await open();
+    expect(versionsBox()).toBeNull();
+    expect(getCampPlanVersions).not.toHaveBeenCalled();
+  });
+
+  test('declining the confirmation submits nothing', async () => {
+    confirm.mockResolvedValue(false);
+    await open();
+    $('#camp-permit-submit').click();
+    await flush();
+    expect(submitCampPlanVersion).not.toHaveBeenCalled();
+  });
+
+  test('a confirmed submission is sent once, announced, the list reloaded and focus kept on it', async () => {
+    let finish;
+    submitCampPlanVersion.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    await open();
+    const button = $('#camp-permit-submit');
+    button.click();
+    await flush();
+    expect(button.disabled).toBe(true);
+    button.click();
+    getCampPlanVersions.mockResolvedValue({ success: true, data: VERSIONS });
+    finish({ success: true });
+    await flush();
+    await flush();
+    expect(submitCampPlanVersion).toHaveBeenCalledTimes(1);
+    expect(submitCampPlanVersion).toHaveBeenCalledWith(12);
+    expect(app.showMessage).toHaveBeenCalledWith('camp_plan_version_submitted', 'success');
+    expect(document.querySelectorAll('.camp-permit__version')).toHaveLength(2);
+    expect(document.activeElement).toBe($('#camp-permit-versions-title'));
+  });
+
+  test('a refused submission says why and leaves the button usable', async () => {
+    submitCampPlanVersion.mockRejectedValue(Object.assign(new Error('camp_plan_camp_cancelled'), { status: 409 }));
+    await open();
+    $('#camp-permit-submit').click();
+    await flush();
+    await flush();
+    expect(app.showMessage).toHaveBeenCalledWith(expect.any(String), 'error');
+    expect($('#camp-permit-submit').disabled).toBe(false);
+  });
+
+  test('someone who may not plan meetings, a demo account, or a cancelled camp is not offered to submit', async () => {
+    hasPermission.mockImplementation((key) => key !== 'meetings.manage');
+    await open();
+    expect($('#camp-permit-submit')).toBeNull();
+    hasPermission.mockImplementation(() => true);
+    isDemoUser.mockReturnValue(true);
+    await open();
+    expect($('#camp-permit-submit')).toBeNull();
+    isDemoUser.mockReturnValue(false);
+    const cancelled = permit();
+    cancelled.data.camp.is_cancelled = true;
+    getCampPermit.mockResolvedValue(cancelled);
+    await open();
+    expect($('#camp-permit-submit')).toBeNull();
+  });
+
+  test('downloading a version saves its PDF under the name the server gives', async () => {
+    getCampPlanVersions.mockResolvedValue({ success: true, data: VERSIONS });
+    const blob = new Blob(['%PDF-'], { type: 'application/pdf' });
+    getCampPlanVersionPdf.mockResolvedValue({ blob, filename: 'camp-plan-12-v2.pdf', sha256: DIGEST });
+    URL.createObjectURL = jest.fn(() => 'blob:fictional');
+    URL.revokeObjectURL = jest.fn();
+    const clicked = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function click() {
+      expect(this.download).toBe('camp-plan-12-v2.pdf');
+      expect(this.getAttribute('href')).toBe('blob:fictional');
+    });
+    await open();
+    document.querySelector('[data-version-download="2"]').click();
+    await flush();
+    expect(getCampPlanVersionPdf).toHaveBeenCalledWith(12, 2, { signal: expect.any(AbortSignal) });
+    expect(URL.createObjectURL).toHaveBeenCalledWith(blob);
+    expect(clicked).toHaveBeenCalled();
+    clicked.mockRestore();
+  });
+
+  test('a document arriving after the person left the screen is never saved', async () => {
+    getCampPlanVersions.mockResolvedValue({ success: true, data: VERSIONS });
+    let answer;
+    let signal;
+    getCampPlanVersionPdf.mockImplementation((_meeting, _version, options) => {
+      ({ signal } = options);
+      return new Promise((resolve) => { answer = resolve; });
+    });
+    URL.createObjectURL = jest.fn(() => 'blob:fictional');
+    await open();
+    document.querySelector('[data-version-download="2"]').click();
+    await flush();
+    screen.destroy();
+    expect(signal.aborted).toBe(true);
+    answer({ blob: new Blob(['%PDF-']), filename: 'camp-plan-12-v2.pdf', sha256: DIGEST });
+    await flush();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(app.showMessage).not.toHaveBeenCalled();
+  });
+
+  test('versions that cannot be loaded say so with a retry, and the checklist stays readable', async () => {
+    getCampPlanVersions.mockRejectedValueOnce(Object.assign(new Error('down'), { status: 500 }));
+    await open();
+    expect(versionsBox().querySelector('[role="alert"]')).not.toBeNull();
+    expect(document.querySelectorAll('.camp-permit__line').length).toBeGreaterThan(0);
+    $('#camp-permit-versions-retry').click();
+    await flush();
+    expect(getCampPlanVersions).toHaveBeenCalledTimes(2);
+    expect(versionsBox().textContent).toContain('camp_plan_versions_none');
+  });
+
+  test('the screen with its versions meets WCAG A/AA', async () => {
+    getCampPlanVersions.mockResolvedValue({ success: true, data: VERSIONS });
+    await open();
+    const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
 });
