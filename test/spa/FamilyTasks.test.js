@@ -437,6 +437,18 @@ describe('the parent dashboard', () => {
     page.destroy();
   });
 
+  test('when a list failed to load, a child\'s card never says there is nothing to do', async () => {
+    const { page } = await renderDashboard([LEA], new Map(), {
+      fetchPermissionSlips: jest.fn(function failSlips() { this.taskSourcesFailed = true; }),
+    });
+
+    const card = document.querySelector('[data-child-card="5"]');
+    expect(card.querySelector('.participant-card__todo-text').textContent).toBe('family_child_todo_incomplete');
+    expect(card.querySelector('.js-family-goto-tasks')).not.toBeNull();
+    expect(document.getElementById('family-tasks-retry')).not.toBeNull();
+    page.destroy();
+  });
+
   test('once the slip is signed, the child\'s card shows it answered and nothing left to do', async () => {
     const { page } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]]));
     prompt.mockResolvedValue('Marie Tremblay');

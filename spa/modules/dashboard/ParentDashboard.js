@@ -1084,12 +1084,18 @@ export class ParentDashboard {
     const childId = Number(participant.id);
     const count = buildFamilyTasks(this.familyTaskData(), childId).length;
     const name = escapeHTML(`${participant.first_name} ${participant.last_name}`);
-    if (count === 0) {
+    // A source that failed to load leaves the count unknown: never an all-clear.
+    if (count === 0 && !this.taskSourcesFailed) {
       return `<p class="participant-card__todo-text">${translate('family_child_todo_none')}</p>`;
     }
-    const countKey = count === 1 ? 'family_child_todo_one' : 'family_child_todo_other';
+    let text;
+    if (count === 0) {
+      text = translate('family_child_todo_incomplete');
+    } else {
+      text = translate(count === 1 ? 'family_child_todo_one' : 'family_child_todo_other').replace('{count}', String(count));
+    }
     return `
-      <p class="participant-card__todo-text">${translate(countKey).replace('{count}', String(count))}</p>
+      <p class="participant-card__todo-text">${text}</p>
       <button type="button" class="button button--secondary button--small js-family-goto-tasks" data-child-id="${childId}">
         ${translate('family_child_todo_show')}<span class="visually-hidden"> — ${name}</span>
       </button>`;

@@ -4552,6 +4552,7 @@
   "family_child_todo_none": "Rien à faire pour l’instant.",
   "family_child_todo_one": "1 chose à faire",
   "family_child_todo_other": "{count} choses à faire",
+  "family_child_todo_incomplete": "Certaines tâches n’ont pas pu être chargées.",
   "family_child_todo_show": "Voir quoi faire",
   "parent_upcoming_title": "Prochainement",
   "parent_upcoming_meeting": "Réunion",
