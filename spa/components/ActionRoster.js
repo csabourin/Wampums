@@ -21,6 +21,7 @@ export class ActionRoster {
     this.activityId = null;
     this.showAll = false;
     this.controller = null;
+    this.dayPlanned = false;
     // How the roster works is explained once, open, then folded on later
     // visits (a per-device convenience): it no longer pushes the names down.
     this.helpOpen = getStorage(HELP_SEEN_KEY) !== 'true';
@@ -49,6 +50,9 @@ export class ActionRoster {
     }
     this.date = date;
     this.activities = (snapshot.activities || []).filter((activity) => activity.start_date <= date && date <= activity.end_date);
+    // A meeting planned in the year plan, or an activity, makes the day one to take attendance on.
+    this.dayPlanned = (snapshot.meeting_dates || []).includes(date) || Boolean(snapshot.replacing_activities?.[date])
+      || this.activities.length > 0;
     this.attendance = Object.fromEntries((snapshot.attendance || []).filter((row) => !row.date || row.date === date)
       .map((row) => [String(row.participant_id), { status: row.status, is_on_site: row.is_on_site }]));
     if (!navigator.onLine) {

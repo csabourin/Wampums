@@ -126,6 +126,20 @@ describe('what is coming up', () => {
     ]);
   });
 
+  test('a planned day linked to a camp is listed once, as the camp, leaving room for the next event', () => {
+    const events = buildUpcomingEvents({
+      nextMeeting: { ...MEETING, date: '2026-11-14', activity_id: 2 },
+      activities: [
+        activity(2, '2026-11-14', { is_camp: true }),
+        activity(3, '2026-11-20'),
+        activity(4, '2026-11-27'),
+      ],
+      today: TODAY,
+    });
+
+    expect(events.map((event) => event.key)).toEqual(['activity:2', 'activity:3', 'activity:4']);
+  });
+
   test('an activity under way still shows; a cancelled meeting does not', () => {
     const events = buildUpcomingEvents({
       nextMeeting: { ...MEETING, is_cancelled: true },

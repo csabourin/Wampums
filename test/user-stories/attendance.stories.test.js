@@ -1116,6 +1116,20 @@ describe('the day the screen opens on', () => {
     expect(ajax.getAttendance).not.toHaveBeenCalledWith(THREE_DAYS_AGO);
   });
 
+  test('a meeting planned today in the year plan keeps the screen on today, even with a meeting earlier in the week', async () => {
+    seedStandardData();
+    // The dates list leaves out year-plan meetings; today's roster names it.
+    ajax.getAttendanceDates.mockResolvedValue({ success: true, data: [THREE_DAYS_AGO] });
+    const { getActionRoster } = require('../../spa/api/api-action-roster.js');
+    getActionRoster.mockResolvedValueOnce({ data: { activities: [], attendance: [], meeting_dates: [TODAY] } });
+
+    await initPage();
+    await flushPromises();
+
+    expect(document.getElementById('dateSelect').value).toBe(TODAY);
+    expect(ajax.getAttendance).not.toHaveBeenCalledWith(THREE_DAYS_AGO);
+  });
+
   test('a meeting older than a week is not chosen for the leader: the screen stays on today', async () => {
     seedStandardData();
     ajax.getAttendanceDates.mockResolvedValue({ success: true, data: [TWO_WEEKS_AGO] });

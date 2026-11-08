@@ -13,7 +13,8 @@ Unit enrollment checks always apply, including with an exception.
 The standing explanation of the roster (attendance shows everyone; points and honors only those
 still present) is folded help, open on a device's first visit only; notices that follow a choice
 (“show all”, signed participants) stay in the `role="status"` line. The attendance screen opens on
-today when the server lists it, otherwise on the most recent listed day of the past six days
+today when the server lists it or today's roster names a meeting of the year plan or an activity
+(`ActionRoster.dayPlanned`), otherwise on the most recent listed day of the past six days
 (`AttendanceDefaultDate.js`), with today still offered in the picker.
 
 Attendance remains daily, shared by the unit: an activity selector filters the

@@ -40,7 +40,11 @@ export const UPCOMING_KIND = Object.freeze({
 export function buildUpcomingEvents({ nextMeeting = null, activities = [], today }, limit = UPCOMING_EVENT_LIMIT) {
   const events = [];
   const meetingDate = isoToDateString(nextMeeting?.date || nextMeeting?.meeting_date || '');
-  if (meetingDate && meetingDate >= today && !nextMeeting.is_cancelled) {
+  const activityList = Array.isArray(activities) ? activities : [];
+  // A planned day linked to a camp or outing is that activity, listed once under its own name.
+  const linkedActivity = nextMeeting?.activity_id
+    && activityList.some((activity) => Number(activity.id) === Number(nextMeeting.activity_id));
+  if (meetingDate && meetingDate >= today && !nextMeeting.is_cancelled && !linkedActivity) {
     events.push({
       key: `meeting:${meetingDate}`,
       kind: UPCOMING_KIND.MEETING,
@@ -56,7 +60,7 @@ export function buildUpcomingEvents({ nextMeeting = null, activities = [], today
     });
   }
 
-  (Array.isArray(activities) ? activities : [])
+  activityList
     .filter((activity) => activity && activity.is_active !== false)
     .filter((activity) => getActivityEndDate(activity) >= today)
     .forEach((activity) => events.push({

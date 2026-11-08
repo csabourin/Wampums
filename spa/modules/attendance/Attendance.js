@@ -119,8 +119,10 @@ export class Attendance {
         this.attachEventListeners();
       }
       // Today was loaded alongside the dates; with nothing on today, move to
-      // the meeting of the past week whose attendance is being completed.
-      if (this.openingDate && this.openingDate !== this.currentDate && !this.destroyed) {
+      // the meeting of the past week whose attendance is being completed. The
+      // dates list omits meetings planned in the year plan, which today's
+      // roster knows: a day planned there is never left.
+      if (this.openingDate && this.openingDate !== this.currentDate && !this.roster.dayPlanned && !this.destroyed) {
         await this.changeDate(this.openingDate);
       }
     } catch (error) {
