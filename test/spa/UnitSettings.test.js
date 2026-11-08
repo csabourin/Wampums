@@ -340,6 +340,29 @@ test('reads every visible control when saving unit settings', async () => {
   });
 });
 
+test('a new meeting time says how many upcoming meetings moved with it', async () => {
+  const app = { showMessage: jest.fn(), organizationSettings: {} };
+  const module = new UnitSettings(app);
+  await module.init();
+  mockUpdateOrganizationInfo.mockResolvedValueOnce({ success: true, data: { organization_info: { meeting_time: '18:45' }, meetings_moved: 12 } });
+
+  document.getElementById('unit-meeting-time').value = '18:45';
+  await module.handleSaveUnitDetails({ preventDefault: jest.fn() });
+
+  expect(app.showMessage).toHaveBeenCalledWith('unit_settings_meetings_moved_other', 'success');
+});
+
+test('saving without moving any meeting says only that the settings are saved', async () => {
+  const app = { showMessage: jest.fn(), organizationSettings: {} };
+  const module = new UnitSettings(app);
+  await module.init();
+  mockUpdateOrganizationInfo.mockResolvedValueOnce({ success: true, data: { organization_info: {}, meetings_moved: 0 } });
+
+  await module.handleSaveUnitDetails({ preventDefault: jest.fn() });
+
+  expect(app.showMessage).toHaveBeenCalledWith('unit_settings_details_saved', 'success');
+});
+
 test('the unit’s coeducation is a labelled choice, shown as saved, and may be left unspecified', async () => {
   const module = new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} });
   await module.init();

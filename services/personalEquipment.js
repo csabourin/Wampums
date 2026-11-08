@@ -123,8 +123,9 @@ async function familyTasks(db, context) {
     const children = await childrenFor(db, context, camp);
     const list = (await readPublication(db, context.organizationId, camp.id)).list;
     const data = { children, list };
-    return data.children.map((child) => ({ meeting_id: camp.id, participant_id: child.id, title: camp.theme, date: camp.meeting_date,
-      item_keys: data.list.items.map((item) => item.key) }));
+    // activity_id: the camp or outing the planned day belongs to, so a family screen can put the list beside it.
+    return data.children.map((child) => ({ meeting_id: camp.id, activity_id: camp.activity_id || null, participant_id: child.id,
+      title: camp.theme, date: camp.meeting_date, item_keys: data.list.items.map((item) => item.key) }));
   }));
   return lists.flat();
 }

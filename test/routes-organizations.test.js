@@ -517,6 +517,97 @@ describe('GET /api/v1/organizations/settings', () => {
     ))).toBe(true);
   });
 
+  test('changing the usual meeting time moves the upcoming meetings still at the old hour, and says how many', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ organizationId: ORG_ID });
+    const queries = [];
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      queries.push({ query, params });
+      if (query.includes("r.role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('SELECT DISTINCT p.permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'org.edit' }] });
+      }
+      if (query.includes('SELECT DISTINCT r.role_name, r.display_name')) {
+        return Promise.resolve({ rows: [{ role_name: 'unitadmin', display_name: 'Unit admin' }] });
+      }
+      if (query.includes('UPDATE organizations')) {
+        return Promise.resolve({ rows: [{ id: ORG_ID }] });
+      }
+      if (query.includes("setting_value->>'meeting_time'")) {
+        return Promise.resolve({ rows: [{ meeting_time: '19:00' }] });
+      }
+      if (query.includes('UPDATE year_plan_meetings')) {
+        return Promise.resolve({ rows: [], rowCount: 12 });
+      }
+      if (query.includes("'organization_info'")) {
+        return Promise.resolve({ rows: [{ setting_value: { name: '12e Unité', meeting_time: '18:45' } }] });
+      }
+      if (query === 'BEGIN' || query === 'COMMIT') {
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .patch('/api/v1/organizations/settings/organization-info')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: '12e Unité', meeting_time: '18:45' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.meetings_moved).toBe(12);
+    const move = queries.find(({ query }) => query.includes('UPDATE year_plan_meetings'));
+    expect(move.params).toEqual([ORG_ID, '19:00', '18:45']);
+    // Only the meetings still at the old hour, upcoming, ordinary, not cancelled, not an outing's day.
+    expect(move.query).toMatch(/start_time = \$2::time/);
+    expect(move.query).toMatch(/meeting_date >= CURRENT_DATE/);
+    expect(move.query).toMatch(/NOT is_cancelled/);
+    expect(move.query).toMatch(/activity_id IS NULL/);
+  });
+
+  test('saving the same meeting time moves no meeting', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ organizationId: ORG_ID });
+    const queries = [];
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      queries.push({ query, params });
+      if (query.includes("r.role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('SELECT DISTINCT p.permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'org.edit' }] });
+      }
+      if (query.includes('SELECT DISTINCT r.role_name, r.display_name')) {
+        return Promise.resolve({ rows: [{ role_name: 'unitadmin', display_name: 'Unit admin' }] });
+      }
+      if (query.includes('UPDATE organizations')) {
+        return Promise.resolve({ rows: [{ id: ORG_ID }] });
+      }
+      if (query.includes("setting_value->>'meeting_time'")) {
+        return Promise.resolve({ rows: [{ meeting_time: '18:45' }] });
+      }
+      if (query.includes("'organization_info'")) {
+        return Promise.resolve({ rows: [{ setting_value: { name: '12e Unité', meeting_time: '18:45' } }] });
+      }
+      if (query === 'BEGIN' || query === 'COMMIT') {
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .patch('/api/v1/organizations/settings/organization-info')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: '12e Unité', meeting_time: '18:45' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.meetings_moved).toBe(0);
+    expect(queries.some(({ query }) => query.includes('UPDATE year_plan_meetings'))).toBe(false);
+  });
+
   test('PATCH /api/v1/organizations/settings/organization-info rejects invalid meeting defaults', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({ organizationId: ORG_ID });
