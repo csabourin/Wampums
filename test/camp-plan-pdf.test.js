@@ -45,7 +45,8 @@ function snapshot() {
   };
 }
 const HEALTH = {
-  youth: [{ first_name: 'Léa', last_name: 'Tremblay', allergies: 'Arachides', epipen: true, reaction: null, action: 'Épipen' }],
+  youth: [{ first_name: 'Léa', last_name: 'Tremblay', allergies: 'Arachides', epipen: true, reaction: null, action: null,
+    emergency_medication: 'Injecter dans la cuisse, appeler le 911' }],
   adults: [{ name: 'Ada Lovelace', allergies: 'Pénicilline', carries_epipen: false, person_to_notify: 'Contact fictif' }],
 };
 const META = { version: 3, submittedAt: new Date('2027-06-01T12:00:00Z'), language: 'fr', code: '2CEC 53A4' };
@@ -91,6 +92,8 @@ test('allergies are named only in the copy made with them; the other says where 
   expect(written).toContain('Arachides — porte un auto-injecteur d’épinéphrine');
   expect(written).toContain('Pénicilline');
   expect(written).toContain('Contact fictif');
+  // The emergency medication is printed, even when it is the only instruction recorded.
+  expect(written).toContain('Injecter dans la cuisse, appeler le 911');
 });
 
 test('a unit writing in English gets the document in English', async () => {

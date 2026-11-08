@@ -264,7 +264,8 @@ function renderPlanPdf(snapshot, health, { version, submittedAt, language, code 
       table(sect, [t('camp_plan_pdf_name'), t('camp_plan_pdf_allergy'), t('camp_plan_pdf_reaction_action')],
         health.youth.map((person) => [`${person.first_name} ${person.last_name}`,
           [person.allergies, person.epipen ? t('camp_plan_pdf_epipen') : null].filter(Boolean).join(' — '),
-          [person.reaction, person.action].filter(Boolean).join(' — ')]));
+          // As the camp lists show it: the emergency medication may be the only instruction recorded.
+          [person.reaction, person.action, person.emergency_medication].filter(Boolean).join(' — ')]));
     } else {
       paragraph(sect, t('camp_plan_pdf_none_declared'));
     }
