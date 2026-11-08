@@ -298,6 +298,19 @@ test('every camp plan section, group and duplication part has its labels in both
   expect(missing(uses)).toEqual([]);
 });
 
+test('every camp permit line, group, state, reason and coeducation choice has its label in both languages', () => {
+  const permit = require('../../config/camp_permit.json');
+  const { REASONS } = require('../../services/campPermit');
+  const uses = [
+    ...permit.GROUPS.map((group) => [`camp_permit_group_${group.key}`, 'CampPermit']),
+    ...permit.GROUPS.flatMap((group) => group.lines).map((line) => [`camp_permit_line_${line}`, 'CampPermit']),
+    ...permit.STATES.flatMap((state) => [[`camp_permit_state_${state}`, 'CampPermit'], [`camp_permit_summary_${state}`, 'CampPermit']]),
+    ...REASONS.map((reason) => [`camp_permit_reason_${reason}`, 'CampPermit']),
+    ...permit.COEDUCATION.map((value) => [`unit_coeducation_${value}`, 'UnitSettings, CampPermit']),
+  ];
+  expect(missing(uses)).toEqual([]);
+});
+
 test('every camp team role, age status and list gap has its label in both languages', () => {
   const team = require('../../config/camp_team.json');
   const gaps = ['no_scout_year', 'no_youth', 'no_lead', 'aide_age_unknown', 'member_left_unit', 'sisc_not_compared'];

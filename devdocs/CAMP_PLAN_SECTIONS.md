@@ -51,7 +51,7 @@ list the same values.
   One hidden from the library since stays on a camp that lists it, marked, but cannot be added. At
   most `RAIN_GAMES_MAX` games.
 - **Templates and approved plans.** A camp reads its unit's current template; the answer carries
-  `template_version`. Approval does not exist yet: the plan document and approval (#1320) must store
+  `template_version`. Approval does not exist yet: the plan document and approval (#1320, `devdocs/CAMP_PERMIT.md`) must store
   the texts it approves, so that changing a template never changes an approved plan.
 - **Reusing an earlier camp** (#1256) has a `plan` part: the camp's own sections are copied as drafts
   to reread (`needs_review`), and its games still offered. Stable sections are not copied: the new

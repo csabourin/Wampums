@@ -37,6 +37,16 @@ export function getCampPlan(meetingId) {
 }
 
 /**
+ * The camp permit's checklist (#1416): each line's state, read fresh from where it lives.
+ *
+ * @param {number} meetingId - The planned camp
+ * @returns {Promise<Object>} { camp, header, groups, lines }
+ */
+export function getCampPermit(meetingId) {
+  return API.getNoCache(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/permit`);
+}
+
+/**
  * @param {number} meetingId - The planned camp
  * @param {string} sectionKey - The section
  * @param {{body_html: string, expected_version: number}} body - Empty text removes the camp's own text

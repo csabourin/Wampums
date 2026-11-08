@@ -551,6 +551,48 @@ describe('GET /api/v1/organizations/settings', () => {
       'meeting_time'
     ]);
   });
+
+  test('a unit says whether it is mixed, and nothing but the permit’s choices is accepted', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ organizationId: ORG_ID });
+    const stored = [];
+
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes("r.role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('SELECT DISTINCT p.permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'org.edit' }] });
+      }
+      if (query.includes('SELECT DISTINCT r.role_name, r.display_name')) {
+        return Promise.resolve({ rows: [{ role_name: 'unitadmin', display_name: 'Unit admin' }] });
+      }
+      if (query.includes('UPDATE organizations')) {
+        return Promise.resolve({ rows: [{ id: ORG_ID }] });
+      }
+      if (query.includes("'organization_info'")) {
+        stored.push(JSON.parse(params[1]));
+        return Promise.resolve({ rows: [{ setting_value: JSON.parse(params[1]) }] });
+      }
+      if (query === 'BEGIN' || query === 'COMMIT' || query === 'ROLLBACK') {
+        return Promise.resolve({ rows: [] });
+      }
+      return undefined;
+    });
+
+    const send = (body) => request(app)
+      .patch('/api/v1/organizations/settings/organization-info')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body);
+
+    expect((await send({ name: '12e Unité', coeducation: 'mixed' })).status).toBe(200);
+    expect(stored.pop().coeducation).toBe('mixed');
+
+    const refused = await send({ name: '12e Unité', coeducation: 'sometimes' });
+    expect(refused.status).toBe(400);
+    expect(refused.body.errors.map(({ field }) => field)).toEqual(['coeducation']);
+    expect(stored).toHaveLength(0);
+  });
 });
 
 describe('PATCH /api/v1/organizations/settings/dashboard', () => {

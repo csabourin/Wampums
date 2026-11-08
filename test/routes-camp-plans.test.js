@@ -18,6 +18,9 @@ jest.mock('../services/campPlan', () => {
 });
 const service = require('../services/campPlan');
 
+jest.mock('../services/campPermit', () => ({ readCampPermit: jest.fn() }));
+const permitService = require('../services/campPermit');
+
 process.env.JWT_SECRET_KEY = 'fictional-camp-plan-tests';
 const USER_ID = '00000000-0000-4000-8000-000000000001';
 const UNIT_ID = 7;
@@ -48,6 +51,48 @@ beforeEach(() => {
   service.readCampPlan.mockResolvedValue({ camp: { id: 12 }, sections: [] });
   service.saveCampSection.mockResolvedValue({ section: { key: 'theme' } });
   service.saveRainGames.mockResolvedValue({ rain_games: [] });
+  permitService.readCampPermit.mockResolvedValue({ camp: { id: 12 }, header: {}, groups: [], lines: [] });
+});
+
+describe('the camp permit checklist', () => {
+  test('a unit-wide leader reads the authenticated unit’s checklist, with the rights the engine grants', async () => {
+    permissions = ['meetings.view', 'participants.view'];
+    const response = await call('get', '/camps/12/permit?organization_id=99&participants=1');
+    expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(permitService.readCampPermit).toHaveBeenCalledWith(pool, UNIT_ID, 12,
+      { participants: true, carpools: false, reviews: false });
+  });
+
+  test('without a token, the checklist is not read', async () => {
+    expect((await request(app).get('/api/v1/camp-plans/camps/12/permit')).status).toBe(401);
+    expect(permitService.readCampPermit).not.toHaveBeenCalled();
+  });
+
+  test('reading it takes meetings.view, and the refusal says so', async () => {
+    permissions = [];
+    const response = await call('get', '/camps/12/permit');
+    expect(response.status).toBe(403);
+    expect(response.body.required).toEqual(['meetings.view']);
+    expect(response.body.missing).toEqual(['meetings.view']);
+    expect(permitService.readCampPermit).not.toHaveBeenCalled();
+  });
+
+  test('a parent who holds meetings.view through a family role cannot read it', async () => {
+    permissions = ['meetings.view', 'participants.view'];
+    roles = [{ role_name: 'parent', display_name: 'Parent', data_scope: 'linked' }];
+    expect((await call('get', '/camps/12/permit')).status).toBe(403);
+    expect(permitService.readCampPermit).not.toHaveBeenCalled();
+  });
+
+  test('another unit’s camp is not found, and a malformed id is a 400', async () => {
+    permitService.readCampPermit.mockRejectedValue(new service.CampPlanError('camp_permit_camp_not_found', 404));
+    const missing = await call('get', '/camps/12/permit');
+    expect(missing.status).toBe(404);
+    expect(missing.body.message).toBe('camp_permit_camp_not_found');
+    expect((await call('get', '/camps/12abc/permit')).status).toBe(400);
+    expect((await call('get', '/camps/2147483648/permit')).status).toBe(400);
+  });
 });
 
 test('without a token, nothing is read or written', async () => {

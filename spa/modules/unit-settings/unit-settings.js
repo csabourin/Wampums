@@ -26,6 +26,7 @@ import {
   updateUnitBranch,
 } from '../../api/api-organizations.js';
 import { CONFIG } from '../../config.js';
+import CAMP_PERMIT_RULES from '../../../config/camp_permit.json';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
@@ -331,6 +332,15 @@ export class UnitSettings extends BaseModule {
               <label for="unit-district">${translate('District')}</label>
               <input type="text" id="unit-district" name="district" class="form-control"
                 value="${escapeHTML(info.district || '')}" maxlength="${SHORT_TEXT_MAX_LENGTH}" ${disabled}>
+            </div>
+
+            <div class="form-group">
+              <label for="unit-coeducation">${escapeHTML(translate('unit_coeducation_label'))}</label>
+              <select id="unit-coeducation" name="coeducation" class="form-control" aria-describedby="unit-coeducation-hint" ${disabled}>
+                ${['', ...CAMP_PERMIT_RULES.COEDUCATION].map((value) => `<option value="${escapeAttribute(value)}" ${(info.coeducation || '') === value ? 'selected' : ''}>
+                  ${escapeHTML(translate(value ? `unit_coeducation_${value}` : 'unit_coeducation_unset'))}</option>`).join('')}
+              </select>
+              <p class="field-hint" id="unit-coeducation-hint">${escapeHTML(translate('unit_coeducation_hint'))}</p>
             </div>
 
             <div class="form-group">
@@ -1125,6 +1135,7 @@ export class UnitSettings extends BaseModule {
       name: String(document.getElementById('unit-organization-name')?.value || '').trim(),
       unit: String(document.getElementById('unit-name')?.value || '').trim(),
       district: String(document.getElementById('unit-district')?.value || '').trim(),
+      coeducation: String(document.getElementById('unit-coeducation')?.value || ''),
       animateur_responsable: String(document.getElementById('unit-group-leader')?.value || '').trim(),
       endroit: String(document.getElementById('unit-meeting-location')?.value || '').trim(),
       meeting_day: String(document.getElementById('unit-meeting-day')?.value || ''),

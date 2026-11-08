@@ -1,0 +1,11 @@
+{
+  "COEDUCATION": ["mixed", "girls", "boys"],
+  "STATES": ["complete", "to_complete", "unverified"],
+  "GROUPS": [
+    { "key": "camp", "lines": ["identification", "dates", "site", "camp_type", "emergency", "insurance", "directions", "transport"] },
+    { "key": "program", "lines": ["written_sections", "rain_games", "schedule", "menu"] },
+    { "key": "material", "lines": ["group_material", "personal_material"] },
+    { "key": "people", "lines": ["youth_list", "team_list", "health_forms", "allergies"] },
+    { "key": "families_and_approval", "lines": ["parent_letter", "evaluation", "approvals"] }
+  ]
+}

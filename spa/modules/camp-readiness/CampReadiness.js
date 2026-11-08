@@ -301,6 +301,8 @@ export class CampReadiness {
       <p class="camp-readiness__explanation">${escapeHTML(translate('camp_readiness_explanation'))}</p>
       <div class="camp-readiness__actions">
         <button class="button button--secondary button--small" type="button" id="camp-readiness-refresh">${escapeHTML(translate('refresh'))}</button>
+        ${camp.id && camp.scheduled !== false
+    ? `<a class="button button--secondary button--small" href="/camp-permit/${Number(camp.id)}">${escapeHTML(translate('camp_permit_title'))}</a>` : ''}
         ${camp.id && camp.scheduled !== false && hasPermission('camp_reviews.view')
     ? `<a class="button button--secondary button--small" href="/camp-review/${Number(camp.id)}">${escapeHTML(translate('camp_review_title'))}</a>` : ''}
       </div>

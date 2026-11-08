@@ -148,6 +148,7 @@ const lazyModules = {
   CampPlan: () => import('./modules/camp-plan/CampPlan.js').then(m => m.CampPlan),
   CampPlanTemplates: () => import('./modules/camp-plan/CampPlanTemplates.js').then(m => m.CampPlanTemplates),
   CampPlans: () => import('./modules/camp-plan/CampPlans.js').then(m => m.CampPlans),
+  CampPermit: () => import('./modules/camp-plan/CampPermit.js').then(m => m.CampPermit),
   CampRoster: () => import('./modules/camp-plan/CampRoster.js').then(m => m.CampRoster),
   CampReview: () => import('./modules/camp-review/CampReview.js').then(m => m.CampReview),
   CampReviews: () => import('./modules/camp-review/CampReviews.js').then(m => m.CampReviews),
@@ -280,6 +281,7 @@ const routes = {
   '/camp-sites': 'campSites',
   '/camp-site/:id': 'campSite',
   '/camp-plan/:id': 'campPlan',
+  '/camp-permit/:id': 'campPermit',
   '/camp-plan-templates': 'campPlanTemplates',
   '/camp-plans': 'campPlans',
   '/camp-roster/:id': 'campRoster',
@@ -881,6 +883,14 @@ export class Router {
           if (!guard(hasPermission('meetings.view'))) {break;}
           const CampPlan = await this.loadModule('CampPlan');
           this.currentModuleInstance = new CampPlan(this.app, { meetingId: Number(param) });
+          await this.currentModuleInstance.init();
+          break;
+        }
+        case 'campPermit': {
+          // The permit checklist reads the whole camp, its lists' states included: meetings.view, unit-wide.
+          if (!guard(hasPermission('meetings.view') && hasOrganizationScope())) {break;}
+          const CampPermit = await this.loadModule('CampPermit');
+          this.currentModuleInstance = new CampPermit(this.app, { meetingId: Number(param) });
           await this.currentModuleInstance.init();
           break;
         }
