@@ -212,6 +212,9 @@ async function lockCamp(db, organizationId, meetingId) {
   }
 }
 
+/** Where the reader's right to allergies sits among each query's parameters. */
+const HEALTH_PARAM = { submitted: 4, listed: 3 };
+
 /**
  * A version as people see it: no snapshot, no document bytes. `pdf_sha256` is the
  * fingerprint of the copy this reader downloads.
@@ -263,7 +266,7 @@ function submitPlanVersion(pool, organizationId, actorId, meetingId, withHealth 
         pdfHealth, pdfHealth ? sha256(pdfHealth) : null, actorId, submittedAt]
     );
     return (await db.query(
-      `SELECT ${versionColumns(4)} FROM camp_plan_versions v LEFT JOIN users u ON u.id = v.submitted_by
+      `SELECT ${versionColumns(HEALTH_PARAM.submitted)} FROM camp_plan_versions v LEFT JOIN users u ON u.id = v.submitted_by
         WHERE v.organization_id = $1 AND v.meeting_id = $2 AND v.version_number = $3`,
       [organizationId, meetingId, number, withHealth]
     )).rows[0];
@@ -282,7 +285,7 @@ function submitPlanVersion(pool, organizationId, actorId, meetingId, withHealth 
  */
 async function listPlanVersions(db, organizationId, meetingId, withHealth = false) {
   const versions = (await db.query(
-    `SELECT ${versionColumns(3)} FROM camp_plan_versions v LEFT JOIN users u ON u.id = v.submitted_by
+    `SELECT ${versionColumns(HEALTH_PARAM.listed)} FROM camp_plan_versions v LEFT JOIN users u ON u.id = v.submitted_by
       WHERE v.organization_id = $1 AND v.meeting_id = $2 ORDER BY v.version_number DESC`,
     [organizationId, meetingId, withHealth]
   )).rows;
