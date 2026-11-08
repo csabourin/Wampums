@@ -243,4 +243,31 @@ describe.skipIf(!DATABASE_URL)('Camp plan versions', () => {
     expect(listed.every((version) => version.redacted_at && !version.has_health)).toBe(true);
     ids.youth = null;
   });
+
+  test('a submission overlapping an erasure is refused rather than storing the erased child', async () => {
+    const child = await one("INSERT INTO participants (first_name, last_name, date_naissance) VALUES ('Noé', 'Concurrent', '2088-05-01') RETURNING id");
+    await pool.query(`INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, status)
+      VALUES ($1, $2, $3, 'active')`, [child, ids.unit, ids.year]);
+
+    const { eraseParticipant } = require('../services/erasure');
+    const eraser = await pool.connect();
+    try {
+      await eraser.query('BEGIN');
+      await eraseParticipant(eraser, { organizationId: ids.unit, participant: { id: child }, performedBy: ids.leader });
+      // The erasure holds the child; the submission reads the plan, then waits on the child's row.
+      const submission = request(app).post(path(ids.camp)).set(auth(ids.leader)).then((response) => response);
+      await new Promise((resolve) => { setTimeout(resolve, 400); });
+      await eraser.query('COMMIT');
+      const response = await submission;
+      expect(response.status).toBe(409);
+      expect(response.body.message).toBe('camp_plan_roster_changed');
+    } catch (err) {
+      await eraser.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      eraser.release();
+    }
+    expect(await one(`SELECT COUNT(*)::int FROM camp_plan_versions
+      WHERE snapshot->'youth' @> jsonb_build_array(jsonb_build_object('participant_id', $1::int))`, [child])).toBe(0);
+  });
 });

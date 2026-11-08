@@ -215,6 +215,26 @@ async function lockCamp(db, organizationId, meetingId) {
   }
 }
 
+/**
+ * Hold the youth a snapshot names until the version is stored, so an erasure cannot slip between
+ * reading them and storing the version. An erasure locks its child FOR UPDATE: one under way makes
+ * this wait, and one that removed a child since the snapshot was read refuses the submission (409),
+ * to be tried again, rather than storing the erased child.
+ */
+async function lockNamedYouth(db, snapshot) {
+  const ids = snapshot.youth.map((person) => person.participant_id);
+  if (!ids.length) {
+    return;
+  }
+  const held = (await db.query(
+    'SELECT id FROM participants WHERE id = ANY($1::int[]) ORDER BY id FOR SHARE',
+    [ids]
+  )).rowCount;
+  if (held !== ids.length) {
+    throw new CampPlanError('camp_plan_roster_changed', HTTP_CONFLICT);
+  }
+}
+
 /** Where the reader's right to allergies sits among each query's parameters. */
 const HEALTH_PARAM = { submitted: 4, listed: 3 };
 
@@ -243,6 +263,7 @@ function submitPlanVersion(pool, organizationId, actorId, meetingId, withHealth 
   return transaction(pool, async (db) => {
     await lockCamp(db, organizationId, meetingId);
     const { snapshot, health } = await buildPlanSnapshot(db, organizationId, meetingId, { withHealth: true });
+    await lockNamedYouth(db, snapshot);
     const language = await unitLanguage(db, organizationId);
     const number = Number((await db.query(
       `SELECT COALESCE(MAX(version_number), 0) + 1 AS next FROM camp_plan_versions
