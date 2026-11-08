@@ -40,6 +40,9 @@ const mockTemplates = {
   family_filter_child: '{name} ({count})',
   family_tasks_deadline: 'Answer by {date}',
   family_child_file_progress: 'Forms complete: {done} of {total}',
+  family_tasks_child_heading: '{name} — {todo}',
+  family_child_todo_other: '{count} things to do',
+  family_tasks_show_more_other: 'Show {count} more',
 };
 jest.mock('../../spa/app.js', () => ({
   translate: (key) => mockTemplates[key] || key,
@@ -434,6 +437,103 @@ describe('the parent dashboard', () => {
     const card = document.querySelector('[data-child-card="5"]');
     expect(card.querySelector('.participant-card__todo-text').textContent).toBe('family_child_todo_none');
     expect(card.querySelector('.js-family-goto-tasks')).toBeNull();
+    page.destroy();
+  });
+
+  const SEVEN_FORMS = ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7'];
+  const withForms = (formTypes) => ({
+    fetchFormFormats: jest.fn(function loadFormats() {
+      this.formFormats = Object.fromEntries(formTypes.map((type) => [type, {}]));
+      this.formMeta = {};
+    }),
+  });
+
+  test('a family of one child sees the child named once, above compact tasks', async () => {
+    const { page } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]]), withForms(['fiche_sante']));
+
+    expect(document.querySelector('.family-tasks__child').textContent.trim()).toBe('Ada — 2 things to do');
+    // No "For: Ada" line, and no row repeating her name beside the button.
+    expect(document.querySelector('.family-task__children')).toBeNull();
+    expect(document.querySelector('.family-task__rows')).toBeNull();
+    const fill = document.querySelector('.family-task--form a');
+    expect(fill.getAttribute('href')).toBe('/dynamic-form/fiche_sante/4');
+    // Screen readers still hear whom the button is for.
+    expect(fill.querySelector('.visually-hidden').textContent).toContain('Ada');
+    page.destroy();
+  });
+
+  test('beyond five tasks, the rest fold behind a button that keeps focus and says its state', async () => {
+    const { page } = await renderDashboard([ADA], new Map(), withForms(SEVEN_FORMS));
+    const visible = () => tasks().filter((task) => !task.hidden).length;
+
+    expect(tasks()).toHaveLength(7);
+    expect(visible()).toBe(5);
+    const more = document.getElementById('family-tasks-more');
+    expect(more.tagName).toBe('BUTTON');
+    expect(more.getAttribute('aria-controls')).toBe('family-tasks-list');
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    expect(more.textContent.trim()).toBe('Show 2 more');
+
+    more.focus();
+    more.click();
+    expect(visible()).toBe(7);
+    expect(more.getAttribute('aria-expanded')).toBe('true');
+    expect(more.textContent.trim()).toBe('family_tasks_show_fewer');
+    expect(document.activeElement).toBe(more);
+
+    more.click();
+    expect(visible()).toBe(5);
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    page.destroy();
+  });
+
+  test('five tasks or fewer show no fold button', async () => {
+    const { page } = await renderDashboard([ADA], new Map(), withForms(SEVEN_FORMS.slice(0, 5)));
+    expect(tasks()).toHaveLength(5);
+    expect(document.getElementById('family-tasks-more')).toBeNull();
+    page.destroy();
+  });
+
+  test('a slip past its answer-by date says it is late, in words', async () => {
+    const { page } = await renderDashboard([ADA], new Map([[4, [slip(91, 4, { deadline_date: '2026-10-20' })]]]));
+
+    const task = tasks()[0];
+    expect(task.classList.contains('family-task--overdue')).toBe(true);
+    expect(task.querySelector('.family-task__overdue').textContent).toBe('family_tasks_overdue');
+    page.destroy();
+  });
+
+  test('a slip still within its answer-by date is not marked late', async () => {
+    const { page } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]]));
+    expect(tasks()[0].querySelector('.family-task__overdue')).toBeNull();
+    page.destroy();
+  });
+
+  test('a child\'s file says in words whether each form is filled in, with no emoji', async () => {
+    const { page } = await renderDashboard([LEA], new Map(), withForms(['fiche_sante']));
+
+    const form = document.querySelector('[data-child-card="5"] .participant-card__forms a');
+    expect(form.querySelector('.form-btn__status').textContent).toBe('family_form_status_done');
+    expect(form.textContent).not.toMatch(/[✅❌]/u);
+    page.destroy();
+  });
+
+  test('a child\'s name above the tasks is shown as text, never as markup', async () => {
+    const { page } = await renderDashboard([{ id: 4, first_name: '<img src=x onerror=alert(1)>', last_name: 'X' }], new Map([[4, [slip(91, 4)]]]));
+
+    const heading = document.querySelector('.family-tasks__child');
+    expect(heading.querySelector('img')).toBeNull();
+    expect(heading.textContent).toContain('<img src=x onerror=alert(1)>');
+    page.destroy();
+  });
+
+  test('has no WCAG A/AA violations with folded tasks and a late slip', async () => {
+    const { page } = await renderDashboard([ADA], new Map([[4, [slip(91, 4, { deadline_date: '2026-10-20' })]]]), withForms(SEVEN_FORMS));
+    const results = await axe.run(document.getElementById('app'), {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
     page.destroy();
   });
 

@@ -58,15 +58,46 @@
   padding: 0;
 }
 
+/* One compact line per task: its text, then its actions beside it when they fit. */
 .family-task {
+  align-items: center;
   border: 1px solid var(--color-border-light, #e5e7eb);
   border-inline-start: 4px solid var(--primary-color, #2563eb);
   border-radius: var(--radius-md, 0.5rem);
   display: flex;
-  flex-direction: column;
-  gap: var(--space-sm, 0.5rem);
+  flex-wrap: wrap;
+  gap: var(--space-xs, 0.25rem) var(--space-sm, 0.5rem);
   min-inline-size: 0;
-  padding: var(--space-md, 0.75rem);
+  padding: var(--space-sm, 0.5rem) var(--space-md, 0.75rem);
+}
+
+/* `display: flex` above outranks the browser's own [hidden] rule. */
+.family-task[hidden] {
+  display: none;
+}
+
+.family-task__text {
+  flex: 1 1 12rem;
+}
+
+/* Past its answer-by date: said in words, and marked in the warning colour. */
+.family-task--overdue {
+  border-inline-start-color: var(--color-error, #9a3f38);
+}
+
+.family-task__overdue {
+  color: var(--color-error, #9a3f38);
+  font-weight: var(--font-weight-bold, 700);
+}
+
+.family-tasks__child {
+  font-weight: var(--font-weight-semibold, 600);
+  margin: 0 0 var(--space-sm, 0.5rem);
+}
+
+.family-tasks__more {
+  margin-block-start: var(--space-sm, 0.5rem);
+  min-block-size: var(--touch-target-min, 44px);
 }
 
 .family-task--permission,
@@ -77,6 +108,10 @@
 .family-task__text {
   min-inline-size: 0;
   overflow-wrap: anywhere;
+}
+
+.family-task__rows {
+  flex: 1 1 100%;
 }
 
 .family-task__kind {
@@ -289,4 +324,20 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-sm, 0.5rem);
+}
+
+/* A child's file: each form says in words whether it is filled in. */
+.participant-card .form-btn--completed,
+.participant-card .form-btn--completed:hover {
+  background-color: var(--color-secondary);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.form-btn__status {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  flex-shrink: 0;
+  font-size: var(--font-size-xs, 0.75rem);
+  padding: 0.125rem 0.5rem;
 }

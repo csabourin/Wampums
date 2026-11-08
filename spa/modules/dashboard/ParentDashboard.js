@@ -57,6 +57,8 @@ import {
   isSlipAnswerable,
   renderFamilyFilter,
   renderFamilyTaskList,
+  childDisplayNames,
+  setTasksExpanded,
   taskChildNames,
 } from './FamilyTasks.js';
 
@@ -79,6 +81,8 @@ export class ParentDashboard {
     this.taskSourcesFailed = false;
     this.childFilter = ALL_CHILDREN;
     this.familyTasks = [];
+    // The tasks beyond the first few are folded until the parent asks for them.
+    this.tasksExpanded = false;
     this.packingLists = [];
     // "Coming up": the next meeting and activities; a failed load is said, never "nothing planned".
     this.upcomingEvents = [];
@@ -728,7 +732,25 @@ export class ParentDashboard {
     formatMoney: (amount) => this.formatCurrency(amount),
     financeHidden: this.hiddenButtons.has('finances'),
     incomplete: this.taskSourcesFailed,
+    childName: this.taskListChildName(data.participants),
+    expanded: this.tasksExpanded,
+    today: data.today,
   })}`;
+  }
+
+  /**
+   * The one child the listed tasks concern, named once above them: the
+   * family's only child, or the child the filter shows.
+   *
+   * @param {Array<Object>} participants - The account's children
+   * @returns {string} The child's name, or empty when several are listed
+   */
+  taskListChildName(participants) {
+    const names = childDisplayNames(participants);
+    if (participants.length === 1) {
+      return names.get(Number(participants[0].id)) || '';
+    }
+    return this.childFilter === ALL_CHILDREN ? '' : names.get(Number(this.childFilter)) || '';
   }
 
   /**
@@ -830,6 +852,12 @@ export class ParentDashboard {
         const heading = document.getElementById('family-tasks-title');
         heading?.scrollIntoView?.({ block: 'start' });
         heading?.focus();
+        return;
+      }
+      const more = event.target.closest('#family-tasks-more');
+      if (more) {
+        this.tasksExpanded = !this.tasksExpanded;
+        setTasksExpanded(more, this.tasksExpanded);
         return;
       }
       if (event.target.closest('#parent-upcoming-retry')) {
@@ -1157,7 +1185,8 @@ export class ParentDashboard {
         const statusClass = isCompleted
           ? 'form-btn--completed'
           : 'form-btn--incomplete';
-        const statusIcon = isCompleted ? '✅' : '❌';
+        // The state in words, never a colour or an emoji alone.
+        const statusText = translate(isCompleted ? 'family_form_status_done' : 'family_form_status_todo');
 
         debugLog(
           `Rendering form button for: ${formType}, label: ${formLabel}`,
@@ -1165,8 +1194,8 @@ export class ParentDashboard {
 
         return `
                 <a href="/dynamic-form/${formType}/${participant.id}" class="form-btn ${statusClass}">
-                    <span class="form-btn__icon">${statusIcon}</span>
                     <span class="form-btn__label">${formLabel}</span>
+                    <span class="form-btn__status">${statusText}</span>
                 </a>
             `;
       })
