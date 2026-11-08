@@ -98,6 +98,9 @@ and stores a new `camp_plan_versions` row (migration 082) in one transaction:
   email language, `en` or `fr`) are printed in it.
 - `pdf_health` / `pdf_health_sha256`: the same document whose allergies section names youth and adults,
   generated only when there is something to name.
+- `health_sha256`: a fingerprint of the allergy information as submitted, never the information itself.
+  A reader holding `camp_allergies.view` is told (`allergies` in `changed_since_latest`) when it changed
+  since the latest version; nobody else is, since that change is itself health information.
 - The version still `submitted` becomes `superseded`. Slice 4 adds `changes_requested` and `approved`.
 
 A version never changes afterwards: editing the camp, its site or the unit's templates leaves it as

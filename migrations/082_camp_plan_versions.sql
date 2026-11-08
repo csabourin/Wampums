@@ -18,6 +18,10 @@
 --   section, served only to holders of `camp_allergies.view`. NULL when the
 --   plan had no health information to show.
 --
+-- - `health_sha256`: a fingerprint of the allergy information as submitted (never the
+--   information itself), so readers allowed to see allergies are told when it changed
+--   since the version.
+--
 -- A new submission supersedes the version still waiting. Slice 4 (#1419)
 -- records approvals against a version; `status` already names its states.
 
@@ -35,6 +39,7 @@ CREATE TABLE IF NOT EXISTS public.camp_plan_versions (
   pdf_sha256 CHAR(64) NOT NULL CHECK (pdf_sha256 ~ '^[0-9a-f]{64}$'),
   pdf_health BYTEA,
   pdf_health_sha256 CHAR(64) CHECK (pdf_health_sha256 IS NULL OR pdf_health_sha256 ~ '^[0-9a-f]{64}$'),
+  health_sha256 CHAR(64) NOT NULL CHECK (health_sha256 ~ '^[0-9a-f]{64}$'),
   submitted_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
   submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK ((pdf_health IS NULL) = (pdf_health_sha256 IS NULL)),

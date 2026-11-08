@@ -307,7 +307,7 @@ test('every camp permit line, group, state, reason and coeducation choice has it
     ...permit.STATES.flatMap((state) => [[`camp_permit_state_${state}`, 'CampPermit'], [`camp_permit_summary_${state}`, 'CampPermit']]),
     ...REASONS.map((reason) => [`camp_permit_reason_${reason}`, 'CampPermit']),
     ...permit.COEDUCATION.map((value) => [`unit_coeducation_${value}`, 'UnitSettings, CampPermit']),
-    ...require('../../services/campPlanVersions').SNAPSHOT_PARTS.map((part) => [`camp_plan_part_${part}`, 'CampPermit versions']),
+    ...[...require('../../services/campPlanVersions').SNAPSHOT_PARTS, 'allergies'].map((part) => [`camp_plan_part_${part}`, 'CampPermit versions']),
     ...['submitted', 'changes_requested', 'approved', 'superseded'].map((status) => [`camp_plan_version_status_${status}`, 'CampPermit versions']),
   ];
   expect(missing(uses)).toEqual([]);

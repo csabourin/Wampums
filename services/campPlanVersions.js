@@ -253,6 +253,8 @@ function submitPlanVersion(pool, organizationId, actorId, meetingId, withHealth 
     const pdf = await renderPlanPdf(snapshot, null, meta);
     const hasHealth = Boolean(health && (health.youth.length || health.adults.length));
     const pdfHealth = hasHealth ? await renderPlanPdf(snapshot, health, meta) : null;
+    // Only a fingerprint of the allergies is kept beside the snapshot, to tell when they change.
+    const healthSha256 = sha256(canonicalJson(health));
     await db.query(
       `UPDATE camp_plan_versions SET status = 'superseded'
         WHERE organization_id = $1 AND meeting_id = $2 AND status = 'submitted'`,
@@ -260,10 +262,10 @@ function submitPlanVersion(pool, organizationId, actorId, meetingId, withHealth 
     );
     await db.query(
       `INSERT INTO camp_plan_versions (organization_id, meeting_id, version_number, language, snapshot, snapshot_sha256,
-         pdf, pdf_sha256, pdf_health, pdf_health_sha256, submitted_by, submitted_at)
-       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12)`,
+         pdf, pdf_sha256, pdf_health, pdf_health_sha256, health_sha256, submitted_by, submitted_at)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [organizationId, meetingId, number, language, JSON.stringify(snapshot), snapshotSha256, pdf, sha256(pdf),
-        pdfHealth, pdfHealth ? sha256(pdfHealth) : null, actorId, submittedAt]
+        pdfHealth, pdfHealth ? sha256(pdfHealth) : null, healthSha256, actorId, submittedAt]
     );
     return (await db.query(
       `SELECT ${versionColumns(HEALTH_PARAM.submitted)} FROM camp_plan_versions v LEFT JOIN users u ON u.id = v.submitted_by
@@ -295,12 +297,17 @@ async function listPlanVersions(db, organizationId, meetingId, withHealth = fals
     return { versions: [], changed_since_latest: null };
   }
   const latest = (await db.query(
-    `SELECT snapshot FROM camp_plan_versions
+    `SELECT snapshot, health_sha256 FROM camp_plan_versions
       WHERE organization_id = $1 AND meeting_id = $2 AND version_number = $3`,
     [organizationId, meetingId, versions[0].version_number]
   )).rows[0];
-  const { snapshot } = await buildPlanSnapshot(db, organizationId, meetingId);
-  return { versions, changed_since_latest: changedParts(latest.snapshot, snapshot) };
+  const { snapshot, health } = await buildPlanSnapshot(db, organizationId, meetingId, { withHealth });
+  const changed = changedParts(latest.snapshot, snapshot);
+  // Whether the allergies changed is itself health information: only their readers are told.
+  if (withHealth && sha256(canonicalJson(health)) !== latest.health_sha256) {
+    changed.push('allergies');
+  }
+  return { versions, changed_since_latest: changed };
 }
 
 /**

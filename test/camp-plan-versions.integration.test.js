@@ -153,6 +153,16 @@ describe.skipIf(!DATABASE_URL)('Camp plan versions', () => {
     expect(listed.versions[0].version_number).toBe(1);
   });
 
+  test('a changed allergy is reported since the latest version, only to whoever may read allergies', async () => {
+    await pool.query("UPDATE member_allergy_declarations SET allergies = 'Arachides et noix (fictif)' WHERE user_id = $1", [ids.leader]);
+    const nurse = (await request(app).get(path(ids.camp)).set(auth(ids.nurse))).body.data;
+    expect(nurse.changed_since_latest).toContain('allergies');
+    const leader = (await request(app).get(path(ids.camp)).set(auth(ids.leader))).body.data;
+    expect(leader.changed_since_latest).not.toContain('allergies');
+    const stored = await one('SELECT health_sha256 FROM camp_plan_versions WHERE meeting_id = $1 AND version_number = 1', [ids.camp]);
+    expect(stored).toMatch(/^[0-9a-f]{64}$/);
+  });
+
   test('a new submission is the next version and supersedes the one waiting', async () => {
     const second = await request(app).post(path(ids.camp)).set(auth(ids.leader));
     expect(second.body.data.version_number).toBe(2);

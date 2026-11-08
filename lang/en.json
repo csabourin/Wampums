@@ -6207,5 +6207,6 @@
   "camp_plan_pdf_code_line": "Verification code: {code}. The same code appears in Wampums for this version.",
   "camp_plan_part_camp": "Camp name and dates",
   "camp_plan_part_volunteers": "Volunteers",
-  "camp_plan_pdf_volunteer_count": "Volunteers"
+  "camp_plan_pdf_volunteer_count": "Volunteers",
+  "camp_plan_part_allergies": "Allergies (shown only to people who may read them)"
 }
