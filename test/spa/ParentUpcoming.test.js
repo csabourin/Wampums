@@ -153,6 +153,30 @@ describe('what is coming up', () => {
   });
 });
 
+describe('the next meeting\'s hours', () => {
+  const { meetingHours } = require('../../spa/modules/dashboard/ParentUpcoming.js');
+
+  test('come from the evening\'s schedule, not hours copied from older unit settings', () => {
+    const meeting = { ...MEETING, start_time: '19:00', end_time: '21:00', activities: [
+      { time: '18:45', duration: '00:15' },
+      { time: '19:00', duration: '01:45' },
+      { time: '', duration: '00:10' },
+    ] };
+    expect(meetingHours(meeting)).toEqual({ activity_start_time: '18:45', activity_end_time: '20:45' });
+
+    const [event] = buildUpcomingEvents({ nextMeeting: meeting, today: TODAY });
+    document.body.innerHTML = renderUpcomingSection([event], { lang: 'fr', failed: false, calendarLink: false });
+    expect(document.querySelector('.parent-upcoming__when').textContent).toMatch(/18[:h]\s?45/);
+    expect(document.querySelector('.parent-upcoming__when').textContent).not.toMatch(/19[:h]\s?00/);
+  });
+
+  test('fall back to the meeting\'s own hours when nothing is scheduled yet', () => {
+    expect(meetingHours({ ...MEETING, activities: [] }))
+      .toEqual({ activity_start_time: '18:30', activity_end_time: '20:00' });
+    expect(meetingHours({ start_time: null, end_time: null })).toEqual({ activity_start_time: '', activity_end_time: '' });
+  });
+});
+
 describe('packing lists beside their event', () => {
   const events = () => buildUpcomingEvents({
     nextMeeting: { ...MEETING, id: 77 },

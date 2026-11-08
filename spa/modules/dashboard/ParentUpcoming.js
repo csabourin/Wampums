@@ -16,6 +16,7 @@ import {
   getActivityStartDate,
 } from '../../utils/ActivityDateUtils.js';
 import { isoToDateString } from '../../utils/DateUtils.js';
+import { MINUTES_PER_DAY, MINUTES_PER_HOUR } from '../../utils/TimeUnits.js';
 
 /** How many events the block shows: enough to plan the coming weeks, no more. */
 export const UPCOMING_EVENT_LIMIT = 3;
@@ -26,6 +27,45 @@ export const UPCOMING_KIND = Object.freeze({
   ACTIVITY: 'activity',
   CAMP: 'camp',
 });
+
+/**
+ * @param {string} value - "HH:MM" or "HH:MM:SS"
+ * @returns {number|null} Minutes since midnight, or null when unreadable
+ */
+function toMinutes(value) {
+  const match = /^(\d{1,2}):(\d{2})/.exec(String(value || ''));
+  return match ? Number(match[1]) * MINUTES_PER_HOUR + Number(match[2]) : null;
+}
+
+/**
+ * @param {number} minutes - Minutes since midnight
+ * @returns {string} "HH:MM"
+ */
+function toClock(minutes) {
+  const within = ((minutes % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
+  return `${String(Math.floor(within / MINUTES_PER_HOUR)).padStart(2, '0')}:${String(within % MINUTES_PER_HOUR).padStart(2, '0')}`;
+}
+
+/**
+ * When a meeting starts and ends, as families will live it. The evening's
+ * schedule is what the leaders prepared, so its first and last activities win;
+ * the meeting's stored hours were copied from the unit's settings when the
+ * year was planned and are not updated when those settings change.
+ *
+ * @param {Object} meeting - As `/v1/meetings/next` returns it, with its `activities`
+ * @returns {{activity_start_time: string, activity_end_time: string}} Hours, "HH:MM" or empty
+ */
+export function meetingHours(meeting) {
+  const timed = (Array.isArray(meeting?.activities) ? meeting.activities : [])
+    .map((activity) => ({ start: toMinutes(activity.time), length: toMinutes(activity.duration) || 0 }))
+    .filter((activity) => activity.start !== null);
+  if (!timed.length) {
+    return { activity_start_time: meeting?.start_time || '', activity_end_time: meeting?.end_time || '' };
+  }
+  const start = Math.min(...timed.map((activity) => activity.start));
+  const end = Math.max(...timed.map((activity) => activity.start + activity.length));
+  return { activity_start_time: toClock(start), activity_end_time: end > start ? toClock(end) : '' };
+}
 
 /**
  * The family's next events, soonest first.
@@ -54,8 +94,7 @@ export function buildUpcomingEvents({ nextMeeting = null, activities = [], today
       source: {
         activity_start_date: meetingDate,
         activity_end_date: meetingDate,
-        activity_start_time: nextMeeting.start_time || '',
-        activity_end_time: nextMeeting.end_time || '',
+        ...meetingHours(nextMeeting),
       },
       place: nextMeeting.location || nextMeeting.endroit || '',
     });
