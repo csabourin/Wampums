@@ -97,6 +97,8 @@ describe.skipIf(!DATABASE_URL)('Camp plan versions', () => {
     expect(submitted.body.data).toMatchObject({ version_number: 1, status: 'submitted', language: 'fr', has_health: true,
       submitted_by_name: 'Ada Lovelace' });
     expect(submitted.body.data.pdf_sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(submitted.body.data.snapshot_sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(submitted.body.data.snapshot_sha256).not.toBe(submitted.body.data.pdf_sha256);
 
     const file = await pdf(ids.camp, 1, ids.leader);
     expect(file.status).toBe(200);

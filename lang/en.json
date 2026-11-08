@@ -6184,8 +6184,8 @@
   "camp_plan_version_label": "Version {version}",
   "camp_plan_version_meta": "Submitted on {date} by {name}",
   "camp_plan_version_meta_unknown": "Submitted on {date}",
-  "camp_plan_version_digest": "SHA-256 digest of the PDF:",
-  "camp_plan_version_health_note": "The PDF you download names allergies only if you may read them; that copy has its own digest.",
+  "camp_plan_version_digest": "Full fingerprint of the PDF (SHA-256):",
+  "camp_plan_version_health_note": "The PDF you download names allergies only if you may read them; both copies carry the same verification code.",
   "camp_plan_version_download": "Download the PDF",
   "camp_plan_version_download_failed": "The PDF could not be downloaded.",
   "camp_plan_version_status_submitted": "Waiting for approval",
@@ -6200,5 +6200,9 @@
   "camp_plan_part_site": "Site and emergencies",
   "camp_plan_part_team": "Camp team",
   "camp_plan_part_youth": "Youth taking part",
-  "camp_plan_part_material": "Group material"
+  "camp_plan_part_material": "Group material",
+  "camp_plan_version_code": "Verification code:",
+  "camp_plan_version_code_hint": "This code is printed on the first page of the PDF. A copy (attached to the SISC, emailed…) showing the same code is this version.",
+  "camp_plan_version_digest_details": "Technical details",
+  "camp_plan_pdf_code_line": "Verification code: {code}. The same code appears in Wampums for this version."
 }

@@ -49,6 +49,23 @@ const REASON_COUNTS = Object.freeze({
 /** How long a downloaded file's address stays valid, once the browser has started saving it. */
 const DOWNLOAD_URL_LIFETIME_MS = 10000;
 
+/** How many characters of the PDF's fingerprint people compare, in groups of four. */
+const CODE_LENGTH = 8;
+const CODE_GROUP = 4;
+
+/**
+ * A short code people can read aloud or compare by eye: the start of the version's
+ * fingerprint, in capitals, in groups of four ("2CEC 53A4"). The same code is printed
+ * on the first page of the version's PDF (services/campPlanVersions.js writes it alike).
+ *
+ * @param {string} digest - The full SHA-256, in hexadecimal
+ * @returns {string}
+ */
+export function verificationCode(digest) {
+  const start = String(digest || '').slice(0, CODE_LENGTH).toUpperCase();
+  return start.match(new RegExp(`.{1,${CODE_GROUP}}`, 'g'))?.join(' ') || '';
+}
+
 /** How each state reads, and the class that repeats it beside the words. */
 const STATE_CLASSES = Object.freeze({ complete: 'is-complete', to_complete: 'is-missing', unverified: 'is-unverified' });
 
@@ -328,8 +345,13 @@ export class CampPermit {
       return `<li class="camp-permit__version">
           <h3>${escapeHTML(label)} <span class="camp-plan__chip">${escapeHTML(translate(`camp_plan_version_status_${version.status}`))}</span></h3>
           <p>${escapeHTML(meta)}</p>
-          <p class="camp-permit__digest">${escapeHTML(translate('camp_plan_version_digest'))}
-            <code>${escapeHTML(version.pdf_sha256)}</code></p>
+          <p class="camp-permit__code">${escapeHTML(translate('camp_plan_version_code'))}
+            <strong class="camp-permit__code-value">${escapeHTML(verificationCode(version.snapshot_sha256))}</strong></p>
+          <p class="field-hint">${escapeHTML(translate('camp_plan_version_code_hint'))}</p>
+          <details class="camp-permit__digest">
+            <summary>${escapeHTML(translate('camp_plan_version_digest_details'))}</summary>
+            <p>${escapeHTML(translate('camp_plan_version_digest'))} <code>${escapeHTML(version.pdf_sha256)}</code></p>
+          </details>
           ${version.has_health ? `<p class="field-hint">${escapeHTML(translate('camp_plan_version_health_note'))}</p>` : ''}
           <button type="button" class="button button--secondary button--small" data-version-download="${Number(version.version_number)}">
             ${escapeHTML(translate('camp_plan_version_download'))}<span class="sr-only"> : ${escapeHTML(label)}</span></button>

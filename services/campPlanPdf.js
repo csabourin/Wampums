@@ -43,10 +43,11 @@ function translator(language) {
  *
  * @param {Object} snapshot - From buildPlanSnapshot
  * @param {Object|null} health - The camp's allergies, for the copy that shows them; null otherwise
- * @param {{version: number, submittedAt: Date, language: string}} meta
+ * @param {{version: number, submittedAt: Date, language: string, code: string}} meta - `code` is the
+ *   version's verification code, printed on the first page and shown in Wampums
  * @returns {Promise<Buffer>} The PDF
  */
-function renderPlanPdf(snapshot, health, { version, submittedAt, language }) {
+function renderPlanPdf(snapshot, health, { version, submittedAt, language, code }) {
   const t = translator(language);
   const locale = LOCALES[language] || LOCALES.fr;
   const day = (value) => (value ? new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: 'UTC' })
@@ -122,6 +123,9 @@ function renderPlanPdf(snapshot, health, { version, submittedAt, language }) {
   // Title and what this document is.
   heading(root, 'H1', title);
   paragraph(root, t('camp_plan_pdf_version_line', { version: number(version), date: day(submittedAt.toISOString()) }));
+  if (code) {
+    paragraph(root, t('camp_plan_pdf_code_line', { code }));
+  }
   paragraph(root, t('camp_plan_pdf_disclaimer'));
 
   const { header } = snapshot;

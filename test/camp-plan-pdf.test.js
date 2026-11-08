@@ -48,7 +48,7 @@ const HEALTH = {
   youth: [{ first_name: 'Léa', last_name: 'Tremblay', allergies: 'Arachides', epipen: true, reaction: null, action: 'Épipen' }],
   adults: [{ name: 'Ada Lovelace', allergies: 'Pénicilline', carries_epipen: false, person_to_notify: 'Contact fictif' }],
 };
-const META = { version: 3, submittedAt: new Date('2027-06-01T12:00:00Z'), language: 'fr' };
+const META = { version: 3, submittedAt: new Date('2027-06-01T12:00:00Z'), language: 'fr', code: '2CEC 53A4' };
 
 test('the document is a tagged PDF/UA file in the unit’s language, with its title shown', async () => {
   const pdf = await renderPlanPdf(snapshot(), null, META);
@@ -57,6 +57,11 @@ test('the document is a tagged PDF/UA file in the unit’s language, with its ti
   ['/StructTreeRoot', '/MarkInfo', '/Lang (fr-CA)', '/DisplayDocTitle true', '/FontFile2', 'pdfuaid:part', '/H1', '/H2', '/H3', '/TH', '/Scope']
     .forEach((marker) => expect([marker, text.includes(marker)]).toEqual([marker, true]));
   expect(written[0]).toBe('Plan de camp — Camp des étoiles');
+});
+
+test('the first page carries the version’s verification code, in words people can compare', async () => {
+  await renderPlanPdf(snapshot(), null, META);
+  expect(written.slice(0, 4)).toContain('Code de vérification : 2CEC 53A4. Le même code apparaît dans Wampums pour cette version.');
 });
 
 test('what is missing is printed “to complete”, never left out', async () => {
@@ -101,4 +106,10 @@ test('every text the document prints has its translation in both languages', () 
   const languages = [require('../lang/en.json'), require('../lang/fr.json')];
   expect(keys.length).toBeGreaterThan(40);
   expect(keys.filter((key) => languages.some((strings) => !(key in strings)))).toEqual([]);
+});
+
+test('the verification code is the start of the version’s fingerprint, in capitals, in groups of four', () => {
+  const { verificationCode } = require('../services/campPlanVersions');
+  expect(verificationCode(`2cec53a4${'0'.repeat(56)}`)).toBe('2CEC 53A4');
+  expect(verificationCode(null)).toBe('');
 });

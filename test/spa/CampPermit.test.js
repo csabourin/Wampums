@@ -202,9 +202,9 @@ test('the checklist meets WCAG A/AA', async () => {
 describe('submitted versions (#1418)', () => {
   const DIGEST = 'ab'.repeat(32);
   const VERSIONS = { versions: [
-    { version_number: 2, status: 'submitted', pdf_sha256: DIGEST, has_health: true, submitted_at: '2027-06-01T16:00:00.000Z',
+    { version_number: 2, status: 'submitted', snapshot_sha256: `2cec53a4${'0'.repeat(56)}`, pdf_sha256: DIGEST, has_health: true, submitted_at: '2027-06-01T16:00:00.000Z',
       submitted_by_name: 'Ada <img src=x onerror=alert(1)>' },
-    { version_number: 1, status: 'superseded', pdf_sha256: 'cd'.repeat(32), has_health: false, submitted_at: '2027-05-20T16:00:00.000Z',
+    { version_number: 1, status: 'superseded', snapshot_sha256: 'ef'.repeat(32), pdf_sha256: 'cd'.repeat(32), has_health: false, submitted_at: '2027-05-20T16:00:00.000Z',
       submitted_by_name: null },
   ], changed_since_latest: ['schedule', 'team'] };
   const versionsBox = () => $('#camp-permit-versions');
@@ -216,7 +216,11 @@ describe('submitted versions (#1418)', () => {
     const items = [...document.querySelectorAll('.camp-permit__version')];
     expect(items.map((item) => item.querySelector('h3').textContent.replace(/\s+/g, ' ').trim()))
       .toEqual(['camp_plan_version_label camp_plan_version_status_submitted', 'camp_plan_version_label camp_plan_version_status_superseded']);
-    expect(items[0].querySelector('code').textContent).toBe(DIGEST);
+    // People compare a short code, also printed on the PDF; the full fingerprint is a technical detail.
+    expect(items[0].querySelector('.camp-permit__code-value').textContent).toBe('2CEC 53A4');
+    expect(items[0].querySelector('details summary').textContent).toBe('camp_plan_version_digest_details');
+    expect(items[0].querySelector('details').open).toBe(false);
+    expect(items[0].querySelector('details code').textContent).toBe(DIGEST);
     expect(items[0].textContent).toContain('Ada <img src=x onerror=alert(1)>');
     expect(items[0].textContent).toContain('camp_plan_version_health_note');
     expect(items[1].textContent).not.toContain('camp_plan_version_health_note');

@@ -162,6 +162,19 @@ function canonicalJson(value) {
   return JSON.stringify(value ?? null);
 }
 
+/** How many characters of a fingerprint people compare, in groups of four. */
+const CODE_LENGTH = 8;
+const CODE_GROUP = 4;
+
+/**
+ * The short code people compare by eye: the start of a fingerprint, in capitals, in groups of four.
+ * The SPA's `verificationCode` (spa/modules/camp-plan/CampPermit.js) writes it the same way.
+ */
+function verificationCode(digest) {
+  const start = String(digest || '').slice(0, CODE_LENGTH).toUpperCase();
+  return start.match(new RegExp(`.{1,${CODE_GROUP}}`, 'g'))?.join(' ') || '';
+}
+
 /** @returns {string[]} The parts of `current` that differ from `previous` */
 function changedParts(previous, current) {
   return SNAPSHOT_PARTS.filter((part) => canonicalJson(previous?.[part]) !== canonicalJson(current?.[part]));
@@ -183,7 +196,7 @@ async function lockCamp(db, organizationId, meetingId) {
 }
 
 /** A version as people see it: no snapshot, no document bytes. */
-const VERSION_COLUMNS = `v.version_number, v.status, v.language, v.pdf_sha256, v.pdf_health IS NOT NULL AS has_health,
+const VERSION_COLUMNS = `v.version_number, v.status, v.language, v.snapshot_sha256, v.pdf_sha256, v.pdf_health IS NOT NULL AS has_health,
   v.submitted_at, u.full_name AS submitted_by_name`;
 
 /**
@@ -206,7 +219,9 @@ function submitPlanVersion(pool, organizationId, actorId, meetingId) {
       [organizationId, meetingId]
     )).rows[0].next);
     const submittedAt = new Date();
-    const meta = { version: number, submittedAt, language };
+    // The verification code printed on the document and shown in Wampums: the same for both copies.
+    const snapshotSha256 = sha256(canonicalJson({ meeting_id: meetingId, version: number, snapshot }));
+    const meta = { version: number, submittedAt, language, code: verificationCode(snapshotSha256) };
     const pdf = await renderPlanPdf(snapshot, null, meta);
     const hasHealth = Boolean(health && (health.youth.length || health.adults.length));
     const pdfHealth = hasHealth ? await renderPlanPdf(snapshot, health, meta) : null;
@@ -216,10 +231,10 @@ function submitPlanVersion(pool, organizationId, actorId, meetingId) {
       [organizationId, meetingId]
     );
     await db.query(
-      `INSERT INTO camp_plan_versions (organization_id, meeting_id, version_number, language, snapshot, pdf, pdf_sha256,
-         pdf_health, pdf_health_sha256, submitted_by, submitted_at)
-       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11)`,
-      [organizationId, meetingId, number, language, JSON.stringify(snapshot), pdf, sha256(pdf),
+      `INSERT INTO camp_plan_versions (organization_id, meeting_id, version_number, language, snapshot, snapshot_sha256,
+         pdf, pdf_sha256, pdf_health, pdf_health_sha256, submitted_by, submitted_at)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12)`,
+      [organizationId, meetingId, number, language, JSON.stringify(snapshot), snapshotSha256, pdf, sha256(pdf),
         pdfHealth, pdfHealth ? sha256(pdfHealth) : null, actorId, submittedAt]
     );
     return (await db.query(
@@ -286,5 +301,5 @@ async function readPlanVersionPdf(db, organizationId, meetingId, versionNumber, 
 }
 
 module.exports = {
-  SNAPSHOT_PARTS, buildPlanSnapshot, changedParts, submitPlanVersion, listPlanVersions, readPlanVersionPdf, unitLanguage,
+  SNAPSHOT_PARTS, buildPlanSnapshot, changedParts, verificationCode, submitPlanVersion, listPlanVersions, readPlanVersionPdf, unitLanguage,
 };
