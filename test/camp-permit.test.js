@@ -21,6 +21,7 @@ const complete = () => ({
   },
   plan: { to_write: [], to_review: [], rain_games: 2 },
   schedule_days: [0, 1, 2],
+  titled_days: [0, 1, 2],
   material: { items: [{ category: 'first_aid' }, { category: 'kitchen' }], free_text: [] },
   personal: { published: true },
   roster: {
@@ -95,6 +96,13 @@ test('a day of the camp with nothing planned leaves the schedule to complete', (
   const sources = { ...complete(), schedule_days: [0, 2, 9] };
   expect(byKey(permitLines(sources, RIGHTS)).schedule).toMatchObject({
     state: 'to_complete', reasons: ['days_without_activity'], counts: { days: 3, empty_days: 1 },
+  });
+});
+
+test('a day of the camp without a title leaves the schedule to complete', () => {
+  const sources = { ...complete(), titled_days: [0, 2, 9] };
+  expect(byKey(permitLines(sources, RIGHTS)).schedule).toMatchObject({
+    state: 'to_complete', reasons: ['days_without_title'], counts: { untitled_days: 1, empty_days: 0 },
   });
 });
 

@@ -1220,3 +1220,118 @@ describe('PATCH /api/v1/yearly-planner/meetings/:id', () => {
     expect(setClause).not.toContain('is_cancelled');
   });
 });
+
+describe('who leads a schedule line, and its logistic notes (#1417)', () => {
+  const ADA = '00000000-0000-4000-8000-0000000000a1';
+  const LEA = '00000000-0000-4000-8000-0000000000b2';
+
+  /** A line 5 of the unit; the members the unit lets lead are `allowed`. */
+  function stubLine({ allowed = [ADA, LEA], updated = [{ id: 5, name: 'Cooking' }] } = {}) {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('SELECT id, meeting_id FROM year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [{ id: 5, meeting_id: MEETING_ID }] });
+      }
+      if (query.includes('UPDATE year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: updated });
+      }
+      if (query.includes('FROM user_organizations uo') && query.includes('year_plan_meeting_activity_leaders')) {
+        return Promise.resolve({ rows: allowed.map((id) => ({ user_id: id })) });
+      }
+      if (query.includes('FROM year_plan_meeting_activity_leaders l') && query.includes('JOIN users u')) {
+        return Promise.resolve({ rows: [{ meeting_activity_id: 5, user_id: ADA, name: 'Ada Lovelace', active_member: true }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+  }
+  const patch = (body) => request(app)
+    .patch('/api/v1/yearly-planner/meeting-activities/5')
+    .set('Authorization', `Bearer ${generateToken()}`)
+    .send(body);
+
+  test('a leader names the members in charge of a line, in order, with the line', async () => {
+    stubLine();
+    const res = await patch({ leader_ids: [LEA, ADA.toUpperCase()], description: 'Bring the big pot.' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.leaders).toEqual([{ user_id: ADA, name: 'Ada Lovelace', active_member: true }]);
+    const calls = clientQueries();
+    const insert = require('pg').__mClient.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO year_plan_meeting_activity_leaders'));
+    expect(insert[1]).toEqual([ORG_ID, 5, [LEA, ADA]]);
+    expect(calls[calls.length - 1]).toBe('COMMIT');
+    const update = require('pg').__mClient.query.mock.calls.find(([sql]) => String(sql).includes('UPDATE year_plan_meeting_activities'));
+    expect(update[1]).toContain('Bring the big pot.');
+  });
+
+  test('naming someone who may not lead in the unit is refused, and nothing is saved', async () => {
+    stubLine({ allowed: [ADA] });
+    const res = await patch({ leader_ids: [ADA, LEA] });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('schedule_leaders_invalid');
+    expect(res.body.errors[0].path).toBe('leader_ids');
+    const sql = clientQueries();
+    expect(sql).toContain('ROLLBACK');
+    expect(sql.some((text) => text.includes('INSERT INTO year_plan_meeting_activity_leaders'))).toBe(false);
+  });
+
+  test.each([
+    ['not a list', ADA],
+    ['not an id', ['12abc']],
+    ['twice the same member', [ADA, ADA.toUpperCase()]],
+    ['too many members', Array.from({ length: 11 }, (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`)],
+  ])('a malformed list of members (%s) is refused before any write', async (_label, leaderIds) => {
+    stubLine();
+    const res = await patch({ leader_ids: leaderIds });
+    expect(res.status).toBe(400);
+    expect(res.body.errors[0].path).toBe('leader_ids');
+    expect(clientQueries()).not.toContain('BEGIN');
+  });
+
+  test('logistic notes longer than the limit are refused', async () => {
+    stubLine();
+    expect((await patch({ description: 'x'.repeat(4001) })).status).toBe(400);
+  });
+
+  test('an editor whose line was changed by someone else since it loaded is refused, not overwritten', async () => {
+    stubLine({ updated: [] });
+    const res = await patch({ name: 'Cooking', expected_updated_at: '2026-11-01T12:00:00.000Z' });
+    expect(res.status).toBe(409);
+    expect(res.body.message).toBe('schedule_line_changed');
+    const update = require('pg').__mClient.query.mock.calls.find(([sql]) => String(sql).includes('UPDATE year_plan_meeting_activities'));
+    expect(String(update[0])).toContain("date_trunc('milliseconds', updated_at) IS NOT DISTINCT FROM");
+    expect(update[1].slice(-3)).toEqual([5, ORG_ID, '2026-11-01T12:00:00.000Z']);
+  });
+
+  test('the schedule names each line’s members in charge and the camp’s team', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      const stub = authStubs(query);
+      if (stub) { return stub; }
+      if (query.includes('GREATEST(') && query.includes('FROM year_plan_meetings m')) {
+        return Promise.resolve({ rows: [meetingRow({ meeting_kind: 'camp', span_days: 1 })] });
+      }
+      if (query.includes('CROSS JOIN GENERATE_SERIES')) {
+        return Promise.resolve({ rows: [{ day_offset: 0, date: '2025-10-17', title: null, notes: null }] });
+      }
+      if (query.includes('SELECT * FROM year_plan_meeting_activities')) {
+        return Promise.resolve({ rows: [{ id: 5, day_offset: 0, name: 'Cooking', description: 'Big pot' }] });
+      }
+      if (query.includes('FROM year_plan_meeting_activity_leaders l')) {
+        return Promise.resolve({ rows: [{ meeting_activity_id: 5, user_id: LEA, name: 'Léa Tremblay', active_member: false }] });
+      }
+      if (query.includes('FROM camp_team_members t')) {
+        return Promise.resolve({ rows: [{ user_id: ADA }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    const res = await request(app)
+      .get(`/api/v1/yearly-planner/meetings/${MEETING_ID}/schedule`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .expect(200);
+    expect(res.body.data.team_user_ids).toEqual([ADA]);
+    expect(res.body.data.days[0].activities[0]).toMatchObject({
+      description: 'Big pot', leaders: [{ user_id: LEA, name: 'Léa Tremblay', active_member: false }],
+    });
+  });
+});

@@ -34,6 +34,7 @@ const REASON_COUNTS = Object.freeze({
   sections_to_write: 'to_write',
   sections_to_review: 'to_review',
   days_without_activity: 'empty_days',
+  days_without_title: 'untitled_days',
   consent_pending: 'pending',
   cite_transport: 'offers',
 });

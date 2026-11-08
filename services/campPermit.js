@@ -40,7 +40,7 @@ const REASONS = Object.freeze([
   'missing_scout_group', 'missing_district', 'missing_coeducation', 'no_site', 'site_archived', 'missing_address',
   'missing_owner', ...EMERGENCY_FIELDS.map((field) => `missing_${field}`), 'missing_on_site_lead', 'insurance_unanswered',
   'missing_directions', 'missing_season', 'missing_accommodation', 'sections_to_write', 'sections_to_review', 'no_rain_game',
-  'no_schedule', 'days_without_activity', 'no_group_material', 'no_first_aid_kit', 'material_free_text', 'no_personal_list',
+  'no_schedule', 'days_without_activity', 'days_without_title', 'no_group_material', 'no_first_aid_kit', 'material_free_text', 'no_personal_list',
   'personal_list_unpublished', 'no_scout_year', 'no_youth', 'consent_pending', 'sisc_not_compared', ...TEAM_TO_COMPLETE,
   'swimming_supervision', 'youth_health_form_missing', 'adult_allergies_not_declared', 'after_camp', 'review_open',
   'not_in_wampums', 'approvals_coming', 'no_activity', 'no_access', 'cite_transport',
@@ -144,16 +144,28 @@ function planLines(plan) {
   ];
 }
 
-/** The camp's schedule: every day of the camp should have something planned. */
-function scheduleLine(camp, scheduledDays) {
+/**
+ * The camp's schedule: every day of the camp has something planned, and a title
+ * the plan uses as its narrative heading (#1417).
+ */
+function scheduleLine(camp, scheduledDays, titledDays = []) {
   const days = campDays(camp.date_from, camp.date_to);
-  const planned = scheduledDays.filter((day) => day >= 0 && day < days).length;
+  const inCamp = (day) => day >= 0 && day < days;
+  const planned = new Set(scheduledDays.filter(inCamp)).size;
+  const untitled = days - new Set(titledDays.filter(inCamp)).size;
   if (!planned) {
-    return line('schedule', TO_COMPLETE, ['no_schedule'], { counts: { days, empty_days: days } });
+    return line('schedule', TO_COMPLETE, ['no_schedule'], { counts: { days, empty_days: days, untitled_days: untitled } });
   }
   const empty = days - planned;
-  return line('schedule', empty ? TO_COMPLETE : COMPLETE, empty ? ['days_without_activity'] : [],
-    { counts: { days, empty_days: empty } });
+  const reasons = [];
+  if (empty) {
+    reasons.push('days_without_activity');
+  }
+  if (untitled) {
+    reasons.push('days_without_title');
+  }
+  return line('schedule', reasons.length ? TO_COMPLETE : COMPLETE, reasons,
+    { counts: { days, empty_days: empty, untitled_days: untitled } });
 }
 
 /** The group's material and its first aid kit. Free-text needs cannot be checked. */
@@ -256,7 +268,7 @@ function permitLines(sources, rights) {
     line('dates', COMPLETE, [], { counts: { days: campDays(sources.camp.date_from, sources.camp.date_to) } }),
     ...siteLines(sources.site),
     ...planLines(sources.plan),
-    scheduleLine(sources.camp, sources.schedule_days),
+    scheduleLine(sources.camp, sources.schedule_days, sources.titled_days),
     line('menu', UNVERIFIED, ['not_in_wampums']),
     materialLine(sources.material),
     personalLine(sources.personal),
@@ -325,6 +337,9 @@ async function smallReads(db, organizationId, camp) {
   const row = (await db.query(
     `SELECT COALESCE((SELECT json_agg(DISTINCT a.day_offset) FROM year_plan_meeting_activities a
                        WHERE a.organization_id = $1 AND a.meeting_id = $2), '[]'::json) AS schedule_days,
+            COALESCE((SELECT json_agg(d.day_offset) FROM year_plan_meeting_days d
+                       WHERE d.organization_id = $1 AND d.meeting_id = $2
+                         AND length(btrim(COALESCE(d.title, ''))) > 0), '[]'::json) AS titled_days,
             (SELECT json_build_object('published', l.published) FROM personal_equipment_lists l
               WHERE l.organization_id = $1 AND l.meeting_id = $2) AS personal,
             (SELECT COUNT(*) FROM carpool_offers c
@@ -336,6 +351,7 @@ async function smallReads(db, organizationId, camp) {
   )).rows[0] || {};
   return {
     schedule_days: (row.schedule_days || []).map(Number),
+    titled_days: (row.titled_days || []).map(Number),
     personal: row.personal || null,
     carpool_offers: Number(row.carpool_offers) || 0,
     evaluation: { over: Boolean(camp.over), closed: Boolean(row.review_closed) },

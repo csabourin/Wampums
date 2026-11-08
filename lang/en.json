@@ -6105,5 +6105,15 @@
   "unit_coeducation_mixed": "Mixed",
   "unit_coeducation_girls": "Girls only",
   "unit_coeducation_boys": "Boys only",
-  "camp_permit_view": "View"
+  "camp_permit_view": "View",
+  "yearly_planner_leaders": "Members in charge",
+  "yearly_planner_leaders_hint": "Choose among the unit’s team; the camp’s team comes first.",
+  "yearly_planner_leaders_none": "No member of the unit’s team can be named yet.",
+  "yearly_planner_leader_left": "(left the unit)",
+  "yearly_planner_responsible_other": "Other people in charge (without an account)",
+  "yearly_planner_logistic_notes": "Logistic notes",
+  "schedule_leaders_too_many": "Name at most {count} members.",
+  "schedule_leaders_invalid": "One of the members chosen can no longer be named. Reload the schedule and try again.",
+  "schedule_line_changed": "Someone changed this line since you opened it. Their change is now shown: make yours again.",
+  "camp_permit_reason_days_without_title": "Days without a title: {count}"
 }

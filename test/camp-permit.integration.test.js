@@ -107,6 +107,8 @@ describe.skipIf(!DATABASE_URL)('Camp permit checklist', () => {
       VALUES ($1, $2, $3, 'summer', $4)`, [ids.unit, ids.camp, site, ids.leader]);
     await pool.query(`INSERT INTO year_plan_meeting_activities (organization_id, meeting_id, name, day_offset)
       SELECT $1, $2, 'Grand jeu fictif', day FROM generate_series(0, 2) AS day`, [ids.unit, ids.camp]);
+    await pool.query(`INSERT INTO year_plan_meeting_days (organization_id, meeting_id, day_offset, title)
+      SELECT $1, $2, day, 'Journée fictive ' || day FROM generate_series(0, 2) AS day`, [ids.unit, ids.camp]);
 
     const response = await read(ids.camp);
     const byKey = lines(response.body);

@@ -44,6 +44,10 @@ jest.mock('../../spa/api/api-equipment-catalog.js', () => ({
   getMaterialOptions: jest.fn(),
 }));
 
+jest.mock('../../spa/api/api-camp-rosters.js', () => ({
+  getCampTeamCandidates: jest.fn(),
+}));
+
 jest.mock('../../spa/utils/DialogUtils.js', () => ({
   confirmDestructive: jest.fn(),
   hasActiveDialog: () => false,
@@ -61,6 +65,7 @@ jest.mock('../../spa/api/api-yearly-planner.js', () => ({
 
 const api = require('../../spa/api/api-yearly-planner.js');
 const catalogApi = require('../../spa/api/api-equipment-catalog.js');
+const rosterApi = require('../../spa/api/api-camp-rosters.js');
 const { confirmDestructive } = require('../../spa/utils/DialogUtils.js');
 const { closeAllModals } = require('../../spa/utils/ModalUtils.js');
 const { CampSchedule } = require('../../spa/modules/yearly-planner/CampSchedule.js');
@@ -143,6 +148,8 @@ beforeEach(() => {
   api.getMeetingSchedule.mockResolvedValue({ success: true, data: schedule() });
   catalogApi.getMaterialOptions.mockReset();
   catalogApi.getMaterialOptions.mockResolvedValue({ success: true, data: CHOICES });
+  rosterApi.getCampTeamCandidates.mockReset();
+  rosterApi.getCampTeamCandidates.mockResolvedValue({ success: true, data: [] });
   confirmDestructive.mockReset();
 });
 
@@ -470,4 +477,118 @@ test('the camp schedule leads to the camp\'s collective material list, for viewe
   const link = dialog().querySelector('.modal-footer a[href]');
   expect(link.getAttribute('href')).toBe(`/camp-material/${MEETING_ID}`);
   expect(link.textContent.trim()).toBe('camp_material_open');
+});
+
+describe('who leads a line, and its logistic notes (#1417)', () => {
+  const ADA = '00000000-0000-4000-8000-0000000000a1';
+  const LEA = '00000000-0000-4000-8000-0000000000b2';
+  const OLD = '00000000-0000-4000-8000-0000000000c3';
+
+  /** A camp whose first line names Léa, and Gil who has left the unit. */
+  function withLeaders() {
+    const data = schedule();
+    data.team_user_ids = [LEA];
+    Object.assign(data.days[0].activities[0], {
+      updated_at: '2026-11-01T12:00:00.000Z',
+      description: 'Cones in the <b>blue</b> bin',
+      leaders: [
+        { user_id: LEA, name: 'Léa Tremblay', active_member: true },
+        { user_id: OLD, name: 'Gil <img src=x onerror=alert(1)>', active_member: false },
+      ],
+    });
+    return data;
+  }
+
+  beforeEach(() => {
+    api.getMeetingSchedule.mockResolvedValue({ success: true, data: withLeaders() });
+    rosterApi.getCampTeamCandidates.mockResolvedValue({ success: true, data: [
+      { user_id: ADA, name: 'Ada Lovelace' },
+      { user_id: LEA, name: 'Léa Tremblay' },
+    ] });
+  });
+
+  /** @returns {HTMLElement} The first line, in quick edit */
+  async function editFirstLine() {
+    await openSchedule();
+    dialog().querySelector('[data-edit-activity="11"]').click();
+    return dialog().querySelector('[data-activity-id="11"]');
+  }
+
+  test('a line says who leads it and its notes, marking a member who left, as text', async () => {
+    await openSchedule(false);
+    const card = dialog().querySelector('[data-activity-id="11"]');
+    expect(card.textContent).toContain('Léa Tremblay, Gil <img src=x onerror=alert(1)> yearly_planner_leader_left, Akela');
+    expect(card.textContent).toContain('Cones in the <b>blue</b> bin');
+    expect(card.querySelector('img, b')).toBeNull();
+  });
+
+  test('someone who may only look is not offered the members to choose from', async () => {
+    await openSchedule(false);
+    expect(rosterApi.getCampTeamCandidates).not.toHaveBeenCalled();
+    expect(dialog().querySelector('[data-leaders]')).toBeNull();
+  });
+
+  test('members are chosen with labelled checkboxes, the camp’s team first, and saved with the notes and the version loaded', async () => {
+    const card = await editFirstLine();
+    const boxes = [...card.querySelectorAll('[data-leaders] input[type="checkbox"]')];
+    expect(boxes.map((box) => box.labels[0].textContent.trim().replace(/\s+/g, ' ')))
+      .toEqual(['Léa Tremblay', 'Ada Lovelace', 'Gil <img src=x onerror=alert(1)> yearly_planner_leader_left']);
+    expect(boxes.map((box) => box.checked)).toEqual([true, false, true]);
+    expect(card.querySelector('[data-leaders] legend').textContent).toBe('yearly_planner_leaders');
+
+    boxes[1].click();
+    boxes[2].click();
+    card.querySelector('[data-field="description"]').value = '  Bring the big pot.  ';
+    card.querySelector('[data-save-activity="11"]').click();
+    await flush();
+
+    expect(api.updateMeetingActivity).toHaveBeenCalledWith(11, expect.objectContaining({
+      leader_ids: [LEA, ADA], description: 'Bring the big pot.', expected_updated_at: '2026-11-01T12:00:00.000Z',
+    }));
+  });
+
+  test('a line someone else changed meanwhile is reloaded, with the reason, and nothing is overwritten', async () => {
+    api.updateMeetingActivity.mockRejectedValueOnce(Object.assign(new Error('changed'), { status: 409, message: 'schedule_line_changed' }));
+    const card = await editFirstLine();
+    card.querySelector('[data-save-activity="11"]').click();
+    await flush();
+    await flush();
+    expect(app.showMessage).toHaveBeenCalledWith(expect.any(String), 'error');
+    expect(api.getMeetingSchedule).toHaveBeenCalledTimes(2);
+  });
+
+  test('when the members cannot be loaded, the line keeps those it names and only the free text is offered', async () => {
+    rosterApi.getCampTeamCandidates.mockRejectedValueOnce(new Error('down'));
+    const card = await editFirstLine();
+    expect(card.querySelector('[data-leaders]')).toBeNull();
+    card.querySelector('[data-save-activity="11"]').click();
+    await flush();
+    expect(api.updateMeetingActivity.mock.calls[0][1]).not.toHaveProperty('leader_ids');
+  });
+
+  test('a new line names its members and notes', async () => {
+    await openSchedule();
+    const form = openAddForm();
+    document.getElementById('yp-schedule-new-name').value = 'Veillée';
+    document.getElementById('yp-schedule-new-notes').value = 'Lanterns';
+    form.querySelector(`[data-leaders] input[value="${ADA}"]`).click();
+    form.requestSubmit();
+    await flush();
+    expect(api.addMeetingActivity).toHaveBeenCalledWith(MEETING_ID, expect.objectContaining({
+      name: 'Veillée', description: 'Lanterns', leader_ids: [ADA],
+    }));
+  });
+
+  test('a line being edited, with its members, meets WCAG A/AA', async () => {
+    await editFirstLine();
+    const results = await axe.run(dialog(), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('the add form, with its members, meets WCAG A/AA', async () => {
+    await openSchedule();
+    openAddForm();
+    const results = await axe.run(document.querySelector('#yp-schedule-activity'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
 });

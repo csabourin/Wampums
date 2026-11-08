@@ -465,6 +465,6 @@ function removeTeamMember(pool, organizationId, meetingId, userId) {
 }
 
 module.exports = {
-  CampRosterError, TEAM_ROLES, BLOCKING_GAPS, readCampRoster, listTeamCandidates, saveTeamMember, removeTeamMember,
+  CampRosterError, TEAM_ROLES, BLOCKING_GAPS, ON_TEAM_SQL, readCampRoster, listTeamCandidates, saveTeamMember, removeTeamMember,
   saveCampActivities,
 };
