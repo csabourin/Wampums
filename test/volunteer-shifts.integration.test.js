@@ -5,6 +5,8 @@
  * people taking the last place at the same moment cannot both get it: one is confirmed,
  * the other is told the shift is full (409).
  */
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const request = require('supertest');
 const { Pool } = require('pg');
@@ -120,6 +122,11 @@ describe.skipIf(!DATABASE_URL)('volunteer shifts', () => {
   });
 
   test('a parent takes a place without being given the volunteer role, sees no one else\'s name, and joins the background checks', async () => {
+    // A database built from the repository has no parent role until a suite adds one; make sure it
+    // exists, then run migration 084 itself, which is what grants it the shifts.
+    await pool.query(`INSERT INTO roles (role_name, display_name, data_scope) VALUES ('parent', 'Parent', 'linked')
+      ON CONFLICT (role_name) DO NOTHING`);
+    await pool.query(fs.readFileSync(path.join(__dirname, '../migrations/084_parents_take_volunteer_shifts.sql'), 'utf8'));
     const parent = await member('Marie Curie', 'parent');
     const shift = await saveShift(pool, ids.unit, ids.manager, {
       activity_id: ids.camp, volunteer_type: 'cook', title: 'Souper', shift_date: await one('SELECT (CURRENT_DATE + 3)::text'),
