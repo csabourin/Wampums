@@ -725,6 +725,30 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
 /**
  * Main API object with HTTP methods
  */
+/**
+ * Fetch a file the API serves (a PDF), never cached. A refusal throws the same
+ * error a JSON request would, so screens explain it with apiErrorMessage.
+ *
+ * @param {string} endpoint - Endpoint without the API prefix
+ * @returns {Promise<{blob: Blob, filename: string|null, sha256: string|null}>}
+ */
+export async function getApiFile(endpoint) {
+  const requestHeaders = { ...getAuthHeader() };
+  const requestToken = requestSessionToken(requestHeaders);
+  const url = addCacheBuster(buildApiUrl(endpoint, {}, Boolean(requestToken)));
+  noteRequestSession(requestToken);
+  const response = await fetch(url, { method: 'GET', headers: { Accept: 'application/pdf, application/json', ...requestHeaders } });
+  if (!response.ok) {
+    await handleResponse(response, { requestToken });
+  }
+  const disposition = response.headers.get('content-disposition') || '';
+  return {
+    blob: await response.blob(),
+    filename: disposition.match(/filename="([^"]+)"/)?.[1] || null,
+    sha256: response.headers.get('x-content-sha256'),
+  };
+}
+
 export const API = {
   /**
      * GET request with optional caching
@@ -742,6 +766,13 @@ export const API = {
      */
   async getNoCache(endpoint, params = {}) {
     return makeApiRequest(endpoint, { params, cacheBuster: true });
+  },
+
+  /**
+     * GET a file (a PDF), never cached
+     */
+  getFile(endpoint) {
+    return getApiFile(endpoint);
   },
 
   /**

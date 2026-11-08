@@ -64,3 +64,30 @@ export function saveCampPlanSection(meetingId, sectionKey, body) {
 export function saveCampPlanRainGames(meetingId, activityLibraryIds) {
   return API.put(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/rain-games`, { activity_library_ids: activityLibraryIds });
 }
+
+/**
+ * @param {number} meetingId - The planned camp
+ * @returns {Promise<Object>} { versions, changed_since_latest }
+ */
+export function getCampPlanVersions(meetingId) {
+  return API.getNoCache(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/versions`);
+}
+
+/**
+ * Submit the plan: freeze its content and generate its document.
+ *
+ * @param {number} meetingId - The planned camp
+ * @returns {Promise<Object>} The new version
+ */
+export function submitCampPlanVersion(meetingId) {
+  return API.post(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/versions`, {});
+}
+
+/**
+ * @param {number} meetingId - The planned camp
+ * @param {number} versionNumber - The version
+ * @returns {Promise<{blob: Blob, filename: string|null, sha256: string|null}>} Its PDF
+ */
+export function getCampPlanVersionPdf(meetingId, versionNumber) {
+  return API.getFile(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/versions/${encodeURIComponent(versionNumber)}/pdf`);
+}

@@ -13,6 +13,12 @@
  *
  * Takes `meetings.view` with a unit-wide scope, as its endpoint does.
  *
+ * Below the checklist, the plan's frozen versions (#1418): submitting the plan
+ * freezes its content and its PDF; each version can be downloaded, with its
+ * SHA-256 digest, and the screen says what changed since the latest. They name
+ * the camp's youth, so they are offered with `participants.view`; submitting
+ * takes `meetings.manage`, never from a demo account.
+ *
  * @module spa/modules/camp-plan/CampPermit
  */
 import { translate } from '../../app.js';
@@ -25,8 +31,9 @@ import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
-import { hasPermission, canAccessAdminPanel, canViewCarpools } from '../../utils/PermissionUtils.js';
-import { getCampPermit } from '../../api/api-camp-plans.js';
+import { hasPermission, canAccessAdminPanel, canViewCarpools, isDemoUser } from '../../utils/PermissionUtils.js';
+import { confirm } from '../../utils/DialogUtils.js';
+import { getCampPermit, getCampPlanVersions, submitCampPlanVersion, getCampPlanVersionPdf } from '../../api/api-camp-plans.js';
 import styles from '../../../css/camp-plan.css?url';
 
 /** The count a reason's text names, by reason. */
@@ -38,6 +45,9 @@ const REASON_COUNTS = Object.freeze({
   consent_pending: 'pending',
   cite_transport: 'offers',
 });
+
+/** How long a downloaded file's address stays valid, once the browser has started saving it. */
+const DOWNLOAD_URL_LIFETIME_MS = 10000;
 
 /** How each state reads, and the class that repeats it beside the words. */
 const STATE_CLASSES = Object.freeze({ complete: 'is-complete', to_complete: 'is-missing', unverified: 'is-unverified' });
@@ -53,11 +63,17 @@ export class CampPermit {
     this.data = null;
     this.destroyed = false;
     this.request = 0;
+    // Frozen versions (#1418): null while loading, an Error when they could not be.
+    this.versions = null;
+    this.versionsRequest = 0;
+    this.canReadVersions = hasPermission('participants.view');
+    this.canSubmit = this.canReadVersions && hasPermission('meetings.manage') && !isDemoUser();
   }
 
   destroy() {
     this.destroyed = true;
     this.request += 1;
+    this.versionsRequest += 1;
   }
 
   /** @returns {HTMLElement|null} */
@@ -226,6 +242,146 @@ export class CampPermit {
         ${this.summaryMarkup()}
         ${this.headerMarkup()}
         ${groups.map((group) => this.groupMarkup(group)).join('')}
+        ${this.canReadVersions ? `<section class="camp-plan__group camp-permit__versions" aria-labelledby="camp-permit-versions-title">
+          <h2 id="camp-permit-versions-title" tabindex="-1">${escapeHTML(translate('camp_plan_versions_title'))}</h2>
+          <p>${escapeHTML(translate('camp_plan_versions_intro'))}</p>
+          <div id="camp-permit-versions"></div>
+        </section>` : ''}
       </section>`);
+    if (this.canReadVersions) {
+      this.loadVersions();
+    }
+  }
+
+  /** The versions part, redrawn alone: loading, failed (with a retry), or the list. */
+  drawVersions() {
+    const container = this.root()?.querySelector('#camp-permit-versions');
+    if (!container) {
+      return;
+    }
+    if (this.versions === null) {
+      setContent(container, `<p role="status">${escapeHTML(translate('camp_plan_versions_loading'))}</p>`);
+      return;
+    }
+    if (this.versions instanceof Error) {
+      setContent(container, `<div role="alert"><p>${escapeHTML(apiErrorMessage(this.versions, 'camp_plan_versions_load_failed'))}</p>
+        <button type="button" class="button button--secondary button--small" id="camp-permit-versions-retry">${escapeHTML(translate('retry'))}</button></div>`);
+      container.querySelector('#camp-permit-versions-retry').addEventListener('click', () => this.loadVersions());
+      return;
+    }
+    setContent(container, this.versionsMarkup());
+    container.querySelector('#camp-permit-submit')?.addEventListener('click', (event) => this.submit(event.currentTarget));
+    container.querySelectorAll('[data-version-download]').forEach((button) => {
+      button.addEventListener('click', () => this.download(Number(button.dataset.versionDownload), button));
+    });
+  }
+
+  async loadVersions() {
+    const request = ++this.versionsRequest;
+    this.versions = null;
+    this.drawVersions();
+    try {
+      const response = await getCampPlanVersions(this.meetingId);
+      if (this.destroyed || request !== this.versionsRequest) {
+        return;
+      }
+      if (!Array.isArray(response?.data?.versions)) {
+        throw new Error('Missing camp plan versions');
+      }
+      this.versions = response.data;
+    } catch (err) {
+      if (this.destroyed || request !== this.versionsRequest) {
+        return;
+      }
+      debugError('Failed to load the camp plan versions:', err);
+      this.versions = err instanceof Error ? err : new Error('versions');
+    }
+    this.drawVersions();
+  }
+
+  /** @returns {string} What changed since the latest version, in words */
+  changesMarkup() {
+    const { versions, changed_since_latest: changed } = this.versions;
+    if (!versions.length || !Array.isArray(changed)) {
+      return `<p>${escapeHTML(translate('camp_plan_versions_none'))}</p>`;
+    }
+    const latest = this.number(versions[0].version_number);
+    if (!changed.length) {
+      return `<p class="camp-permit__unchanged">${escapeHTML(translate('camp_plan_changed_none').replace('{version}', latest))}</p>`;
+    }
+    return `<div class="camp-permit__changes"><p>${escapeHTML(translate('camp_plan_changed_since').replace('{version}', latest))}</p>
+        <ul>${changed.map((part) => `<li>${escapeHTML(translate(`camp_plan_part_${part}`))}</li>`).join('')}</ul></div>`;
+  }
+
+  /** @returns {string} The submit button, the changes, and every version with its document */
+  versionsMarkup() {
+    const { versions } = this.versions;
+    const submit = this.canSubmit && !this.data.camp.is_cancelled
+      ? `<p><button type="button" class="button button--primary" id="camp-permit-submit">${escapeHTML(translate('camp_plan_submit'))}</button></p>` : '';
+    const items = versions.map((version) => {
+      const label = translate('camp_plan_version_label').replace('{version}', this.number(version.version_number));
+      const date = new Intl.DateTimeFormat(localeForLanguage(this.lang()), { dateStyle: 'long', timeStyle: 'short' })
+        .format(new Date(version.submitted_at));
+      const meta = version.submitted_by_name
+        ? translate('camp_plan_version_meta').replace('{date}', date).replace('{name}', version.submitted_by_name)
+        : translate('camp_plan_version_meta_unknown').replace('{date}', date);
+      return `<li class="camp-permit__version">
+          <h3>${escapeHTML(label)} <span class="camp-plan__chip">${escapeHTML(translate(`camp_plan_version_status_${version.status}`))}</span></h3>
+          <p>${escapeHTML(meta)}</p>
+          <p class="camp-permit__digest">${escapeHTML(translate('camp_plan_version_digest'))}
+            <code>${escapeHTML(version.pdf_sha256)}</code></p>
+          ${version.has_health ? `<p class="field-hint">${escapeHTML(translate('camp_plan_version_health_note'))}</p>` : ''}
+          <button type="button" class="button button--secondary button--small" data-version-download="${Number(version.version_number)}">
+            ${escapeHTML(translate('camp_plan_version_download'))}<span class="sr-only"> : ${escapeHTML(label)}</span></button>
+        </li>`;
+    }).join('');
+    return `${submit}${this.changesMarkup()}${items ? `<ul class="camp-permit__version-list">${items}</ul>` : ''}`;
+  }
+
+  /** Submit the plan once confirmed; declining changes nothing. */
+  async submit(button) {
+    const confirmed = await confirm({
+      title: translate('camp_plan_submit_confirm_title'),
+      message: translate('camp_plan_submit_confirm_message'),
+      confirmLabel: translate('camp_plan_submit'),
+    });
+    if (!confirmed || this.destroyed) {
+      return;
+    }
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    try {
+      await submitCampPlanVersion(this.meetingId);
+      this.app.showMessage(translate('camp_plan_version_submitted'), 'success');
+      await this.loadVersions();
+      this.root()?.querySelector('#camp-permit-versions-title')?.focus();
+    } catch (err) {
+      debugError('Failed to submit the camp plan:', err);
+      this.app.showMessage(apiErrorMessage(err, 'camp_plan_version_submit_failed'), 'error');
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    }
+  }
+
+  /** Save one version's document on the device. */
+  async download(versionNumber, button) {
+    button.disabled = true;
+    try {
+      const file = await getCampPlanVersionPdf(this.meetingId, versionNumber);
+      const url = URL.createObjectURL(file.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.filename || `camp-plan-v${versionNumber}.pdf`;
+      link.hidden = true;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_URL_LIFETIME_MS);
+    } catch (err) {
+      debugError('Failed to download the camp plan:', err);
+      this.app.showMessage(apiErrorMessage(err, 'camp_plan_version_download_failed'), 'error');
+    } finally {
+      button.disabled = false;
+    }
   }
 }

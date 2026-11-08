@@ -20,6 +20,8 @@ const service = require('../services/campPlan');
 
 jest.mock('../services/campPermit', () => ({ readCampPermit: jest.fn() }));
 const permitService = require('../services/campPermit');
+jest.mock('../services/campPlanVersions', () => ({ submitPlanVersion: jest.fn(), listPlanVersions: jest.fn(), readPlanVersionPdf: jest.fn() }));
+const versionService = require('../services/campPlanVersions');
 
 process.env.JWT_SECRET_KEY = 'fictional-camp-plan-tests';
 const USER_ID = '00000000-0000-4000-8000-000000000001';
@@ -52,6 +54,75 @@ beforeEach(() => {
   service.saveCampSection.mockResolvedValue({ section: { key: 'theme' } });
   service.saveRainGames.mockResolvedValue({ rain_games: [] });
   permitService.readCampPermit.mockResolvedValue({ camp: { id: 12 }, header: {}, groups: [], lines: [] });
+  versionService.listPlanVersions.mockResolvedValue({ versions: [], changed_since_latest: null });
+  versionService.submitPlanVersion.mockResolvedValue({ version_number: 1 });
+  versionService.readPlanVersionPdf.mockResolvedValue({ pdf: Buffer.from('%PDF-1.7 fictional'), sha256: 'a'.repeat(64), filename: 'camp-plan-12-v1.pdf' });
+});
+
+describe('frozen versions of the plan (#1418)', () => {
+  beforeEach(() => { permissions = ['meetings.view', 'meetings.manage', 'participants.view']; });
+
+  test('without a token, no version is read, submitted or downloaded', async () => {
+    for (const [method, path] of [['get', '/camps/12/versions'], ['post', '/camps/12/versions'], ['get', '/camps/12/versions/1/pdf']]) {
+      // eslint-disable-next-line no-await-in-loop -- each refusal is checked in turn
+      expect((await request(app)[method](`/api/v1/camp-plans${path}`)).status).toBe(401);
+    }
+  });
+
+  test('a leader submits the authenticated unit’s plan as the signed-in person', async () => {
+    const response = await call('post', '/camps/12/versions?organization_id=99');
+    expect(response.status).toBe(201);
+    expect(response.body.message).toBe('camp_plan_version_submitted');
+    expect(versionService.submitPlanVersion).toHaveBeenCalledWith(pool, UNIT_ID, USER_ID, 12);
+  });
+
+  test('the versions name youth: reading them takes participants.view, and the refusal says so', async () => {
+    permissions = ['meetings.view'];
+    for (const path of ['/camps/12/versions', '/camps/12/versions/1/pdf']) {
+      // eslint-disable-next-line no-await-in-loop -- each refusal is checked in turn
+      const response = await call('get', path);
+      expect(response.status).toBe(403);
+      expect(response.body.missing).toEqual(['participants.view']);
+    }
+    expect(versionService.readPlanVersionPdf).not.toHaveBeenCalled();
+  });
+
+  test('submitting takes meetings.manage, and a demo account submits nothing', async () => {
+    permissions = ['meetings.view', 'participants.view'];
+    const refused = await call('post', '/camps/12/versions');
+    expect(refused.status).toBe(403);
+    expect(refused.body.missing).toEqual(['meetings.manage']);
+    permissions = ['meetings.view', 'meetings.manage', 'participants.view'];
+    roles = [{ role_name: 'demoadmin', display_name: 'Demo', data_scope: 'organization' }];
+    const demo = await call('post', '/camps/12/versions');
+    expect(demo.status).toBe(403);
+    expect(demo.body.isDemo).toBe(true);
+    expect(versionService.submitPlanVersion).not.toHaveBeenCalled();
+  });
+
+  test('the document is sent as a PDF that is never cached, with its digest', async () => {
+    const response = await call('get', '/camps/12/versions/1/pdf');
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toBe('application/pdf');
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.headers['content-disposition']).toBe('attachment; filename="camp-plan-12-v1.pdf"');
+    expect(response.headers['x-content-sha256']).toBe('a'.repeat(64));
+    expect(versionService.readPlanVersionPdf).toHaveBeenCalledWith(pool, UNIT_ID, 12, 1, false);
+  });
+
+  test('the copy naming allergies is asked for only with camp_allergies.view', async () => {
+    permissions = ['meetings.view', 'participants.view', 'camp_allergies.view'];
+    await call('get', '/camps/12/versions/2/pdf');
+    expect(versionService.readPlanVersionPdf).toHaveBeenCalledWith(pool, UNIT_ID, 12, 2, true);
+  });
+
+  test('a malformed version number is a 400, and an unknown one reads as its key', async () => {
+    expect((await call('get', '/camps/12/versions/1abc/pdf')).status).toBe(400);
+    versionService.readPlanVersionPdf.mockRejectedValue(new service.CampPlanError('camp_plan_version_not_found', 404));
+    const missing = await call('get', '/camps/12/versions/9/pdf');
+    expect(missing.status).toBe(404);
+    expect(missing.body.message).toBe('camp_plan_version_not_found');
+  });
 });
 
 describe('the camp permit checklist', () => {
