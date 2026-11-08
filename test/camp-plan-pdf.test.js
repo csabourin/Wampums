@@ -131,3 +131,10 @@ test('units and the notes beside “other” are printed in the unit’s languag
   expect(written).toContain('Autre — Yourtes chauffées');
   expect(written).toContain('Autre — Poêle à granules');
 });
+
+test('a version frozen before a reason was retired is regenerated without printing that reason', async () => {
+  const frozen = snapshot();
+  frozen.checklist.push({ key: 'youth_list', state: 'unverified', reasons: ['sisc_not_compared'] });
+  await renderPlanPdf(frozen, null, META);
+  expect(written.join(' ')).not.toMatch(/sisc/i);
+});

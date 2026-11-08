@@ -25,6 +25,13 @@ const PDF_LANGUAGES = Object.keys(TRANSLATIONS);
 const LOCALES = { en: 'en-CA', fr: 'fr-CA' };
 const FONT_DIR = path.join(path.dirname(require.resolve('dejavu-fonts-ttf/package.json')), 'ttf');
 
+/**
+ * Reasons a version frozen earlier may still hold but that no longer exist (#1423: the outside
+ * registry comparison was dropped). A document regenerated from such a version, after an erasure,
+ * leaves them out rather than printing their key.
+ */
+const RETIRED_REASONS = new Set(['sisc_not_compared']);
+
 const PAGE_MARGIN = 54;
 const SIZE = { title: 20, h2: 15, h3: 12, body: 10, small: 9 };
 const GAP = { section: 0.8, paragraph: 0.35 };
@@ -149,7 +156,8 @@ function renderPlanPdf(snapshot, health, { version, submittedAt, language, code 
     snapshot.checklist.map((line) => [
       t(`camp_permit_line_${line.key}`),
       `${line.blocking ? `${t('camp_permit_blocking')} ` : ''}${t(`camp_permit_state_${line.state}`)}`,
-      line.reasons.map((reason) => t(`camp_permit_reason_${reason}`, countsFor(reason, line, number))).join(' '),
+      line.reasons.filter((reason) => !RETIRED_REASONS.has(reason))
+        .map((reason) => t(`camp_permit_reason_${reason}`, countsFor(reason, line, number))).join(' '),
     ])));
 
   section('camp_plan_pdf_site', (sect) => {
