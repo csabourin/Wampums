@@ -341,3 +341,8 @@
   font-size: var(--font-size-xs, 0.75rem);
   padding: 0.125rem 0.5rem;
 }
+
+.parent-upcoming__packing {
+  margin-block-start: var(--space-xs, 0.25rem);
+  min-block-size: var(--touch-target-min, 44px);
+}

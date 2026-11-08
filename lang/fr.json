@@ -4570,6 +4570,7 @@
   "parent_upcoming_empty": "Rien de prévu pour l’instant. Les réunions et sorties apparaîtront ici dès que l’équipe les aura planifiées.",
   "parent_upcoming_failed": "Les prochains événements n’ont pas pu être chargés.",
   "parent_upcoming_calendar": "Ajouter à mon calendrier",
+  "parent_upcoming_packing": "Liste d’effets personnels",
   "parent_volunteering_title": "Donner un coup de main",
   "parent_volunteering_open_one": "L’unité cherche 1 bénévole : cuisine, transport, veille de nuit…",
   "parent_volunteering_open_other": "L’unité cherche {count} bénévoles : cuisine, transport, veille de nuit…",

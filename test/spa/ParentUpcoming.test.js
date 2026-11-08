@@ -20,6 +20,7 @@ jest.mock('../../spa/api/api-endpoints.js', () => ({
 }));
 jest.mock('../../spa/api/api-activities.js', () => ({ getActivities: jest.fn() }));
 jest.mock('../../spa/api/api-volunteers.js', () => ({ getVolunteerShifts: jest.fn() }));
+jest.mock('../../spa/api/api-personal-equipment.js', () => ({ getPersonalEquipmentTasks: jest.fn() }));
 jest.mock('../../spa/api/api-scout-years.js', () => ({
   getFormsNeedingReview: jest.fn(() => Promise.resolve([])),
   getAuthorizationsPendingSignature: jest.fn(() => Promise.resolve([])),
@@ -65,7 +66,8 @@ let mockPermissions = new Set();
 const { getNextMeetingInfo } = require('../../spa/api/api-endpoints.js');
 const { getActivities } = require('../../spa/api/api-activities.js');
 const { getVolunteerShifts } = require('../../spa/api/api-volunteers.js');
-const { buildUpcomingEvents, renderUpcomingSection } = require('../../spa/modules/dashboard/ParentUpcoming.js');
+const { getPersonalEquipmentTasks } = require('../../spa/api/api-personal-equipment.js');
+const { buildUpcomingEvents, renderUpcomingSection, packingListFor } = require('../../spa/modules/dashboard/ParentUpcoming.js');
 const { ParentDashboard } = require('../../spa/modules/dashboard/ParentDashboard.js');
 
 const AXE_OPTIONS = {
@@ -148,6 +150,38 @@ describe('what is coming up', () => {
     });
 
     expect(events.map((event) => event.key)).toEqual(['activity:5']);
+  });
+});
+
+describe('packing lists beside their event', () => {
+  const events = () => buildUpcomingEvents({
+    nextMeeting: { ...MEETING, id: 77 },
+    activities: [activity(2, '2026-11-14', { is_camp: true }), activity(3, '2026-11-20')],
+    today: TODAY,
+  });
+  const byKey = (key) => events().find((event) => event.key === key);
+
+  test('an outing\'s own list, a camp\'s list through its planned day, and a meeting\'s list each find their event', () => {
+    expect(packingListFor(byKey('activity:3'), [{ meeting_id: 'activity-3' }])).toBe('activity-3');
+    expect(packingListFor(byKey('activity:2'), [{ meeting_id: 81, activity_id: 2 }])).toBe(81);
+    expect(packingListFor(byKey('meeting:2026-11-10'), [{ meeting_id: 77, activity_id: null }])).toBe(77);
+  });
+
+  test('another event\'s list is never offered', () => {
+    expect(packingListFor(byKey('activity:3'), [{ meeting_id: 'activity-2' }, { meeting_id: 81, activity_id: 2 }])).toBeNull();
+    expect(packingListFor(byKey('meeting:2026-11-10'), [{ meeting_id: 'activity-3' }])).toBeNull();
+  });
+
+  test('the link sits on its event and names it to screen readers', () => {
+    document.body.innerHTML = `<main id="app">${renderUpcomingSection(events(), {
+      lang: 'en', failed: false, calendarLink: false, packingLists: [{ meeting_id: 'activity-3' }],
+    })}</main>`;
+
+    const links = [...document.querySelectorAll('.parent-upcoming__packing')];
+    expect(links).toHaveLength(1);
+    expect(links[0].getAttribute('href')).toBe('/personal-equipment/activity-3');
+    expect(links[0].closest('.parent-upcoming__item').querySelector('h3').textContent).toBe('Outing 3');
+    expect(links[0].querySelector('.visually-hidden').textContent).toContain('Outing 3');
   });
 });
 
@@ -264,6 +298,32 @@ describe('on the parent dashboard', () => {
 
     expect(getVolunteerShifts).not.toHaveBeenCalled();
     expect(document.querySelector('.parent-volunteering')).toBeNull();
+    page.destroy();
+  });
+
+  test('a family whose children have no published list sees no packing button at all', async () => {
+    mockPermissions = new Set(['personal_equipment.view']);
+    getNextMeetingInfo.mockResolvedValue({ success: true, data: null });
+    getActivities.mockResolvedValue([activity(3, '2026-11-20')]);
+    getPersonalEquipmentTasks.mockResolvedValue({ success: true, data: [] });
+    const page = await renderDashboard();
+
+    expect(document.querySelector('a[href^="/personal-equipment"]')).toBeNull();
+    page.destroy();
+  });
+
+  test('a published list for an upcoming outing is offered on that outing, not as a page-wide button', async () => {
+    mockPermissions = new Set(['personal_equipment.view']);
+    getNextMeetingInfo.mockResolvedValue({ success: true, data: null });
+    getActivities.mockResolvedValue([activity(3, '2026-11-20')]);
+    getPersonalEquipmentTasks.mockResolvedValue({ success: true, data: [
+      { meeting_id: 'activity-3', participant_id: 4, date: '2026-11-20', title: 'Outing 3', item_keys: [] },
+    ] });
+    const page = await renderDashboard();
+
+    const links = [...document.querySelectorAll('a[href^="/personal-equipment"]')];
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/personal-equipment/activity-3']);
+    expect(links[0].closest('.parent-upcoming')).not.toBeNull();
     page.destroy();
   });
 });

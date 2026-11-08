@@ -47,6 +47,7 @@ export function buildUpcomingEvents({ nextMeeting = null, activities = [], today
   if (meetingDate && meetingDate >= today && !nextMeeting.is_cancelled && !linkedActivity) {
     events.push({
       key: `meeting:${meetingDate}`,
+      meetingId: Number(nextMeeting.id) || null,
       kind: UPCOMING_KIND.MEETING,
       title: translate('parent_upcoming_meeting'),
       date: meetingDate,
@@ -65,6 +66,7 @@ export function buildUpcomingEvents({ nextMeeting = null, activities = [], today
     .filter((activity) => getActivityEndDate(activity) >= today)
     .forEach((activity) => events.push({
       key: `activity:${Number(activity.id)}`,
+      activityId: Number(activity.id),
       kind: activity.is_camp ? UPCOMING_KIND.CAMP : UPCOMING_KIND.ACTIVITY,
       title: activity.name || '',
       date: getActivityStartDate(activity),
@@ -78,6 +80,43 @@ export function buildUpcomingEvents({ nextMeeting = null, activities = [], today
 }
 
 /**
+ * The published packing list of an event, when the family has one for it:
+ * a camp's planned day (by its meeting or its activity), or an outing's own list.
+ *
+ * @param {Object} event - From buildUpcomingEvents
+ * @param {Array<Object>} packingLists - Rows of `/v1/personal-equipment/mine`, one per child
+ * @returns {string|number|null} The list's id for `/personal-equipment/:id`, or null
+ */
+export function packingListFor(event, packingLists) {
+  const row = (Array.isArray(packingLists) ? packingLists : []).find((candidate) => {
+    if (event.activityId) {
+      return candidate.meeting_id === `activity-${event.activityId}` || Number(candidate.activity_id) === event.activityId;
+    }
+    return Boolean(event.meetingId) && Number(candidate.meeting_id) === event.meetingId;
+  });
+  if (!row) {
+    return null;
+  }
+  return /^activity-[1-9]\d*$/.test(String(row.meeting_id)) ? row.meeting_id : Number(row.meeting_id);
+}
+
+/**
+ * Link to an event's packing list, named after the event for screen readers.
+ *
+ * @param {Object} event - From buildUpcomingEvents
+ * @param {Array<Object>} packingLists - The family's packing lists
+ * @returns {string} Markup, empty when the event has none
+ */
+function packingLink(event, packingLists) {
+  const id = packingListFor(event, packingLists);
+  if (id === null) {
+    return '';
+  }
+  return `<a class="button button--secondary button--small parent-upcoming__packing" href="/personal-equipment/${encodeURIComponent(id)}">
+    ${translate('parent_upcoming_packing')}<span class="visually-hidden"> — ${escapeHTML(event.title)}</span></a>`;
+}
+
+/**
  * Markup of the "Coming up" section. A failed load says so with a retry;
  * nothing planned says what would fill it.
  *
@@ -86,9 +125,10 @@ export function buildUpcomingEvents({ nextMeeting = null, activities = [], today
  * @param {string} context.lang - Interface language
  * @param {boolean} context.failed - The events could not be loaded
  * @param {boolean} context.calendarLink - Offer the calendar subscription
+ * @param {Array<Object>} [context.packingLists] - The family's packing lists, linked beside their event
  * @returns {string} Markup
  */
-export function renderUpcomingSection(events, { lang, failed, calendarLink }) {
+export function renderUpcomingSection(events, { lang, failed, calendarLink, packingLists = [] }) {
   let body;
   if (failed) {
     body = `
@@ -107,6 +147,7 @@ export function renderUpcomingSection(events, { lang, failed, calendarLink }) {
             <h3 class="parent-upcoming__title">${escapeHTML(event.title)}</h3>
             <p class="parent-upcoming__when">${escapeHTML(formatActivityDateRange(event.source, lang))}</p>
             ${event.place ? `<p class="parent-upcoming__place"><span class="visually-hidden">${translate('parent_upcoming_place')} </span>${escapeHTML(event.place)}</p>` : ''}
+            ${packingLink(event, packingLists)}
           </li>`).join('')}
       </ul>`;
   }

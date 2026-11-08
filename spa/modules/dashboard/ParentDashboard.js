@@ -258,6 +258,7 @@ export class ParentDashboard {
       lang: this.app?.language || CONFIG.DEFAULT_LANG || 'en',
       failed: this.upcomingFailed,
       calendarLink: true,
+      packingLists: this.packingLists,
     });
   }
 
@@ -724,7 +725,6 @@ export class ParentDashboard {
       return `<p class="family-tasks__empty">${translate('family_tasks_children_failed')}</p>`;
     }
     return `
-      ${hasPermission('personal_equipment.view') ? `<a class="button button--secondary" href="/personal-equipment">${translate('personal_equipment_title')}</a>` : ''}
       ${renderFamilyFilter(data.participants, this.childFilter, counts)}
       ${renderFamilyTaskList(this.familyTasks, {
     lang: this.app?.language || CONFIG.DEFAULT_LANG || 'en',

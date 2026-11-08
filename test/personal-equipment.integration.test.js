@@ -67,6 +67,8 @@ describe.skipIf(!DATABASE_URL)('Personal packing lists', () => {
     expect(res.body.data.children).toEqual([{ id: child, first_name: 'Léa', last_name: 'Example' }]);
     expect(JSON.stringify(res.body.data)).not.toMatch(/checked_keys|checked|may_check/);
     expect((await familyTasks(pool, context()))[0]).toMatchObject({ participant_id: child, item_keys: ['bag', 'socks'] });
+    // The planned day's camp or outing, if any, so the family screen can put the list beside it.
+    expect((await familyTasks(pool, context()))[0]).toHaveProperty('activity_id');
   });
   test('another family or unit cannot read a camp list by guessing its id', async () => {
     await expect(readFamilyList(pool, context(otherParent), meetingId)).rejects.toMatchObject({ status: 404 });
