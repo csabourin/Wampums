@@ -5613,7 +5613,7 @@
   "meeting_already_processed": "This meeting's honors were already processed: it cannot be cancelled. Restore it instead.",
   "camp_plans_open_roster": "Camp lists",
   "camp_roster_title": "Camp lists",
-  "camp_roster_intro": "The youth taking part, the camp's team and the volunteers of its shifts, as the camp permit asks for them. Compare them with the SISC before handing in the plan.",
+  "camp_roster_intro": "The youth taking part, the camp's team and the volunteers of its shifts, as the camp permit asks for them.",
   "camp_roster_load_failed": "The camp lists could not be loaded.",
   "camp_roster_cancelled": "This camp is cancelled. Its lists can be read, not changed.",
   "camp_roster_unnamed": "Name not recorded",
@@ -5624,7 +5624,6 @@
   "camp_roster_gap_no_lead": "No leader in charge is named for this camp.",
   "camp_roster_gap_aide_age_unknown": "A camp aide's age is not verified: their birth date is not recorded.",
   "camp_roster_gap_member_left_unit": "A team member is no longer an active member of the unit.",
-  "camp_roster_gap_sisc_not_compared": "Comparison with the SISC: not verified.",
   "camp_roster_youth": "Youth taking part",
   "camp_roster_youth_count": "{count} youth",
   "camp_roster_youth_consent": "Permission requests: {signed} signed · {pending} awaiting an answer · {withdrawn} declined or withdrawn. Only youth with a signed request are listed.",
@@ -6083,7 +6082,6 @@
   "camp_permit_reason_no_scout_year": "No scout year covers the camp’s dates.",
   "camp_permit_reason_no_youth": "No youth takes part in the camp yet.",
   "camp_permit_reason_consent_pending": "Permission requests still unsigned: {count}",
-  "camp_permit_reason_sisc_not_compared": "Not compared with the SISC: check it there.",
   "camp_permit_reason_no_lead": "No camp lead is named.",
   "camp_permit_reason_no_first_aider": "No one on the team holds a verified first aid certification for the camp’s dates.",
   "camp_permit_reason_member_left_unit": "A team member has left the unit.",
@@ -6202,7 +6200,7 @@
   "camp_plan_part_youth": "Youth taking part",
   "camp_plan_part_material": "Group material",
   "camp_plan_version_code": "Verification code:",
-  "camp_plan_version_code_hint": "This code is printed on the first page of the PDF. A copy (attached to the SISC, emailed…) showing the same code is this version.",
+  "camp_plan_version_code_hint": "This code is printed on the first page of the PDF. A copy (attached to the permit request, emailed…) showing the same code is this version.",
   "camp_plan_version_digest_details": "Technical details",
   "camp_plan_pdf_code_line": "Verification code: {code}. The same code appears in Wampums for this version.",
   "camp_plan_part_camp": "Camp name and dates",
@@ -6210,5 +6208,6 @@
   "camp_plan_pdf_volunteer_count": "Volunteers",
   "camp_plan_part_allergies": "Allergies (shown only to people who may read them)",
   "camp_plan_version_redacted": "Content removed after a family asked for their child’s information to be erased. The verification code changed: earlier copies no longer match this version.",
-  "camp_plan_roster_changed": "The camp’s list of youth changed while the plan was being submitted. Submit it again."
+  "camp_plan_roster_changed": "The camp’s list of youth changed while the plan was being submitted. Submit it again.",
+  "camp_roster_nothing_to_check": "Nothing left to check in these lists."
 }

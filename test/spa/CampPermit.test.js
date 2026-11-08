@@ -53,7 +53,7 @@ function permit(overrides = {}) {
   set('identification', { state: 'to_complete', reasons: ['missing_district'] });
   set('dates', { state: 'complete', reasons: [], counts: { days: 8 } });
   set('written_sections', { state: 'to_complete', reasons: ['sections_to_write'], counts: { to_write: 3, to_review: 0 } });
-  set('team_list', { state: 'to_complete', reasons: ['no_first_aider', 'sisc_not_compared'], blocking: true });
+  set('team_list', { state: 'to_complete', reasons: ['no_first_aider'], blocking: true });
   set('evaluation', { state: 'unverified', reasons: ['no_access'] });
   Object.entries(overrides).forEach(([key, entry]) => set(key, entry));
   return { success: true, data: {

@@ -5613,7 +5613,7 @@
   "meeting_already_processed": "Les honneurs de cette réunion ont déjà été traités : elle ne peut pas être annulée. Rétablissez-la plutôt.",
   "camp_plans_open_roster": "Listes du camp",
   "camp_roster_title": "Listes du camp",
-  "camp_roster_intro": "Les jeunes qui participent, l'équipe du camp et les bénévoles de ses quarts, comme le permis de camp les demande. Comparez-les au SISC avant de remettre le plan.",
+  "camp_roster_intro": "Les jeunes qui participent, l'équipe du camp et les bénévoles de ses quarts, comme le permis de camp les demande.",
   "camp_roster_load_failed": "Impossible de charger les listes du camp.",
   "camp_roster_cancelled": "Ce camp est annulé. Ses listes se consultent, mais ne se modifient plus.",
   "camp_roster_unnamed": "Nom non inscrit",
@@ -5624,7 +5624,6 @@
   "camp_roster_gap_no_lead": "Aucun animateur responsable n'est nommé pour ce camp.",
   "camp_roster_gap_aide_age_unknown": "L'âge d'un aide de camp n'est pas vérifié : sa date de naissance n'est pas inscrite.",
   "camp_roster_gap_member_left_unit": "Un membre de l'équipe n'est plus membre actif de l'unité.",
-  "camp_roster_gap_sisc_not_compared": "Comparaison avec le SISC : non vérifiée.",
   "camp_roster_youth": "Jeunes qui participent",
   "camp_roster_youth_count": "Jeunes : {count}",
   "camp_roster_youth_consent": "Demandes d'autorisation : {signed} signées · {pending} en attente de réponse · {withdrawn} refusées ou retirées. Seuls les jeunes dont la demande est signée sont listés.",
@@ -6083,7 +6082,6 @@
   "camp_permit_reason_no_scout_year": "Aucune année scoute ne couvre les dates du camp.",
   "camp_permit_reason_no_youth": "Aucun jeune ne participe encore au camp.",
   "camp_permit_reason_consent_pending": "Autorisations encore non signées : {count}",
-  "camp_permit_reason_sisc_not_compared": "Non rapprochée avec le SISC : à vérifier dans le SISC.",
   "camp_permit_reason_no_lead": "Aucun animateur responsable n’est nommé.",
   "camp_permit_reason_no_first_aider": "Personne dans l’équipe n’a de certification de secourisme vérifiée pour les dates du camp.",
   "camp_permit_reason_member_left_unit": "Un membre de l’équipe a quitté l’unité.",
@@ -6202,7 +6200,7 @@
   "camp_plan_part_youth": "Jeunes participants",
   "camp_plan_part_material": "Matériel du groupe",
   "camp_plan_version_code": "Code de vérification :",
-  "camp_plan_version_code_hint": "Ce code est imprimé en première page du PDF. Une copie (jointe au SISC, envoyée par courriel…) qui porte le même code est bien cette version.",
+  "camp_plan_version_code_hint": "Ce code est imprimé en première page du PDF. Une copie (jointe à la demande de permis, envoyée par courriel…) qui porte le même code est bien cette version.",
   "camp_plan_version_digest_details": "Détails techniques",
   "camp_plan_pdf_code_line": "Code de vérification : {code}. Le même code apparaît dans Wampums pour cette version.",
   "camp_plan_part_camp": "Nom et dates du camp",
@@ -6210,5 +6208,6 @@
   "camp_plan_pdf_volunteer_count": "Bénévoles",
   "camp_plan_part_allergies": "Allergies (indiqué seulement aux personnes qui peuvent les lire)",
   "camp_plan_version_redacted": "Contenu retiré après qu’une famille a demandé l’effacement des renseignements de son enfant. Le code de vérification a changé : les copies antérieures ne correspondent plus à cette version.",
-  "camp_plan_roster_changed": "La liste des jeunes du camp a changé pendant la soumission du plan. Soumettez-le de nouveau."
+  "camp_plan_roster_changed": "La liste des jeunes du camp a changé pendant la soumission du plan. Soumettez-le de nouveau.",
+  "camp_roster_nothing_to_check": "Rien ne reste à vérifier dans ces listes."
 }

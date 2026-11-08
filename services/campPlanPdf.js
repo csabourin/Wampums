@@ -248,7 +248,6 @@ function renderPlanPdf(snapshot, health, { version, submittedAt, language, code 
   });
 
   section('camp_plan_pdf_youth', (sect) => {
-    paragraph(sect, t('camp_permit_reason_sisc_not_compared'));
     if (!snapshot.youth.length) {
       toComplete(sect);
       return;

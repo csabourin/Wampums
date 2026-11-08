@@ -1,14 +1,14 @@
 # Camp lists: youth, team, volunteers (#1319)
 
-Part of the camp plan (#1316). The camp permit asks for the camp's youth and its team, to be compared
-with the SISC. Delivered in slices; this file says what each one settled.
+Part of the camp plan (#1316). The camp permit asks for the camp's youth and its team. Wampums is their
+source. Delivered in slices; this file says what each one settled.
 
 | Slice | Content | State |
 |---|---|---|
 | 1 | Youth taking part, named team (lead, leaders, camp aides), volunteers of the camp's shifts | Done |
 | 2 | Adult certifications (first aid, wilderness first aid, winter camping), blocking gaps, swimming | Done |
 | 3 | Allergies of youth and adults, behind a permission of their own | Done |
-| 4 | Comparison with a recent SISC import | To do |
+| 4 | Comparison with an outside registry | Dropped (8 November 2026): the registry does not share its data; Wampums is the source |
 
 Decisions of 4 November 2026: the team is **named explicitly** for each camp; a camp aide's age comes
 from an **optional birth date on the account**; allergies get a **new permission**, given by default to
@@ -21,8 +21,8 @@ manager**, and only a verified one lifts a blocking gap.
 opened from each camp of `/camp-plans`. It shows, in this order:
 
 1. **To check**: what the lists cannot vouch for. Blocking gaps come first, each introduced by the word
-   "Blocking:" (never by colour alone). The comparison with the SISC is always listed until slice 4
-   exists. Nothing on the screen says the camp is compliant.
+   "Blocking:" (never by colour alone). With nothing left, it says so in words. Nothing on the screen says
+   the camp is compliant.
 2. **Planned activities**: whether the camp plans swimming. A holder of `meetings.manage` ticks the box
    (saved at once; it goes back to what is recorded if the save fails); others read it.
 3. **Youth taking part**, with their count and age on the camp's first day, and how the list was drawn
@@ -60,7 +60,7 @@ opened from each camp of `/camp-plans`. It shows, in this order:
   `adult_age` (18) on the camp's first day. Without a date, the age reads "not verified", never "adult",
   and a camp aide without one is listed to check.
 - **Gaps** (`gaps`): `no_scout_year`, `no_youth`, `no_lead`, `aide_age_unknown`, `member_left_unit`,
-  `no_first_aider`, `certification_to_verify`, `swimming_supervision`; the screen adds `sisc_not_compared`.
+  `no_first_aider`, `certification_to_verify`, `swimming_supervision`.
   `blocking_gaps` lists those the camp cannot leave without: today `no_first_aider` only
   (`BLOCKING_GAPS` in `services/campRoster.js`). An empty list is a gap, never "nothing to report".
 - **Certifications** (migration 073, `member_certifications`, `services/memberCertifications.js`, keys in

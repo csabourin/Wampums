@@ -15,7 +15,7 @@
  *   (meetings.manage or volunteers.manage, checked by the route).
  * - The snapshot holds no health information. The allergies section exists only
  *   in a second PDF (`pdf_health`), served to holders of `camp_allergies.view`.
- * - Each PDF's SHA-256 digest is stored and shown, so a copy attached to the SISC
+ * - Each PDF's SHA-256 digest is stored and shown, so a copy attached to the permit request
  *   can be checked against its version.
  * - A new submission supersedes the version still waiting (`submitted`).
  * - What changed since the latest version is found by comparing the current
