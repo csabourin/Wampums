@@ -21,6 +21,9 @@ import { MINUTES_PER_DAY, MINUTES_PER_HOUR } from '../../utils/TimeUnits.js';
 /** How many events the block shows: enough to plan the coming weeks, no more. */
 export const UPCOMING_EVENT_LIMIT = 3;
 
+/** Digits of each part of an "HH:MM" clock time. */
+const CLOCK_DIGITS = 2;
+
 /** Kinds of event, for the label above each title. */
 export const UPCOMING_KIND = Object.freeze({
   MEETING: 'meeting',
@@ -43,7 +46,8 @@ function toMinutes(value) {
  */
 function toClock(minutes) {
   const within = ((minutes % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
-  return `${String(Math.floor(within / MINUTES_PER_HOUR)).padStart(2, '0')}:${String(within % MINUTES_PER_HOUR).padStart(2, '0')}`;
+  const twoDigits = (value) => String(value).padStart(CLOCK_DIGITS, '0');
+  return `${twoDigits(Math.floor(within / MINUTES_PER_HOUR))}:${twoDigits(within % MINUTES_PER_HOUR)}`;
 }
 
 /**
