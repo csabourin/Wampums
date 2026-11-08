@@ -10,6 +10,8 @@ const request = require('supertest');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 require('./jest-conditional-helpers');
+jest.mock('../utils/index', () => ({ ...jest.requireActual('../utils/index'), sendEmail: jest.fn().mockResolvedValue(true) }));
+const { sendEmail } = require('../utils/index');
 process.env.JWT_SECRET_KEY ||= 'fictional-camp-plan-versions-integration';
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 
@@ -55,12 +57,12 @@ describe.skipIf(!DATABASE_URL)('Camp plan versions', () => {
   }
   const auth = (user, unitId = ids.unit) => ({ Authorization: `Bearer ${jwt.sign({ user_id: user, organizationId: unitId }, process.env.JWT_SECRET_KEY)}` });
   const path = (meetingId, rest = '') => `/api/v1/camp-plans/camps/${meetingId}/versions${rest}`;
-  const pdf = (meetingId, number, user) => request(app).get(path(meetingId, `/${number}/pdf`)).set(auth(user))
-    .buffer(true).parse((res, done) => {
-      const chunks = [];
-      res.on('data', (chunk) => chunks.push(chunk));
-      res.on('end', () => done(null, Buffer.concat(chunks)));
-    });
+  const binary = (req) => req.buffer(true).parse((res, done) => {
+    const chunks = [];
+    res.on('data', (chunk) => chunks.push(chunk));
+    res.on('end', () => done(null, Buffer.concat(chunks)));
+  });
+  const pdf = (meetingId, number, user) => binary(request(app).get(path(meetingId, `/${number}/pdf`)).set(auth(user)));
 
   beforeAll(async () => {
     pool = new Pool({ connectionString: DATABASE_URL });
@@ -81,6 +83,7 @@ describe.skipIf(!DATABASE_URL)('Camp plan versions', () => {
       VALUES ($1, $2, $3, 'active')`, [ids.youth, ids.unit, ids.year]);
     app = express(); app.locals.pool = pool; app.use(express.json());
     app.use('/api/v1/camp-plans', require('../routes/camp-plans')(pool));
+    app.use('/api/v1/public', require('../routes/public')(pool, { info: jest.fn(), warn: jest.fn(), error: jest.fn() }));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
   });
 
@@ -270,4 +273,164 @@ describe.skipIf(!DATABASE_URL)('Camp plan versions', () => {
     expect(await one(`SELECT COUNT(*)::int FROM camp_plan_versions
       WHERE snapshot->'youth' @> jsonb_build_array(jsonb_build_object('participant_id', $1::int))`, [child])).toBe(0);
   });
+  describe('approval workflow (#1419)', () => {
+    const externalPath = '/api/v1/public/camp-branch-approval';
+    const header = 'X-Camp-Approval-Token';
+    const permissions = ['camp_plans.attest_lead', 'camp_plans.approve_group', 'camp_plans.request_branch_approval'];
+    const review = { name: 'External Reviewer', job: 'Branch lead', comment: 'Fictional approval',
+      received_on: '2099-06-23', decision: 'approved' };
+    let approver; let signingCamp;
+    let nextCampDay = 20;
+    const versionPath = (version, suffix) => path(signingCamp, `/${version.version_number}/${suffix}`);
+    const submit = async () => {
+      const result = await request(app).post(path(signingCamp)).set(auth(ids.leader));
+      expect(result.status).toBe(201);
+      return result.body.data;
+    };
+    const sign = (version, stage, user = approver, decision = 'approved') => request(app)
+      .post(versionPath(version, `attestations/${stage}`)).set(auth(user))
+      .send({ pdf_sha256: version.submitted_plain_sha256, job: 'Volunteer reviewer', decision, comment: 'Fictional decision' });
+    const emailBranch = async (version, email = 'branch@example.test') => {
+      const response = await request(app).post(versionPath(version, 'branch-link')).set(auth(approver))
+        .send({ pdf_sha256: version.submitted_plain_sha256, email });
+      expect(response.status).toBe(201);
+      expect(response.text).not.toContain('/camp-branch-approval');
+      const emailBody = sendEmail.mock.lastCall[2];
+      return emailBody.match(/\/camp-branch-approval#([A-Za-z0-9_-]{43})/)?.[1];
+    };
+    const approvalLine = async () => {
+      const response = await request(app).get(`/api/v1/camp-plans/camps/${signingCamp}/permit`).set(auth(ids.leader));
+      expect(response.status).toBe(200);
+      return response.body.data.lines.find((line) => line.key === 'approvals');
+    };
+
+    beforeAll(async () => {
+      approver = await member(ids.unit, [...LEADER, ...permissions], 'Different Fictional Signer');
+      await pool.query(
+        'INSERT INTO role_permissions (role_id, permission_id) SELECT (uo.role_ids->>0)::int, p.id FROM user_organizations uo, permissions p WHERE uo.user_id = $1 AND uo.organization_id = $2 AND p.permission_key = $3',
+        [ids.leader, ids.unit, permissions[0]]
+      );
+    });
+
+    beforeEach(async () => {
+      sendEmail.mockClear();
+      const firstDay = nextCampDay;
+      nextCampDay += 1;
+      signingCamp = await camp(ids.unit, `2099-07-${firstDay}`, `2099-07-${nextCampDay}`);
+    });
+
+    test('three decisions sign the same submitted PDF and freeze a separate final copy', async () => {
+      const version = await submit();
+      expect((await approvalLine()).reasons).toEqual(['approval_pending']);
+      expect((await sign(version, 'lead', ids.leader)).body.message).toBe('camp_approval_self');
+      expect((await sign(version, 'group')).status).toBe(409);
+      expect((await sign(version, 'lead')).status).toBe(201);
+      expect((await sign(version, 'group')).status).toBe(201);
+      const token = await emailBranch(version);
+      expect(token).toHaveLength(43);
+      expect(await one('SELECT token_digest FROM camp_plan_branch_links WHERE organization_id = $1', [ids.unit])).toBe(sha256(token));
+      const described = await request(app).get(externalPath).set(header, token);
+      expect(described.status).toBe(200);
+      expect(described.headers['cache-control']).toBe('no-store');
+      expect(described.body.data).toMatchObject({ version_number: version.version_number, unit_name: 'Fictional Versions Unit' });
+      expect(described.text).not.toContain(token);
+      const plain = await request(app).get(`${externalPath}/pdf`).set(header, token);
+      expect(plain.status).toBe(200);
+      expect(plain.headers['x-content-sha256']).toBe(version.submitted_plain_sha256);
+      expect(plain.headers['content-disposition']).not.toContain('health');
+      expect((await approvalLine()).state).toBe('to_complete');
+      const decide = () => request(app).post(externalPath).set(header, token).send(review);
+      const decisions = await Promise.all([decide(), decide()]);
+      expect(decisions.map((response) => response.status).sort()).toEqual([200, 410]);
+      expect((await request(app).get(externalPath).set(header, token)).status).toBe(410);
+      expect((await approvalLine()).state).toBe('complete');
+
+      const listed = (await request(app).get(path(signingCamp)).set(auth(ids.leader))).body.data.versions[0];
+      expect(listed.status).toBe('approved');
+      expect(listed.attestations.map((entry) => entry.stage)).toEqual(['lead', 'group', 'branch']);
+      expect(listed.attestations.every((entry) => entry.pdf_sha256 === version.submitted_plain_sha256)).toBe(true);
+      expect(listed.attestations[2].received_on).toBe(review.received_on);
+      const auditIp = await one(`SELECT host(a.signer_ip) FROM camp_plan_attestations a
+        JOIN camp_plan_versions v ON v.id = a.version_id WHERE v.meeting_id = $1 AND a.stage = 'branch'`, [signingCamp]);
+      expect(auditIp).toBeTruthy();
+      const signed = await binary(request(app).get(versionPath(version, 'attestation-pdf')).set(auth(ids.leader)));
+      expect(signed.status).toBe(200);
+      expect(sha256(signed.body)).toBe(listed.approved_pdf_sha256);
+      expect(listed.approved_pdf_sha256).not.toBe(version.submitted_plain_sha256);
+      expect((await pdf(signingCamp, version.version_number, ids.leader)).headers['x-content-sha256']).toBe(version.submitted_plain_sha256);
+      await pool.query("UPDATE year_plan_meetings SET theme = 'Fictional edited camp' WHERE id = $1", [signingCamp]);
+      const newer = await submit();
+      expect(newer.status).toBe('submitted');
+      const newerList = (await request(app).get(path(signingCamp)).set(auth(ids.leader))).body.data;
+      expect(newerList.approved_version_number).toBe(version.version_number);
+      expect(newerList.changed_since_approved).toContain('camp');
+      expect(newerList.versions[0].attestations).toEqual([]);
+      expect((await request(app).get(versionPath(version, 'attestation-pdf')).set(auth(ids.leader))).headers['x-content-sha256'])
+        .toBe(listed.approved_pdf_sha256);
+    });
+
+    test('a change request preserves earlier decisions and a replacement starts over', async () => {
+      const version = await submit();
+      expect((await sign(version, 'lead')).status).toBe(201);
+      expect((await sign(version, 'group', approver, 'changes_requested')).status).toBe(201);
+      expect((await approvalLine()).reasons).toEqual(['approval_changes']);
+      expect((await sign(version, 'group')).status).toBe(409);
+      const newer = await submit();
+      expect(newer.attestations).toEqual([]);
+      const listed = (await request(app).get(path(signingCamp)).set(auth(ids.leader))).body.data.versions;
+      expect(listed[1].status).toBe('changes_requested');
+      expect(listed[1].attestations.map((entry) => entry.decision)).toEqual(['approved', 'changes_requested']);
+    });
+
+    test('expired, rotated and superseded links disclose nothing and a foreign unit cannot sign', async () => {
+      const version = await submit();
+      const foreign = await member(ids.otherUnit, [...LEADER, ...permissions], 'Foreign Approval');
+      const foreignAttempt = await request(app).post(versionPath(version, 'attestations/lead')).set(auth(foreign, ids.otherUnit))
+        .send({ pdf_sha256: version.submitted_plain_sha256, job: 'Camp lead', decision: 'approved', comment: '' });
+      expect(foreignAttempt.status).toBe(404);
+      expect((await sign(version, 'lead')).status).toBe(201);
+      expect((await sign(version, 'group')).status).toBe(201);
+      const first = await emailBranch(version);
+      const current = await emailBranch(version);
+      expect((await request(app).get(externalPath).set(header, first)).status).toBe(410);
+      await pool.query('UPDATE camp_plan_branch_links SET expires_at = now() WHERE token_digest = $1', [sha256(current)]);
+      const expired = await request(app).post(externalPath).set(header, current).send(review);
+      expect(expired.status).toBe(410);
+      expect(expired.body.message).toBe('camp_approval_link_unavailable');
+      const replaced = await emailBranch(version);
+      await submit();
+      expect((await sign(version, 'lead')).status).toBe(409);
+      const stale = await request(app).post(externalPath).set(header, replaced).send(review);
+      expect(stale.status).toBe(410);
+      expect(stale.body.message).toBe(expired.body.message);
+    });
+
+    test('erasure retains the historical signatures and removes the obsolete approved document', async () => {
+      const child = await one("INSERT INTO participants (first_name, last_name, date_naissance) VALUES ('Fictive', 'Erased', '2088-06-01') RETURNING id");
+      try {
+        await pool.query(`INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, status)
+          VALUES ($1, $2, $3, 'active')`, [child, ids.unit, ids.year]);
+        const version = await submit();
+        expect((await sign(version, 'lead')).status).toBe(201);
+        expect((await sign(version, 'group')).status).toBe(201);
+        const token = await emailBranch(version);
+        expect((await request(app).post(externalPath).set(header, token).send(review)).status).toBe(200);
+        const { eraseParticipant } = require('../services/erasure');
+        const transaction = require('../utils/transaction');
+        await transaction(pool, (client) => eraseParticipant(client, { organizationId: ids.unit, participant: { id: child }, performedBy: ids.leader }));
+        const listed = (await request(app).get(path(signingCamp)).set(auth(ids.leader))).body.data.versions[0];
+        expect(listed.redacted_at).toBeTruthy();
+        expect(listed.snapshot_sha256).not.toBe(version.snapshot_sha256);
+        expect(listed.approved_pdf_sha256).toBeNull();
+        expect(listed.attestations).toHaveLength(3);
+        expect(listed.attestations.every((entry) => entry.before_redaction && entry.pdf_sha256 === version.submitted_plain_sha256)).toBe(true);
+        expect((await approvalLine()).reasons).toEqual(['approval_redacted']);
+        expect((await request(app).get(versionPath(version, 'attestation-pdf')).set(auth(ids.leader))).status).toBe(404);
+      } finally {
+        await pool.query('DELETE FROM participant_enrollments WHERE participant_id = $1', [child]);
+        await pool.query('DELETE FROM participants WHERE id = $1', [child]);
+      }
+    });
+  });
+
 });

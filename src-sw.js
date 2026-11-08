@@ -138,7 +138,7 @@ async function handleAppNavigation(context) {
 }
 
 const navigationRoute = new NavigationRoute(handleAppNavigation, {
-  denylist: SSR_PATHS,
+  denylist: [...SSR_PATHS, /^\/camp-branch-approval(?:\/|$|\?)/],
 });
 registerRoute(navigationRoute);
 
@@ -241,7 +241,9 @@ registerRoute(
  * may name allergies) must never be stored or replayed offline.
  */
 function isPersonalProfileRequest({ url }) {
-  return url.pathname.startsWith('/api/v1/member-profile/')
+  return /^\/camp-branch-approval\/?$/.test(url.pathname)
+    || /^\/api\/v1\/public\/camp-branch-approval(?:\/|$)/.test(url.pathname)
+    || url.pathname.startsWith('/api/v1/member-profile/')
     || url.pathname.startsWith('/api/v1/camp-rosters/')
     || /^\/api\/v1\/volunteer-space\/camps\/[^/]+\/contacts\/?$/.test(url.pathname)
     || /^\/api\/v1\/camp-plans\/camps\/[^/]+\/versions(?:\/|$)/.test(url.pathname);

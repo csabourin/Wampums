@@ -14,13 +14,14 @@
  * @module routes/camp-plans
  */
 const express = require('express');
-const { param } = require('express-validator');
+const { rateLimit } = require('express-rate-limit');
+const { body, param } = require('express-validator');
 const {
   authenticate, requirePermission, requireAnyPermission, blockDemoRoles, getOrganizationId, userHasPermission,
 } = require('../middleware/auth');
-const { success, error, asyncHandler } = require('../middleware/response');
+const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { HTTP_STATUS } = require('../utils/http-status');
-const { validateIdParam, checkValidation } = require('../middleware/validation');
+const { validateIdParam, checkValidation, validateEmail, normalizeEmailValue } = require('../middleware/validation');
 const {
   CampPlanError, ALL_SECTIONS, UNIT_SECTIONS, listTemplates, listCampPlans, saveTemplate, readCampPlan, saveCampSection, saveRainGames,
 } = require('../services/campPlan');
@@ -34,14 +35,24 @@ const { submitPlanVersion, listPlanVersions, readPlanVersionPdf } = require('../
  */
 const READ_VERSIONS = { permissions: ['meetings.view', 'participants.view'], organizationScope: true };
 const READ_QUALIFICATIONS = requireAnyPermission('meetings.manage', 'volunteers.manage');
+const { RULES, DECISIONS, attestCampPlan, requestBranchApproval, readAttestationPdf } = require('../services/campPlanApprovals');
+const { MS_PER_HOUR } = require('../utils/time-units');
+const APPROVAL_PERMISSIONS = { lead: 'camp_plans.attest_lead', group: 'camp_plans.approve_group' };
+const BRANCH_REQUEST = 'camp_plans.request_branch_approval';
+const approvalAccess = (permission) => ({ ...READ_VERSIONS, permissions: [...READ_VERSIONS.permissions, permission] });
+const versionParams = () => [validateIdParam('meetingId'), validateIdParam('versionNumber')];
+const expectedDigest = () => body('pdf_sha256').isString().matches(/^[0-9a-f]{64}$/);
 const SUBMIT = { permissions: ['meetings.manage', 'participants.view'], organizationScope: true };
 
 /** Answer known refusals with their translation key, naming the field when there is one. */
-const handle = (handler) => asyncHandler(async (req, res) => {
+const handle = (handler, required = []) => asyncHandler(async (req, res) => {
   try {
     return await handler(req, res);
   } catch (err) {
     if (err instanceof CampPlanError) {
+      if (err.status === HTTP_STATUS.FORBIDDEN) {
+        return forbidden(res, err.message, typeof required === 'function' ? required(req) : required, []);
+      }
       const fields = err.field ? [{ path: err.field, location: 'body', msg: err.message }] : undefined;
       return error(res, err.message, err.status, fields);
     }
@@ -53,6 +64,11 @@ const handle = (handler) => asyncHandler(async (req, res) => {
 module.exports = (pool) => {
   const router = express.Router();
   router.use(authenticate);
+  const branchRequestLimiter = rateLimit({
+    windowMs: MS_PER_HOUR, limit: RULES.link_requests_per_hour,
+    standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => req.user.id,
+    handler: (_req, res) => error(res, 'camp_approval_rate_limit', HTTP_STATUS.TOO_MANY_REQUESTS),
+  });
 
   // Read by every camp's plan (meetings.view) and by the template editor, who may hold only its own right.
   router.get('/templates',
@@ -140,7 +156,56 @@ module.exports = (pool) => {
       const organizationId = await getOrganizationId(req, pool);
       const withHealth = await userHasPermission(req, pool, organizationId, 'camp_allergies.view');
       const file = await readPlanVersionPdf(pool, organizationId, Number(req.params.meetingId),
-        Number(req.params.versionNumber), withHealth);
+        Number(req.params.versionNumber), withHealth && req.query.copy !== 'plain');
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${file.filename}"`,
+        'Cache-Control': 'no-store',
+        'X-Content-SHA256': file.sha256,
+      });
+      return res.send(file.pdf);
+    }));
+
+  router.post('/camps/:meetingId/versions/:versionNumber/attestations/:stage',
+    blockDemoRoles,
+    ...versionParams(),
+    param('stage').isIn(Object.keys(APPROVAL_PERMISSIONS)),
+    expectedDigest(),
+    body('decision').isIn(DECISIONS),
+    body('job').isString().bail().trim().isLength({ min: 1, max: RULES.signer_function_max }),
+    body('comment').isString().bail().trim().isLength({ max: RULES.comment_max }),
+    checkValidation,
+    requirePermission((req) => approvalAccess(APPROVAL_PERMISSIONS[req.params.stage])),
+    READ_QUALIFICATIONS,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const { meetingId, versionNumber, stage } = req.params;
+      const { decision, job, comment, pdf_sha256: digest } = req.body;
+      const result = await attestCampPlan(pool, { organizationId, meetingId: Number(meetingId),
+        number: Number(versionNumber), expectedDigest: digest, actorId: req.user.id, stage, decision, job, comment, ip: req.ip });
+      return success(res, result, 'camp_approval_saved', HTTP_STATUS.CREATED);
+    }, (req) => approvalAccess(APPROVAL_PERMISSIONS[req.params.stage]).permissions));
+
+  router.post('/camps/:meetingId/versions/:versionNumber/branch-link',
+    blockDemoRoles,
+    requirePermission(approvalAccess(BRANCH_REQUEST)),
+    READ_QUALIFICATIONS,
+    branchRequestLimiter,
+    ...versionParams(), expectedDigest(), validateEmail, checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      await requestBranchApproval(pool, { organizationId, meetingId: Number(req.params.meetingId),
+        number: Number(req.params.versionNumber), expectedDigest: req.body.pdf_sha256, email: normalizeEmailValue(req.body.email) });
+      return success(res, null, 'camp_approval_link_sent', HTTP_STATUS.CREATED);
+    }, approvalAccess(BRANCH_REQUEST).permissions));
+
+  router.get('/camps/:meetingId/versions/:versionNumber/attestation-pdf',
+    requirePermission(READ_VERSIONS),
+    READ_QUALIFICATIONS,
+    ...versionParams(), checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const file = await readAttestationPdf(pool, organizationId, Number(req.params.meetingId), Number(req.params.versionNumber));
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${file.filename}"`,

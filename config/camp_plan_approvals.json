@@ -1,0 +1,8 @@
+{
+  "branch_link_days": 7,
+  "link_requests_per_hour": 10,
+  "public_attempts_per_hour": 20,
+  "signer_name_max": 150,
+  "signer_function_max": 150,
+  "comment_max": 2000
+}

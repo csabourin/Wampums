@@ -22,6 +22,11 @@ jest.mock('../services/campPermit', () => ({ readCampPermit: jest.fn() }));
 const permitService = require('../services/campPermit');
 jest.mock('../services/campPlanVersions', () => ({ submitPlanVersion: jest.fn(), listPlanVersions: jest.fn(), readPlanVersionPdf: jest.fn() }));
 const versionService = require('../services/campPlanVersions');
+jest.mock('../services/campPlanApprovals', () => ({
+  ...jest.requireActual('../services/campPlanApprovals'),
+  attestCampPlan: jest.fn(), requestBranchApproval: jest.fn(),
+}));
+const approvals = require('../services/campPlanApprovals');
 
 process.env.JWT_SECRET_KEY = 'fictional-camp-plan-tests';
 const USER_ID = '00000000-0000-4000-8000-000000000001';
@@ -311,4 +316,40 @@ test('a section with nothing to show is to write, never complete', () => {
   expect(gaps.to_write).toContain('rain_games');
   expect(gaps.to_write).not.toContain('camp_rules');
   expect(gaps.to_review).toEqual(['theme']);
+});
+
+describe('camp plan approval authorization (#1419)', () => {
+  const route = '/camps/12/versions/1/attestations/lead';
+  const payload = { pdf_sha256: 'a'.repeat(64), decision: 'approved', job: 'Camp lead', comment: '' };
+  const key = 'camp_plans.attest_lead';
+
+  beforeEach(() => { permissions.push('participants.view'); });
+
+  test('the attestation requires authentication and the permission for that stage', async () => {
+    expect((await request(app).post(`/api/v1/camp-plans${route}`).send(payload)).status).toBe(401);
+    const result = await call('post', route, payload);
+    expect(result.status).toBe(403);
+    expect(result.body.required).toContain(key);
+    expect(result.body.missing).toEqual([key]);
+    expect(approvals.attestCampPlan).not.toHaveBeenCalled();
+  });
+
+  test('a demo account cannot sign or send approval links', async () => {
+    permissions.push(key, 'camp_plans.request_branch_approval');
+    roles = [{ role_name: 'demoadmin', display_name: 'Demo', data_scope: 'organization', is_demo: true }];
+    const signed = await call('post', route, payload);
+    const sent = await call('post', '/camps/12/versions/1/branch-link', { email: 'branch@example.test', pdf_sha256: payload.pdf_sha256 });
+    expect(signed.body).toMatchObject({ isDemo: true });
+    expect(sent.body).toMatchObject({ isDemo: true });
+    expect(approvals.attestCampPlan).not.toHaveBeenCalled();
+    expect(approvals.requestBranchApproval).not.toHaveBeenCalled();
+  });
+
+  test('the submitter cannot approve their submission, even with the stage permission', async () => {
+    permissions.push(key);
+    approvals.attestCampPlan.mockRejectedValueOnce(new service.CampPlanError('camp_approval_self', 403));
+    const result = await call('post', route, payload);
+    expect(result.status).toBe(403);
+    expect(result.body).toMatchObject({ message: 'camp_approval_self', required: expect.arrayContaining([key]), missing: [] });
+  });
 });

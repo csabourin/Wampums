@@ -7,6 +7,9 @@
 import { test, expect } from '@playwright/test';
 import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViolations, waitForAnimations,seededActivityId, seededParticipantId, seededProgrammeDate, seededRecord } from './helpers.mjs';
 
+const CAMP_REVIEW_TOKEN = 'f'.repeat(43);
+const CAMP_REVIEW_SCREEN = `/camp-branch-approval#${CAMP_REVIEW_TOKEN}`;
+
 /**
  * Screens each person reaches from their dashboard or from an emailed link.
  * Paths are canonical (no redirects); a query names a tab or the record a
@@ -16,7 +19,8 @@ const SCREENS = {
   public: [
     '/login', '/register', '/reset-password',
     // Opened from emails. Without a token each shows its "invalid link" state.
-    '/alumni-consent', '/alumni-unsubscribe', '/reactivate-account', '/complete-registration', '/family-link',
+    '/alumni-consent', '/alumni-unsubscribe', '/reactivate-account', '/complete-registration', '/family-link', '/camp-branch-approval',
+    CAMP_REVIEW_SCREEN,
     `/permission-slip/${seededRecord('slipToken')}`,
   ],
   parent: [
@@ -107,7 +111,16 @@ for (const [who, paths] of Object.entries(SCREENS)) {
       test(`${target} meets WCAG 2.2 AA for ${who}`, async ({ page }, testInfo) => {
         const pageErrors = [];
         page.on('pageerror', (error) => pageErrors.push(error.message));
+        if (target === CAMP_REVIEW_SCREEN) {
+          await page.route('**/api/v1/public/camp-branch-approval', (route) => route.fulfill({ json: { data: {
+            unit_name: 'Meute fictive', camp_name: 'Camp des étoiles', version_number: 2,
+            language: 'fr', code: 'ABCD 1234', sent_at: '2027-01-01T12:00:00Z',
+          } } }));
+        }
         await openScreen(page, target);
+        if (target === CAMP_REVIEW_SCREEN) {
+          await expect(page.locator('form select[name="decision"]')).toBeVisible();
+        }
 
         const expected = new URL(target, page.url());
         const reached = new URL(page.url());
