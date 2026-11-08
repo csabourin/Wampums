@@ -80,7 +80,7 @@ export function getCampPlanVersions(meetingId) {
  * @returns {Promise<Object>} The new version
  */
 export function submitCampPlanVersion(meetingId) {
-  return API.post(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/versions`, {});
+  return API.post(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/versions`, {}, {}, { queueOffline: false });
 }
 
 /**
@@ -91,4 +91,26 @@ export function submitCampPlanVersion(meetingId) {
  */
 export function getCampPlanVersionPdf(meetingId, versionNumber, options = {}) {
   return API.getFile(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/versions/${encodeURIComponent(versionNumber)}/pdf`, options);
+}
+
+/** Sign a specific submitted document. Attestations must never queue offline. */
+export function attestCampPlan(meetingId, versionNumber, stage, payload) {
+  return API.post(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/versions/${encodeURIComponent(versionNumber)}/attestations/${encodeURIComponent(stage)}`,
+    payload, {}, { queueOffline: false });
+}
+
+/** Send or replace the branch lead's review link. */
+export function requestCampBranchApproval(meetingId, versionNumber, payload) {
+  return API.post(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/versions/${encodeURIComponent(versionNumber)}/branch-link`,
+    payload, {}, { queueOffline: false });
+}
+
+/** Download the copy that carries the decisions recorded for this version. */
+export function getCampAttestationPdf(meetingId, versionNumber, options) {
+  return API.getFile(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/versions/${encodeURIComponent(versionNumber)}/attestation-pdf`, options);
+}
+
+/** Download the exact copy the signers attest, without the allergies attachment. */
+export function getCampPlanPlainPdf(meetingId, versionNumber, options) {
+  return API.getFile(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/versions/${encodeURIComponent(versionNumber)}/pdf?copy=plain`, options);
 }

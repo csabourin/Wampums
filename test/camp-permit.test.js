@@ -46,12 +46,22 @@ test('a camp with everything recorded is complete where Wampums can tell, and ne
   ['identification', 'dates', 'site', 'camp_type', 'emergency', 'insurance', 'directions', 'written_sections',
     'rain_games', 'schedule', 'group_material', 'personal_material', 'youth_list', 'team_list', 'health_forms', 'allergies', 'evaluation']
     .forEach((key) => expect(lines[key].state).toBe('complete'));
-  // The menu, the letter to parents and the approvals have no source yet; transportation is only cited.
-  ['menu', 'parent_letter', 'approvals', 'transport']
+  // The menu and the letter to parents have no source yet. Transportation is only cited.
+  ['menu', 'parent_letter', 'transport']
     .forEach((key) => expect(lines[key].state).toBe('unverified'));
   // Wampums is the source of the camp's lists: no outside comparison is asked for.
   expect(lines.youth_list.reasons).toEqual([]);
   expect(lines.youth_list.counts.youth).toBe(2);
+});
+
+test.each([
+  [null, 'to_complete', ['approval_submit']],
+  [{ status: 'submitted' }, 'to_complete', ['approval_pending']],
+  [{ status: 'changes_requested' }, 'to_complete', ['approval_changes']],
+  [{ status: 'approved' }, 'complete', []],
+  [{ status: 'approved', redacted: true }, 'to_complete', ['approval_redacted']],
+])('the permit shows the approval state %j', (approval, state, reasons) => {
+  expect(byKey(permitLines({ ...complete(), approval }, RIGHTS)).approvals).toMatchObject({ state, reasons });
 });
 
 test('an empty camp is to complete, never complete', () => {

@@ -36,6 +36,8 @@ const PAGE_MARGIN = 54;
 const SIZE = { title: 20, h2: 15, h3: 12, body: 10, small: 9 };
 const GAP = { section: 0.8, paragraph: 0.35 };
 const CELL_PADDING = 4;
+const PDF_UA_ID = '<rdf:Description xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/" rdf:about="">'
+  + '<pdfuaid:part>1</pdfuaid:part></rdf:Description>';
 
 /**
  * @param {string} language - en or fr
@@ -56,7 +58,7 @@ function translator(language) {
  *   version's verification code, printed on the first page and shown in Wampums
  * @returns {Promise<Buffer>} The PDF
  */
-function renderPlanPdf(snapshot, health, { version, submittedAt, language, code }) {
+function renderPlanPdf(snapshot, health, { version, submittedAt, language, code, attestations = [] }) {
   const t = translator(language);
   const locale = LOCALES[language] || LOCALES.fr;
   const day = (value) => (value ? new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: 'UTC' })
@@ -66,10 +68,13 @@ function renderPlanPdf(snapshot, health, { version, submittedAt, language, code 
   const title = t('camp_plan_pdf_title', { name });
 
   const doc = new PDFDocument({
-    pdfVersion: '1.7', subset: 'PDF/UA', tagged: true, lang: locale, displayTitle: true,
+    pdfVersion: '1.7', tagged: true, lang: locale, displayTitle: true,
     margin: PAGE_MARGIN, bufferPages: false,
     info: { Title: title, Subject: t('camp_permit_title'), Creator: 'Wampums', CreationDate: submittedAt, ModDate: submittedAt },
   });
+  // PDFKit's PDF/UA preset writes an optional CIDSet that omits composite glyphs.
+  // Declare PDF/UA-1 through XMP while keeping the tagged document and embedded fonts.
+  doc.appendXML(PDF_UA_ID);
   doc.registerFont('body', path.join(FONT_DIR, 'DejaVuSans.ttf'));
   doc.registerFont('bold', path.join(FONT_DIR, 'DejaVuSans-Bold.ttf'));
   doc.font('body').fontSize(SIZE.body);
@@ -153,12 +158,22 @@ function renderPlanPdf(snapshot, health, { version, submittedAt, language, code 
 
   section('camp_plan_pdf_checklist', (sect) => table(sect,
     [t('camp_plan_pdf_requirement'), t('camp_plan_pdf_state'), t('camp_plan_pdf_details')],
-    snapshot.checklist.map((line) => [
-      t(`camp_permit_line_${line.key}`),
-      `${line.blocking ? `${t('camp_permit_blocking')} ` : ''}${t(`camp_permit_state_${line.state}`)}`,
-      line.reasons.filter((reason) => !RETIRED_REASONS.has(reason))
-        .map((reason) => t(`camp_permit_reason_${reason}`, countsFor(reason, line, number))).join(' '),
-    ])));
+    snapshot.checklist.map((source) => {
+      const last = attestations.at(-1);
+      const line = source.key === 'approvals' && last ? {
+        ...source,
+        state: last.decision === 'changes_requested' ? 'to_complete'
+          : last.stage === 'branch' ? 'complete' : 'to_complete',
+        reasons: last.decision === 'changes_requested' ? ['approval_changes']
+          : last.stage === 'branch' ? [] : ['approval_pending'],
+      } : source;
+      return [
+        t(`camp_permit_line_${line.key}`),
+        `${line.blocking ? `${t('camp_permit_blocking')} ` : ''}${t(`camp_permit_state_${line.state}`)}`,
+        line.reasons.filter((reason) => !RETIRED_REASONS.has(reason))
+          .map((reason) => t(`camp_permit_reason_${reason}`, countsFor(reason, line, number))).join(' '),
+      ];
+    })));
 
   section('camp_plan_pdf_site', (sect) => {
     const { site } = snapshot;
@@ -302,6 +317,24 @@ function renderPlanPdf(snapshot, health, { version, submittedAt, language, code 
     }
     freeText.forEach((entry) => paragraph(sect, `${entry.activity} — ${entry.material}`));
   });
+
+  if (attestations.length) {
+    section('camp_approval_attestations', (sect) => attestations.forEach((entry) => {
+      heading(sect, 'H3', t(`camp_approval_stage_${entry.stage}`));
+      const date = new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeStyle: 'short', timeZone: 'UTC' })
+        .format(new Date(entry.signed_at));
+      facts(sect, [
+        [t('camp_approval_decision'), t(`camp_plan_version_status_${entry.decision}`)],
+        [t('camp_approval_signer'), entry.signer_name],
+        [t('camp_approval_function'), entry.signer_function],
+        ...(entry.received_on ? [[t('camp_approval_received_on'), day(entry.received_on)]] : []),
+        [t(entry.stage === 'branch' && entry.decision === 'approved' ? 'camp_approval_issued_utc' : 'camp_approval_signed_utc'), date],
+        [t('camp_approval_comment'), entry.comment || '—'],
+        [t('camp_plan_version_code'), code],
+        [t('camp_approval_submitted_fingerprint'), entry.pdf_sha256],
+      ]);
+    }));
+  }
 
   root.end();
   doc.end();

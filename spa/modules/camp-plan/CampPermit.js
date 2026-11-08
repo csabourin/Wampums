@@ -23,7 +23,7 @@
  */
 import { translate } from '../../app.js';
 import { CONFIG } from '../../config.js';
-import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
+import { setContent, loadStylesheet, withFormBusy } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { pageLoadingMarkup, pageErrorMarkup } from '../../utils/PageStateUtils.js';
@@ -33,7 +33,12 @@ import { formatDate } from '../../utils/DateUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { hasPermission, canAccessAdminPanel, canViewCarpools, isDemoUser } from '../../utils/PermissionUtils.js';
 import { confirm } from '../../utils/DialogUtils.js';
-import { getCampPermit, getCampPlanVersions, submitCampPlanVersion, getCampPlanVersionPdf } from '../../api/api-camp-plans.js';
+import {
+  getCampPermit, getCampPlanVersions, submitCampPlanVersion, getCampPlanVersionPdf, getCampPlanPlainPdf,
+  getCampAttestationPdf, attestCampPlan, requestCampBranchApproval,
+} from '../../api/api-camp-plans.js';
+import { getCurrentUserId } from '../../api/api-helpers.js';
+import { APPROVAL_STAGES, APPROVAL_PERMISSIONS, confirmDecision, decisionFields, savePlanDocument } from './CampApprovalForm.js';
 import styles from '../../../css/camp-plan.css?url';
 
 /** The count a reason's text names, by reason. */
@@ -45,9 +50,6 @@ const REASON_COUNTS = Object.freeze({
   consent_pending: 'pending',
   cite_transport: 'offers',
 });
-
-/** How long a downloaded file's address stays valid, once the browser has started saving it. */
-const DOWNLOAD_URL_LIFETIME_MS = 10000;
 
 /** How many characters of the PDF's fingerprint people compare, in groups of four. */
 const CODE_LENGTH = 8;
@@ -296,6 +298,14 @@ export class CampPermit {
     container.querySelectorAll('[data-version-download]').forEach((button) => {
       button.addEventListener('click', () => this.download(Number(button.dataset.versionDownload), button));
     });
+    container.querySelectorAll('form[data-approval-stage]').forEach((form) => {
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const version = this.versions.versions.find((row) => row.version_number === Number(form.dataset.version));
+        const payload = Object.fromEntries(new FormData(form));
+        withFormBusy(form, () => this.saveDecision(form, version, payload));
+      });
+    });
   }
 
   async loadVersions() {
@@ -335,6 +345,104 @@ export class CampPermit {
         <ul>${changed.map((part) => `<li>${escapeHTML(translate(`camp_plan_part_${part}`))}</li>`).join('')}</ul></div>`;
   }
 
+  /** Show any divergence from the last approved version, including after a new submission. */
+  approvedChangesMarkup() {
+    const { changed_since_approved: changed, approved_version_number: number } = this.versions;
+    if (!changed?.length) {
+      return '';
+    }
+    const latestWasApproved = this.versions.versions[0]?.version_number === number;
+    const label = translate(latestWasApproved ? 'camp_approval_live_edits' : 'camp_approval_changed_since')
+      .replace('{version}', this.number(number));
+    const parts = latestWasApproved ? '' : `<ul>${changed.map((part) => `<li>${escapeHTML(translate(`camp_plan_part_${part}`))}</li>`).join('')}</ul>`;
+    return `<div class="camp-permit__changes"><p>${escapeHTML(label)}</p>${parts}</div>`;
+  }
+
+  /** Show the decisions already made and the next action available to this member. */
+  approvalMarkup(version) {
+    const entries = version.attestations || [];
+    const history = entries.length ? `
+      <h4>${escapeHTML(translate('camp_approval_attestations'))}</h4>
+      <ul>${entries.map((entry) => `<li>
+        <strong>${escapeHTML(translate(`camp_approval_stage_${entry.stage}`))}</strong> ·
+        ${escapeHTML(translate(`camp_plan_version_status_${entry.decision}`))} ·
+        ${escapeHTML(entry.signer_name)} (${escapeHTML(entry.signer_function)}) ·
+        ${escapeHTML(formatDate(entry.signed_at, this.lang()))}
+        ${entry.before_redaction ? `<p><strong>${escapeHTML(translate('camp_approval_before_redaction'))}</strong></p>` : ''}
+        ${entry.comment ? `<p>${escapeHTML(entry.comment)}</p>` : ''}
+        <details class="camp-permit__digest">
+          <summary>${escapeHTML(translate('camp_plan_version_digest_details'))}</summary>
+          <p>${escapeHTML(translate('camp_plan_version_code'))} <strong>${escapeHTML(verificationCode(entry.snapshot_sha256))}</strong></p>
+          <p>${escapeHTML(translate('camp_approval_submitted_fingerprint'))} <code>${escapeHTML(entry.pdf_sha256)}</code></p>
+        </details></li>`).join('')}</ul>` : '';
+    const number = Number(version.version_number);
+    const download = entries.length && !version.redacted_at ? `
+      ${version.approved_pdf_sha256 ? `<details class="camp-permit__digest">
+        <summary>${escapeHTML(translate('camp_approval_final_fingerprint'))}</summary>
+        <p><code>${escapeHTML(version.approved_pdf_sha256)}</code></p></details>` : ''}
+      <button type="button" class="button button--secondary button--small" data-version-download="${number}" data-copy="attestations">
+        ${escapeHTML(translate(version.approved_pdf_sha256 ? 'camp_approval_download_final' : 'camp_approval_download_attestations'))}
+        <span class="sr-only"> ${escapeHTML(this.number(number))}</span>
+      </button>` : '';
+    const active = version.status === 'submitted' && !version.redacted_at && !this.data.camp.is_cancelled;
+    const stage = active && APPROVAL_STAGES.find((key) => !entries.some((entry) => entry.stage === key));
+    if (!stage) {
+      return `${history}${download}`;
+    }
+    const label = escapeHTML(translate(`camp_approval_stage_${stage}`));
+    const pending = version.branch_link_expires_at && stage === 'branch'
+      ? `<p>${escapeHTML(translate('camp_approval_link_pending').replace('{date}', formatDate(version.branch_link_expires_at, this.lang())))}</p>` : '';
+    const canAct = version.submitted_plain_sha256 && !isDemoUser() && hasPermission(APPROVAL_PERMISSIONS[stage]);
+    const formId = `camp-approval-${number}`;
+    const form = canAct ? `
+      <form data-approval-stage="${stage}" data-version="${number}" aria-labelledby="${formId}-heading">
+        ${stage === 'branch' ? `
+          <div class="form-group">
+            <label for="${formId}-email">${escapeHTML(translate('camp_approval_branch_email'))}</label>
+            <input id="${formId}-email" name="email" type="email" autocomplete="email" required>
+          </div>
+          <p class="field-hint">${escapeHTML(translate('camp_approval_branch_email_hint'))}</p>
+          <p class="field-error" role="alert" data-approval-error></p>
+          <button type="submit" class="button button--primary">${escapeHTML(translate(pending ? 'camp_approval_replace_link' : 'camp_approval_send_link'))}</button>
+        ` : decisionFields(formId, { ownSubmission: version.submitted_by && version.submitted_by === getCurrentUserId() })}
+      </form>` : '';
+    return `${history}${download}
+      <h4 id="${formId}-heading">${label}</h4>
+      <p>${escapeHTML(translate(`camp_approval_stage_help_${stage}`))}</p>
+      ${pending}
+      ${canAct && stage !== 'branch' && version.has_health ? `
+        <p><button type="button" class="button button--secondary button--small" data-version-download="${number}" data-copy="plain">
+          ${escapeHTML(translate('camp_approval_download_plain'))}</button></p>` : ''}
+      ${form}`;
+  }
+
+  /** Confirm a decision or send a link, then refresh the checklist and the version list. */
+  async saveDecision(form, version, payload) {
+    const stage = form.dataset.approvalStage;
+    const error = form.querySelector('[data-approval-error]');
+    error.textContent = '';
+    if (stage !== 'branch' && (!await confirmDecision(payload.decision, verificationCode(version.snapshot_sha256)) || this.destroyed)) {
+      return;
+    }
+    payload.pdf_sha256 = version.submitted_plain_sha256;
+    try {
+      if (stage === 'branch') {
+        await requestCampBranchApproval(this.meetingId, version.version_number, payload);
+      } else {
+        await attestCampPlan(this.meetingId, version.version_number, stage, payload);
+      }
+      if (!this.destroyed) {
+        this.app.showMessage(translate(stage === 'branch' ? 'camp_approval_link_sent' : 'camp_approval_saved'), 'success');
+        await this.init();
+        this.root()?.querySelector('#camp-permit-versions-title')?.focus();
+      }
+    } catch (err) {
+      if (!this.destroyed) {
+        error.textContent = apiErrorMessage(err, 'camp_approval_save_failed');
+      }
+    }
+  }
+
   /** @returns {string} The submit button, the changes, and every version with its document */
   versionsMarkup() {
     const { versions } = this.versions;
@@ -360,10 +468,11 @@ export class CampPermit {
           </details>
           ${version.has_health ? `<p class="field-hint">${escapeHTML(translate('camp_plan_version_health_note'))}</p>` : ''}
           <button type="button" class="button button--secondary button--small" data-version-download="${Number(version.version_number)}">
-            ${escapeHTML(translate('camp_plan_version_download'))}<span class="sr-only"> : ${escapeHTML(label)}</span></button>
+            ${escapeHTML(translate(version.attestations?.length ? 'camp_approval_download_original' : 'camp_plan_version_download'))}<span class="sr-only"> : ${escapeHTML(label)}</span></button>
+          ${this.approvalMarkup(version)}
         </li>`;
     }).join('');
-    return `${submit}${this.changesMarkup()}${items ? `<ul class="camp-permit__version-list">${items}</ul>` : ''}`;
+    return `${submit}${this.changesMarkup()}${this.approvedChangesMarkup()}${items ? `<ul class="camp-permit__version-list">${items}</ul>` : ''}`;
   }
 
   /** Submit the plan once confirmed; declining changes nothing. */
@@ -381,7 +490,7 @@ export class CampPermit {
     try {
       await submitCampPlanVersion(this.meetingId);
       this.app.showMessage(translate('camp_plan_version_submitted'), 'success');
-      await this.loadVersions();
+      await this.init();
       this.root()?.querySelector('#camp-permit-versions-title')?.focus();
     } catch (err) {
       debugError('Failed to submit the camp plan:', err);
@@ -395,19 +504,13 @@ export class CampPermit {
   async download(versionNumber, button) {
     button.disabled = true;
     try {
-      const file = await getCampPlanVersionPdf(this.meetingId, versionNumber, { signal: this.downloads.signal });
+      const read = button.dataset.copy === 'attestations' ? getCampAttestationPdf
+        : button.dataset.copy === 'plain' ? getCampPlanPlainPdf : getCampPlanVersionPdf;
+      const file = await read(this.meetingId, versionNumber, { signal: this.downloads.signal });
       if (this.destroyed) {
         return;
       }
-      const url = URL.createObjectURL(file.blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = file.filename || `camp-plan-v${versionNumber}.pdf`;
-      link.hidden = true;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_URL_LIFETIME_MS);
+      savePlanDocument(file.blob, file.filename || `camp-plan-v${versionNumber}.pdf`);
     } catch (err) {
       if (this.destroyed || err?.name === 'AbortError') {
         return;

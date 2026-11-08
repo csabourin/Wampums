@@ -43,7 +43,7 @@ const REASONS = Object.freeze([
   'no_schedule', 'days_without_activity', 'days_without_title', 'no_group_material', 'no_first_aid_kit', 'material_free_text', 'no_personal_list',
   'personal_list_unpublished', 'no_scout_year', 'no_youth', 'consent_pending', ...TEAM_TO_COMPLETE,
   'swimming_supervision', 'youth_health_form_missing', 'adult_allergies_not_declared', 'after_camp', 'review_open',
-  'not_in_wampums', 'approvals_coming', 'no_activity', 'no_access', 'cite_transport',
+  'not_in_wampums', 'approvals_coming', 'approval_submit', 'approval_pending', 'approval_changes', 'approval_redacted', 'no_activity', 'no_access', 'cite_transport',
 ]);
 
 /** Every line key, in the order the permit lists them. */
@@ -260,6 +260,22 @@ function evaluationLine(evaluation) {
   return evaluation.closed ? line('evaluation', COMPLETE) : line('evaluation', TO_COMPLETE, ['review_open']);
 }
 
+/** The current submission's approval state. Frozen snapshots describe their own submission. */
+function approvalLine(approval, frozen) {
+  if (frozen) {
+    return line('approvals', TO_COMPLETE, ['approval_pending']);
+  }
+  if (approval?.redacted) {
+    return line('approvals', TO_COMPLETE, ['approval_redacted']);
+  }
+  switch (approval?.status) {
+    case 'approved': return line('approvals', COMPLETE);
+    case 'changes_requested': return line('approvals', TO_COMPLETE, ['approval_changes']);
+    case 'submitted': return line('approvals', TO_COMPLETE, ['approval_pending']);
+    default: return line('approvals', TO_COMPLETE, ['approval_submit']);
+  }
+}
+
 /**
  * Every line of the checklist, in the permit's order, from what was read.
  * Pure: the sources are read by readCampPermit.
@@ -279,7 +295,7 @@ function permitLines(sources, rights) {
     materialLine(sources.material),
     personalLine(sources.personal),
     line('parent_letter', UNVERIFIED, ['not_in_wampums']),
-    line('approvals', UNVERIFIED, ['approvals_coming']),
+    approvalLine(sources.approval, rights.frozen),
   ];
   if (!sources.camp.activity_id) {
     lines.push(line('transport', UNVERIFIED, ['no_activity']));
@@ -355,13 +371,17 @@ async function smallReads(db, organizationId, camp) {
                         JOIN user_organizations uo ON uo.organization_id = d.organization_id AND uo.user_id = d.on_site_lead_id
                        WHERE d.organization_id = $1 AND d.meeting_id = $2), FALSE) AS on_site_lead_active,
             COALESCE((SELECT r.status = 'closed' FROM camp_reviews r
-                       WHERE r.organization_id = $1 AND r.meeting_id = $2), FALSE) AS review_closed`,
+                       WHERE r.organization_id = $1 AND r.meeting_id = $2), FALSE) AS review_closed,
+            (SELECT json_build_object('status', v.status, 'redacted', v.redacted_at IS NOT NULL)
+               FROM camp_plan_versions v WHERE v.organization_id = $1 AND v.meeting_id = $2
+              ORDER BY v.version_number DESC LIMIT 1) AS approval`,
     [organizationId, camp.id, camp.activity_id]
   )).rows[0] || {};
   return {
     schedule_days: (row.schedule_days || []).map(Number),
     titled_days: (row.titled_days || []).map(Number),
     personal: row.personal || null,
+    approval: row.approval || null,
     carpool_offers: Number(row.carpool_offers) || 0,
     on_site_lead_active: Boolean(row.on_site_lead_active),
     evaluation: { over: Boolean(camp.over), closed: Boolean(row.review_closed) },

@@ -64,6 +64,7 @@ test('the document is a tagged PDF/UA file in the unit’s language, with its ti
   expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
   ['/StructTreeRoot', '/MarkInfo', '/Lang (fr-CA)', '/DisplayDocTitle true', '/FontFile2', 'pdfuaid:part', '/H1', '/H2', '/H3', '/TH', '/Scope']
     .forEach((marker) => expect([marker, text.includes(marker)]).toEqual([marker, true]));
+  expect(text).not.toContain('/CIDSet');
   expect(written[0]).toBe('Plan de camp — Camp des étoiles');
 });
 
@@ -137,4 +138,15 @@ test('a version frozen before a reason was retired is regenerated without printi
   frozen.checklist.push({ key: 'youth_list', state: 'unverified', reasons: ['sisc_not_compared'] });
   await renderPlanPdf(frozen, null, META);
   expect(written.join(' ')).not.toMatch(/sisc/i);
+});
+
+test('the approval PDF prints the signer, received date, issuance date and the submitted fingerprint', async () => {
+  const digest = 'a'.repeat(64);
+  await renderPlanPdf(snapshot(), null, { ...META, language: 'en', attestations: [
+    { stage: 'branch', decision: 'approved', signer_name: 'Fictional Reviewer', signer_function: 'Branch lead',
+      signed_at: '2027-06-30T15:00:00Z', received_on: '2027-06-28', pdf_sha256: digest, comment: 'Checked the plan' },
+  ] });
+  expect(written).toEqual(expect.arrayContaining([
+    'Attestations', 'Branch approval', 'Fictional Reviewer', 'June 28, 2027', 'Issued at (UTC)', '2CEC 53A4', digest, 'Checked the plan',
+  ]));
 });

@@ -27,10 +27,10 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
 }));
 jest.mock('../../spa/utils/DialogUtils.js', () => ({ confirm: jest.fn() }));
 jest.mock('../../spa/api/api-camp-plans.js', () => ({
-  getCampPermit: jest.fn(), getCampPlanVersions: jest.fn(), submitCampPlanVersion: jest.fn(), getCampPlanVersionPdf: jest.fn(),
+  attestCampPlan: jest.fn(), getCampPermit: jest.fn(), getCampPlanVersions: jest.fn(), submitCampPlanVersion: jest.fn(), getCampPlanVersionPdf: jest.fn(),
 }));
 
-const { getCampPermit, getCampPlanVersions, submitCampPlanVersion, getCampPlanVersionPdf } = require('../../spa/api/api-camp-plans.js');
+const { attestCampPlan, getCampPermit, getCampPlanVersions, submitCampPlanVersion, getCampPlanVersionPdf } = require('../../spa/api/api-camp-plans.js');
 const { hasPermission, canAccessAdminPanel, isDemoUser } = require('../../spa/utils/PermissionUtils.js');
 const { confirm } = require('../../spa/utils/DialogUtils.js');
 const { CampPermit } = require('../../spa/modules/camp-plan/CampPermit.js');
@@ -230,6 +230,27 @@ describe('submitted versions (#1418)', () => {
     expect(document.querySelector('#app img')).toBeNull();
     expect([...versionsBox().querySelectorAll('.camp-permit__changes li')].map((item) => item.textContent))
       .toEqual(['camp_plan_part_schedule', 'camp_plan_part_team']);
+  });
+
+  test('the next reviewer signs the displayed version, and a member without its permission has no form', async () => {
+    const active = { ...VERSIONS.versions[0], submitted_plain_sha256: DIGEST, attestations: [] };
+    getCampPlanVersions.mockResolvedValue({ success: true, data: { ...VERSIONS, versions: [active] } });
+    await open();
+    const form = $('form[data-approval-stage="lead"]');
+    form.elements.namedItem('job').value = 'Camp lead';
+    form.elements.namedItem('decision').value = 'approved';
+    const result = await axe.run(form, AXE_OPTIONS);
+    expect(result.violations).toEqual([]);
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+    expect(attestCampPlan).toHaveBeenCalledWith(12, 2, 'lead', {
+      pdf_sha256: DIGEST, job: 'Camp lead', comment: '', decision: 'approved',
+    });
+
+    screen.destroy();
+    hasPermission.mockImplementation((key) => key !== 'camp_plans.attest_lead');
+    await open();
+    expect($('form[data-approval-stage]')).toBeNull();
   });
 
   test('versions show team qualifications: without meetings.manage or volunteers.manage, they are not asked for', async () => {
