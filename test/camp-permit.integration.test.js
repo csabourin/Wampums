@@ -117,6 +117,16 @@ describe.skipIf(!DATABASE_URL)('Camp permit checklist', () => {
     expect(response.body.data.header).toMatchObject({ district: 'District fictif', coeducation: 'mixed', scout_groups: ['Groupe fictif'] });
   });
 
+  test('an on-site lead who leaves the unit no longer settles the emergency contacts', async () => {
+    await pool.query("UPDATE user_organizations SET status = 'inactive' WHERE organization_id = $1 AND user_id = $2", [ids.unit, ids.leader]);
+    try {
+      const byKey = lines((await read(ids.camp, ids.reader)).body);
+      expect(byKey.emergency).toMatchObject({ state: 'to_complete', reasons: ['on_site_lead_inactive'] });
+    } finally {
+      await pool.query("UPDATE user_organizations SET status = 'active' WHERE organization_id = $1 AND user_id = $2", [ids.unit, ids.leader]);
+    }
+  });
+
   test('a day of the camp with nothing planned leaves the schedule to complete', async () => {
     await pool.query('DELETE FROM year_plan_meeting_activities WHERE organization_id = $1 AND meeting_id = $2 AND day_offset = 1', [ids.unit, ids.camp]);
     const byKey = lines((await read(ids.camp)).body);

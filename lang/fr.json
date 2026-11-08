@@ -6115,5 +6115,6 @@
   "schedule_leaders_too_many": "Nommez au plus {count} membres.",
   "schedule_leaders_invalid": "Un des membres choisis ne peut plus être nommé. Rechargez l’horaire et réessayez.",
   "schedule_line_changed": "Quelqu’un a modifié cette ligne depuis que vous l’avez ouverte. Sa modification est maintenant affichée : refaites la vôtre.",
-  "camp_permit_reason_days_without_title": "Jours sans titre : {count}"
+  "camp_permit_reason_days_without_title": "Jours sans titre : {count}",
+  "camp_permit_reason_on_site_lead_inactive": "La personne responsable sur place n’est plus membre active de l’unité."
 }

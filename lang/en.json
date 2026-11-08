@@ -6115,5 +6115,6 @@
   "schedule_leaders_too_many": "Name at most {count} members.",
   "schedule_leaders_invalid": "One of the members chosen can no longer be named. Reload the schedule and try again.",
   "schedule_line_changed": "Someone changed this line since you opened it. Their change is now shown: make yours again.",
-  "camp_permit_reason_days_without_title": "Days without a title: {count}"
+  "camp_permit_reason_days_without_title": "Days without a title: {count}",
+  "camp_permit_reason_on_site_lead_inactive": "The person in charge on site is no longer an active member of the unit."
 }

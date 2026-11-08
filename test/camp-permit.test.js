@@ -29,6 +29,7 @@ const complete = () => ({
     team: [{ active_member: true }, { active_member: true }],
   },
   carpool_offers: 3,
+  on_site_lead_active: true,
   evaluation: { over: true, closed: true },
 });
 
@@ -134,6 +135,11 @@ test('an unanswered insurance question, a missing on-site lead and an archived s
   expect(lines.insurance.reasons).toEqual(['insurance_unanswered']);
   expect(lines.emergency.reasons).toEqual(['missing_hospital_phone', 'missing_on_site_lead']);
   expect(lines.site.reasons).toEqual(['site_archived']);
+});
+
+test('an on-site lead who has left the unit leaves the emergency contacts to complete', () => {
+  const sources = { ...complete(), on_site_lead_active: false };
+  expect(byKey(permitLines(sources, RIGHTS)).emergency).toMatchObject({ state: 'to_complete', reasons: ['on_site_lead_inactive'] });
 });
 
 test('a camp that is over and whose review is still open has its evaluation to complete', () => {

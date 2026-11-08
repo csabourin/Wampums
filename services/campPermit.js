@@ -38,7 +38,7 @@ const TEAM_TO_COMPLETE = ['no_lead', 'no_first_aider', 'member_left_unit', 'aide
 /** Every reason a line may give; each has a `camp_permit_reason_<reason>` text in both languages. */
 const REASONS = Object.freeze([
   'missing_scout_group', 'missing_district', 'missing_coeducation', 'no_site', 'site_archived', 'missing_address',
-  'missing_owner', ...EMERGENCY_FIELDS.map((field) => `missing_${field}`), 'missing_on_site_lead', 'insurance_unanswered',
+  'missing_owner', ...EMERGENCY_FIELDS.map((field) => `missing_${field}`), 'missing_on_site_lead', 'on_site_lead_inactive', 'insurance_unanswered',
   'missing_directions', 'missing_season', 'missing_accommodation', 'sections_to_write', 'sections_to_review', 'no_rain_game',
   'no_schedule', 'days_without_activity', 'days_without_title', 'no_group_material', 'no_first_aid_kit', 'material_free_text', 'no_personal_list',
   'personal_list_unpublished', 'no_scout_year', 'no_youth', 'consent_pending', 'sisc_not_compared', ...TEAM_TO_COMPLETE,
@@ -84,7 +84,7 @@ function identityLine(unit) {
 }
 
 /** The site's lines: where, what kind of camp, emergencies, insurance, directions. */
-function siteLines({ details, site }) {
+function siteLines({ details, site }, leadActive) {
   if (!site) {
     return ['site', 'emergency', 'insurance', 'directions'].map((key) => line(key, TO_COMPLETE, ['no_site']))
       .concat(campTypeLine(details, null));
@@ -103,6 +103,9 @@ function siteLines({ details, site }) {
   const emergencyReasons = EMERGENCY_FIELDS.filter((field) => gaps.includes(field)).map((field) => `missing_${field}`);
   if (!details?.on_site_lead_id) {
     emergencyReasons.push('missing_on_site_lead');
+  } else if (!leadActive) {
+    // Chosen while a member, since gone: no one is actually in charge on site.
+    emergencyReasons.push('on_site_lead_inactive');
   }
   const insuranceAnswered = site.has_own_insurance === true || site.has_own_insurance === false;
   return [
@@ -266,7 +269,7 @@ function permitLines(sources, rights) {
   const lines = [
     identityLine(sources.unit),
     line('dates', COMPLETE, [], { counts: { days: campDays(sources.camp.date_from, sources.camp.date_to) } }),
-    ...siteLines(sources.site),
+    ...siteLines(sources.site, sources.on_site_lead_active),
     ...planLines(sources.plan),
     scheduleLine(sources.camp, sources.schedule_days, sources.titled_days),
     line('menu', UNVERIFIED, ['not_in_wampums']),
@@ -345,6 +348,9 @@ async function smallReads(db, organizationId, camp) {
             (SELECT COUNT(*) FROM carpool_offers c
               WHERE c.organization_id = $1 AND c.activity_id = $3 AND COALESCE(c.is_active, TRUE)
                 AND c.cancelled_at IS NULL)::int AS carpool_offers,
+            COALESCE((SELECT uo.status = 'active' FROM camp_details d
+                        JOIN user_organizations uo ON uo.organization_id = d.organization_id AND uo.user_id = d.on_site_lead_id
+                       WHERE d.organization_id = $1 AND d.meeting_id = $2), FALSE) AS on_site_lead_active,
             COALESCE((SELECT r.status = 'closed' FROM camp_reviews r
                        WHERE r.organization_id = $1 AND r.meeting_id = $2), FALSE) AS review_closed`,
     [organizationId, camp.id, camp.activity_id]
@@ -354,6 +360,7 @@ async function smallReads(db, organizationId, camp) {
     titled_days: (row.titled_days || []).map(Number),
     personal: row.personal || null,
     carpool_offers: Number(row.carpool_offers) || 0,
+    on_site_lead_active: Boolean(row.on_site_lead_active),
     evaluation: { over: Boolean(camp.over), closed: Boolean(row.review_closed) },
   };
 }
