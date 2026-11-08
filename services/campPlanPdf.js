@@ -239,8 +239,8 @@ function renderPlanPdf(snapshot, health, { version, submittedAt, language, code 
     }
     if (snapshot.volunteers.length) {
       heading(sect, 'H3', t('camp_plan_pdf_volunteers'));
-      table(sect, [t('camp_plan_pdf_name'), t('camp_plan_pdf_shifts')],
-        snapshot.volunteers.map((person) => [person.name, (person.types || []).map((type) => t(`volunteer_type_${type}`)).join(', ')]));
+      table(sect, [t('camp_plan_pdf_shifts'), t('camp_plan_pdf_volunteer_count')],
+        snapshot.volunteers.map((entry) => [t(`volunteer_type_${entry.type}`), number(entry.count)]));
     }
   });
 

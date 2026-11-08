@@ -66,8 +66,9 @@ describe.skipIf(!DATABASE_URL)('Camp plan versions', () => {
     pool = new Pool({ connectionString: DATABASE_URL });
     ids.unit = await unit(); ids.otherUnit = await unit();
     ids.leader = await member(ids.unit, LEADER, 'Ada Lovelace');
-    ids.nurse = await member(ids.unit, ['meetings.view', 'participants.view', 'camp_allergies.view'], 'Léa Tremblay');
+    ids.nurse = await member(ids.unit, ['meetings.view', 'participants.view', 'volunteers.manage', 'camp_allergies.view'], 'Léa Tremblay');
     ids.viewer = await member(ids.unit, ['meetings.view'], 'Viewer Fiction');
+    ids.rosterReader = await member(ids.unit, ['meetings.view', 'participants.view'], 'Roster Fiction');
     ids.outsider = await member(ids.otherUnit, LEADER, 'Foreign Fiction');
     ids.camp = await camp(ids.unit, '2099-07-04', '2099-07-05');
     ids.cancelled = await camp(ids.unit, '2099-08-01', '2099-08-02', true);
@@ -121,6 +122,24 @@ describe.skipIf(!DATABASE_URL)('Camp plan versions', () => {
     expect(sha256(health.body)).not.toBe(sha256(plain.body));
     const snapshot = await one('SELECT snapshot::text FROM camp_plan_versions WHERE meeting_id = $1 AND version_number = 1', [ids.camp]);
     expect(snapshot).not.toContain('Arachides');
+    // Each reader is shown the fingerprint of the copy they download.
+    const nurseList = (await request(app).get(path(ids.camp)).set(auth(ids.nurse))).body.data.versions;
+    expect(nurseList[0].pdf_sha256).toBe(sha256(health.body));
+    const leaderList = (await request(app).get(path(ids.camp)).set(auth(ids.leader))).body.data.versions;
+    expect(leaderList[0].pdf_sha256).toBe(sha256(plain.body));
+    expect(nurseList[0].snapshot_sha256).toBe(leaderList[0].snapshot_sha256);
+  });
+
+  test('a volunteer is counted by shift in the document, never named', async () => {
+    const shift = await one(`INSERT INTO volunteer_shifts (organization_id, activity_id, volunteer_type, title, shift_date, start_time, end_time, slots, created_by)
+      SELECT $1, activity_id, 'cook', 'Déjeuner fictif', '2099-07-04', '07:00', '09:00', 2, $2 FROM year_plan_meetings WHERE id = $3 RETURNING id`,
+    [ids.unit, ids.leader, ids.camp]);
+    await pool.query("INSERT INTO volunteer_signups (organization_id, shift_id, user_id, status) VALUES ($1, $2, $3, 'confirmed')",
+      [ids.unit, shift, ids.viewer]);
+    const { buildPlanSnapshot } = require('../services/campPlanVersions');
+    const { snapshot } = await buildPlanSnapshot(pool, ids.unit, ids.camp);
+    expect(snapshot.volunteers).toEqual([{ type: 'cook', count: 1 }]);
+    expect(JSON.stringify(snapshot)).not.toContain('Viewer Fiction');
   });
 
   test('changing the camp never changes a submitted version, and the change is shown', async () => {
@@ -130,7 +149,7 @@ describe.skipIf(!DATABASE_URL)('Camp plan versions', () => {
       VALUES ($1, $2, 0, 'Arrivée fictive')`, [ids.unit, ids.camp]);
     expect(sha256((await pdf(ids.camp, 1, ids.leader)).body)).toBe(before);
     const listed = (await request(app).get(path(ids.camp)).set(auth(ids.leader))).body.data;
-    expect(listed.changed_since_latest).toEqual(expect.arrayContaining(['schedule']));
+    expect(listed.changed_since_latest).toEqual(expect.arrayContaining(['camp', 'schedule']));
     expect(listed.versions[0].version_number).toBe(1);
   });
 
@@ -146,6 +165,10 @@ describe.skipIf(!DATABASE_URL)('Camp plan versions', () => {
     const read = await request(app).get(path(ids.camp)).set(auth(ids.viewer));
     expect(read.status).toBe(403);
     expect(read.body.missing).toEqual(['participants.view']);
+    // Team qualifications are in the document: the camp lists' rule for them applies.
+    const qualifications = await request(app).get(path(ids.camp, '/1/pdf')).set(auth(ids.rosterReader));
+    expect(qualifications.status).toBe(403);
+    expect(qualifications.body.required).toEqual(['meetings.manage', 'volunteers.manage']);
     const submit = await request(app).post(path(ids.camp)).set(auth(ids.nurse));
     expect(submit.status).toBe(403);
     expect(submit.body.missing).toEqual(['meetings.manage']);

@@ -6204,5 +6204,8 @@
   "camp_plan_version_code": "Verification code:",
   "camp_plan_version_code_hint": "This code is printed on the first page of the PDF. A copy (attached to the SISC, emailed…) showing the same code is this version.",
   "camp_plan_version_digest_details": "Technical details",
-  "camp_plan_pdf_code_line": "Verification code: {code}. The same code appears in Wampums for this version."
+  "camp_plan_pdf_code_line": "Verification code: {code}. The same code appears in Wampums for this version.",
+  "camp_plan_part_camp": "Camp name and dates",
+  "camp_plan_part_volunteers": "Volunteers",
+  "camp_plan_pdf_volunteer_count": "Volunteers"
 }

@@ -83,7 +83,9 @@ export class CampPermit {
     // Frozen versions (#1418): null while loading, an Error when they could not be.
     this.versions = null;
     this.versionsRequest = 0;
-    this.canReadVersions = hasPermission('participants.view');
+    // Versions name youth, and the team with its qualifications (as the camp lists show them).
+    this.canReadVersions = hasPermission('participants.view')
+      && (hasPermission('meetings.manage') || hasPermission('volunteers.manage'));
     this.canSubmit = this.canReadVersions && hasPermission('meetings.manage') && !isDemoUser();
   }
 

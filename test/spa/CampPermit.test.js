@@ -229,6 +229,13 @@ describe('submitted versions (#1418)', () => {
       .toEqual(['camp_plan_part_schedule', 'camp_plan_part_team']);
   });
 
+  test('versions show team qualifications: without meetings.manage or volunteers.manage, they are not asked for', async () => {
+    hasPermission.mockImplementation((key) => !['meetings.manage', 'volunteers.manage'].includes(key));
+    await open();
+    expect(versionsBox()).toBeNull();
+    expect(getCampPlanVersions).not.toHaveBeenCalled();
+  });
+
   test('before any submission, the screen says none was submitted', async () => {
     await open();
     expect(versionsBox().textContent).toContain('camp_plan_versions_none');

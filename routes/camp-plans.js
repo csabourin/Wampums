@@ -27,8 +27,13 @@ const {
 const { readCampPermit } = require('../services/campPermit');
 const { submitPlanVersion, listPlanVersions, readPlanVersionPdf } = require('../services/campPlanVersions');
 
-/** A submitted plan names the camp's youth and team: unit-wide members who may read them. */
+/**
+ * A submitted plan names the camp's youth and its team with their qualifications: unit-wide
+ * members who may read them, as the camp lists require (qualifications: meetings.manage or
+ * volunteers.manage).
+ */
 const READ_VERSIONS = { permissions: ['meetings.view', 'participants.view'], organizationScope: true };
+const READ_QUALIFICATIONS = requireAnyPermission('meetings.manage', 'volunteers.manage');
 const SUBMIT = { permissions: ['meetings.manage', 'participants.view'], organizationScope: true };
 
 /** Answer known refusals with their translation key, naming the field when there is one. */
@@ -102,12 +107,14 @@ module.exports = (pool) => {
   // Frozen versions of the plan and their documents (#1418).
   router.get('/camps/:meetingId/versions',
     requirePermission(READ_VERSIONS),
+    READ_QUALIFICATIONS,
     validateIdParam('meetingId'),
     checkValidation,
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
+      const withHealth = await userHasPermission(req, pool, organizationId, 'camp_allergies.view');
       res.set('Cache-Control', 'no-store');
-      return success(res, await listPlanVersions(pool, organizationId, Number(req.params.meetingId)));
+      return success(res, await listPlanVersions(pool, organizationId, Number(req.params.meetingId), withHealth));
     }));
 
   router.post('/camps/:meetingId/versions',
@@ -117,13 +124,15 @@ module.exports = (pool) => {
     checkValidation,
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      return success(res, await submitPlanVersion(pool, organizationId, req.user.id, Number(req.params.meetingId)),
+      const withHealth = await userHasPermission(req, pool, organizationId, 'camp_allergies.view');
+      return success(res, await submitPlanVersion(pool, organizationId, req.user.id, Number(req.params.meetingId), withHealth),
         'camp_plan_version_submitted', HTTP_STATUS.CREATED);
     }));
 
   // The document: with the allergies only for whoever may read them (camp_allergies.view).
   router.get('/camps/:meetingId/versions/:versionNumber/pdf',
     requirePermission(READ_VERSIONS),
+    READ_QUALIFICATIONS,
     validateIdParam('meetingId'),
     validateIdParam('versionNumber'),
     checkValidation,

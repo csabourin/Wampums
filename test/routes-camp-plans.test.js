@@ -73,7 +73,27 @@ describe('frozen versions of the plan (#1418)', () => {
     const response = await call('post', '/camps/12/versions?organization_id=99');
     expect(response.status).toBe(201);
     expect(response.body.message).toBe('camp_plan_version_submitted');
-    expect(versionService.submitPlanVersion).toHaveBeenCalledWith(pool, UNIT_ID, USER_ID, 12);
+    expect(versionService.submitPlanVersion).toHaveBeenCalledWith(pool, UNIT_ID, USER_ID, 12, false);
+  });
+
+  test('versions show team qualifications: reading them takes meetings.manage or volunteers.manage, as the camp lists do', async () => {
+    permissions = ['meetings.view', 'participants.view'];
+    for (const path of ['/camps/12/versions', '/camps/12/versions/1/pdf']) {
+      // eslint-disable-next-line no-await-in-loop -- each refusal is checked in turn
+      const response = await call('get', path);
+      expect(response.status).toBe(403);
+      expect(response.body.required).toEqual(['meetings.manage', 'volunteers.manage']);
+    }
+    permissions = ['meetings.view', 'participants.view', 'volunteers.manage'];
+    expect((await call('get', '/camps/12/versions')).status).toBe(200);
+  });
+
+  test('each listed fingerprint is that of the copy the reader downloads', async () => {
+    await call('get', '/camps/12/versions');
+    expect(versionService.listPlanVersions).toHaveBeenLastCalledWith(pool, UNIT_ID, 12, false);
+    permissions = ['meetings.view', 'meetings.manage', 'participants.view', 'camp_allergies.view'];
+    await call('get', '/camps/12/versions');
+    expect(versionService.listPlanVersions).toHaveBeenLastCalledWith(pool, UNIT_ID, 12, true);
   });
 
   test('the versions name youth: reading them takes participants.view, and the refusal says so', async () => {
@@ -111,7 +131,7 @@ describe('frozen versions of the plan (#1418)', () => {
   });
 
   test('the copy naming allergies is asked for only with camp_allergies.view', async () => {
-    permissions = ['meetings.view', 'participants.view', 'camp_allergies.view'];
+    permissions = ['meetings.view', 'participants.view', 'volunteers.manage', 'camp_allergies.view'];
     await call('get', '/camps/12/versions/2/pdf');
     expect(versionService.readPlanVersionPdf).toHaveBeenCalledWith(pool, UNIT_ID, 12, 2, true);
   });

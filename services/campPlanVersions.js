@@ -9,6 +9,10 @@
  * (services/campPlanPdf.js). The version never changes afterwards: editing the
  * camp, its site or the unit's templates leaves it as submitted.
  *
+ * - The snapshot holds no volunteer's name: volunteers are counted by type of shift,
+ *   since their names are only for managers of volunteers. Team qualifications are in
+ *   it, so reading versions takes the rights the camp lists ask for them
+ *   (meetings.manage or volunteers.manage, checked by the route).
  * - The snapshot holds no health information. The allergies section exists only
  *   in a second PDF (`pdf_health`), served to holders of `camp_allergies.view`.
  * - Each PDF's SHA-256 digest is stored and shown, so a copy attached to the SISC
@@ -32,7 +36,7 @@ const { renderPlanPdf, PDF_LANGUAGES } = require('./campPlanPdf');
 const HTTP_NOT_FOUND = 404;
 const HTTP_CONFLICT = 409;
 /** The parts of a snapshot compared to say what changed since a version. */
-const SNAPSHOT_PARTS = ['header', 'checklist', 'sections', 'rain_games', 'schedule', 'site', 'team', 'youth', 'material'];
+const SNAPSHOT_PARTS = ['camp', 'header', 'checklist', 'sections', 'rain_games', 'schedule', 'site', 'team', 'volunteers', 'youth', 'material'];
 /** Every right a submitted plan is read with: it is the whole plan, for the people who approve it. */
 const FULL_PERMIT_RIGHTS = Object.freeze({ participants: true, carpools: true, reviews: true });
 /** Site facts the document prints, in its order. */
@@ -40,6 +44,19 @@ const SITE_FIELDS = ['name', 'owner_name', 'address', 'province', 'phone', 'site
   'heating', 'heating_note', 'has_own_insurance', 'insurance_note', 'hospital_name', 'hospital_address', 'hospital_phone',
   'hospital_travel_minutes', 'hospital_distance_km', 'poison_centre_phone', 'other_emergency_numbers', 'directions_url',
   'hospital_directions_url'];
+
+/**
+ * How many volunteers hold places of each type of shift: the document counts them,
+ * never names them (their names are for managers of volunteers only).
+ *
+ * @param {{types: string[]}[]} people
+ * @returns {{type: string, count: number}[]} In type order
+ */
+function volunteerCounts(people) {
+  const counts = new Map();
+  people.forEach((person) => (person.types || []).forEach((type) => counts.set(type, (counts.get(type) || 0) + 1)));
+  return [...counts.keys()].sort().map((type) => ({ type, count: counts.get(type) }));
+}
 
 /** @returns {string} SHA-256 of a buffer, in hexadecimal */
 const sha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
@@ -136,7 +153,7 @@ async function buildPlanSnapshot(db, organizationId, meetingId, { withHealth = f
       name: member.name, team_role: member.team_role, active_member: member.active_member,
       certifications: member.certifications?.verified || [],
     })),
-    volunteers: (roster.volunteers.people || []).map((person) => ({ name: person.name, types: person.types })),
+    volunteers: volunteerCounts(roster.volunteers.people || []),
     youth: roster.youth.map((person) => ({ first_name: person.first_name, last_name: person.last_name, age_at_camp: person.age_at_camp })),
     material: {
       items: (material?.items || []).map((item) => ({
@@ -195,9 +212,16 @@ async function lockCamp(db, organizationId, meetingId) {
   }
 }
 
-/** A version as people see it: no snapshot, no document bytes. */
-const VERSION_COLUMNS = `v.version_number, v.status, v.language, v.snapshot_sha256, v.pdf_sha256, v.pdf_health IS NOT NULL AS has_health,
-  v.submitted_at, u.full_name AS submitted_by_name`;
+/**
+ * A version as people see it: no snapshot, no document bytes. `pdf_sha256` is the
+ * fingerprint of the copy this reader downloads.
+ *
+ * @param {number} healthParam - Number of the query parameter saying the reader may read allergies
+ * @returns {string} SQL select list
+ */
+const versionColumns = (healthParam) => `v.version_number, v.status, v.language, v.snapshot_sha256,
+  CASE WHEN $${healthParam}::boolean AND v.pdf_health IS NOT NULL THEN v.pdf_health_sha256 ELSE v.pdf_sha256 END AS pdf_sha256,
+  v.pdf_health IS NOT NULL AS has_health, v.submitted_at, u.full_name AS submitted_by_name`;
 
 /**
  * Submit the plan: freeze its content and generate its document.
@@ -206,9 +230,10 @@ const VERSION_COLUMNS = `v.version_number, v.status, v.language, v.snapshot_sha2
  * @param {number} organizationId
  * @param {string} actorId - The member submitting
  * @param {number} meetingId - The planned camp
+ * @param {boolean} [withHealth] - The submitter may read allergies: describe the copy they download
  * @returns {Promise<Object>} The new version, as listPlanVersions describes it
  */
-function submitPlanVersion(pool, organizationId, actorId, meetingId) {
+function submitPlanVersion(pool, organizationId, actorId, meetingId, withHealth = false) {
   return transaction(pool, async (db) => {
     await lockCamp(db, organizationId, meetingId);
     const { snapshot, health } = await buildPlanSnapshot(db, organizationId, meetingId, { withHealth: true });
@@ -238,9 +263,9 @@ function submitPlanVersion(pool, organizationId, actorId, meetingId) {
         pdfHealth, pdfHealth ? sha256(pdfHealth) : null, actorId, submittedAt]
     );
     return (await db.query(
-      `SELECT ${VERSION_COLUMNS} FROM camp_plan_versions v LEFT JOIN users u ON u.id = v.submitted_by
+      `SELECT ${versionColumns(4)} FROM camp_plan_versions v LEFT JOIN users u ON u.id = v.submitted_by
         WHERE v.organization_id = $1 AND v.meeting_id = $2 AND v.version_number = $3`,
-      [organizationId, meetingId, number]
+      [organizationId, meetingId, number, withHealth]
     )).rows[0];
   });
 }
@@ -248,14 +273,18 @@ function submitPlanVersion(pool, organizationId, actorId, meetingId) {
 /**
  * A camp's versions, newest first, and what changed in the plan since the latest.
  *
+ * @param {Object} db
+ * @param {number} organizationId
+ * @param {number} meetingId
+ * @param {boolean} [withHealth] - The reader may read allergies: each fingerprint is that of their copy
  * @returns {Promise<{versions: Object[], changed_since_latest: string[]|null}>}
  *   `changed_since_latest` is null when nothing was submitted yet
  */
-async function listPlanVersions(db, organizationId, meetingId) {
+async function listPlanVersions(db, organizationId, meetingId, withHealth = false) {
   const versions = (await db.query(
-    `SELECT ${VERSION_COLUMNS} FROM camp_plan_versions v LEFT JOIN users u ON u.id = v.submitted_by
+    `SELECT ${versionColumns(3)} FROM camp_plan_versions v LEFT JOIN users u ON u.id = v.submitted_by
       WHERE v.organization_id = $1 AND v.meeting_id = $2 ORDER BY v.version_number DESC`,
-    [organizationId, meetingId]
+    [organizationId, meetingId, withHealth]
   )).rows;
   if (!versions.length) {
     // Still refuses another unit's camp, or a meeting that is not one.

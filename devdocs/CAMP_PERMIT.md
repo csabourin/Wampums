@@ -86,7 +86,8 @@ and stores a new `camp_plan_versions` row (migration 082) in one transaction:
 - `snapshot`: everything the document holds, read where it lives (`services/campPlanVersions.js`,
   `buildPlanSnapshot`): header and checklist, written sections **with the template texts then in force**,
   bad-weather games, schedule with members in charge and notes, site and emergency facts, team with
-  verified qualifications, volunteers, youth, group material. **No health information.**
+  verified qualifications, volunteers **counted by type of shift, never named** (names are for managers of
+  volunteers only), youth, group material. **No health information.**
 - `snapshot_sha256`, whose first eight characters, in capitals and groups of four, are the version's
   **verification code** ("2CEC 53A4"). It is printed on the PDF's first page and shown in Wampums: people
   check that a copy (attached to the SISC, emailed) is this version by comparing two short codes. "SHA-256"
@@ -104,8 +105,9 @@ submitted. `GET …/versions` lists them (newest first, no bytes) with `changed_
 the current plan (`SNAPSHOT_PARTS`) that differ from the latest version, compared with sorted keys since
 JSONB does not keep key order. `GET …/versions/:n/pdf` sends the document (`no-store`, `X-Content-SHA256`):
 the copy naming allergies only to holders of `camp_allergies.view`, otherwise the plain copy, whose
-allergies section says where to find them. Reading versions takes `meetings.view` and `participants.view`
-(they name youth). The service worker never caches these addresses (`isPersonalProfileRequest`).
+allergies section says where to find them. Each listed `pdf_sha256` is the fingerprint of the copy that
+reader downloads. Reading versions takes `meetings.view` and `participants.view` (they name youth) **and**
+`meetings.manage` or `volunteers.manage` (they show team qualifications, as the camp lists require). The service worker never caches these addresses (`isPersonalProfileRequest`).
 
 **The PDF is accessible** (PDF/UA): a structure tree (`Document`, `Sect`, `H1`–`H3`, `P`, `Table` with
 `TH` cells naming their scope), the document language (`fr-CA` / `en-CA`), its title shown in the window,
