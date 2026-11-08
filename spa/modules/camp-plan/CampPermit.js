@@ -347,6 +347,7 @@ export class CampPermit {
       return `<li class="camp-permit__version">
           <h3>${escapeHTML(label)} <span class="camp-plan__chip">${escapeHTML(translate(`camp_plan_version_status_${version.status}`))}</span></h3>
           <p>${escapeHTML(meta)}</p>
+          ${version.redacted_at ? `<p class="camp-permit__redacted"><strong>${escapeHTML(translate('camp_plan_version_redacted'))}</strong></p>` : ''}
           <p class="camp-permit__code">${escapeHTML(translate('camp_plan_version_code'))}
             <strong class="camp-permit__code-value">${escapeHTML(verificationCode(version.snapshot_sha256))}</strong></p>
           <p class="field-hint">${escapeHTML(translate('camp_plan_version_code_hint'))}</p>

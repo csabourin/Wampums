@@ -205,7 +205,7 @@ describe('submitted versions (#1418)', () => {
     { version_number: 2, status: 'submitted', snapshot_sha256: `2cec53a4${'0'.repeat(56)}`, pdf_sha256: DIGEST, has_health: true, submitted_at: '2027-06-01T16:00:00.000Z',
       submitted_by_name: 'Ada <img src=x onerror=alert(1)>' },
     { version_number: 1, status: 'superseded', snapshot_sha256: 'ef'.repeat(32), pdf_sha256: 'cd'.repeat(32), has_health: false, submitted_at: '2027-05-20T16:00:00.000Z',
-      submitted_by_name: null },
+      submitted_by_name: null, redacted_at: '2027-06-10T12:00:00.000Z' },
   ], changed_since_latest: ['schedule', 'team'] };
   const versionsBox = () => $('#camp-permit-versions');
 
@@ -224,6 +224,9 @@ describe('submitted versions (#1418)', () => {
     expect(items[0].textContent).toContain('Ada <img src=x onerror=alert(1)>');
     expect(items[0].textContent).toContain('camp_plan_version_health_note');
     expect(items[1].textContent).not.toContain('camp_plan_version_health_note');
+    // A version a family's erasure rewrote says so, and why its code changed.
+    expect(items[1].querySelector('.camp-permit__redacted').textContent).toBe('camp_plan_version_redacted');
+    expect(items[0].querySelector('.camp-permit__redacted')).toBeNull();
     expect(document.querySelector('#app img')).toBeNull();
     expect([...versionsBox().querySelectorAll('.camp-permit__changes li')].map((item) => item.textContent))
       .toEqual(['camp_plan_part_schedule', 'camp_plan_part_team']);

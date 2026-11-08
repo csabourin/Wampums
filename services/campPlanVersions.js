@@ -154,7 +154,10 @@ async function buildPlanSnapshot(db, organizationId, meetingId, { withHealth = f
       certifications: member.certifications?.verified || [],
     })),
     volunteers: volunteerCounts(roster.volunteers.people || []),
-    youth: roster.youth.map((person) => ({ first_name: person.first_name, last_name: person.last_name, age_at_camp: person.age_at_camp })),
+    // The id is kept so a family's erasure finds the versions naming their child; it is never printed.
+    youth: roster.youth.map((person) => ({
+      participant_id: person.id, first_name: person.first_name, last_name: person.last_name, age_at_camp: person.age_at_camp,
+    })),
     material: {
       items: (material?.items || []).map((item) => ({
         name: item.name, quantity: item.quantity, unit_of_measure: item.unit_of_measure, category: item.category,
@@ -224,7 +227,7 @@ const HEALTH_PARAM = { submitted: 4, listed: 3 };
  */
 const versionColumns = (healthParam) => `v.version_number, v.status, v.language, v.snapshot_sha256,
   CASE WHEN $${healthParam}::boolean AND v.pdf_health IS NOT NULL THEN v.pdf_health_sha256 ELSE v.pdf_sha256 END AS pdf_sha256,
-  v.pdf_health IS NOT NULL AS has_health, v.submitted_at, u.full_name AS submitted_by_name`;
+  v.pdf_health IS NOT NULL AS has_health, v.submitted_at, v.redacted_at, u.full_name AS submitted_by_name`;
 
 /**
  * Submit the plan: freeze its content and generate its document.
@@ -311,6 +314,49 @@ async function listPlanVersions(db, organizationId, meetingId, withHealth = fals
 }
 
 /**
+ * Remove an erased child from every frozen version that names them (services/erasure.js), inside
+ * the erasure's transaction. The snapshot loses the child, the PDF is regenerated from it, the copy
+ * naming allergies is deleted (it cannot be rebuilt without the erased health information), and the
+ * version is marked redacted. Its verification code changes: older copies no longer match.
+ *
+ * @param {Object} client - The erasure's transaction client
+ * @param {number} participantId - The child being erased
+ * @returns {Promise<number>} How many versions were redacted
+ */
+async function redactParticipantFromVersions(client, participantId) {
+  const versions = (await client.query(
+    `SELECT id, meeting_id, version_number, language, submitted_at, snapshot FROM camp_plan_versions
+      WHERE snapshot->'youth' @> jsonb_build_array(jsonb_build_object('participant_id', $1::int))
+      FOR UPDATE`,
+    [participantId]
+  )).rows;
+  // One version at a time: they share the erasure's single client.
+  /* eslint-disable no-await-in-loop */
+  for (const version of versions) {
+    const youth = version.snapshot.youth.filter((person) => person.participant_id !== participantId);
+    const snapshot = {
+      ...version.snapshot,
+      youth,
+      header: { ...version.snapshot.header, youth_count: youth.length },
+    };
+    const snapshotSha256 = sha256(canonicalJson({ meeting_id: version.meeting_id, version: version.version_number, snapshot }));
+    const pdf = await renderPlanPdf(snapshot, null, {
+      version: version.version_number, submittedAt: new Date(version.submitted_at), language: version.language,
+      code: verificationCode(snapshotSha256),
+    });
+    await client.query(
+      `UPDATE camp_plan_versions
+          SET snapshot = $2::jsonb, snapshot_sha256 = $3, pdf = $4, pdf_sha256 = $5,
+              pdf_health = NULL, pdf_health_sha256 = NULL, health_sha256 = $6, redacted_at = NOW()
+        WHERE id = $1`,
+      [version.id, JSON.stringify(snapshot), snapshotSha256, pdf, sha256(pdf), sha256(canonicalJson(null))]
+    );
+  }
+  /* eslint-enable no-await-in-loop */
+  return versions.length;
+}
+
+/**
  * One version's document: with the allergies for whoever may read them, else without.
  *
  * @param {Object} db
@@ -340,5 +386,5 @@ async function readPlanVersionPdf(db, organizationId, meetingId, versionNumber, 
 }
 
 module.exports = {
-  SNAPSHOT_PARTS, buildPlanSnapshot, changedParts, verificationCode, submitPlanVersion, listPlanVersions, readPlanVersionPdf, unitLanguage,
+  SNAPSHOT_PARTS, buildPlanSnapshot, changedParts, verificationCode, redactParticipantFromVersions, submitPlanVersion, listPlanVersions, readPlanVersionPdf, unitLanguage,
 };

@@ -28,7 +28,7 @@
  *
  * @module services/erasure
  */
-
+const { redactParticipantFromVersions } = require('./campPlanVersions');
 
 /**
  * Tables holding participant rows that no foreign key would cascade.
@@ -343,6 +343,9 @@ async function eraseParticipant(client, { organizationId, participant, performed
     );
     rowsDeleted[table] = deleted.rowCount;
   }
+
+  // Submitted camp plans copied the child's name, age and allergies: rewrite them without the child.
+  rowsDeleted.camp_plan_versions_redacted = await redactParticipantFromVersions(client, participantId);
 
   const participantDelete = await client.query(
     'DELETE FROM participants WHERE id = $1',

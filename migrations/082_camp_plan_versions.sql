@@ -22,6 +22,11 @@
 --   information itself), so readers allowed to see allergies are told when it changed
 --   since the version.
 --
+-- - `redacted_at`: when a family's erasure (services/erasure.js) removed their child from this
+--   version. The snapshot no longer names the child, the PDF is regenerated without them (its
+--   verification code changes, so older copies no longer match), and the copy naming allergies
+--   is deleted, since it cannot be rebuilt without the erased health information.
+--
 -- A new submission supersedes the version still waiting. Slice 4 (#1419)
 -- records approvals against a version; `status` already names its states.
 
@@ -42,6 +47,7 @@ CREATE TABLE IF NOT EXISTS public.camp_plan_versions (
   health_sha256 CHAR(64) NOT NULL CHECK (health_sha256 ~ '^[0-9a-f]{64}$'),
   submitted_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
   submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  redacted_at TIMESTAMPTZ,
   CHECK ((pdf_health IS NULL) = (pdf_health_sha256 IS NULL)),
   UNIQUE (organization_id, meeting_id, version_number),
   UNIQUE (id, organization_id),

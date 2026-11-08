@@ -6208,5 +6208,6 @@
   "camp_plan_part_camp": "Nom et dates du camp",
   "camp_plan_part_volunteers": "Bénévoles",
   "camp_plan_pdf_volunteer_count": "Bénévoles",
-  "camp_plan_part_allergies": "Allergies (indiqué seulement aux personnes qui peuvent les lire)"
+  "camp_plan_part_allergies": "Allergies (indiqué seulement aux personnes qui peuvent les lire)",
+  "camp_plan_version_redacted": "Contenu retiré après qu’une famille a demandé l’effacement des renseignements de son enfant. Le code de vérification a changé : les copies antérieures ne correspondent plus à cette version."
 }

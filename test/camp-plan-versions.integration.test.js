@@ -74,6 +74,11 @@ describe.skipIf(!DATABASE_URL)('Camp plan versions', () => {
     ids.cancelled = await camp(ids.unit, '2099-08-01', '2099-08-02', true);
     await pool.query("INSERT INTO camp_team_members (organization_id, meeting_id, user_id, team_role) VALUES ($1, $2, $3, 'lead')", [ids.unit, ids.camp, ids.leader]);
     await pool.query("INSERT INTO member_allergy_declarations (user_id, allergies, person_to_notify) VALUES ($1, 'Arachides (fictif)', 'Contact fictif')", [ids.leader]);
+    // A youth enrolled for the camp's scout year, whose family will later ask for erasure.
+    ids.year = await one("INSERT INTO scout_years (organization_id, label, start_date, end_date, status) VALUES ($1, 'Fictive', '2098-09-01', '2099-08-31', 'active') RETURNING id", [ids.unit]);
+    ids.youth = await one("INSERT INTO participants (first_name, last_name, date_naissance) VALUES ('Zoé', 'Effaçable', '2088-03-01') RETURNING id");
+    await pool.query(`INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, status)
+      VALUES ($1, $2, $3, 'active')`, [ids.youth, ids.unit, ids.year]);
     app = express(); app.locals.pool = pool; app.use(express.json());
     app.use('/api/v1/camp-plans', require('../routes/camp-plans')(pool));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
@@ -81,6 +86,10 @@ describe.skipIf(!DATABASE_URL)('Camp plan versions', () => {
 
   afterAll(async () => {
     if (!pool) {return;}
+    await pool.query('DELETE FROM erasure_log WHERE organization_id = ANY($1::int[])', [units]);
+    await pool.query('DELETE FROM participant_enrollments WHERE organization_id = ANY($1::int[])', [units]);
+    await pool.query('DELETE FROM participants WHERE id = $1', [ids.youth]);
+    await pool.query('DELETE FROM scout_years WHERE organization_id = ANY($1::int[])', [units]);
     await pool.query('DELETE FROM organizations WHERE id = ANY($1::int[])', [units]);
     await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [users]);
     await pool.end();
@@ -197,5 +206,41 @@ describe.skipIf(!DATABASE_URL)('Camp plan versions', () => {
     const file = await request(app).get(path(ids.camp, '/1/pdf')).set(auth(ids.outsider, ids.otherUnit));
     expect(file.status).toBe(404);
     expect(await one('SELECT COUNT(*)::int FROM camp_plan_versions WHERE organization_id = $1', [ids.otherUnit])).toBe(0);
+  });
+
+  test('a family’s erasure removes their child from every submitted version, and says so', async () => {
+    const before = await pool.query(
+      'SELECT version_number, snapshot_sha256, pdf_sha256 FROM camp_plan_versions WHERE meeting_id = $1 ORDER BY version_number', [ids.camp]);
+    expect(await one(`SELECT COUNT(*)::int FROM camp_plan_versions WHERE meeting_id = $1
+      AND snapshot->'youth' @> jsonb_build_array(jsonb_build_object('participant_id', $2::int))`, [ids.camp, ids.youth])).toBeGreaterThan(0);
+
+    const { eraseParticipant } = require('../services/erasure');
+    const client = await pool.connect();
+    let result;
+    try {
+      await client.query('BEGIN');
+      result = await eraseParticipant(client, { organizationId: ids.unit, participant: { id: ids.youth }, performedBy: ids.leader });
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    expect(result.rows_deleted.camp_plan_versions_redacted).toBe(before.rows.length);
+
+    const after = await pool.query(
+      `SELECT version_number, snapshot::text AS snapshot, snapshot_sha256, pdf_sha256, pdf, pdf_health, redacted_at
+         FROM camp_plan_versions WHERE meeting_id = $1 ORDER BY version_number`, [ids.camp]);
+    after.rows.forEach((row, index) => {
+      expect(row.snapshot).not.toContain('Effaçable');
+      expect(row.pdf_health).toBeNull();
+      expect(row.redacted_at).not.toBeNull();
+      expect(row.snapshot_sha256).not.toBe(before.rows[index].snapshot_sha256);
+      expect(sha256(row.pdf)).toBe(row.pdf_sha256);
+    });
+    const listed = (await request(app).get(path(ids.camp)).set(auth(ids.nurse))).body.data.versions;
+    expect(listed.every((version) => version.redacted_at && !version.has_health)).toBe(true);
+    ids.youth = null;
   });
 });

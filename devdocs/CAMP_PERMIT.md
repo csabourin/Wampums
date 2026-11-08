@@ -101,6 +101,11 @@ and stores a new `camp_plan_versions` row (migration 082) in one transaction:
 - `health_sha256`: a fingerprint of the allergy information as submitted, never the information itself.
   A reader holding `camp_allergies.view` is told (`allergies` in `changed_since_latest`) when it changed
   since the latest version; nobody else is, since that change is itself health information.
+- **Erasure.** The snapshot keeps each youth's `participant_id` (never printed). When a family's erasure
+  removes their child (`services/erasure.js` → `redactParticipantFromVersions`), every version naming the
+  child is rewritten without them: snapshot and PDF regenerated, the copy naming allergies deleted (it cannot
+  be rebuilt without the erased information), `redacted_at` set. The verification code changes, so older
+  copies no longer match, and the screen says why.
 - The version still `submitted` becomes `superseded`. Slice 4 adds `changes_requested` and `approved`.
 
 A version never changes afterwards: editing the camp, its site or the unit's templates leaves it as

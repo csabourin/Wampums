@@ -6208,5 +6208,6 @@
   "camp_plan_part_camp": "Camp name and dates",
   "camp_plan_part_volunteers": "Volunteers",
   "camp_plan_pdf_volunteer_count": "Volunteers",
-  "camp_plan_part_allergies": "Allergies (shown only to people who may read them)"
+  "camp_plan_part_allergies": "Allergies (shown only to people who may read them)",
+  "camp_plan_version_redacted": "Content removed after a family asked for their child’s information to be erased. The verification code changed: earlier copies no longer match this version."
 }
