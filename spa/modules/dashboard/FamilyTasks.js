@@ -151,7 +151,12 @@ export function buildFamilyTasks(data, filter = ALL_CHILDREN) {
         kind: FAMILY_TASK_KIND.PERMISSION,
         title: slip.activity_title || slip.activity_name || '',
         date: isoToDateString(slip.meeting_date),
-      }), childRow(participantId, { slipId: Number(slip.id), deadline: slip.deadline_date || null })));
+      }), childRow(participantId, {
+        slipId: Number(slip.id),
+        deadline: slip.deadline_date || null,
+        // The text this parent is shown; sent back with the answer (#1410).
+        fingerprint: slip.presented_fingerprint || null,
+      })));
   });
 
   participants

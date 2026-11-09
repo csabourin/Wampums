@@ -38,6 +38,7 @@ import { askRestoreReplacedMeeting, deletedMessageKey } from '../activities/Acti
 import { hasPermission } from '../../utils/PermissionUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { isSlipTextChanged, renderFingerprintStatus } from '../../utils/PermissionSlipFingerprintUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { richTextOrPlain } from '../../utils/RichTextUtils.js';
 import { HTTP_STATUS } from '../../utils/HttpStatus.js';
@@ -631,6 +632,7 @@ export class PermissionSlipDashboard {
                     <td>${escapeHTML(slip.first_name)} ${escapeHTML(slip.last_name)}</td>
                     <td>
                       <span class="status-badge status-${slip.status}">${escapeHTML(translate(`permission_slip_status_${slip.status}`))}</span>
+                      ${renderFingerprintStatus(slip)}
                     </td>
                     <td>${slip.email_sent ? `✓ ${  translate('email_sent')}` : translate('email_not_sent')}</td>
                     <td>${slip.signed_at
@@ -826,6 +828,7 @@ export class PermissionSlipDashboard {
         // button before awaiting the dialog below.
         const trigger = event.currentTarget;
         const slipId = trigger.getAttribute('data-id');
+        const slip = this.permissionSlips.find((candidate) => String(candidate.id) === String(slipId));
         const signerName = (await promptDialog({
           title: translate('permission_slip_signer'),
           message: translate('permission_slip_signer'),
@@ -834,13 +837,20 @@ export class PermissionSlipDashboard {
 
         withButtonLoading(trigger, async () => {
           try {
-            await signPermissionSlip(slipId, { signed_by: signerName });
+            await signPermissionSlip(slipId, {
+              signed_by: signerName,
+              presented_fingerprint: slip?.presented_fingerprint,
+            });
             this.app.showMessage(translate('permission_slip_signed'), 'success');
             await this.clearPermissionSlipCaches();
             await this.refreshData(true);
           } catch (error) {
             debugError('Error signing permission slip', error);
             this.app.showMessage(apiErrorMessage(error, 'permission_slip_error_loading'), 'error');
+            if (isSlipTextChanged(error)) {
+              // The text changed since it was shown: show the current one to read again.
+              await this.refreshData(true);
+            }
           }
         });
       });

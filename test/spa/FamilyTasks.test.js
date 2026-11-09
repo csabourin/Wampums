@@ -99,8 +99,20 @@ function slip(id, participantId, overrides = {}) {
     meeting_date: '2026-11-14T00:00:00.000Z',
     deadline_date: '2026-11-07T00:00:00.000Z',
     status: 'pending',
+    // What the server says of the text this slip shows (#1410)
+    presented_fingerprint: fingerprintFor(id),
     ...overrides,
   };
+}
+
+/**
+ * A fictional fingerprint for a slip's text.
+ *
+ * @param {number} id - Slip id
+ * @returns {string} 64 hexadecimal characters
+ */
+function fingerprintFor(id) {
+  return String(id).padStart(2, '0').repeat(32).slice(0, 64).replace(/[^0-9a-f]/g, 'a');
 }
 
 /**
@@ -343,9 +355,12 @@ describe('the parent dashboard', () => {
     await flush();
 
     expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ message: 'family_tasks_signer_prompt' }));
-    // Only the signer's name: the server dates the signature, and nothing pretends to be a hash.
-    expect(endpoints.signPermissionSlip.mock.calls)
-      .toEqual([[91, { signed_by: 'Marie Tremblay' }], [92, { signed_by: 'Marie Tremblay' }]]);
+    // The signer's name and the fingerprint the server gave for the text shown:
+    // the server dates the signature and computes the fingerprint it records.
+    expect(endpoints.signPermissionSlip.mock.calls).toEqual([
+      [91, { signed_by: 'Marie Tremblay', presented_fingerprint: fingerprintFor(91) }],
+      [92, { signed_by: 'Marie Tremblay', presented_fingerprint: fingerprintFor(92) }],
+    ]);
     expect(app.showMessage).toHaveBeenCalledWith('permission_slip_signed', 'success');
     expect(page.loadPermissionSlips).toHaveBeenCalledWith(4, true);
     expect(page.loadPermissionSlips).toHaveBeenCalledWith(5, true);
@@ -379,6 +394,23 @@ describe('the parent dashboard', () => {
 
     expect(app.showMessage).toHaveBeenCalledWith('family_tasks_partial_failure', 'error');
     expect(app.showMessage).not.toHaveBeenCalledWith('permission_slip_signed', 'success');
+    page.destroy();
+  });
+
+  test('when a slip changed while the parent read it, they are asked to read it again, not told it failed', async () => {
+    const { page, app } = await renderDashboard([ADA, LEA], twoChildSlips());
+    prompt.mockResolvedValue('Marie Tremblay');
+    endpoints.signPermissionSlip
+      .mockResolvedValueOnce({ success: true })
+      .mockRejectedValueOnce(Object.assign(new Error('permission_slip_text_changed'), { status: 409 }));
+
+    document.querySelector('.js-family-sign').click();
+    await flush();
+
+    expect(app.showMessage).toHaveBeenCalledWith('permission_slip_text_changed', 'error');
+    expect(app.showMessage).not.toHaveBeenCalledWith('permission_slip_signed', 'success');
+    // The current text is loaded again, to be read before answering
+    expect(page.loadPermissionSlips).toHaveBeenCalledWith(5, true);
     page.destroy();
   });
 

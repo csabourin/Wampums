@@ -8806,6 +8806,20 @@ details p {
   color: white;
 }
 
+/* Whether an answered permission slip's text is proven by its fingerprint
+   (#1410). The words say the state; the icon only repeats it. */
+.permission-slip-fingerprint {
+  display: block;
+  margin-block-start: var(--space-xs, 0.25rem);
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.permission-slip-fingerprint--altered {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
 .status-badge.status-archived,
 .status-badge.status-revoked,
 .status-badge.status-expired {

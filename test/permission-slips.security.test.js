@@ -22,6 +22,46 @@ jest.mock('pg', () => {
 });
 
 const { setupDefaultMocks, authorizationContextRow } = require('./mock-helpers');
+const { presentedFingerprint } = require('../services/permissionSlipFingerprint');
+
+/** The text the slip presents, as the database builds it. */
+const SLIP_CONTENT = {
+  participant_id: 3,
+  activity_id: 9,
+  meeting_date: '2026-06-01',
+  deadline_date: null,
+  activity_title: 'Camp',
+  activity_description: null,
+  activity_description_html: null,
+  authorization_text: 'Je permets à mon enfant de participer.',
+  consent_payload: {},
+};
+const FINGERPRINT = presentedFingerprint(SLIP_CONTENT);
+
+/**
+ * Answer an answer's transaction: the locked slip, then the update.
+ *
+ * @param {Object} client - Mocked pg client
+ * @param {string|null} status - The slip's status, or null when no slip has the token
+ */
+function mockAnswer(client, status) {
+  client.query.mockImplementation((sql, params) => {
+    let rows = [];
+    if (String(sql).includes('FOR UPDATE')) {
+      rows = status ? [{ id: TEST_ID, organization_id: 1, participant_id: 3, status, slip_content: SLIP_CONTENT }] : [];
+    } else if (String(sql).includes('UPDATE permission_slips')) {
+      rows = [{
+        id: TEST_ID,
+        status: params[2],
+        [params[2] === 'signed' ? 'signed_by' : 'declined_by']: params[1],
+        answered_content: JSON.parse(params[3]),
+        signature_hash: params[4],
+        slip_content: SLIP_CONTENT,
+      }];
+    }
+    return Promise.resolve({ rows });
+  });
+}
 let app;
 
 const TEST_SECRET = 'testsecret';
@@ -42,6 +82,7 @@ describe('Permission Slip Security', () => {
 
   beforeEach(() => {
     __mPool.query.mockReset();
+    __mClient.query.mockReset();
   });
 
   describe('Public access via Token', () => {
@@ -53,7 +94,8 @@ describe('Permission Slip Security', () => {
           activity_title: 'Camp',
           meeting_date: '2026-06-01',
           participant_name: 'John Doe',
-          status: 'pending'
+          status: 'pending',
+          slip_content: SLIP_CONTENT,
         }]
       });
 
@@ -62,56 +104,72 @@ describe('Permission Slip Security', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.access_token).toBe(TEST_TOKEN);
+      // The page sends this back with the answer, naming the text it showed
+      expect(res.body.data.presented_fingerprint).toBe(FINGERPRINT);
+      expect(res.body.data).not.toHaveProperty('slip_content');
     });
 
     test('PATCH /api/v1/resources/permission-slips/s/:token should allow signing', async () => {
-      // Mock existing slip check
-      __mPool.query.mockResolvedValueOnce({
-        rows: [{ id: TEST_ID, status: 'pending' }]
-      });
-      // Mock update
-      __mPool.query.mockResolvedValueOnce({
-        rows: [{ id: TEST_ID, status: 'signed', signed_by: 'Parent' }]
-      });
+      mockAnswer(__mClient, 'pending');
 
       const res = await request(app)
         .patch(`/api/v1/resources/permission-slips/s/${TEST_TOKEN}`)
-        .send({ signed_by: 'Parent' });
+        .send({ signed_by: 'Parent', presented_fingerprint: FINGERPRINT });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.message).toContain('signed');
+      expect(res.body.data.permission_slip.signature_hash).toBe(FINGERPRINT);
+      expect(res.body.data.permission_slip.fingerprint_status).toBe('verified');
     });
 
     test('PATCH /api/v1/resources/permission-slips/public/:token should allow declining', async () => {
-      __mPool.query.mockResolvedValueOnce({
-        rows: [{
-          id: TEST_ID,
-          status: 'declined',
-          declined_by: 'Parent'
-        }]
-      });
+      mockAnswer(__mClient, 'pending');
 
       const res = await request(app)
         .patch(`/api/v1/resources/permission-slips/public/${TEST_TOKEN}`)
-        .send({ status: 'declined', declined_by: 'Parent' });
+        .send({ status: 'declined', declined_by: 'Parent', presented_fingerprint: FINGERPRINT });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.permission_slip.status).toBe('declined');
+      // A refusal proves which text was refused, as a signature does
+      expect(res.body.data.permission_slip.signature_hash).toBe(FINGERPRINT);
     });
 
     test('PATCH /api/v1/resources/permission-slips/public/:token should reject a second response', async () => {
-      __mPool.query
-        .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [{ status: 'signed' }] });
+      mockAnswer(__mClient, 'signed');
 
       const res = await request(app)
         .patch(`/api/v1/resources/permission-slips/public/${TEST_TOKEN}`)
-        .send({ status: 'declined', declined_by: 'Parent' });
+        .send({ status: 'declined', declined_by: 'Parent', presented_fingerprint: FINGERPRINT });
 
       expect(res.status).toBe(409);
       expect(res.body.success).toBe(false);
+      expect(res.body.message).not.toBe('permission_slip_text_changed');
+    });
+
+    test('a parent who opened the link before the slip changed is asked to read it again', async () => {
+      mockAnswer(__mClient, 'pending');
+      const shownBefore = presentedFingerprint({ ...SLIP_CONTENT, authorization_text: 'Ancien texte' });
+
+      const res = await request(app)
+        .patch(`/api/v1/resources/permission-slips/s/${TEST_TOKEN}`)
+        .send({ signed_by: 'Parent', presented_fingerprint: shownBefore });
+
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe('permission_slip_text_changed');
+      expect(__mClient.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE permission_slips'))).toBe(false);
+    });
+
+    test('a link that names no slip answers 404', async () => {
+      mockAnswer(__mClient, null);
+
+      const res = await request(app)
+        .patch(`/api/v1/resources/permission-slips/s/${TEST_TOKEN}`)
+        .send({ signed_by: 'Parent', presented_fingerprint: FINGERPRINT });
+
+      expect(res.status).toBe(404);
     });
   });
 
@@ -184,16 +242,14 @@ describe('Permission Slip Security', () => {
 
   describe('the date of a signature or refusal', () => {
     const BACKDATED = '2001-01-01T00:00:00.000Z';
-    const updateCall = () => __mPool.query.mock.calls.find(([sql]) => /UPDATE permission_slips/.test(sql));
+    const updateCall = () => __mClient.query.mock.calls.find(([sql]) => /UPDATE permission_slips/.test(sql));
 
     test('a parent signing from the emailed link cannot backdate the signature', async () => {
-      __mPool.query
-        .mockResolvedValueOnce({ rows: [{ id: TEST_ID, status: 'pending' }] })
-        .mockResolvedValueOnce({ rows: [{ id: TEST_ID, status: 'signed', signed_by: 'Parent' }] });
+      mockAnswer(__mClient, 'pending');
 
       const res = await request(app)
         .patch(`/api/v1/resources/permission-slips/s/${TEST_TOKEN}`)
-        .send({ signed_by: 'Parent', signed_at: BACKDATED });
+        .send({ signed_by: 'Parent', signed_at: BACKDATED, presented_fingerprint: FINGERPRINT });
 
       expect(res.status).toBe(200);
       const [sql, params] = updateCall();
@@ -202,11 +258,11 @@ describe('Permission Slip Security', () => {
     });
 
     test('a parent declining from the emailed link cannot backdate the refusal', async () => {
-      __mPool.query.mockResolvedValueOnce({ rows: [{ id: TEST_ID, status: 'declined', declined_by: 'Parent' }] });
+      mockAnswer(__mClient, 'pending');
 
       const res = await request(app)
         .patch(`/api/v1/resources/permission-slips/public/${TEST_TOKEN}`)
-        .send({ status: 'declined', declined_by: 'Parent', declined_at: BACKDATED });
+        .send({ status: 'declined', declined_by: 'Parent', declined_at: BACKDATED, presented_fingerprint: FINGERPRINT });
 
       expect(res.status).toBe(200);
       const [sql, params] = updateCall();
@@ -222,19 +278,19 @@ describe('Permission Slip Security', () => {
           permissions: ['permission_slips.sign'],
           roles: [{ role_name: 'parent', display_name: 'Parent' }],
         }))
-        .mockResolvedValueOnce({ rows: [{ organization_id: 1, participant_id: 7, status: 'pending' }] })
-        .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
-        .mockResolvedValueOnce({ rows: [{ id: TEST_ID, status: 'signed', signed_by: 'Parent' }] });
+        .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+      mockAnswer(__mClient, 'pending');
 
       const res = await request(app)
         .patch(`/api/v1/resources/permission-slips/${TEST_ID}/sign`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ signed_by: 'Parent', signed_at: BACKDATED });
+        .send({ signed_by: 'Parent', signed_at: BACKDATED, presented_fingerprint: FINGERPRINT });
 
       expect(res.status).toBe(200);
       const [sql, params] = updateCall();
       expect(sql).toMatch(/signed_at = CURRENT_TIMESTAMP/);
-      expect(params).toEqual([TEST_ID, 'Parent', 1]);
+      expect(params).not.toContain(BACKDATED);
+      expect(params.slice(0, 3)).toEqual([TEST_ID, 'Parent', 'signed']);
     });
   });
 });

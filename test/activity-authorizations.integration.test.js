@@ -86,6 +86,7 @@ describe.skipIf(!DATABASE_URL)('One activity permission workflow', () => {
     app = express(); app.use(express.json()); app.locals.pool = pool;
     app.use('/api/v1/activity-authorizations', require('../routes/activity-authorizations')(pool));
     app.use('/api/v1/activities', require('../routes/activities')(pool));
+    app.use('/api/v1/resources', require('../routes/resources')(pool));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'Unexpected test failure', detail: err.message }));
   });
   beforeEach(async () => {
@@ -188,6 +189,67 @@ describe.skipIf(!DATABASE_URL)('One activity permission workflow', () => {
     expect(await one('SELECT authorization_text FROM permission_slips WHERE activity_id = $1', [id])).toBe('I agree to this outing.');
     expect(await flow.dispatch(pool, ids.unit, id)).toMatchObject({ signed: 1, sent: 0, state: 'answered' });
     expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  test('a parent\'s answer freezes the text they read; a text changed while they read it is refused', async () => {
+    const id = await create({ invites_everyone: false, invited_participant_ids: [ids.ada] });
+    await flow.prepare(pool, ids.unit, id);
+    const accessToken = await one('SELECT access_token FROM permission_slips WHERE activity_id = $1', [id]);
+    const read = async () => (await request(app).get(`/api/v1/resources/permission-slips/v/${accessToken}`)).body.data;
+
+    const shown = await read();
+    expect(shown.presented_fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    // The leader corrects the text while the parent is reading the first version.
+    await pool.query("UPDATE permission_slips SET authorization_text = 'I agree to this outing, swimming included.' WHERE activity_id = $1", [id]);
+    const refused = await request(app).patch(`/api/v1/resources/permission-slips/s/${accessToken}`)
+      .send({ signed_by: 'Fictional Guardian', presented_fingerprint: shown.presented_fingerprint });
+    expect(refused.status).toBe(409);
+    expect(refused.body.message).toBe('permission_slip_text_changed');
+    expect(await one('SELECT status FROM permission_slips WHERE activity_id = $1', [id])).toBe('pending');
+
+    const reread = await read();
+    expect(reread.presented_fingerprint).not.toBe(shown.presented_fingerprint);
+    const signed = await request(app).patch(`/api/v1/resources/permission-slips/s/${accessToken}`)
+      .send({ signed_by: 'Fictional Guardian', presented_fingerprint: reread.presented_fingerprint });
+    expect(signed.status).toBe(200);
+    expect(signed.body.data.permission_slip.fingerprint_status).toBe('verified');
+    const stored = (await pool.query('SELECT answered_content, signature_hash FROM permission_slips WHERE activity_id = $1', [id])).rows[0];
+    expect(stored.signature_hash).toBe(reread.presented_fingerprint);
+    expect(stored.answered_content.content.authorization_text).toBe('I agree to this outing, swimming included.');
+    expect(stored.answered_content.content.meeting_date).toBe('2026-11-20');
+    expect((await read()).fingerprint_status).toBe('verified');
+
+    // A change to the answered text afterwards shows; it never passes as what was signed.
+    await pool.query("UPDATE permission_slips SET authorization_text = 'Edited afterwards' WHERE activity_id = $1", [id]);
+    expect((await read()).fingerprint_status).toBe('altered');
+  });
+
+  test('a slip answered before fingerprints is never shown as verified, whatever its old value', async () => {
+    const id = await create({ invites_everyone: false, invited_participant_ids: [ids.ada] });
+    await flow.prepare(pool, ids.unit, id);
+    await pool.query("UPDATE permission_slips SET status = 'signed', signed_by = 'Fictional Guardian', signed_at = NOW(), signature_hash = 'legacy-value' WHERE activity_id = $1", [id]);
+    const accessToken = await one('SELECT access_token FROM permission_slips WHERE activity_id = $1', [id]);
+
+    const slip = (await request(app).get(`/api/v1/resources/permission-slips/v/${accessToken}`)).body.data;
+
+    expect(slip.fingerprint_status).toBe('not_verifiable');
+    expect(slip.presented_fingerprint).toBeNull();
+  });
+
+  test('a family declining from its account freezes the refused text as well', async () => {
+    const id = await create({ invites_everyone: false, invited_participant_ids: [ids.ada] });
+    await flow.prepare(pool, ids.unit, id);
+    await pool.query("INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.id = (SELECT (role_ids->>0)::int FROM user_organizations WHERE user_id = $1 AND organization_id = $2) AND p.permission_key IN ('permission_slips.sign', 'participants.view') ON CONFLICT DO NOTHING", [ids.parent, ids.unit]);
+    const list = await call('get', `/api/v1/resources/permission-slips?activity_id=${id}`, ids.parent);
+    const [slip] = list.body.data.permission_slips;
+
+    const declined = await call('patch', `/api/v1/resources/permission-slips/${slip.id}`, ids.parent)
+      .send({ status: 'declined', declined_by: 'Fictional Guardian', presented_fingerprint: slip.presented_fingerprint });
+
+    expect(declined.status).toBe(200);
+    expect(declined.body.data.permission_slip.status).toBe('declined');
+    expect(declined.body.data.permission_slip.fingerprint_status).toBe('verified');
+    expect(await one('SELECT signature_hash FROM permission_slips WHERE id = $1', [slip.id])).toBe(slip.presented_fingerprint);
   });
 
   test('deadline edits and clearing follow pending requests while answered deadlines remain frozen', async () => {

@@ -38,6 +38,7 @@ import { translate, registerPushSubscription } from '../../app.js';
 import { CONFIG } from '../../config.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { apiErrorMessage, apiErrorMessageKey } from '../../utils/ApiErrorUtils.js';
+import { isSlipTextChanged } from '../../utils/PermissionSlipFingerprintUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { isAppInstalled, onInstallAvailabilityChange } from '../../utils/InstallPromptUtils.js';
@@ -909,8 +910,8 @@ export class ParentDashboard {
         button.disabled = true;
       });
     const results = await Promise.allSettled(task.rows.map((row) => (isDecline
-      ? declinePermissionSlip(row.slipId, { declined_by: signerName })
-      : signPermissionSlip(row.slipId, { signed_by: signerName }))));
+      ? declinePermissionSlip(row.slipId, { declined_by: signerName, presented_fingerprint: row.fingerprint })
+      : signPermissionSlip(row.slipId, { signed_by: signerName, presented_fingerprint: row.fingerprint }))));
     this.responding = false;
 
     const failedRows = task.rows.filter((_row, index) => results[index].status === 'rejected');
@@ -923,6 +924,9 @@ export class ParentDashboard {
         translate(queued ? 'family_tasks_response_queued' : (isDecline ? 'permission_slip_declined' : 'permission_slip_signed')),
         queued ? 'info' : 'success',
       );
+    } else if (failures.some(isSlipTextChanged)) {
+      // The text changed since it was shown: the reload below shows the current one to read again.
+      this.app.showMessage(translate('permission_slip_text_changed'), 'error');
     } else if (failures.every((failure) => apiErrorMessageKey(failure) === 'api_error_conflict')) {
       this.app.showMessage(translate('permission_slip_already_answered'), 'warning');
     } else if (failedRows.length < task.rows.length) {

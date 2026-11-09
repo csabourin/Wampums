@@ -418,6 +418,38 @@ describe('leaders and signing', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test('a leader signing for their own child says which text they were shown', async () => {
+    const { prompt } = jest.requireMock('../../spa/utils/DialogUtils.js');
+    prompt.mockResolvedValueOnce('Baloo');
+    endpoints.signPermissionSlip.mockResolvedValueOnce({ success: true });
+    const root = await openSlipList([{ ...slip(2, 'Bob', true), presented_fingerprint: 'c'.repeat(64) }]);
+
+    root.querySelector('.sign-slip').click();
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+
+    expect(endpoints.signPermissionSlip).toHaveBeenCalledWith('2', {
+      signed_by: 'Baloo',
+      presented_fingerprint: 'c'.repeat(64),
+    });
+  });
+
+  test('each answer says whether its text is proven, and an answer from before is never shown as verified', async () => {
+    const root = await openSlipList([
+      { ...slip(1, 'Alice', false), status: 'signed', signed_at: '2026-11-01', fingerprint_status: 'verified' },
+      { ...slip(2, 'Bob', false), status: 'declined', declined_at: '2026-11-01', fingerprint_status: 'altered' },
+      { ...slip(3, 'Chloé', false), status: 'signed', signed_at: '2026-10-01', fingerprint_status: 'not_verifiable', signature_hash: 'legacy' },
+      slip(4, 'Dan', false),
+    ]);
+
+    const label = (id) => root.querySelector(`tr[data-slip-id="${id}"] .permission-slip-fingerprint`)?.textContent.trim();
+    expect(label(1)).toBe('permission_slip_fingerprint_verified');
+    expect(label(2)).toBe('permission_slip_fingerprint_altered');
+    expect(label(3)).toBe('permission_slip_fingerprint_not_verifiable');
+    expect(label(4)).toBeUndefined();
+    const results = await axe.run(root, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
   test('after sending, the leader is told the other leaders received a copy', async () => {
     await openCreateForm();
     endpoints.sendPermissionSlipEmails.mockResolvedValueOnce({ data: { sent: 2, total: 2, failed: [], leader_copies_sent: 4 } });
