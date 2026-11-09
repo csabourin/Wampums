@@ -118,7 +118,8 @@ export const DASHBOARD_TILES = [
     moment: 'now',
     domain: 'attendance',
     priority: 2,
-    gate: { permission: 'points.manage' },
+    // The same permission as the screen's guard: the honors it reads.
+    gate: { permission: 'honors.view' },
   },
   {
     featureKey: 'meetings',

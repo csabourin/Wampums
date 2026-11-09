@@ -27,6 +27,7 @@ import {
   canManageFundraisers,
   canManageInventory,
   canManagePoints,
+  canViewHonors,
   canViewRoles,
   canSendCommunications,
   canAccessAdminPanel,
@@ -1061,7 +1062,8 @@ export class Router {
           await this.loadTimeSinceRegistration();
           break;
         case 'manageHonors':
-          if (!guard(canManagePoints())) {
+          // The screen reads honors (honors.view): points rights alone would open a page that cannot load.
+          if (!guard(canViewHonors())) {
             break;
           }
           await this.loadManageHonors();

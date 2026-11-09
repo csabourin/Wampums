@@ -1474,10 +1474,24 @@ tr:hover {
   color: var(--color-text-secondary, #4a4a4a);
 }
 
+.status-buttons__top {
+  align-items: center;
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: var(--space-xs, 0.25rem) var(--space-sm);
+  grid-column: 1 / -1;
+  justify-content: space-between;
+}
+
+.status-buttons__top .status-buttons__selection {
+  flex: 1 1 12rem;
+}
+
+/* In the bottom bar, beside what is selected: an action, not a setting. */
 .mark-remaining-btn {
-  display: block;
-  inline-size: 100%;
-  margin-block-end: var(--space-md);
+  flex: 0 0 auto;
+  min-block-size: var(--touch-target-min);
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
@@ -2674,42 +2688,29 @@ body:has(> .settings-icon) #toast-container:not(:empty) + #app {
   justify-content: center;
 }
 
-/* Points: each sort button shows its words, the emoji is only decoration. */
-.manage-points-page .sort-options {
+/* Points: order and group filter, two labelled menus on one line. */
+.manage-points-page .points-toolbar {
   display: grid;
+  gap: var(--space-sm);
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-block-end: var(--space-sm);
 }
 
-@media (min-width: 640px) {
-  .manage-points-page .sort-options {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+.points-toolbar__field {
+  display: grid;
+  gap: 0.125rem;
+  min-inline-size: 0;
 }
 
-.manage-points-page .sort-btn,
-.manage-points-page .filter-toggle-btn {
-  gap: var(--space-xs);
-  min-block-size: var(--touch-target-min);
+.points-toolbar__field label {
   font-size: var(--font-size-sm);
-  color: var(--color-text-primary);
-  text-align: start;
+  font-weight: var(--font-weight-semibold);
 }
 
-/* The filter looks "on" only while its panel is open. */
-.manage-points-page .filter-toggle-btn[aria-expanded="false"] {
-  background: var(--color-surface);
-  border-color: var(--color-border);
-}
-
-.manage-points-page .filter-toggle-btn[aria-expanded="true"] {
-  background: var(--color-primary);
-  color: white;
-}
-
-.manage-points-page .sort-btn[aria-pressed="true"] .sort-btn__label,
-.manage-points-page .filter-toggle-btn[aria-expanded="true"] .sort-btn__label {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.points-toolbar__field select {
+  inline-size: 100%;
+  min-block-size: var(--touch-target-min);
+  min-inline-size: 0;
 }
 
 .sort-btn__icon {
@@ -13058,14 +13059,59 @@ body:has(> .settings-icon) .demo-banner__inner {
   color: var(--color-primary-dark);
 }
 
-/* Shared activity scope for attendance, points and honors. */
+/* Shared activity scope for attendance, points and honors: one summary line,
+   the choices folded behind "Change", the explanation behind "?". */
 .action-roster-controls {
   display: grid;
-  gap: var(--space-sm);
-  margin-block: var(--space-md);
+  gap: var(--space-xs, 0.25rem);
+  margin-block: var(--space-sm);
   min-width: 0;
 }
-.action-roster-controls select {
+.action-roster-controls p { margin: 0; }
+.action-roster-controls p[role="status"]:empty { display: none; }
+.action-roster-summary {
+  align-items: center;
+  display: flex;
+  gap: var(--space-xs, 0.25rem);
+  min-width: 0;
+}
+.action-roster-summary__text {
+  flex: 1 1 auto;
+  font-weight: var(--font-weight-semibold, 600);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.action-roster-summary .button {
+  flex: 0 0 auto;
+  min-height: var(--touch-target-min);
+}
+.action-roster-help-toggle {
+  min-width: var(--touch-target-min);
+  font-weight: var(--font-weight-bold, 700);
+}
+.action-roster-chip {
+  align-items: center;
+  align-self: start;
+  background: var(--color-secondary);
+  border: 1px solid var(--color-primary, #0f7a5a);
+  border-radius: 999px;
+  color: var(--color-text);
+  display: inline-flex;
+  gap: var(--space-xs, 0.25rem);
+  justify-self: start;
+  min-height: var(--touch-target-min);
+  padding: 0 var(--space-md);
+}
+.action-roster-options {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+}
+.action-roster-options[hidden],
+.action-roster-help[hidden] { display: none; }
+.action-roster-options select {
   width: 100%;
   min-width: 0;
   min-height: var(--touch-target-min);
@@ -13076,15 +13122,23 @@ body:has(> .settings-icon) .demo-banner__inner {
   gap: var(--space-sm);
   min-height: var(--touch-target-min);
 }
-.action-roster-controls p { margin: 0; }
-.action-roster-help summary {
-  min-height: var(--touch-target-min);
-  display: list-item;
-  align-content: center;
-  cursor: pointer;
-  color: var(--color-text-secondary, #4b5563);
+.action-roster-toggle input[type="checkbox"] {
+  inline-size: 24px;
+  block-size: 24px;
+  flex-shrink: 0;
 }
-.action-roster-help p { margin-block-end: var(--space-sm); }
+.action-roster-help {
+  color: var(--color-text-secondary, #4b5563);
+  font-size: var(--font-size-sm);
+}
+
+/* Action screens (attendance, points, honors): the back link stays first, above
+   the title (test/spa/BackLinks.test.js); the title keeps tight margins so the
+   list starts higher on a phone. */
+.action-screen-title {
+  font-size: var(--font-size-xl, 1.5rem);
+  margin-block: var(--space-xs, 0.25rem) var(--space-sm);
+}
 
 /* Tasks use the same native controls on phones and desktops. */
 .tasks-page .task-list {
@@ -13325,3 +13379,14 @@ body:has(> .settings-icon) .demo-banner__inner {
   gap: var(--space-xs);
 }
 
+
+/* Attendance search: one compact row under the summary line. */
+.attendance-container .search-container {
+  margin-block-end: var(--space-sm);
+}
+.attendance-container .search-input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: var(--touch-target-min);
+  padding: var(--space-xs, 0.25rem) var(--space-sm);
+}

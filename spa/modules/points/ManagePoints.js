@@ -25,9 +25,21 @@ import { PointsStore } from '../../modules/points/PointsStore.js';
 import { PointActionBar } from '../../modules/points/PointActionBar.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
-import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { normalizeApiPath } from '../../utils/OfflineCacheKeys.js';
 import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
+import { getStorage, setStorage } from '../../utils/StorageUtils.js';
+
+/** The list's orders, in the menu's order: value → sort key and direction. */
+const POINTS_SORTS = Object.freeze({
+  group: { key: 'group', order: 'asc', label: 'points_sort_group' },
+  name: { key: 'name', order: 'asc', label: 'points_sort_name' },
+  'points-desc': { key: 'points', order: 'desc', label: 'points_sort_points_desc' },
+  'points-asc': { key: 'points', order: 'asc', label: 'points_sort_points_asc' },
+});
+
+/** The chosen order, remembered on this device: a convenience, never shared. */
+const POINTS_SORT_KEY = 'managePointsSort';
 const POINTS_CACHE_KEY = 'manage_points_data';
 
 export class ManagePoints {
@@ -39,7 +51,8 @@ export class ManagePoints {
     // list re-renders. Groups remain exclusive; individuals can be combined.
     this.selected = null; // { type: 'group', id } | { type: 'individual', ids: Set }
     this.awardedSelection = null;
-    this.currentSort = { key: 'group', order: 'asc' };
+    const savedSort = POINTS_SORTS[getStorage(POINTS_SORT_KEY)] ? getStorage(POINTS_SORT_KEY) : 'group';
+    this.currentSort = { value: savedSort, key: POINTS_SORTS[savedSort].key, order: POINTS_SORTS[savedSort].order };
     this.currentFilter = '';
     this.eventController = null;
     this.highlightTimers = new Set();
@@ -192,21 +205,27 @@ export class ManagePoints {
   }
 
   /**
-   * One sort button: a visible label beside a decorative icon, so the choice
-   * reads without guessing what an emoji means.
-   * @param {string} key - Sort key
-   * @param {string} icon - Decorative emoji
-   * @param {string} labelKey - Translation key of the visible label
+   * Order and group filter on one line, each a labelled native menu.
    * @returns {string} HTML
    */
-  renderSortButton(key, icon, labelKey) {
-    const active = this.currentSort.key === key;
+  renderToolbar() {
     return `
-      <button type="button" class="sort-btn${active ? ' active' : ''}" data-sort="${key}" aria-pressed="${active}">
-        <span class="sort-btn__icon" aria-hidden="true">${icon}</span>
-        <span class="sort-btn__label">${translate(labelKey)}</span>
-      </button>
-    `;
+      <div class="points-toolbar controls-container">
+        <div class="points-toolbar__field">
+          <label for="points-sort">${translate('points_sort_label')}</label>
+          <select id="points-sort" data-archive-safe>
+            ${Object.entries(POINTS_SORTS).map(([value, sort]) => `
+              <option value="${value}" ${value === this.currentSort.value ? 'selected' : ''}>${translate(sort.label)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="points-toolbar__field">
+          <label for="group-filter">${translate('points_filter_label')}</label>
+          <select id="group-filter" data-archive-safe>
+            <option value="">${translate('all_groups')}</option>
+            ${this.groups.map((group) => `<option value="${Number(group.id)}" ${String(group.id) === this.currentFilter ? 'selected' : ''}>${escapeHTML(group.name)}</option>`).join('')}
+          </select>
+        </div>
+      </div>`;
   }
 
   render() {
@@ -214,31 +233,9 @@ export class ManagePoints {
     const content = `
       <section class="manage-points-page">
         ${renderBackLink()}
-        <h1>${translate('manage_points')}</h1>
-        <div class="controls-container">
-          <div class="sort-options" role="group" aria-label="${escapeAttribute(translate('points_sort_controls'))}">
-            ${this.renderSortButton('name', '👤', 'sort_by_name')}
-            ${this.renderSortButton('group', '👥', 'sort_by_group')}
-            ${this.renderSortButton('points', '🏆', 'sort_by_points')}
-            <button type="button" class="filter-toggle-btn" id="filter-toggle"
-              data-archive-safe aria-expanded="false" aria-controls="filter-container">
-              <span class="sort-btn__icon" aria-hidden="true">🔍</span>
-              <span class="sort-btn__label">${translate('filter_by_group')}</span>
-            </button>
-          </div>
-          <div class="filter-options hidden" id="filter-container">
-            <label for="group-filter">${translate('filter_by_group')}:</label>
-            <select id="group-filter" data-archive-safe>
-              <option value="">${translate('all_groups')}</option>
-              ${this.groups
-    .map(
-      (group) => `<option value="${Number(group.id)}">${escapeHTML(group.name)}</option>`,
-    )
-    .join('')}
-            </select>
-          </div>
-        </div>
+        <h1 class="action-screen-title">${translate('manage_points')}</h1>
         ${this.roster.render()}
+        ${this.renderToolbar()}
         <div id="points-list"></div>
       </section>
       ${this.actionBar.render()}
@@ -378,19 +375,13 @@ export class ManagePoints {
         });
       }
     }, { signal });
-    const sortContainer = document.querySelector('.sort-options');
+    const sortSelect = document.getElementById('points-sort');
     const pointsList = document.getElementById('points-list');
     const filterDropdown = document.getElementById('group-filter');
-    const filterToggle = document.getElementById('filter-toggle');
 
-    if (sortContainer) {
-      sortContainer.addEventListener('click', (event) => {
-        const target = event.target.closest('button[data-sort]');
-        if (target) {
-          this.sortItems(target.dataset.sort);
-        }
-      }, { signal });
-    }
+    sortSelect?.addEventListener('change', (event) => {
+      this.sortItems(event.target.value);
+    }, { signal });
 
     if (pointsList) {
       pointsList.addEventListener('click', (event) => {
@@ -408,11 +399,6 @@ export class ManagePoints {
       }, { signal });
     }
 
-    if (filterToggle) {
-      filterToggle.addEventListener('click', () => {
-        this.toggleFilter();
-      }, { signal });
-    }
   }
 
   handleItemClick(item) {
@@ -843,32 +829,19 @@ export class ManagePoints {
     this.highlightTimers.add(timer);
   }
 
-  sortItems(key) {
-    debugLog(`Sorting by ${key}`);
-
-    if (this.currentSort.key === key) {
-      this.currentSort.order =
-        this.currentSort.order === 'asc' ? 'desc' : 'asc';
-    } else {
-      this.currentSort.key = key;
-      this.currentSort.order = 'asc';
+  /**
+   * Order the list by one of POINTS_SORTS, remembered on this device.
+   * @param {string} value - A POINTS_SORTS key
+   */
+  sortItems(value) {
+    const sort = POINTS_SORTS[value];
+    if (!sort) {
+      return;
     }
-
-    document.querySelectorAll('.sort-btn').forEach((btn) => {
-      const active = btn.dataset.sort === key;
-      btn.classList.toggle('active', active);
-      btn.setAttribute('aria-pressed', String(active));
-    });
-
+    debugLog(`Sorting by ${value}`);
+    this.currentSort = { value, key: sort.key, order: sort.order };
+    setStorage(POINTS_SORT_KEY, value);
     this.renderList();
-  }
-
-  toggleFilter() {
-    const filterContainer = document.getElementById('filter-container');
-    if (filterContainer) {
-      const hidden = filterContainer.classList.toggle('hidden');
-      document.getElementById('filter-toggle')?.setAttribute('aria-expanded', String(!hidden));
-    }
   }
 
   applyFilter() {

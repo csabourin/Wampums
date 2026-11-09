@@ -100,6 +100,8 @@ for (const lang of ['en', 'fr']) {
           && status.clientWidth >= status.scrollWidth
           && parseFloat(style.lineHeight) * 2 > status.clientHeight;
       })).toBe(true);
+      // The day picker sits with the other choices, behind "Change".
+      await page.locator('#action-roster-attendance-edit').click();
       expect(await page.locator('#dateSelect').evaluate((select) => {
         const style = getComputedStyle(select);
         const context = document.createElement('canvas').getContext('2d');

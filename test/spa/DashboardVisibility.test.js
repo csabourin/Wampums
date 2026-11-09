@@ -272,6 +272,18 @@ describe('tiles follow the permissions their page acts on', () => {
     expect(renderAs(['activities.view', 'participants.view', 'groups.view']).has('/permission-slips')).toBe(true);
   });
 
+  test('the honors tile needs the honors its page reads, not points rights alone', () => {
+    expect(renderAs(['points.manage']).has('/manageHonors')).toBe(false);
+    expect(renderAs(['honors.view']).has('/manageHonors')).toBe(true);
+  });
+
+  test('the honors route is guarded by the same honors permission', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const router = fs.readFileSync(path.join(__dirname, '../../spa/router.js'), 'utf8');
+    expect(router).toMatch(/case 'manageHonors':[^}]*if \(!guard\(canViewHonors\(\)\)\)/);
+  });
+
   test('unit set-up tiles land in "Administration de l\'unité"', () => {
     const { group } = renderAs(['users.invite', 'users.view', 'participants.edit', 'groups.view']);
     const links = Array.from(group('admin').querySelectorAll('a')).map((a) => a.getAttribute('href'));

@@ -2,7 +2,7 @@ import { translate } from '../app.js';
 import { getActionRoster } from '../api/api-action-roster.js';
 import { getCachedDataIgnoreExpiration, setCachedData, getOfflineData } from '../indexedDB.js';
 import { buildScopedCacheKey, normalizeApiPath } from '../utils/OfflineCacheKeys.js';
-import { escapeHTML } from '../utils/SecurityUtils.js';
+import { escapeAttribute, escapeHTML } from '../utils/SecurityUtils.js';
 import { getCurrentUserId, getCurrentOrganizationId } from '../api/api-helpers.js';
 import { CONFIG } from '../config.js';
 import { getStorage, setStorage } from '../utils/StorageUtils.js';
@@ -22,6 +22,8 @@ export class ActionRoster {
     this.showAll = false;
     this.controller = null;
     this.dayPlanned = false;
+    // The choices (day, meeting or activity, everyone) stay folded behind "Change".
+    this.optionsOpen = false;
     // How the roster works is explained once, open, then folded on later
     // visits (a per-device convenience): it no longer pushes the names down.
     this.helpOpen = getStorage(HELP_SEEN_KEY) !== 'true';
@@ -115,7 +117,17 @@ export class ActionRoster {
 
   awardContext() { return { date: this.date, activity_id: this.activityId, include_all: this.showAll }; }
 
-  render() {
+  /**
+   * The roster's controls, kept to one line: what the list shows (the day and
+   * the meeting or activity) with "Change" opening the choices, and "?" the
+   * explanation. Showing everyone stays visible as a chip that turns it off.
+   *
+   * @param {Object} [options] - What the screen adds
+   * @param {string} [options.dateLabel] - The day shown, as text (escaped here)
+   * @param {string} [options.dateControl] - The screen's own date picker markup, placed with the choices
+   * @returns {string} Markup
+   */
+  render({ dateLabel = '', dateControl = '' } = {}) {
     const id = `action-roster-${this.screen}`;
     // A notice that follows a choice is announced; the standing explanation is help.
     let stateNotice = '';
@@ -124,20 +136,36 @@ export class ActionRoster {
     } else if (this.activity?.requires_permission) {
       stateNotice = translate('action_roster_signed_notice');
     }
+    const context = this.activity ? this.activity.name : translate('action_roster_unit');
+    const summary = [dateLabel, context].filter(Boolean).map((part) => escapeHTML(part)).join(' · ');
     return `<div class="action-roster-controls">
-      <label for="${id}-activity">${translate('action_roster_context')}</label>
-      <select id="${id}-activity" data-archive-safe>
-        <option value="" ${this.activityId === null ? 'selected' : ''}>${translate('action_roster_unit')}</option>
-        ${this.activities.map((activity) => `<option value="${Number(activity.id)}" ${Number(activity.id) === this.activityId ? 'selected' : ''}>${escapeHTML(activity.name)}</option>`).join('')}
-      </select>
-      <label class="action-roster-toggle" for="${id}-all">
-        <input type="checkbox" id="${id}-all" ${this.showAll ? 'checked' : ''} data-archive-safe>
-        ${translate('action_roster_show_all')}
-      </label>
-      ${stateNotice ? '' : `<details class="action-roster-help" id="${id}-help"${this.helpOpen ? ' open' : ''}>
-        <summary>${translate('action_roster_help_summary')}</summary>
-        <p>${escapeHTML(translate('action_roster_attendance_notice'))}</p>
-      </details>`}
+      <div class="action-roster-summary">
+        <p class="action-roster-summary__text" id="${id}-summary">${summary}</p>
+        <button type="button" class="button button--secondary button--small" id="${id}-edit"
+          aria-expanded="${this.optionsOpen ? 'true' : 'false'}" aria-controls="${id}-options" data-archive-safe>
+          ${translate('action_roster_change')}
+        </button>
+        <button type="button" class="button button--ghost button--small action-roster-help-toggle" id="${id}-help-toggle"
+          aria-expanded="${this.helpOpen ? 'true' : 'false'}" aria-controls="${id}-help" data-archive-safe
+          aria-label="${escapeAttribute(translate('action_roster_help_summary'))}" title="${escapeAttribute(translate('action_roster_help_summary'))}">?</button>
+      </div>
+      ${this.showAll ? `<button type="button" class="action-roster-chip" id="${id}-all-off" data-archive-safe>
+        ${translate('action_roster_all_chip')}<span class="visually-hidden"> — ${translate('action_roster_all_chip_remove')}</span>
+        <span aria-hidden="true">✕</span>
+      </button>` : ''}
+      <div class="action-roster-options" id="${id}-options"${this.optionsOpen ? '' : ' hidden'}>
+        ${dateControl}
+        <label for="${id}-activity">${translate('action_roster_context')}</label>
+        <select id="${id}-activity" data-archive-safe>
+          <option value="" ${this.activityId === null ? 'selected' : ''}>${translate('action_roster_unit')}</option>
+          ${this.activities.map((activity) => `<option value="${Number(activity.id)}" ${Number(activity.id) === this.activityId ? 'selected' : ''}>${escapeHTML(activity.name)}</option>`).join('')}
+        </select>
+        <label class="action-roster-toggle" for="${id}-all">
+          <input type="checkbox" id="${id}-all" ${this.showAll ? 'checked' : ''} data-archive-safe>
+          ${translate('action_roster_show_all')}
+        </label>
+      </div>
+      <p class="action-roster-help" id="${id}-help"${this.helpOpen ? '' : ' hidden'}>${escapeHTML(translate('action_roster_attendance_notice'))}</p>
       <p role="status">${escapeHTML(stateNotice)}</p>
     </div>`;
   }
@@ -158,11 +186,41 @@ export class ActionRoster {
       this.showAll = event.target.checked;
       onChange();
     }, { signal });
-    const help = document.getElementById(`${id}-help`);
-    if (help) {
+    // Turning the exception off from its chip; focus lands back on "Change".
+    document.getElementById(`${id}-all-off`)?.addEventListener('click', async () => {
+      this.showAll = false;
+      // The screen redraws (sometimes after a read): focus the new "Change" once it is there.
+      await onChange();
+      document.getElementById(`${id}-edit`)?.focus();
+    }, { signal });
+    this.bindDisclosure(`${id}-edit`, `${id}-options`, (open) => { this.optionsOpen = open; }, signal);
+    this.bindDisclosure(`${id}-help-toggle`, `${id}-help`, (open) => { this.helpOpen = open; }, signal);
+    if (this.helpOpen) {
       setStorage(HELP_SEEN_KEY, 'true');
-      help.addEventListener('toggle', () => { this.helpOpen = help.open; }, { signal });
     }
+  }
+
+  /**
+   * A button showing or hiding a region, in place: the button keeps focus
+   * and says its state.
+   *
+   * @param {string} buttonId - The toggle
+   * @param {string} regionId - What it shows
+   * @param {Function} remember - Keeps the state across re-renders
+   * @param {AbortSignal} signal - Released with the screen
+   */
+  bindDisclosure(buttonId, regionId, remember, signal) {
+    const button = document.getElementById(buttonId);
+    const region = document.getElementById(regionId);
+    if (!button || !region) {
+      return;
+    }
+    button.addEventListener('click', () => {
+      const open = region.hidden;
+      region.hidden = !open;
+      button.setAttribute('aria-expanded', open ? 'true' : 'false');
+      remember(open);
+    }, { signal });
   }
 
   destroy() { this.controller?.abort(); }

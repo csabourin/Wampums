@@ -481,6 +481,15 @@ export function canManagePoints() {
 }
 
 /**
+ * Determine if the current user can read honors: the honors screen's own data
+ *
+ * @returns {boolean} True when honors view permission is granted
+ */
+export function canViewHonors() {
+  return hasPermission('honors.view');
+}
+
+/**
  * Determine if the current user can view points and honors
  *
  * @returns {boolean} True when points view permission is granted
