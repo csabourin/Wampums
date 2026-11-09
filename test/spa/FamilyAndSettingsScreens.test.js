@@ -320,8 +320,10 @@ describe('permission slip opened from an email', () => {
     // The reader starts again at the top of the text
     expect(document.activeElement).toBe(page().querySelector('h2'));
     expect(page().querySelector('#guardian-name').value).toBe('Marie Tremblay');
-    // Consent is given again, to the text now shown
+    // Consent is given again, to the text now shown; declining needs only the kept name
     expect(page().querySelector('#consent-checkbox').checked).toBe(false);
+    expect(page().querySelector('#sign-btn').disabled).toBe(true);
+    expect(page().querySelector('#decline-btn').disabled).toBe(false);
     expect(page().textContent).not.toContain('signature_registered_success');
     expect(await violations()).toEqual([]);
   });

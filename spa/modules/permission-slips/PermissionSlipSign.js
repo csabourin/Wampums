@@ -327,6 +327,8 @@ export class PermissionSlipSign {
     const nameInput = document.getElementById('guardian-name');
     if (nameInput) {
       nameInput.value = guardianName;
+      // Recompute the buttons: declining needs only the name; signing waits for consent again.
+      nameInput.dispatchEvent(new Event('input'));
     }
     const heading = document.querySelector('.permission-slip-sign h2');
     if (heading) {
