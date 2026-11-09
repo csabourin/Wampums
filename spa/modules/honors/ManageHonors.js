@@ -215,16 +215,15 @@ export class ManageHonors {
 
     const content = `
         ${renderBackLink()}
-        <div class="page-header page-header--compact">
-            <h1>${translate('manage_honors')}</h1>
-        </div>
-        <div class="date-navigation date-navigation--inline">
-            <label for="date-select">${translate('select_date')}:</label>
+        <h1 class="action-screen-title">${translate('manage_honors')}</h1>
+        ${this.roster.render({
+    dateLabel: formatDate(this.currentDate, this.app.lang),
+    dateControl: `
+            <label for="date-select">${translate('select_date')}</label>
             <select id="date-select" class="date-dropdown">
                 ${dateOptions}
-            </select>
-        </div>
-        ${this.roster.render()}
+            </select>`,
+  })}
         <div class="honors-table">
             <div class="honors-table__header">
                 <div class="honors-table__header-cell honors-table__header-cell--checkbox"></div>

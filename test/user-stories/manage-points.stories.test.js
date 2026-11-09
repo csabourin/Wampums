@@ -148,6 +148,8 @@ function selectGroup(id) {
 
 beforeEach(() => {
   global.indexedDB = new IDBFactory();
+  // The chosen order is remembered on the device: each story starts from the default.
+  localStorage.removeItem('managePointsSort');
   document.body.innerHTML = '<div id="app"></div>';
   jest.clearAllMocks();
   mockGlobalApp.userPermissions = ['points.view', 'points.manage', 'attendance.view'];
@@ -339,61 +341,51 @@ describe('US-PTS-011 — An empty list says why and how to get the youth back (#
 });
 
 describe('US-PTS-010 — Sort by name, group, or points', () => {
-  it('renders a flat list ordered by points, reversing on the second tap', async () => {
+  const chooseSort = (value) => {
+    const select = document.getElementById('points-sort');
+    select.value = value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  it('renders a flat list ordered by points, most or fewest first', async () => {
     seedStandardData();
     await initPage();
 
-    document.querySelector('.sort-btn[data-sort="points"]')
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
-
+    chooseSort('points-asc');
     let totals = [...document.querySelectorAll('.participant-points')].map((el) => Number(el.textContent));
     expect(totals).toEqual([2, 5, 10]);
 
-    document.querySelector('.sort-btn[data-sort="points"]')
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    chooseSort('points-desc');
     totals = [...document.querySelectorAll('.participant-points')].map((el) => Number(el.textContent));
     expect(totals).toEqual([10, 5, 2]);
   });
 
-  it('each sort button shows its words, and says which sort is on', async () => {
+  it('order and group are two labelled menus on one line, the order remembered on this device', async () => {
     seedStandardData();
     await initPage();
 
-    const buttons = [...document.querySelectorAll('.sort-options .sort-btn')];
-    expect(buttons.map((btn) => btn.querySelector('.sort-btn__label').textContent))
-      .toEqual([tr('sort_by_name'), tr('sort_by_group'), tr('sort_by_points')]);
-    buttons.forEach((btn) => {
-      // The emoji is decoration: the name comes from the visible words.
-      expect(btn.querySelector('.sort-btn__icon').getAttribute('aria-hidden')).toBe('true');
-      expect(btn.hasAttribute('aria-label')).toBe(false);
-    });
-    expect(document.querySelector('.sort-options').getAttribute('role')).toBe('group');
-    expect(buttons.map((btn) => btn.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false']);
+    const sort = document.getElementById('points-sort');
+    expect(document.querySelector('label[for="points-sort"]').textContent).toBe(tr('points_sort_label'));
+    expect(document.querySelector('label[for="group-filter"]').textContent).toBe(tr('points_filter_label'));
+    expect([...sort.options].map((option) => option.value)).toEqual(['group', 'name', 'points-desc', 'points-asc']);
+    expect(sort.value).toBe('group');
+    expect(document.querySelector('.points-toolbar').contains(document.getElementById('group-filter'))).toBe(true);
+    // No more panel to open first: the group menu is there.
+    expect(document.getElementById('filter-toggle')).toBeNull();
 
-    // Tapping the words (not the button's edge) still sorts.
-    document.querySelector('.sort-btn[data-sort="name"] .sort-btn__label')
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(buttons.map((btn) => btn.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false']);
-  });
-
-  it('the filter button says whether the filter is open', async () => {
-    seedStandardData();
+    chooseSort('name');
+    expect(localStorage.getItem('managePointsSort')).toBe('name');
+    document.body.innerHTML = '<div id="app"></div>';
     await initPage();
-
-    const toggle = document.getElementById('filter-toggle');
-    expect(toggle.textContent).toContain(tr('filter_by_group'));
-    expect(toggle.getAttribute('aria-controls')).toBe('filter-container');
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect(document.getElementById('filter-container').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('points-sort').value).toBe('name');
+    localStorage.removeItem('managePointsSort');
   });
 
   it('the sort controls have no WCAG A/AA violations', async () => {
     seedStandardData();
     await initPage();
 
-    const results = await axe.run(document.querySelector('.controls-container'), {
+    const results = await axe.run(document.querySelector('.manage-points-page'), {
       runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
       rules: { 'color-contrast': { enabled: false } },
     });
@@ -688,7 +680,9 @@ describe('Modern points action bar', () => {
     expect(document.getElementById('points-selection-summary').textContent)
       .toBe(tr('points_selection_multiple', { count: 2 }));
 
-    document.querySelector('.sort-btn[data-sort="points"]').click();
+    const sort = document.getElementById('points-sort');
+    sort.value = 'points-desc';
+    sort.dispatchEvent(new Event('change', { bubbles: true }));
     expect(document.querySelectorAll('.list-item.selected')).toHaveLength(2);
 
     document.querySelector('.point-split-action--reward .point-split-action__main').click();

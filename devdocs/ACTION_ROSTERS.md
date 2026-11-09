@@ -10,9 +10,14 @@ meeting/activity selector resolves overlapping dates; its choice follows navigat
 “Show all participants” is an explicit exception for that screen, reset on a context
 change. Group and individual awards send that scope and the server enforces it.
 Unit enrollment checks always apply, including with an exception.
-The standing explanation of the roster (attendance shows everyone; points and honors only those
-still present) is folded help, open on a device's first visit only; notices that follow a choice
-(“show all”, signed participants) stay in the `role="status"` line. The attendance screen opens on
+The roster's controls take one line: what the list shows (the day, on attendance and honors, and the
+meeting or activity) with "Change" opening the choices (the screen's day picker, the meeting or
+activity, "Show all participants"), and "?" the standing explanation (attendance shows everyone;
+points and honors only those still present), open on a device's first visit only. While "Show all"
+is on, a chip says so and turns it off. Notices that follow a choice (“show all”, signed
+participants) stay in the `role="status"` line. On attendance, "Mark the rest present" sits in the
+bottom bar beside the selection; on points, order and group are two menus on one line, the order
+remembered on the device. The attendance screen opens on
 today when the server lists it or today's roster names a meeting of the year plan or an activity
 (`ActionRoster.dayPlanned`), otherwise on the most recent listed day of the past six days
 (`AttendanceDefaultDate.js`), with today still offered in the picker.

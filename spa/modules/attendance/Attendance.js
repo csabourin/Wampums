@@ -45,6 +45,9 @@ async function waitForAttendanceReads(reads) {
   if (failure) { throw failure.reason; }
 }
 
+/** How a day reads in the picker and in the summary line: "mar. 3 nov. 2026". */
+const ATTENDANCE_DATE_FORMAT = Object.freeze({ weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+
 export class Attendance {
   constructor(app) {
     this.app = app;
@@ -708,28 +711,31 @@ export class Attendance {
     }
     this.freshContent = `
       ${renderBackLink()}
-      <h1 class="attendance-title">${translate('attendance_page_title')}</h1>
+      <h1 class="attendance-title action-screen-title">${translate('attendance_page_title')}</h1>
       <div class="attendance-container">
         ${this.renderCampBanner()}
-        <div class="date-navigation">
-          <label for="dateSelect" class="sr-only">${translate('select_date')}</label>
-          <select id="dateSelect" class="date-select" data-archive-safe>
-            ${this.renderDateOptions()}
-          </select>
-        </div>
-        <div class="search-container" style="margin-bottom: 1rem;">
+        ${this.roster.render({
+    dateLabel: formatDate(this.currentDate, this.app.lang, ATTENDANCE_DATE_FORMAT),
+    dateControl: `
+            <label for="dateSelect">${translate('select_date')}</label>
+            <select id="dateSelect" class="date-select" data-archive-safe>
+              ${this.renderDateOptions()}
+            </select>`,
+  })}
+        <div class="search-container">
           <label for="attendance-search" class="sr-only">${translate('search')}</label>
-          <input type="search" id="attendance-search" class="search-input" data-archive-safe style="width: 100%; padding: 0.5rem;" placeholder="${translate('search')}..." value="${escapeHTML(this.searchTerm)}">
+          <input type="search" id="attendance-search" class="search-input" data-archive-safe placeholder="${translate('search')}..." value="${escapeHTML(this.searchTerm)}">
         </div>
-        ${this.roster.render()}
         ${this.roster.activity ? `<button type="button" class="button button--secondary" id="attendance-departure">${translate('action_roster_mark_departure')}</button>` : ''}
-        ${this.renderMarkRemainingButton()}
         <div id="attendance-list" class="attendance-list">
           <!-- This will be filled by renderGroupsAndNames() -->
         </div>
         ${this.renderGuestSection()}
         <div class="status-buttons fixed-footer">
-          <p class="status-buttons__selection" id="attendance-selection" role="status">${escapeHTML(this.selectionSummary())}</p>
+          <div class="status-buttons__top">
+            <p class="status-buttons__selection" id="attendance-selection" role="status">${escapeHTML(this.selectionSummary())}</p>
+            ${this.renderMarkRemainingButton()}
+          </div>
           <button type="button" class="status-btn present" data-status="present">${translate('present')}</button>
           <button type="button" class="status-btn absent" data-status="absent">${translate('absent')}</button>
           <button type="button" class="status-btn late" data-status="late">${translate('late')}</button>
@@ -778,7 +784,7 @@ export class Attendance {
       return '';
     }
     return `
-      <button id="mark-remaining-present" class="button button--secondary mark-remaining-btn">
+      <button type="button" id="mark-remaining-present" class="button button--secondary button--small mark-remaining-btn">
         ${translate('mark_remaining_present').replace('{{count}}', unmarkedCount)}
       </button>
     `;
@@ -796,9 +802,7 @@ export class Attendance {
     debugLog('App language:', this.app.lang);
     const options = this.availableDates
       .map((date) => {
-        const formatted = formatDate(date, this.app.lang, {
-          weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
-        });
+        const formatted = formatDate(date, this.app.lang, ATTENDANCE_DATE_FORMAT);
         debugLog(`Date ${date} formatted as: ${formatted}`);
         return `<option value="${date}" ${date === this.currentDate ? 'selected' : ''}>
         ${formatted}
@@ -1365,6 +1369,7 @@ export class Attendance {
     const nextRoster = new ActionRoster('attendance');
     // Another day of the same visit: the explanation stays as the leader left it.
     nextRoster.helpOpen = previousRoster.helpOpen;
+    nextRoster.optionsOpen = previousRoster.optionsOpen;
     // The visible screen stays interactive while the new date loads. Keep its
     // data and activity filter together if either concurrent read fails or a
     // newer date supersedes this one.

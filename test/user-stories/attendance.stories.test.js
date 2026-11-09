@@ -1103,7 +1103,7 @@ describe('the day the screen opens on', () => {
     await flushPromises();
 
     expect(document.getElementById('dateSelect').value).toBe(THREE_DAYS_AGO);
-    expect(document.querySelector('.action-roster-help').open).toBe(true);
+    expect(document.querySelector('.action-roster-help').hidden).toBe(false);
   });
 
   test('on a meeting day, the screen opens on today', async () => {
@@ -1141,18 +1141,92 @@ describe('the day the screen opens on', () => {
 });
 
 describe('how the list works', () => {
-  test('is explained open the first time, then folded on the next visit', async () => {
+  const helpToggle = () => document.getElementById('action-roster-attendance-help-toggle');
+  const help = () => document.getElementById('action-roster-attendance-help');
+
+  test('is explained open the first time, then folded on the next visit behind a "?" button', async () => {
     localStorage.removeItem('actionRosterHelpSeen');
     seedStandardData();
     await initPage();
 
-    const help = document.querySelector('.action-roster-help');
-    expect(help.open).toBe(true);
-    expect(help.querySelector('summary').textContent).toBe(tr('action_roster_help_summary'));
+    expect(help().hidden).toBe(false);
+    expect(helpToggle().getAttribute('aria-expanded')).toBe('true');
+    expect(helpToggle().getAttribute('aria-controls')).toBe('action-roster-attendance-help');
+    expect(helpToggle().getAttribute('aria-label')).toBe(tr('action_roster_help_summary'));
     openedPages.splice(0).forEach((page) => page.destroy());
 
     document.body.innerHTML = '<div id="app"></div>';
     await initPage();
-    expect(document.querySelector('.action-roster-help').open).toBe(false);
+    expect(help().hidden).toBe(true);
+    helpToggle().focus();
+    helpToggle().click();
+    expect(help().hidden).toBe(false);
+    expect(helpToggle().getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(helpToggle());
+  });
+});
+
+describe('the controls above the list', () => {
+  const edit = () => document.getElementById('action-roster-attendance-edit');
+  const options = () => document.getElementById('action-roster-attendance-options');
+
+  test('one line says the day and the meeting or activity; "Change" opens the choices', async () => {
+    seedStandardData();
+    await initPage();
+
+    const summary = document.getElementById('action-roster-attendance-summary').textContent;
+    expect(summary).toContain(tr('action_roster_unit'));
+    expect(summary).toContain(document.querySelector('#dateSelect option:checked').textContent.trim());
+    expect(options().hidden).toBe(true);
+    expect(edit().getAttribute('aria-expanded')).toBe('false');
+    expect(edit().getAttribute('aria-controls')).toBe('action-roster-attendance-options');
+
+    edit().focus();
+    edit().click();
+    expect(options().hidden).toBe(false);
+    expect(edit().getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(edit());
+    // The day, the meeting or activity, and showing everyone, each a labelled native control.
+    expect(options().querySelector('label[for="dateSelect"]')).not.toBeNull();
+    expect(options().querySelector('label[for="action-roster-attendance-activity"]')).not.toBeNull();
+    expect(options().querySelector('#action-roster-attendance-all').closest('label')).not.toBeNull();
+  });
+
+  test('showing everyone stays visible as a chip that turns it off', async () => {
+    seedStandardData();
+    await initPage();
+
+    const all = document.getElementById('action-roster-attendance-all');
+    all.checked = true;
+    all.dispatchEvent(new Event('change', { bubbles: true }));
+    await flushPromises();
+    const chip = document.getElementById('action-roster-attendance-all-off');
+    expect(chip.textContent).toContain(tr('action_roster_all_chip'));
+
+    chip.click();
+    await flushPromises();
+    expect(document.getElementById('action-roster-attendance-all-off')).toBeNull();
+    expect(document.getElementById('action-roster-attendance-all').checked).toBe(false);
+    expect(document.activeElement).toBe(edit());
+  });
+
+  test('"Mark the rest present" sits in the bottom bar, beside what is selected', async () => {
+    seedStandardData();
+    await initPage();
+
+    expect(document.getElementById('mark-remaining-present').closest('.status-buttons')).not.toBeNull();
+  });
+
+  test('the controls have no WCAG A/AA violations, closed or open', async () => {
+    seedStandardData();
+    await initPage();
+    const AXE = {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    };
+
+    expect((await axe.run(document.querySelector('.action-roster-controls'), AXE)).violations).toEqual([]);
+    edit().click();
+    expect((await axe.run(document.querySelector('.action-roster-controls'), AXE)).violations).toEqual([]);
   });
 });
