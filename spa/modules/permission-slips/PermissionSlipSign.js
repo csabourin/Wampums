@@ -62,10 +62,10 @@ export class PermissionSlipSign {
     this.attachEventListeners();
   }
 
-  async loadPermissionSlip() {
+  async loadPermissionSlip({ forceRefresh = false } = {}) {
     try {
       // Public endpoint to view permission slip - no auth required (uses token)
-      const data = await getPublicPermissionSlip(this.token);
+      const data = await getPublicPermissionSlip(this.token, { forceRefresh });
 
       if (!data?.success) {
         throw Object.assign(new Error('permission_slip_not_found'), { status: data?.status ?? HTTP_NOT_FOUND });
@@ -316,7 +316,8 @@ export class PermissionSlipSign {
    * @returns {Promise<void>}
    */
   async showChangedText(guardianName) {
-    await this.loadPermissionSlip();
+    // The cached copy is the old text: a refused answer clears no cache.
+    await this.loadPermissionSlip({ forceRefresh: true });
     this.render();
     this.attachEventListeners();
     const nameInput = document.getElementById('guardian-name');

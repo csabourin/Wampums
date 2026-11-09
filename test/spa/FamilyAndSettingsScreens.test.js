@@ -314,6 +314,8 @@ describe('permission slip opened from an email', () => {
     await flush();
 
     expect(app.showMessage).toHaveBeenCalledWith('permission_slip_text_changed', 'error');
+    // The cached copy holds the old text: the new one is read from the server
+    expect(endpoints.getPublicPermissionSlip).toHaveBeenLastCalledWith('token', { forceRefresh: true });
     expect(page().querySelector('h2').textContent).toBe('Sortie vélo');
     // The reader starts again at the top of the text
     expect(document.activeElement).toBe(page().querySelector('h2'));

@@ -372,10 +372,12 @@ module.exports = (pool, logger) => {
    * @param {string} userId - Account answering
    * @param {number} organizationId - Active organization
    * @param {number} participantId - Permission slip participant
+   * @param {import('pg').Pool|import('pg').PoolClient} [db=pool] - Connection to use, such as
+   *   the transaction already holding the slip, so one answer needs one connection
    * @returns {Promise<boolean>}
    */
-  async function isOwnChild(userId, organizationId, participantId) {
-    const linkCheck = await pool.query(
+  async function isOwnChild(userId, organizationId, participantId, db = pool) {
+    const linkCheck = await db.query(
       `SELECT 1
          FROM user_participants up
          JOIN participant_organizations po
@@ -2935,7 +2937,7 @@ module.exports = (pool, logger) => {
           answer: 'signed',
           answeredBy: req.body.signed_by,
           presentedFingerprint: req.body.presented_fingerprint,
-          mayAnswer: (slip) => isOwnChild(req.user.id, organizationId, slip.participant_id),
+          mayAnswer: (slip, client) => isOwnChild(req.user.id, organizationId, slip.participant_id, client),
         });
         return sendAnswerResult(res, result, 'Permission slip signed');
       } catch (err) {
@@ -2970,7 +2972,7 @@ module.exports = (pool, logger) => {
           answer: 'declined',
           answeredBy: req.body.declined_by,
           presentedFingerprint: req.body.presented_fingerprint,
-          mayAnswer: (slip) => isOwnChild(req.user.id, organizationId, slip.participant_id),
+          mayAnswer: (slip, client) => isOwnChild(req.user.id, organizationId, slip.participant_id, client),
         });
         return sendAnswerResult(res, result, 'Permission slip declined');
       } catch (err) {

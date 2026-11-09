@@ -163,7 +163,8 @@ function describeSlip(row) {
  * @param {'signed'|'declined'} options.answer - The parent's answer
  * @param {string} options.answeredBy - Name the parent typed
  * @param {string} options.presentedFingerprint - Fingerprint of the text the screen showed
- * @param {function(Object): Promise<boolean>} [options.mayAnswer] - Checks the caller may answer this slip
+ * @param {function(Object, import('pg').PoolClient): Promise<boolean>} [options.mayAnswer] - Checks the
+ *   caller may answer this slip, on the transaction's own connection
  * @returns {Promise<{outcome: string, slip?: Object}>} `answered` with the slip, or
  *   `not_found`, `already_answered`, `forbidden`, `text_changed`
  */
@@ -187,7 +188,7 @@ async function recordAnswer(pool, {
       outcome = 'not_found';
     } else if (slip.status !== 'pending') {
       outcome = 'already_answered';
-    } else if (mayAnswer && !(await mayAnswer(slip))) {
+    } else if (mayAnswer && !(await mayAnswer(slip, client))) {
       outcome = 'forbidden';
     }
     const frozen = slip ? answeredContent(slip.slip_content) : null;

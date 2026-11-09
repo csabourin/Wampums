@@ -451,8 +451,8 @@ export function sendPermissionSlipTestEmail(payload) {
 /**
  * Get public permission slip by token (no auth required)
  */
-export function getPublicPermissionSlip(token) {
-  return API.get(`v1/resources/permission-slips/v/${token}`);
+export function getPublicPermissionSlip(token, cacheOptions = {}) {
+  return API.get(`v1/resources/permission-slips/v/${token}`, {}, cacheOptions);
 }
 
 /**

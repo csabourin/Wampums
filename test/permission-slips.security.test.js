@@ -49,6 +49,9 @@ function mockAnswer(client, status) {
     let rows = [];
     if (String(sql).includes('FOR UPDATE')) {
       rows = status ? [{ id: TEST_ID, organization_id: 1, participant_id: 3, status, slip_content: SLIP_CONTENT }] : [];
+    } else if (String(sql).includes('FROM user_participants up')) {
+      // The family link, checked on the transaction's own connection
+      rows = [{ '?column?': 1 }];
     } else if (String(sql).includes('UPDATE permission_slips')) {
       rows = [{
         id: TEST_ID,
@@ -277,8 +280,7 @@ describe('Permission Slip Security', () => {
         .mockResolvedValueOnce(authorizationContextRow({
           permissions: ['permission_slips.sign'],
           roles: [{ role_name: 'parent', display_name: 'Parent' }],
-        }))
-        .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+        }));
       mockAnswer(__mClient, 'pending');
 
       const res = await request(app)

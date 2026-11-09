@@ -213,6 +213,8 @@ describe('signing a permission slip in the app', () => {
     const update = __mClient.query.mock.calls.find(([sql]) => String(sql).includes('answered_content = $4'));
     expect(JSON.parse(update[1][3])).toEqual({ version: 1, content: SLIP_CONTENT });
     expect(update[1][4]).toBe(FINGERPRINT);
+    // The family link is checked on the transaction's own connection: one answer, one connection
+    expect(__mClient.query.mock.calls.some(([sql]) => String(sql).includes('FROM user_participants up'))).toBe(true);
     expect(res.body.data.permission_slip.fingerprint_status).toBe('verified');
     expect(res.body.data.permission_slip).not.toHaveProperty('answered_content');
   });
