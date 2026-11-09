@@ -165,11 +165,13 @@ function describeSlip(row) {
  * @param {string} options.presentedFingerprint - Fingerprint of the text the screen showed
  * @param {function(Object, import('pg').PoolClient): Promise<boolean>} [options.mayAnswer] - Checks the
  *   caller may answer this slip, on the transaction's own connection
+ * @param {function(Object, import('pg').PoolClient): Promise<boolean>} [options.isReadOnlyUnit] - Whether the
+ *   slip's unit takes no answers this way (the public demo, whose data is fictional and reset)
  * @returns {Promise<{outcome: string, slip?: Object}>} `answered` with the slip, or
- *   `not_found`, `already_answered`, `forbidden`, `text_changed`
+ *   `not_found`, `already_answered`, `demo_read_only`, `forbidden`, `text_changed`
  */
 async function recordAnswer(pool, {
-  where, params, answer, answeredBy, presentedFingerprint: presented, mayAnswer,
+  where, params, answer, answeredBy, presentedFingerprint: presented, mayAnswer, isReadOnlyUnit,
 }) {
   const client = await pool.connect();
   try {
@@ -188,6 +190,8 @@ async function recordAnswer(pool, {
       outcome = 'not_found';
     } else if (slip.status !== 'pending') {
       outcome = 'already_answered';
+    } else if (isReadOnlyUnit && await isReadOnlyUnit(slip, client)) {
+      outcome = 'demo_read_only';
     } else if (mayAnswer && !(await mayAnswer(slip, client))) {
       outcome = 'forbidden';
     }

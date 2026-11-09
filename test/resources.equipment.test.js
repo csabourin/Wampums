@@ -10,6 +10,7 @@ jest.mock('../middleware/auth', () => {
     },
     requirePermission: () => (req, _res, next) => next(),
     blockDemoRoles: (req, _res, next) => next(),
+    optionalAuth: (_req, _res, next) => next(),
     hasAnyRole: () => (req, _res, next) => next(),
     getOrganizationId,
   };

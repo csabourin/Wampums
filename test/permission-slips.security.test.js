@@ -43,12 +43,15 @@ const FINGERPRINT = presentedFingerprint(SLIP_CONTENT);
  *
  * @param {Object} client - Mocked pg client
  * @param {string|null} status - The slip's status, or null when no slip has the token
+ * @param {boolean} [demoUnit=false] - Whether the slip belongs to the public demo unit
  */
-function mockAnswer(client, status) {
+function mockAnswer(client, status, demoUnit = false) {
   client.query.mockImplementation((sql, params) => {
     let rows = [];
     if (String(sql).includes('FOR UPDATE')) {
       rows = status ? [{ id: TEST_ID, organization_id: 1, participant_id: 3, status, slip_content: SLIP_CONTENT }] : [];
+    } else if (String(sql).includes("setting_key = 'demo_sign_in'")) {
+      rows = demoUnit ? [{ setting_value: true }] : [];
     } else if (String(sql).includes('FROM user_participants up')) {
       // The family link, checked on the transaction's own connection
       rows = [{ '?column?': 1 }];
@@ -162,6 +165,38 @@ describe('Permission Slip Security', () => {
 
       expect(res.status).toBe(409);
       expect(res.body.message).toBe('permission_slip_text_changed');
+      expect(__mClient.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE permission_slips'))).toBe(false);
+    });
+
+    test('a slip of the demo unit cannot be answered from its link: the demo is read-only', async () => {
+      mockAnswer(__mClient, 'pending', true);
+
+      const res = await request(app)
+        .patch(`/api/v1/resources/permission-slips/s/${TEST_TOKEN}`)
+        .send({ signed_by: 'Demo Parent', presented_fingerprint: FINGERPRINT });
+
+      expect(res.status).toBe(403);
+      expect(res.body).toMatchObject({ isDemo: true, code: 'demo_read_only', required: [], missing: [] });
+      expect(__mClient.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE permission_slips'))).toBe(false);
+    });
+
+    test('a demo account following the link from its dashboard stays read-only', async () => {
+      const token = jwt.sign({ user_id: 1, organizationId: 1 }, TEST_SECRET);
+      __mPool.query
+        .mockResolvedValueOnce({ rows: [{ organization_id: 1 }] })
+        .mockResolvedValueOnce(authorizationContextRow({
+          permissions: ['permission_slips.sign'],
+          roles: [{ role_name: 'demoparent', display_name: 'Demo parent' }],
+        }));
+      mockAnswer(__mClient, 'pending');
+
+      const res = await request(app)
+        .patch(`/api/v1/resources/permission-slips/s/${TEST_TOKEN}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ signed_by: 'Demo Parent', presented_fingerprint: FINGERPRINT });
+
+      expect(res.status).toBe(403);
+      expect(res.body).toMatchObject({ isDemo: true, code: 'demo_read_only' });
       expect(__mClient.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE permission_slips'))).toBe(false);
     });
 

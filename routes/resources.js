@@ -12,7 +12,10 @@ const {
   getOrganizationId,
   requirePermission,
   blockDemoRoles,
+  optionalAuth,
   getUserDataScope,
+  isDemoSignInUnit,
+  DEMO_READ_ONLY_CODE,
 } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { checkValidation, validateIdParam, validateIdQuery } = require('../middleware/validation');
@@ -2900,6 +2903,13 @@ module.exports = (pool, logger) => {
         return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
       case 'already_answered':
         return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
+      case 'demo_read_only':
+        // The demo's slips are fictional and reset each night: an emailed link
+        // does not answer them, as a demo account cannot (`code` lets the SPA explain).
+        return forbidden(res, 'This feature is not available in demo mode. Demo accounts have read-only access.', [], [], {
+          isDemo: true,
+          code: DEMO_READ_ONLY_CODE,
+        });
       case 'forbidden':
         // A translation key: the screen shows it as is
         return forbidden(res, 'permission_slip_sign_own_children_only', ['permission_slips.sign'], []);
@@ -2910,6 +2920,16 @@ module.exports = (pool, logger) => {
         return error(res, 'Error answering permission slip', HTTP_STATUS.INTERNAL_ERROR);
     }
   };
+
+  /**
+   * An emailed link answers for whoever holds it, signed in or not. A demo
+   * account following it from its dashboard stays read-only, as on every
+   * other write (blockDemoRoles); someone not signed in passes.
+   */
+  const demoAccountsReadOnly = [
+    optionalAuth,
+    (req, res, next) => (req.user ? blockDemoRoles(req, res, next) : next()),
+  ];
 
   /** The fingerprint of the text the screen showed, sent back with every answer. */
   const presentedFingerprintRule = () => check('presented_fingerprint')
@@ -3018,6 +3038,7 @@ module.exports = (pool, logger) => {
   // New Public route to sign a permission slip by access_token
   router.patch(
     '/permission-slips/s/:token',
+    ...demoAccountsReadOnly,
     [
       param('token').isUUID(),
       check('signed_by').isString().trim().isLength({ min: 2, max: 200 }),
@@ -3029,6 +3050,7 @@ module.exports = (pool, logger) => {
         const result = await recordAnswer(pool, {
           where: 'ps.access_token = $1',
           params: [req.params.token],
+          isReadOnlyUnit: (slip, client) => isDemoSignInUnit(client, slip.organization_id),
           answer: 'signed',
           answeredBy: req.body.signed_by,
           presentedFingerprint: req.body.presented_fingerprint,
@@ -3044,6 +3066,7 @@ module.exports = (pool, logger) => {
   // Public route to decline a permission slip by access token
   router.patch(
     '/permission-slips/public/:token',
+    ...demoAccountsReadOnly,
     [
       param('token').isUUID(),
       check('status').equals('declined'),
@@ -3056,6 +3079,7 @@ module.exports = (pool, logger) => {
         const result = await recordAnswer(pool, {
           where: 'ps.access_token = $1',
           params: [req.params.token],
+          isReadOnlyUnit: (slip, client) => isDemoSignInUnit(client, slip.organization_id),
           answer: 'declined',
           answeredBy: req.body.declined_by,
           presentedFingerprint: req.body.presented_fingerprint,
