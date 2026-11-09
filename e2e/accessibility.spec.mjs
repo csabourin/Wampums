@@ -9,6 +9,8 @@ import { ACCOUNTS, APP_NAME, storageStateFor, openScreen, settleScreen, axeViola
 
 const CAMP_REVIEW_TOKEN = 'f'.repeat(43);
 const CAMP_REVIEW_SCREEN = `/camp-branch-approval#${CAMP_REVIEW_TOKEN}`;
+/** Tab presses allowed to cross the leader's dashboard and reach the floating button. */
+const DASHBOARD_TAB_LIMIT = 150;
 
 /**
  * Screens each person reaches from their dashboard or from an emailed link.
@@ -345,6 +347,71 @@ test.describe('keyboard', () => {
     test('focus is visible and never hidden while tabbing through the dashboard', async ({ page }) => {
       await openScreen(page, '/dashboard');
       expect(await focusProblemsWhileTabbing(page, 15)).toEqual([]);
+    });
+
+    test('on a phone, tabbing through the whole dashboard never leaves focus under the quick actions button', async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== 'phone', 'the floating button covers content only at phone size');
+      await openScreen(page, '/dashboard');
+      const fab = page.locator('#dashboard-fab');
+      await expect(fab).toBeVisible();
+
+      await page.locator('body').focus();
+      const covered = [];
+      let reachedFab = false;
+      for (let step = 0; step < DASHBOARD_TAB_LIMIT && !reachedFab; step += 1) {
+        // eslint-disable-next-line no-await-in-loop -- each key press moves on from the previous one
+        await page.keyboard.press('Tab');
+        // eslint-disable-next-line no-await-in-loop -- measured where that key press left focus
+        const stop = await page.evaluate(async () => {
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          const element = document.activeElement;
+          const button = document.getElementById('dashboard-fab');
+          if (!element || element === document.body || !button) {
+            return null;
+          }
+          if (element === button) {
+            return { isFab: true };
+          }
+          const a = element.getBoundingClientRect();
+          const b = button.getBoundingClientRect();
+          const overlaps = a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+          return { isFab: false, overlaps, name: (element.textContent || element.getAttribute('aria-label') || '').trim().slice(0, 40) };
+        });
+        if (stop?.isFab) {
+          reachedFab = true;
+        } else if (stop?.overlaps) {
+          covered.push(stop.name);
+        }
+      }
+
+      expect(reachedFab).toBe(true);
+      expect(covered).toEqual([]);
+    });
+
+    test('the primary card\'s shortcuts look alike under the pointer and the keyboard: none underlined or recoloured', async ({ page }) => {
+      await openScreen(page, '/dashboard');
+      const chips = page.locator('.dashboard-v2__hero-action');
+      expect(await chips.count()).toBeGreaterThan(0);
+
+      const look = (chip) => chip.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { decoration: style.textDecorationLine, color: style.color };
+      });
+      const resting = await look(chips.first());
+      expect(resting.decoration).toBe('none');
+
+      for (const chip of await chips.all()) {
+        // eslint-disable-next-line no-await-in-loop -- one chip under the pointer at a time
+        await chip.hover();
+        // eslint-disable-next-line no-await-in-loop -- measured under that pointer
+        expect(await look(chip)).toEqual(resting);
+        // eslint-disable-next-line no-await-in-loop -- then the same chip from the keyboard
+        await chip.focus();
+        // eslint-disable-next-line no-await-in-loop -- measured with keyboard focus
+        expect(await look(chip)).toEqual(resting);
+      }
+      const focus = await describeFocus(page);
+      expect(focus).toMatchObject({ indicator: true, unobscured: true });
     });
 
     test('the display tile opens the theme choice, which the arrow keys change', async ({ page }) => {

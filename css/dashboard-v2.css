@@ -269,6 +269,18 @@ html:has(.dashboard-fab) {
   transition: background 0.15s ease;
 }
 
+/* The global a:hover and a:focus-visible rules (styles.css) outrank the
+   chip's own class and would underline it and turn it link-blue on the
+   coloured card, so a chip under the pointer or the keyboard looked unlike
+   its neighbours. Every state keeps the chip's own look. */
+.dashboard-v2__hero-action:link,
+.dashboard-v2__hero-action:visited,
+.dashboard-v2__hero-action:hover,
+.dashboard-v2__hero-action:focus-visible {
+  color: inherit;
+  text-decoration: none;
+}
+
 .dashboard-v2__hero-action:hover,
 .dashboard-v2__hero-action:focus-visible {
   background: rgba(255, 255, 255, 0.3);
