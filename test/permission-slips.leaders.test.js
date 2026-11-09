@@ -32,6 +32,7 @@ jest.mock('../utils/public-url', () => ({
 const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 const { sendEmail } = require('../utils/index');
 const { buildPermissionSlipLeaderCopyContent } = require('../utils/permission-slip-email');
+const { presentedFingerprint } = require('../services/permissionSlipFingerprint');
 
 const TEST_SECRET = 'testsecret';
 const ORG_ID = 3;
@@ -63,6 +64,20 @@ const SLIP = {
   guardians_emailed: [],
 };
 
+/** The text the slip presents, as the database builds it. */
+const SLIP_CONTENT = {
+  participant_id: SLIP.participant_id,
+  activity_id: ACTIVITY_ID,
+  meeting_date: '2026-06-01',
+  deadline_date: null,
+  activity_title: 'Sortie canot',
+  activity_description: null,
+  activity_description_html: null,
+  authorization_text: null,
+  consent_payload: {},
+};
+const FINGERPRINT = presentedFingerprint(SLIP_CONTENT);
+
 /**
  * Answer the permission slip queries; record every statement.
  * @param {Object} [options]
@@ -91,18 +106,14 @@ function mockDatabase({ permissions = ['permission_slips.sign'], ownChild = fals
     if (query.includes('SELECT DISTINCT r.data_scope')) {
       return { rows: [{ data_scope: 'organization' }] };
     }
-    if (query.includes('SELECT organization_id, participant_id, status FROM permission_slips')
-      || query.includes('SELECT participant_id, status')) {
-      return { rows: [{ organization_id: ORG_ID, participant_id: SLIP.participant_id, status: 'pending' }] };
+    if (query.includes('FOR UPDATE') && query.includes('AS slip_content')) {
+      return { rows: [{ id: SLIP_ID, organization_id: ORG_ID, participant_id: SLIP.participant_id, status: 'pending', slip_content: SLIP_CONTENT }] };
     }
     if (query.includes('FROM user_participants up') && query.includes('participant_organizations po')) {
       return { rows: ownChild ? [{ '?column?': 1 }] : [] };
     }
-    if (query.includes('UPDATE permission_slips') && query.includes("status = 'signed'")) {
-      return { rows: [{ id: SLIP_ID, status: 'signed' }] };
-    }
-    if (query.includes('UPDATE permission_slips') && query.includes("status = 'declined'")) {
-      return { rows: [{ id: SLIP_ID, status: 'declined' }] };
+    if (query.includes('UPDATE permission_slips') && query.includes('answered_content = $4')) {
+      return { rows: [{ id: SLIP_ID, status: params[2], answered_content: JSON.parse(params[3]), signature_hash: params[4], slip_content: SLIP_CONTENT }] };
     }
     if (query.includes('COUNT(*) FILTER (WHERE ps.email_sent = false)')) {
       return { rows: [allSent ? { unsent_count: '0', sent_count: '1' } : { unsent_count: '1', sent_count: '0' }] };
@@ -168,7 +179,7 @@ describe('signing a permission slip in the app', () => {
     const res = await request(app)
       .patch(`/api/v1/resources/permission-slips/${SLIP_ID}/sign`)
       .set('Authorization', `Bearer ${token(['permission_slips.sign'])}`)
-      .send({ signed_by: 'Akela' });
+      .send({ signed_by: 'Akela', presented_fingerprint: FINGERPRINT });
 
     expect(res.status).toBe(403);
     expect(res.body.message).toBe('permission_slip_sign_own_children_only');
@@ -183,10 +194,69 @@ describe('signing a permission slip in the app', () => {
     const res = await request(app)
       .patch(`/api/v1/resources/permission-slips/${SLIP_ID}/sign`)
       .set('Authorization', `Bearer ${token(['permission_slips.sign'])}`)
-      .send({ signed_by: 'Baloo' });
+      .send({ signed_by: 'Baloo', presented_fingerprint: FINGERPRINT });
 
     expect(res.status).toBe(200);
     expect(res.body.data.permission_slip.status).toBe('signed');
+  });
+
+  test('a signature freezes the text the parent was shown, with its fingerprint', async () => {
+    const { __mClient } = require('pg');
+    mockDatabase({ ownChild: true });
+
+    const res = await request(app)
+      .patch(`/api/v1/resources/permission-slips/${SLIP_ID}/sign`)
+      .set('Authorization', `Bearer ${token(['permission_slips.sign'])}`)
+      .send({ signed_by: 'Baloo', presented_fingerprint: FINGERPRINT });
+
+    expect(res.status).toBe(200);
+    const update = __mClient.query.mock.calls.find(([sql]) => String(sql).includes('answered_content = $4'));
+    expect(JSON.parse(update[1][3])).toEqual({ version: 1, content: SLIP_CONTENT });
+    expect(update[1][4]).toBe(FINGERPRINT);
+    // The family link is checked on the transaction's own connection: one answer, one connection
+    expect(__mClient.query.mock.calls.some(([sql]) => String(sql).includes('FROM user_participants up'))).toBe(true);
+    expect(res.body.data.permission_slip.fingerprint_status).toBe('verified');
+    expect(res.body.data.permission_slip).not.toHaveProperty('answered_content');
+  });
+
+  test('a parent whose slip changed while they read it is asked to read it again, and nothing is recorded', async () => {
+    const statements = mockDatabase({ ownChild: true });
+    const shownBefore = presentedFingerprint({ ...SLIP_CONTENT, activity_title: 'Sortie vélo' });
+
+    const res = await request(app)
+      .patch(`/api/v1/resources/permission-slips/${SLIP_ID}/sign`)
+      .set('Authorization', `Bearer ${token(['permission_slips.sign'])}`)
+      .send({ signed_by: 'Baloo', presented_fingerprint: shownBefore });
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toBe('permission_slip_text_changed');
+    expect(statements.some((sql) => sql.includes('UPDATE permission_slips'))).toBe(false);
+    expect(statements).toContain('ROLLBACK');
+  });
+
+  test('an answer that does not say which text was shown is refused as malformed', async () => {
+    const statements = mockDatabase({ ownChild: true });
+
+    const res = await request(app)
+      .patch(`/api/v1/resources/permission-slips/${SLIP_ID}/sign`)
+      .set('Authorization', `Bearer ${token(['permission_slips.sign'])}`)
+      .send({ signed_by: 'Baloo' });
+
+    expect(res.status).toBe(400);
+    expect(statements.some((sql) => sql.includes('UPDATE permission_slips'))).toBe(false);
+  });
+
+  test('a parent who declines a changed slip is asked to read it again too', async () => {
+    const statements = mockDatabase({ ownChild: true });
+
+    const res = await request(app)
+      .patch(`/api/v1/resources/permission-slips/${SLIP_ID}`)
+      .set('Authorization', `Bearer ${token(['permission_slips.sign'])}`)
+      .send({ status: 'declined', declined_by: 'Baloo', presented_fingerprint: 'a'.repeat(64) });
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toBe('permission_slip_text_changed');
+    expect(statements.some((sql) => sql.includes('UPDATE permission_slips'))).toBe(false);
   });
 
   test('a leader cannot decline the slip of a child who is not theirs', async () => {
@@ -195,7 +265,7 @@ describe('signing a permission slip in the app', () => {
     const res = await request(app)
       .patch(`/api/v1/resources/permission-slips/${SLIP_ID}`)
       .set('Authorization', `Bearer ${token(['permission_slips.sign'])}`)
-      .send({ status: 'declined', declined_by: 'Akela' });
+      .send({ status: 'declined', declined_by: 'Akela', presented_fingerprint: FINGERPRINT });
 
     expect(res.status).toBe(403);
     expect(res.body.required).toEqual(['permission_slips.sign']);

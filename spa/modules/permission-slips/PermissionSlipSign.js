@@ -18,6 +18,7 @@ import { confirm as confirmDialog } from '../../utils/DialogUtils.js';
 import { richTextOrPlain } from '../../utils/RichTextUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { isSlipTextChanged } from '../../utils/PermissionSlipFingerprintUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
 
 const HTTP_NOT_FOUND = 404;
@@ -61,10 +62,10 @@ export class PermissionSlipSign {
     this.attachEventListeners();
   }
 
-  async loadPermissionSlip() {
+  async loadPermissionSlip({ forceRefresh = false } = {}) {
     try {
       // Public endpoint to view permission slip - no auth required (uses token)
-      const data = await getPublicPermissionSlip(this.token);
+      const data = await getPublicPermissionSlip(this.token, { forceRefresh });
 
       if (!data?.success) {
         throw Object.assign(new Error('permission_slip_not_found'), { status: data?.status ?? HTTP_NOT_FOUND });
@@ -236,6 +237,7 @@ export class PermissionSlipSign {
     try {
       const response = await signPublicPermissionSlip(this.token, {
         signed_by: guardianName,
+        presented_fingerprint: this.slip.presented_fingerprint,
       });
 
       if (!response?.success) {
@@ -243,6 +245,10 @@ export class PermissionSlipSign {
       }
     } catch (error) {
       debugError('Error signing permission slip:', error?.status);
+      if (isSlipTextChanged(error)) {
+        await this.showChangedText(guardianName);
+        return;
+      }
       this.app.showMessage(apiErrorMessage(error, 'error_signing_slip'), 'error');
       signBtn.disabled = false;
       setContent(signBtn, `<i class="fas fa-signature" aria-hidden="true"></i> ${translate('sign_permission_slip')}`);
@@ -271,6 +277,7 @@ export class PermissionSlipSign {
     try {
       const response = await declinePublicPermissionSlip(this.token, {
         declined_by: guardianName,
+        presented_fingerprint: this.slip.presented_fingerprint,
       });
       if (!response?.success) {
         throw Object.assign(new Error('permission_slip_not_declined'), { status: response?.status });
@@ -287,6 +294,10 @@ export class PermissionSlipSign {
       this.attachEventListeners();
     } catch (error) {
       debugError('Error declining permission slip:', error?.status);
+      if (isSlipTextChanged(error)) {
+        await this.showChangedText(guardianName);
+        return;
+      }
       this.app.showMessage(apiErrorMessage(error, 'permission_slip_error_declining'), 'error');
       declineBtn.disabled = false;
       setContent(
@@ -294,6 +305,37 @@ export class PermissionSlipSign {
         `<i class="fas fa-times-circle" aria-hidden="true"></i> ${escapeHTML(translate('permission_slip_decline'))}`,
       );
     }
+  }
+
+  /**
+   * The slip's text changed since it was shown: show the current text, keep
+   * the name typed, and take the reader back to the top of the text to read
+   * it again before answering. Nothing was recorded.
+   *
+   * @param {string} guardianName - Name the parent had typed
+   * @returns {Promise<void>}
+   */
+  async showChangedText(guardianName) {
+    // The cached copy is the old text: a refused answer clears no cache.
+    await this.loadPermissionSlip({ forceRefresh: true });
+    if (this.destroyed) {
+      // The parent left while the text was read again: draw nothing over the next screen.
+      return;
+    }
+    this.render();
+    this.attachEventListeners();
+    const nameInput = document.getElementById('guardian-name');
+    if (nameInput) {
+      nameInput.value = guardianName;
+      // Recompute the buttons: declining needs only the name; signing waits for consent again.
+      nameInput.dispatchEvent(new Event('input'));
+    }
+    const heading = document.querySelector('.permission-slip-sign h2');
+    if (heading) {
+      heading.setAttribute('tabindex', '-1');
+      heading.focus();
+    }
+    this.app.showMessage(translate('permission_slip_text_changed'), 'error');
   }
 
   showSuccessMessage(guardianName) {

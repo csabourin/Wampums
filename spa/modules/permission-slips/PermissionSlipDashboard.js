@@ -13,7 +13,6 @@ import {
 import {
   getPermissionSlips,
   savePermissionSlip,
-  signPermissionSlip,
   sendPermissionSlipEmails,
   sendPermissionSlipReminders,
   sendPermissionSlipTestEmail,
@@ -24,7 +23,6 @@ import { getGroups } from '../../api/api-endpoints.js';
 import {
   confirm as confirmDialog,
   confirmDestructive,
-  prompt as promptDialog,
 } from '../../utils/DialogUtils.js';
 import { getParticipants } from '../../api/api-endpoints.js';
 import { fetchParticipants, getCurrentOrganizationId } from '../../ajax-functions.js';
@@ -38,6 +36,7 @@ import { askRestoreReplacedMeeting, deletedMessageKey } from '../activities/Acti
 import { hasPermission } from '../../utils/PermissionUtils.js';
 
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
+import { renderFingerprintStatus } from '../../utils/PermissionSlipFingerprintUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { richTextOrPlain } from '../../utils/RichTextUtils.js';
 import { HTTP_STATUS } from '../../utils/HttpStatus.js';
@@ -631,6 +630,7 @@ export class PermissionSlipDashboard {
                     <td>${escapeHTML(slip.first_name)} ${escapeHTML(slip.last_name)}</td>
                     <td>
                       <span class="status-badge status-${slip.status}">${escapeHTML(translate(`permission_slip_status_${slip.status}`))}</span>
+                      ${renderFingerprintStatus(slip)}
                     </td>
                     <td>${slip.email_sent ? `✓ ${  translate('email_sent')}` : translate('email_not_sent')}</td>
                     <td>${slip.signed_at
@@ -641,8 +641,9 @@ export class PermissionSlipDashboard {
                     <td>
                       ${[
     // Only a child's own family answers its slip: a leader signs for their own children only
-    slip.status === 'pending' && slip.is_own_child === true && this.canSign
-      ? `<button type="button" class="button button--secondary button--small sign-slip" data-id="${slip.id}">${escapeHTML(translate('permission_slip_sign'))}</button>`
+    // Answered on the slip's own page, where its current text is read first (#1410)
+    slip.status === 'pending' && slip.is_own_child === true && this.canSign && slip.access_token
+      ? `<a href="/permission-slip/${encodeURIComponent(slip.access_token)}" class="button button--secondary button--small sign-slip">${escapeHTML(translate('permission_slip_read_and_answer'))}<span class="visually-hidden"> — ${escapeHTML(slip.first_name)} ${escapeHTML(slip.last_name)}</span></a>`
       : '',
     !slip.email_sent
       ? `<button class="button button--danger delete-slip" data-id="${slip.id}">${escapeHTML(translate('delete'))}</button>`
@@ -815,34 +816,6 @@ export class PermissionSlipDashboard {
         const activityTitle = btn.getAttribute('data-activity-title');
         const date = btn.getAttribute('data-date');
         withButtonLoading(btn, () => this.handleSendReminders(date, activityTitle, readSlipIds(btn)));
-      });
-    });
-
-    // Sign permission slip
-    root.querySelectorAll('.sign-slip').forEach((button) => {
-      button.addEventListener('click', async (event) => {
-        event.preventDefault();
-        // `event.currentTarget` is nulled once dispatch ends, so capture the
-        // button before awaiting the dialog below.
-        const trigger = event.currentTarget;
-        const slipId = trigger.getAttribute('data-id');
-        const signerName = (await promptDialog({
-          title: translate('permission_slip_signer'),
-          message: translate('permission_slip_signer'),
-        }))?.trim();
-        if (!signerName) {return;}
-
-        withButtonLoading(trigger, async () => {
-          try {
-            await signPermissionSlip(slipId, { signed_by: signerName });
-            this.app.showMessage(translate('permission_slip_signed'), 'success');
-            await this.clearPermissionSlipCaches();
-            await this.refreshData(true);
-          } catch (error) {
-            debugError('Error signing permission slip', error);
-            this.app.showMessage(apiErrorMessage(error, 'permission_slip_error_loading'), 'error');
-          }
-        });
       });
     });
 

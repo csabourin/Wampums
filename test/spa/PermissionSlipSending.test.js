@@ -383,6 +383,7 @@ describe('leaders and signing', () => {
   const slip = (id, firstName, isOwnChild) => ({
     id, participant_id: id, first_name: firstName, last_name: 'T', status: 'pending', email_sent: true,
     activity_id: 12, activity_title: 'Sortie canot', meeting_date: '2026-11-07', is_own_child: isOwnChild,
+    access_token: `00000000-0000-4000-8000-00000000000${id}`,
   });
 
   async function openSlipList(slips) {
@@ -403,7 +404,6 @@ describe('leaders and signing', () => {
     const signButtons = [...root.querySelectorAll('.sign-slip')];
     expect(signButtons).toHaveLength(1);
     expect(signButtons[0].closest('tr').textContent).toContain('Bob');
-    expect(signButtons[0].getAttribute('type')).toBe('button');
     expect(root.querySelector('tr[data-slip-id="1"] .sign-slip')).toBeNull();
   });
 
@@ -414,6 +414,35 @@ describe('leaders and signing', () => {
 
   test('the slip list with a sign button has no accessibility violations', async () => {
     const root = await openSlipList([slip(1, 'Alice', false), slip(2, 'Bob', true)]);
+    const results = await axe.run(root, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('a leader answers for their own child on the slip\'s page, where its current text is read', async () => {
+    const root = await openSlipList([{ ...slip(2, 'Bob', true), access_token: '00000000-0000-4000-8000-000000000002' }]);
+
+    const link = root.querySelector('.sign-slip');
+    expect(link.tagName).toBe('A');
+    expect(link.getAttribute('href')).toBe('/permission-slip/00000000-0000-4000-8000-000000000002');
+    expect(link.textContent).toContain('permission_slip_read_and_answer');
+    expect(link.textContent).toContain('Bob');
+    // Nothing is signed from this list, where the slip's current text is not shown
+    expect(endpoints.signPermissionSlip).not.toHaveBeenCalled();
+  });
+
+  test('each answer says whether its text is proven, and an answer from before is never shown as verified', async () => {
+    const root = await openSlipList([
+      { ...slip(1, 'Alice', false), status: 'signed', signed_at: '2026-11-01', fingerprint_status: 'verified' },
+      { ...slip(2, 'Bob', false), status: 'declined', declined_at: '2026-11-01', fingerprint_status: 'altered' },
+      { ...slip(3, 'Chloé', false), status: 'signed', signed_at: '2026-10-01', fingerprint_status: 'not_verifiable', signature_hash: 'legacy' },
+      slip(4, 'Dan', false),
+    ]);
+
+    const label = (id) => root.querySelector(`tr[data-slip-id="${id}"] .permission-slip-fingerprint`)?.textContent.trim();
+    expect(label(1)).toBe('permission_slip_fingerprint_verified');
+    expect(label(2)).toBe('permission_slip_fingerprint_altered');
+    expect(label(3)).toBe('permission_slip_fingerprint_not_verifiable');
+    expect(label(4)).toBeUndefined();
     const results = await axe.run(root, AXE_OPTIONS);
     expect(results.violations).toEqual([]);
   });

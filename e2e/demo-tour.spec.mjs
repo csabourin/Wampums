@@ -48,15 +48,17 @@ test.describe('the parent tour of the sample unit', () => {
 
   test('signing a permission slip in the demo explains it is not available there, and the slip stays pending', async ({ page }) => {
     await openScreen(page, '/parent-dashboard');
-    // The family's tasks come first: the outing's slip is signed from there.
+    // The family's tasks come first: the outing's slip opens there, to be read and answered.
     const tasks = page.getByRole('region', { name: 'À faire pour votre famille' });
-    await tasks.getByRole('button', { name: 'Signer', exact: true }).click();
-    // DialogUtils' prompt is an alertdialog, titled after the activity.
-    const dialog = page.getByRole('alertdialog', { name: /^Signer : / });
-    await dialog.getByRole('textbox').fill('Demo Parent');
-    await dialog.getByRole('button', { name: 'OK' }).click();
+    await tasks.getByRole('link', { name: /Lire et répondre/ }).first().click();
+    await expect(page.locator('#app h1')).toBeVisible();
+    await page.locator('#guardian-name').fill('Demo Parent');
+    // The label covers its checkbox: a person taps the sentence they consent to.
+    await page.locator('label[for="consent-checkbox"]').click();
+    await expect(page.locator('#consent-checkbox')).toBeChecked();
+    await page.getByRole('button', { name: /Signer/ }).click();
     await expect(page.locator('#toast-container')).toContainText(READ_ONLY);
-    // Still pending: the slip is still there to sign, among the family's tasks.
-    await expect(tasks.getByRole('button', { name: 'Signer', exact: true })).toBeVisible();
+    // Still pending: the slip can still be signed.
+    await expect(page.getByRole('button', { name: /Signer/ })).toBeVisible();
   });
 });

@@ -12,7 +12,10 @@ const {
   getOrganizationId,
   requirePermission,
   blockDemoRoles,
+  optionalAuth,
   getUserDataScope,
+  isDemoSignInUnit,
+  DEMO_READ_ONLY_CODE,
 } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
 const { checkValidation, validateIdParam, validateIdQuery } = require('../middleware/validation');
@@ -23,6 +26,16 @@ const {
 } = require('../utils/permission-slip-email');
 const { deliver: deliverAuthorization } = require('../services/activityAuthorizations');
 const createPermissionSlipCopies = require('../services/permissionSlipCopies');
+const {
+  FINGERPRINT_PATTERN,
+  TEXT_CHANGED: PERMISSION_SLIP_TEXT_CHANGED,
+  slipContentSql,
+  describeSlip,
+  recordAnswer,
+} = require('../services/permissionSlipFingerprint');
+
+/** The text a slip presents, as one JSON object (services/permissionSlipFingerprint.js). */
+const SLIP_CONTENT_SQL = slipContentSql('ps');
 const { isEquipmentAccessible } = require('../services/equipmentAccess');
 const { OwnershipError, equipmentAccessSql, readEquipmentOwner } = require('../services/equipmentOwnership');
 const EQUIPMENT_UPDATE_PARAM_OFFSET = 2;
@@ -362,10 +375,12 @@ module.exports = (pool, logger) => {
    * @param {string} userId - Account answering
    * @param {number} organizationId - Active organization
    * @param {number} participantId - Permission slip participant
+   * @param {import('pg').Pool|import('pg').PoolClient} [db=pool] - Connection to use, such as
+   *   the transaction already holding the slip, so one answer needs one connection
    * @returns {Promise<boolean>}
    */
-  async function isOwnChild(userId, organizationId, participantId) {
-    const linkCheck = await pool.query(
+  async function isOwnChild(userId, organizationId, participantId, db = pool) {
+    const linkCheck = await db.query(
       `SELECT 1
          FROM user_participants up
          JOIN participant_organizations po
@@ -1895,6 +1910,7 @@ module.exports = (pool, logger) => {
                   -- A slip's own copy of the activity (title, description) is
                   -- what its parents receive and sign: it is not overwritten.
                   a.name AS activity_name, a.activity_date,
+                  ${SLIP_CONTENT_SQL} AS slip_content,
                   -- Only a child's own family answers its slip, leaders included
                   EXISTS (
                     SELECT 1 FROM user_participants up
@@ -1910,7 +1926,7 @@ module.exports = (pool, logger) => {
           [...params, req.user.id],
         );
 
-        return success(res, { permission_slips: result.rows });
+        return success(res, { permission_slips: result.rows.map(describeSlip) });
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
@@ -2768,6 +2784,7 @@ module.exports = (pool, logger) => {
                            signed_at = NULL,
                            signed_by = NULL,
                            signature_hash = NULL,
+                           answered_content = NULL,
                            contact_confirmation = NULL,
                            declined_at = NULL,
                            declined_by = NULL,
@@ -2842,7 +2859,8 @@ module.exports = (pool, logger) => {
 
         const slipResult = await pool.query(
           `SELECT ps.*, p.first_name, p.last_name,
-                  (p.first_name || ' ' || p.last_name) AS participant_name
+                  (p.first_name || ' ' || p.last_name) AS participant_name,
+                  ${SLIP_CONTENT_SQL} AS slip_content
            FROM permission_slips ps
            JOIN participants p ON p.id = ps.participant_id
            WHERE ps.id = $1 AND ps.organization_id = $2`,
@@ -2862,12 +2880,61 @@ module.exports = (pool, logger) => {
           return forbidden(res, 'You can only view permission slips for your own children', ['permission_slips.view'], []);
         }
 
-        return success(res, slipResult.rows[0]);
+        return success(res, describeSlip(slipResult.rows[0]));
       } catch (err) {
         return error(res, err.message || 'Error fetching permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
+
+  /**
+   * Answer a recorded answer's outcome: the slip, or why it was refused.
+   *
+   * @param {Object} res - Express response
+   * @param {{outcome: string, slip?: Object}} result - Result of recordAnswer()
+   * @param {string} successMessage - Message of a recorded answer
+   * @returns {Object} Express response
+   */
+  const sendAnswerResult = (res, result, successMessage) => {
+    switch (result.outcome) {
+      case 'answered':
+        return success(res, { permission_slip: result.slip }, successMessage);
+      case 'not_found':
+        return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
+      case 'already_answered':
+        return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
+      case 'demo_read_only':
+        // The demo's slips are fictional and reset each night: an emailed link
+        // does not answer them, as a demo account cannot (`code` lets the SPA explain).
+        return forbidden(res, 'This feature is not available in demo mode. Demo accounts have read-only access.', [], [], {
+          isDemo: true,
+          code: DEMO_READ_ONLY_CODE,
+        });
+      case 'forbidden':
+        // A translation key: the screen shows it as is
+        return forbidden(res, 'permission_slip_sign_own_children_only', ['permission_slips.sign'], []);
+      case 'text_changed':
+        // A translation key: the text changed since the parent read it, who reads it again
+        return error(res, PERMISSION_SLIP_TEXT_CHANGED, HTTP_STATUS.CONFLICT);
+      default:
+        return error(res, 'Error answering permission slip', HTTP_STATUS.INTERNAL_ERROR);
+    }
+  };
+
+  /**
+   * An emailed link answers for whoever holds it, signed in or not. A demo
+   * account following it from its dashboard stays read-only, as on every
+   * other write (blockDemoRoles); someone not signed in passes.
+   */
+  const demoAccountsReadOnly = [
+    optionalAuth,
+    (req, res, next) => (req.user ? blockDemoRoles(req, res, next) : next()),
+  ];
+
+  /** The fingerprint of the text the screen showed, sent back with every answer. */
+  const presentedFingerprintRule = () => check('presented_fingerprint')
+    .isString()
+    .matches(FINGERPRINT_PATTERN);
 
   // Secure route to sign a permission slip (authentication required)
   router.patch(
@@ -2878,56 +2945,27 @@ module.exports = (pool, logger) => {
     [
       validateIdParam('id'),
       check('signed_by').isString().trim().isLength({ min: 2, max: 200 }),
+      presentedFingerprintRule(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
-        // The server's clock dates the signature: a time sent by the device could be backdated.
-        const { signed_by } = req.body;
-
-        const slipResult = await pool.query(
-          'SELECT organization_id, participant_id, status FROM permission_slips WHERE id = $1 AND organization_id = $2',
-          [slipId, organizationId],
-        );
-
-        if (slipResult.rows.length === 0) {
-          return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
-        }
-
-        if (slipResult.rows[0].status !== 'pending') {
-          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
-        }
-
-        const participantId = slipResult.rows[0].participant_id;
-        if (!(await isOwnChild(req.user.id, organizationId, participantId))) {
-          // A translation key: the screen shows it as is
-          return forbidden(res, 'permission_slip_sign_own_children_only', ['permission_slips.sign'], []);
-        }
-
-        const updateResult = await pool.query(
-          `UPDATE permission_slips
-           SET signed_by = $2,
-               signed_at = CURRENT_TIMESTAMP,
-               status = 'signed',
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1 AND organization_id = $3 AND status = 'pending'
-           RETURNING *`,
-          [slipId, signed_by, organizationId],
-        );
-
-        if (updateResult.rows.length === 0) {
-          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
-        }
-
-        return success(
-          res,
-          { permission_slip: updateResult.rows[0] },
-          'Permission slip signed',
-        );
+        const result = await recordAnswer(pool, {
+          where: 'ps.id = $1 AND ps.organization_id = $2',
+          params: [Number(req.params.id), organizationId],
+          answer: 'signed',
+          answeredBy: req.body.signed_by,
+          presentedFingerprint: req.body.presented_fingerprint,
+          mayAnswer: (slip, client) => isOwnChild(req.user.id, organizationId, slip.participant_id, client),
+        });
+        return sendAnswerResult(res, result, 'Permission slip signed');
       } catch (err) {
-        return error(res, err.message || 'Error signing permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
+        if (handleOrganizationResolutionError(res, err)) {
+          return res;
+        }
+        console.error('Error signing permission slip:', err);
+        return error(res, 'Error signing permission slip', HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -2942,55 +2980,27 @@ module.exports = (pool, logger) => {
       validateIdParam('id'),
       check('status').equals('declined'),
       check('declined_by').isString().trim().isLength({ min: 2, max: 200 }),
+      presentedFingerprintRule(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const slipId = Number(req.params.id);
         const organizationId = await getOrganizationId(req, pool);
-        // The server's clock dates the refusal, as it does a signature.
-        const { declined_by } = req.body;
-
-        const slipResult = await pool.query(
-          `SELECT participant_id, status
-             FROM permission_slips
-            WHERE id = $1 AND organization_id = $2`,
-          [slipId, organizationId],
-        );
-
-        if (slipResult.rows.length === 0) {
-          return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
-        }
-        if (slipResult.rows[0].status !== 'pending') {
-          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
-        }
-        if (!(await isOwnChild(req.user.id, organizationId, slipResult.rows[0].participant_id))) {
-          // A translation key: the screen shows it as is
-          return forbidden(res, 'permission_slip_sign_own_children_only', ['permission_slips.sign'], []);
-        }
-
-        const updateResult = await pool.query(
-          `UPDATE permission_slips
-              SET declined_by = $2,
-                  declined_at = CURRENT_TIMESTAMP,
-                  status = 'declined',
-                  updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1 AND organization_id = $3 AND status = 'pending'
-            RETURNING *`,
-          [slipId, declined_by, organizationId],
-        );
-
-        if (updateResult.rows.length === 0) {
-          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
-        }
-        return success(
-          res,
-          { permission_slip: updateResult.rows[0] },
-          'Permission slip declined',
-        );
+        const result = await recordAnswer(pool, {
+          where: 'ps.id = $1 AND ps.organization_id = $2',
+          params: [Number(req.params.id), organizationId],
+          answer: 'declined',
+          answeredBy: req.body.declined_by,
+          presentedFingerprint: req.body.presented_fingerprint,
+          mayAnswer: (slip, client) => isOwnChild(req.user.id, organizationId, slip.participant_id, client),
+        });
+        return sendAnswerResult(res, result, 'Permission slip declined');
       } catch (err) {
-        if (handleOrganizationResolutionError(res, err)) {return;}
-        return error(res, err.message || 'Error declining permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
+        if (handleOrganizationResolutionError(res, err)) {
+          return res;
+        }
+        console.error('Error declining permission slip:', err);
+        return error(res, 'Error declining permission slip', HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -3006,7 +3016,8 @@ module.exports = (pool, logger) => {
 
         const slipResult = await pool.query(
           `SELECT ps.*, p.first_name, p.last_name,
-                  (p.first_name || ' ' || p.last_name) AS participant_name
+                  (p.first_name || ' ' || p.last_name) AS participant_name,
+                  ${SLIP_CONTENT_SQL} AS slip_content
            FROM permission_slips ps
            JOIN participants p ON p.id = ps.participant_id
            WHERE ps.access_token = $1`,
@@ -3017,7 +3028,7 @@ module.exports = (pool, logger) => {
           return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
         }
 
-        return success(res, slipResult.rows[0]);
+        return success(res, describeSlip(slipResult.rows[0]));
       } catch (err) {
         return error(res, err.message || 'Error fetching permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
@@ -3027,52 +3038,27 @@ module.exports = (pool, logger) => {
   // New Public route to sign a permission slip by access_token
   router.patch(
     '/permission-slips/s/:token',
+    ...demoAccountsReadOnly,
     [
       param('token').isUUID(),
       check('signed_by').isString().trim().isLength({ min: 2, max: 200 }),
+      presentedFingerprintRule(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const { token } = req.params;
-        // The server's clock dates the signature: a time sent by the device could be backdated.
-        const { signed_by } = req.body;
-
-        const slipResult = await pool.query(
-          'SELECT id, status FROM permission_slips WHERE access_token = $1',
-          [token],
-        );
-
-        if (slipResult.rows.length === 0) {
-          return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
-        }
-
-        if (slipResult.rows[0].status !== 'pending') {
-          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
-        }
-
-        const updateResult = await pool.query(
-          `UPDATE permission_slips
-           SET signed_by = $2,
-               signed_at = CURRENT_TIMESTAMP,
-               status = 'signed',
-               updated_at = CURRENT_TIMESTAMP
-           WHERE access_token = $1 AND status = 'pending'
-           RETURNING *`,
-          [token, signed_by],
-        );
-
-        if (updateResult.rows.length === 0) {
-          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
-        }
-
-        return success(
-          res,
-          { permission_slip: updateResult.rows[0] },
-          'Permission slip signed',
-        );
+        const result = await recordAnswer(pool, {
+          where: 'ps.access_token = $1',
+          params: [req.params.token],
+          isReadOnlyUnit: (slip, client) => isDemoSignInUnit(client, slip.organization_id),
+          answer: 'signed',
+          answeredBy: req.body.signed_by,
+          presentedFingerprint: req.body.presented_fingerprint,
+        });
+        return sendAnswerResult(res, result, 'Permission slip signed');
       } catch (err) {
-        return error(res, err.message || 'Error signing permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
+        console.error('Error signing permission slip:', err);
+        return error(res, 'Error signing permission slip', HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );
@@ -3080,46 +3066,28 @@ module.exports = (pool, logger) => {
   // Public route to decline a permission slip by access token
   router.patch(
     '/permission-slips/public/:token',
+    ...demoAccountsReadOnly,
     [
       param('token').isUUID(),
       check('status').equals('declined'),
       check('declined_by').isString().trim().isLength({ min: 2, max: 200 }),
+      presentedFingerprintRule(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const { token } = req.params;
-        // The server's clock dates the refusal, as it does a signature.
-        const { declined_by } = req.body;
-        const updateResult = await pool.query(
-          `UPDATE permission_slips
-              SET declined_by = $2,
-                  declined_at = CURRENT_TIMESTAMP,
-                  status = 'declined',
-                  updated_at = CURRENT_TIMESTAMP
-            WHERE access_token = $1 AND status = 'pending'
-            RETURNING *`,
-          [token, declined_by],
-        );
-
-        if (updateResult.rows.length === 0) {
-          const slipResult = await pool.query(
-            'SELECT status FROM permission_slips WHERE access_token = $1',
-            [token],
-          );
-          if (slipResult.rows.length === 0) {
-            return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
-          }
-          return error(res, 'Permission slip has already been answered', HTTP_STATUS.CONFLICT);
-        }
-
-        return success(
-          res,
-          { permission_slip: updateResult.rows[0] },
-          'Permission slip declined',
-        );
+        const result = await recordAnswer(pool, {
+          where: 'ps.access_token = $1',
+          params: [req.params.token],
+          isReadOnlyUnit: (slip, client) => isDemoSignInUnit(client, slip.organization_id),
+          answer: 'declined',
+          answeredBy: req.body.declined_by,
+          presentedFingerprint: req.body.presented_fingerprint,
+        });
+        return sendAnswerResult(res, result, 'Permission slip declined');
       } catch (err) {
-        return error(res, err.message || 'Error declining permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
+        console.error('Error declining permission slip:', err);
+        return error(res, 'Error declining permission slip', HTTP_STATUS.INTERNAL_ERROR);
       }
     }),
   );

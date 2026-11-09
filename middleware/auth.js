@@ -492,6 +492,8 @@ function demoWriteGate(policy) {
  * });
  */
 exports.blockDemoRoles = demoWriteGate(null);
+exports.isDemoSignInUnit = isDemoSignInUnit;
+exports.DEMO_READ_ONLY_CODE = DEMO_READ_ONLY_CODE;
 
 /**
  * Like `blockDemoRoles`, but in the demo unit lets a demo account send a

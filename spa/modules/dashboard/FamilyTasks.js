@@ -151,7 +151,12 @@ export function buildFamilyTasks(data, filter = ALL_CHILDREN) {
         kind: FAMILY_TASK_KIND.PERMISSION,
         title: slip.activity_title || slip.activity_name || '',
         date: isoToDateString(slip.meeting_date),
-      }), childRow(participantId, { slipId: Number(slip.id), deadline: slip.deadline_date || null })));
+      }), childRow(participantId, {
+        slipId: Number(slip.id),
+        deadline: slip.deadline_date || null,
+        // The slip's own page, where its text is read before answering (#1410).
+        accessToken: slip.access_token || null,
+      })));
   });
 
   participants
@@ -275,16 +280,23 @@ function rowActions(task, row, forTask) {
 function renderTaskActions(task, context, titleId) {
   const forTask = (labelKey, name) => `${translate(labelKey)}<span class="visually-hidden"> — ${escapeHTML(name)}</span>`;
   switch (task.kind) {
-    case FAMILY_TASK_KIND.PERMISSION:
+    case FAMILY_TASK_KIND.PERMISSION: {
+      // A slip is answered on its own page, where its text is read first: each
+      // child's slip may say something different, and the answer proves the
+      // text shown (#1410).
+      const readSlip = (row) => `<a href="/permission-slip/${encodeURIComponent(row.accessToken)}" class="button button--small button--primary js-family-read-slip" aria-describedby="${titleId}">${forTask('permission_slip_read_and_answer', row.name)}</a>`;
+      const rows = task.rows.filter((row) => row.accessToken);
+      if (rows.length === 1) {
+        return `<div class="family-task__actions">${readSlip(rows[0])}</div>`;
+      }
       return `
-        <div class="family-task__actions">
-          <button type="button" class="button button--primary js-family-sign" data-task-key="${escapeAttribute(task.key)}" aria-describedby="${titleId}">
-            ${translate('permission_slip_sign')}
-          </button>
-          <button type="button" class="button button--secondary js-family-decline" data-task-key="${escapeAttribute(task.key)}" aria-describedby="${titleId}">
-            ${translate('permission_slip_decline')}
-          </button>
-        </div>`;
+        <ul class="family-task__rows">${rows.map((row) => `
+          <li class="family-task__row">
+            <span>${escapeHTML(row.name)}</span>
+            <span class="family-task__row-actions">${readSlip(row)}</span>
+          </li>`).join('')}
+        </ul>`;
+    }
     case FAMILY_TASK_KIND.EQUIPMENT:
       return `<a href="/personal-equipment/${task.meetingId}" class="button button--primary">${translate('personal_equipment_open')}</a>`;
     case FAMILY_TASK_KIND.PAYMENT: {

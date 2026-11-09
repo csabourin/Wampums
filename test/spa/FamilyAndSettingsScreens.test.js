@@ -213,6 +213,7 @@ describe('permission slip opened from an email', () => {
     activity_title: HOSTILE,
     participant_name: `${HOSTILE} Roy`,
     meeting_date: '2099-01-07',
+    presented_fingerprint: 'a'.repeat(64),
   };
 
   test('says it is loading, then shows the slip under the way back and a title, names as text', async () => {
@@ -274,6 +275,84 @@ describe('permission slip opened from an email', () => {
     expect(app.showMessage).toHaveBeenCalledWith(expect.any(String), 'error');
     expect(page().querySelector('#sign-btn').disabled).toBe(false);
     expect(page().textContent).not.toContain('signature_registered_success');
+  });
+
+  test('a signature says which text the parent was shown', async () => {
+    endpoints.getPublicPermissionSlip.mockResolvedValue({ success: true, data: SLIP });
+    endpoints.signPublicPermissionSlip.mockResolvedValue({ success: true });
+    await new PermissionSlipSign(makeApp(), 'token').init();
+
+    page().querySelector('#guardian-name').value = 'Marie Tremblay';
+    page().querySelector('#guardian-name').dispatchEvent(new Event('input'));
+    page().querySelector('#consent-checkbox').click();
+    page().querySelector('#sign-btn').click();
+    await flush();
+
+    expect(endpoints.signPublicPermissionSlip).toHaveBeenCalledWith('token', {
+      signed_by: 'Marie Tremblay',
+      presented_fingerprint: 'a'.repeat(64),
+    });
+  });
+
+  test('a slip changed while the parent read it is shown again to read, with their name kept, and nothing is said signed', async () => {
+    const changed = { ...SLIP, activity_title: 'Sortie vélo', presented_fingerprint: 'b'.repeat(64) };
+    endpoints.getPublicPermissionSlip
+      .mockResolvedValueOnce({ success: true, data: SLIP })
+      .mockResolvedValueOnce({ success: true, data: changed });
+    endpoints.signPublicPermissionSlip.mockRejectedValue(Object.assign(
+      new Error('API request failed: permission_slip_text_changed'),
+      { status: 409, cause: new Error('permission_slip_text_changed') },
+    ));
+    const app = makeApp();
+    await new PermissionSlipSign(app, 'token').init();
+
+    page().querySelector('#guardian-name').value = 'Marie Tremblay';
+    page().querySelector('#guardian-name').dispatchEvent(new Event('input'));
+    page().querySelector('#consent-checkbox').click();
+    page().querySelector('#sign-btn').click();
+    await flush();
+    await flush();
+
+    expect(app.showMessage).toHaveBeenCalledWith('permission_slip_text_changed', 'error');
+    // The cached copy holds the old text: the new one is read from the server
+    expect(endpoints.getPublicPermissionSlip).toHaveBeenLastCalledWith('token', { forceRefresh: true });
+    expect(page().querySelector('h2').textContent).toBe('Sortie vélo');
+    // The reader starts again at the top of the text
+    expect(document.activeElement).toBe(page().querySelector('h2'));
+    expect(page().querySelector('#guardian-name').value).toBe('Marie Tremblay');
+    // Consent is given again, to the text now shown; declining needs only the kept name
+    expect(page().querySelector('#consent-checkbox').checked).toBe(false);
+    expect(page().querySelector('#sign-btn').disabled).toBe(true);
+    expect(page().querySelector('#decline-btn').disabled).toBe(false);
+    expect(page().textContent).not.toContain('signature_registered_success');
+    expect(await violations()).toEqual([]);
+  });
+
+  test('a changed text arriving after the parent left draws nothing over the next screen', async () => {
+    let resolveReread;
+    endpoints.getPublicPermissionSlip
+      .mockResolvedValueOnce({ success: true, data: SLIP })
+      .mockReturnValueOnce(new Promise((done) => { resolveReread = done; }));
+    endpoints.signPublicPermissionSlip.mockRejectedValue(Object.assign(
+      new Error('API request failed: permission_slip_text_changed'),
+      { status: 409, cause: new Error('permission_slip_text_changed') },
+    ));
+    const app = makeApp();
+    const screen = new PermissionSlipSign(app, 'token');
+    await screen.init();
+
+    page().querySelector('#guardian-name').value = 'Marie Tremblay';
+    page().querySelector('#guardian-name').dispatchEvent(new Event('input'));
+    page().querySelector('#consent-checkbox').click();
+    page().querySelector('#sign-btn').click();
+    await flush();
+    screen.destroy();
+    page().innerHTML = '<h1>Next screen</h1>';
+    resolveReread({ success: true, data: { ...SLIP, activity_title: 'Sortie vélo' } });
+    await flush();
+
+    expect(page().textContent).toBe('Next screen');
+    expect(app.showMessage).not.toHaveBeenCalledWith('permission_slip_text_changed', 'error');
   });
 
   test('a signature that went through is confirmed', async () => {

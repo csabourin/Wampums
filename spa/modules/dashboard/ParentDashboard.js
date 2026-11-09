@@ -12,10 +12,8 @@ import {
   getCurrentUser,
 } from '../../ajax-functions.js';
 import {
-  declinePermissionSlip,
   getNextMeetingInfo,
   getPermissionSlips,
-  signPermissionSlip,
 } from '../../api/api-endpoints.js';
 import { getActivities } from '../../api/api-activities.js';
 import { buildUpcomingEvents, renderUpcomingSection } from './ParentUpcoming.js';
@@ -37,7 +35,7 @@ import {
 import { translate, registerPushSubscription } from '../../app.js';
 import { CONFIG } from '../../config.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { apiErrorMessage, apiErrorMessageKey } from '../../utils/ApiErrorUtils.js';
+import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
 import { isAppInstalled, onInstallAvailabilityChange } from '../../utils/InstallPromptUtils.js';
@@ -47,10 +45,6 @@ import { CarpoolQuickAccessModal } from '../modals/CarpoolQuickAccessModal.js';
 import { isParent, hasPermission, canViewBadges, canApproveBadges, canViewReports, canViewActivities, canViewCarpools } from '../../utils/PermissionUtils.js';
 import { getTodayISO, parseDate } from '../../utils/DateUtils.js';
 import {
-  confirm as confirmDialog,
-  prompt as promptDialog,
-} from '../../utils/DialogUtils.js';
-import {
   ALL_CHILDREN,
   FAMILY_TASK_KIND,
   buildFamilyTasks,
@@ -59,7 +53,6 @@ import {
   renderFamilyTaskList,
   childDisplayNames,
   setTasksExpanded,
-  taskChildNames,
 } from './FamilyTasks.js';
 
 // Safari cancels a download whose object URL is revoked in the same task as the click.
@@ -828,11 +821,6 @@ export class ParentDashboard {
         this.refreshFamilyView();
         return;
       }
-      const respond = event.target.closest('.js-family-sign, .js-family-decline');
-      if (respond) {
-        this.respondToEvent(respond.dataset.taskKey, respond.classList.contains('js-family-decline'));
-        return;
-      }
       const review = event.target.closest('.js-confirm-review');
       if (review) {
         this.handleConfirmReview(review);
@@ -868,77 +856,6 @@ export class ParentDashboard {
         this.init();
       }
     }, { signal: this.listeners.signal });
-  }
-
-  /**
-   * Sign or decline an event's permission slips for every child the task
-   * names, with one signer name. Each child's own file still answers one slip.
-   *
-   * @param {string} taskKey - The task's key
-   * @param {boolean} isDecline - Decline rather than sign
-   * @returns {Promise<void>}
-   */
-  async respondToEvent(taskKey, isDecline) {
-    const task = this.familyTasks.find((candidate) => candidate.key === taskKey);
-    if (!task || this.responding) {
-      return;
-    }
-    const lang = this.app?.language || CONFIG.DEFAULT_LANG || 'en';
-    const children = taskChildNames(task, lang);
-    const title = task.title || translate('permission_slip_section_title');
-    const signerName = (await promptDialog({
-      title: translate(isDecline ? 'family_tasks_decline_title' : 'family_tasks_sign_title').replace('{activity}', title),
-      message: translate('family_tasks_signer_prompt').replace('{children}', children),
-    }))?.trim();
-    if (!signerName) {
-      return;
-    }
-    if (isDecline && !(await confirmDialog({
-      message: translate('family_tasks_decline_confirm').replace('{children}', children),
-      danger: true,
-    }))) {
-      return;
-    }
-
-    this.responding = true;
-    [...document.querySelectorAll('.family-task')]
-      .filter((item) => item.dataset.taskKey === taskKey)
-      .flatMap((item) => [...item.querySelectorAll('button')])
-      .forEach((button) => {
-        // eslint-disable-next-line no-param-reassign -- busy while the answers are sent
-        button.disabled = true;
-      });
-    const results = await Promise.allSettled(task.rows.map((row) => (isDecline
-      ? declinePermissionSlip(row.slipId, { declined_by: signerName })
-      : signPermissionSlip(row.slipId, { signed_by: signerName }))));
-    this.responding = false;
-
-    const failedRows = task.rows.filter((_row, index) => results[index].status === 'rejected');
-    const failures = results.filter((result) => result.status === 'rejected').map((result) => result.reason);
-    failures.forEach((failure) => debugError('Error responding to permission slip', failure));
-    const queued = results.some((result) => result.status === 'fulfilled' && result.value?.queued);
-
-    if (!failures.length) {
-      this.app.showMessage(
-        translate(queued ? 'family_tasks_response_queued' : (isDecline ? 'permission_slip_declined' : 'permission_slip_signed')),
-        queued ? 'info' : 'success',
-      );
-    } else if (failures.every((failure) => apiErrorMessageKey(failure) === 'api_error_conflict')) {
-      this.app.showMessage(translate('permission_slip_already_answered'), 'warning');
-    } else if (failedRows.length < task.rows.length) {
-      const failedNames = taskChildNames({ rows: failedRows }, lang);
-      this.app.showMessage(translate('family_tasks_partial_failure').replace('{children}', failedNames), 'error');
-    } else {
-      this.app.showMessage(apiErrorMessage(failures[0], 'error_saving'), 'error');
-    }
-
-    const childIds = [...new Set(task.rows.map((row) => row.participantId))];
-    await Promise.all(childIds.map((participantId) => this.loadPermissionSlips(participantId, true)));
-    if (this.destroyed) {
-      return;
-    }
-    childIds.forEach((participantId) => this.refreshPermissionSlipSection(participantId));
-    this.refreshFamilyView();
   }
 
   /**
