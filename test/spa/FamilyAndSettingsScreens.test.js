@@ -326,6 +326,33 @@ describe('permission slip opened from an email', () => {
     expect(await violations()).toEqual([]);
   });
 
+  test('a changed text arriving after the parent left draws nothing over the next screen', async () => {
+    let resolveReread;
+    endpoints.getPublicPermissionSlip
+      .mockResolvedValueOnce({ success: true, data: SLIP })
+      .mockReturnValueOnce(new Promise((done) => { resolveReread = done; }));
+    endpoints.signPublicPermissionSlip.mockRejectedValue(Object.assign(
+      new Error('API request failed: permission_slip_text_changed'),
+      { status: 409, cause: new Error('permission_slip_text_changed') },
+    ));
+    const app = makeApp();
+    const screen = new PermissionSlipSign(app, 'token');
+    await screen.init();
+
+    page().querySelector('#guardian-name').value = 'Marie Tremblay';
+    page().querySelector('#guardian-name').dispatchEvent(new Event('input'));
+    page().querySelector('#consent-checkbox').click();
+    page().querySelector('#sign-btn').click();
+    await flush();
+    screen.destroy();
+    page().innerHTML = '<h1>Next screen</h1>';
+    resolveReread({ success: true, data: { ...SLIP, activity_title: 'Sortie vélo' } });
+    await flush();
+
+    expect(page().textContent).toBe('Next screen');
+    expect(app.showMessage).not.toHaveBeenCalledWith('permission_slip_text_changed', 'error');
+  });
+
   test('a signature that went through is confirmed', async () => {
     endpoints.getPublicPermissionSlip.mockResolvedValue({ success: true, data: SLIP });
     endpoints.signPublicPermissionSlip.mockResolvedValue({ success: true });

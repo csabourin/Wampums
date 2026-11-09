@@ -318,6 +318,10 @@ export class PermissionSlipSign {
   async showChangedText(guardianName) {
     // The cached copy is the old text: a refused answer clears no cache.
     await this.loadPermissionSlip({ forceRefresh: true });
+    if (this.destroyed) {
+      // The parent left while the text was read again: draw nothing over the next screen.
+      return;
+    }
     this.render();
     this.attachEventListeners();
     const nameInput = document.getElementById('guardian-name');
