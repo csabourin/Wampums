@@ -484,9 +484,11 @@ test.describe('permission slips for a parent', () => {
     });
   }
 
-  test('the parent dashboard offers the pending slip to sign in one place, its family task', async ({ page }) => {
+  test('the parent dashboard offers the pending slip in one place, its family task, which opens the slip to read and answer', async ({ page }) => {
     await openScreen(page, '/parent-dashboard');
-    await expect(page.locator('.family-tasks .js-family-sign').first()).toBeVisible();
+    const readSlip = page.locator('.family-tasks .js-family-read-slip').first();
+    await expect(readSlip).toBeVisible();
+    await expect(readSlip).toHaveAttribute('href', /^\/permission-slip\/[0-9a-f-]{36}$/);
     // The child's card counts it and leads to the task; the file neither repeats nor signs it.
     await expect(page.locator('.participant-card__todo .js-family-goto-tasks')).not.toHaveCount(0);
     await expect(page.locator('.participant-card').getByRole('button', { name: /^(Signer|Sign)$/ })).toHaveCount(0);

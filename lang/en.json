@@ -2517,6 +2517,7 @@
   "permission_slip_fingerprint_verified": "Answered text verified",
   "permission_slip_fingerprint_altered": "Text changed since the answer",
   "permission_slip_fingerprint_not_verifiable": "Not verifiable (answered before text verification)",
+  "permission_slip_read_and_answer": "Read and answer",
   "permission_slip_already_answered": "This permission request has already been answered",
   "permission_slip_declined_at": "Declined at",
   "permission_slip_declined_by": "Declined by",

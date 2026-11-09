@@ -75,7 +75,7 @@ jest.mock('../../spa/utils/PermissionUtils.js', () => ({
 
 const endpoints = require('../../spa/api/api-endpoints.js');
 const scoutYears = require('../../spa/api/api-scout-years.js');
-const { prompt, confirm } = require('../../spa/utils/DialogUtils.js');
+const { prompt } = require('../../spa/utils/DialogUtils.js');
 const { buildFamilyTasks, ALL_CHILDREN } = require('../../spa/modules/dashboard/FamilyTasks.js');
 const { ParentDashboard } = require('../../spa/modules/dashboard/ParentDashboard.js');
 
@@ -99,20 +99,10 @@ function slip(id, participantId, overrides = {}) {
     meeting_date: '2026-11-14T00:00:00.000Z',
     deadline_date: '2026-11-07T00:00:00.000Z',
     status: 'pending',
-    // What the server says of the text this slip shows (#1410)
-    presented_fingerprint: fingerprintFor(id),
+    // The slip's own page, where its text is read and answered (#1410)
+    access_token: `00000000-0000-4000-8000-0000000000${String(id).padStart(2, '0')}`,
     ...overrides,
   };
-}
-
-/**
- * A fictional fingerprint for a slip's text.
- *
- * @param {number} id - Slip id
- * @returns {string} 64 hexadecimal characters
- */
-function fingerprintFor(id) {
-  return String(id).padStart(2, '0').repeat(32).slice(0, 64).replace(/[^0-9a-f]/g, 'a');
 }
 
 /**
@@ -346,83 +336,32 @@ describe('the parent dashboard', () => {
     page.destroy();
   });
 
-  test('signing an event answers every child named, with one signer name', async () => {
-    const { page, app } = await renderDashboard([ADA, LEA], twoChildSlips());
-    prompt.mockResolvedValue(' Marie Tremblay ');
-    endpoints.signPermissionSlip.mockResolvedValue({ success: true });
-
-    document.querySelector('.js-family-sign').click();
-    await flush();
-
-    expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ message: 'family_tasks_signer_prompt' }));
-    // The signer's name and the fingerprint the server gave for the text shown:
-    // the server dates the signature and computes the fingerprint it records.
-    expect(endpoints.signPermissionSlip.mock.calls).toEqual([
-      [91, { signed_by: 'Marie Tremblay', presented_fingerprint: fingerprintFor(91) }],
-      [92, { signed_by: 'Marie Tremblay', presented_fingerprint: fingerprintFor(92) }],
-    ]);
-    expect(app.showMessage).toHaveBeenCalledWith('permission_slip_signed', 'success');
-    expect(page.loadPermissionSlips).toHaveBeenCalledWith(4, true);
-    expect(page.loadPermissionSlips).toHaveBeenCalledWith(5, true);
-    expect(tasks()).toHaveLength(0);
-    page.destroy();
-  });
-
-  test('declining asks for confirmation, and declining the confirmation sends nothing', async () => {
+  test('a slip is answered on its own page, where its text is read first: one link per child', async () => {
     const { page } = await renderDashboard([ADA, LEA], twoChildSlips());
-    prompt.mockResolvedValue('Marie Tremblay');
-    confirm.mockResolvedValue(false);
 
-    document.querySelector('.js-family-decline').click();
-    await flush();
-
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ message: 'family_tasks_decline_confirm', danger: true }));
-    expect(endpoints.declinePermissionSlip).not.toHaveBeenCalled();
-    expect(tasks()).toHaveLength(1);
+    const links = [...document.querySelectorAll('.family-tasks .js-family-read-slip')];
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '/permission-slip/00000000-0000-4000-8000-000000000091',
+      '/permission-slip/00000000-0000-4000-8000-000000000092',
+    ]);
+    // Each link names its child for a screen reader, and the task names the activity
+    expect(links[0].textContent).toContain('permission_slip_read_and_answer');
+    expect(links[0].textContent).toContain('Ada');
+    expect(links[1].textContent).toContain('Léa');
+    expect(document.getElementById(links[0].getAttribute('aria-describedby')).textContent).toContain('Winter camp');
+    // Nothing is signed from the dashboard, where the text is not shown
+    expect(document.querySelector('.js-family-sign, .js-family-decline')).toBeNull();
+    expect(prompt).not.toHaveBeenCalled();
+    expect(endpoints.signPermissionSlip).not.toHaveBeenCalled();
     page.destroy();
   });
 
-  test('when one child\'s answer fails, the parent is told which, not that all is signed', async () => {
-    const { page, app } = await renderDashboard([ADA, LEA], twoChildSlips());
-    prompt.mockResolvedValue('Marie Tremblay');
-    endpoints.signPermissionSlip
-      .mockResolvedValueOnce({ success: true })
-      .mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 500 }));
+  test('a family of one child has a single link to read and answer the slip', async () => {
+    const { page } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]]));
 
-    document.querySelector('.js-family-sign').click();
-    await flush();
-
-    expect(app.showMessage).toHaveBeenCalledWith('family_tasks_partial_failure', 'error');
-    expect(app.showMessage).not.toHaveBeenCalledWith('permission_slip_signed', 'success');
-    page.destroy();
-  });
-
-  test('when a slip changed while the parent read it, they are asked to read it again, not told it failed', async () => {
-    const { page, app } = await renderDashboard([ADA, LEA], twoChildSlips());
-    prompt.mockResolvedValue('Marie Tremblay');
-    endpoints.signPermissionSlip
-      .mockResolvedValueOnce({ success: true })
-      .mockRejectedValueOnce(Object.assign(new Error('permission_slip_text_changed'), { status: 409 }));
-
-    document.querySelector('.js-family-sign').click();
-    await flush();
-
-    expect(app.showMessage).toHaveBeenCalledWith('permission_slip_text_changed', 'error');
-    expect(app.showMessage).not.toHaveBeenCalledWith('permission_slip_signed', 'success');
-    // The current text is loaded again, to be read before answering
-    expect(page.loadPermissionSlips).toHaveBeenCalledWith(5, true);
-    page.destroy();
-  });
-
-  test('an answer queued offline is not reported as sent', async () => {
-    const { page, app } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]]));
-    prompt.mockResolvedValue('Marie Tremblay');
-    endpoints.signPermissionSlip.mockResolvedValue({ queued: true });
-
-    document.querySelector('.js-family-sign').click();
-    await flush();
-
-    expect(app.showMessage).toHaveBeenCalledWith('family_tasks_response_queued', 'info');
+    const links = [...document.querySelectorAll('.family-tasks .js-family-read-slip')];
+    expect(links).toHaveLength(1);
+    expect(links[0].getAttribute('href')).toBe('/permission-slip/00000000-0000-4000-8000-000000000091');
     page.destroy();
   });
 
@@ -582,18 +521,10 @@ describe('the parent dashboard', () => {
   });
 
   test('once the slip is signed, the child\'s card shows it answered and nothing left to do', async () => {
-    const { page } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]]));
-    prompt.mockResolvedValue('Marie Tremblay');
-    endpoints.signPermissionSlip.mockResolvedValue({ success: true });
-    page.loadPermissionSlips = jest.fn((participantId) => {
-      page.permissionSlips.set(participantId, [slip(91, 4, { status: 'signed', signed_by: 'Marie Tremblay' })]);
-      return Promise.resolve([]);
-    });
-
-    document.querySelector('.js-family-sign').click();
-    await flush();
+    const { page } = await renderDashboard([ADA], new Map([[4, [slip(91, 4, { status: 'signed', signed_by: 'Marie Tremblay' })]]]));
 
     const card = document.querySelector('[data-child-card="4"]');
+    expect(tasks()).toHaveLength(0);
     expect(card.querySelector('[data-permission-slip-history]').hidden).toBe(false);
     expect(card.querySelector('.permission-slip-title').textContent).toBe('Winter camp');
     expect(card.querySelector('.participant-card__todo-text').textContent).toBe('family_child_todo_none');
@@ -610,46 +541,6 @@ describe('the parent dashboard', () => {
     expect(card.querySelector('.js-family-goto-tasks')).toBeNull();
     expect(card.querySelector('.permission-slip-actions').textContent.trim()).toBe('permission_slip_past_unanswered');
     expect(card.querySelector('.permission-slip-status').textContent).toContain('permission_slip_past_unanswered');
-    page.destroy();
-  });
-
-  test('the decline dialog names the activity, the action and the children', async () => {
-    mockTemplates.family_tasks_decline_title = 'Decline: {activity}';
-    mockTemplates.family_tasks_signer_prompt = 'Your name, for {children}';
-    const { page } = await renderDashboard([ADA, LEA], twoChildSlips());
-    prompt.mockResolvedValue(null);
-
-    document.querySelector('.js-family-decline').click();
-    await flush();
-
-    expect(prompt).toHaveBeenCalledWith({
-      title: 'Decline: Winter camp',
-      message: expect.stringMatching(/^Your name, for .*Ada.*Léa/),
-    });
-    expect(endpoints.declinePermissionSlip).not.toHaveBeenCalled();
-    delete mockTemplates.family_tasks_decline_title;
-    delete mockTemplates.family_tasks_signer_prompt;
-    page.destroy();
-  });
-
-  test('a refused answer is explained in the page language, and one answered meanwhile says so', async () => {
-    let { page, app } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]]));
-    prompt.mockResolvedValue('Marie Tremblay');
-    endpoints.signPermissionSlip.mockRejectedValueOnce(
-      Object.assign(new Error('API request failed: Insufficient permissions'), { status: 403 }),
-    );
-    document.querySelector('.js-family-sign').click();
-    await flush();
-    expect(app.showMessage).toHaveBeenCalledWith('api_error_forbidden', 'error');
-    page.destroy();
-
-    ({ page, app } = await renderDashboard([ADA], new Map([[4, [slip(91, 4)]]])));
-    endpoints.signPermissionSlip.mockRejectedValueOnce(
-      Object.assign(new Error('API request failed: Permission slip has already been answered'), { status: 409 }),
-    );
-    document.querySelector('.js-family-sign').click();
-    await flush();
-    expect(app.showMessage).toHaveBeenCalledWith('permission_slip_already_answered', 'warning');
     page.destroy();
   });
 
@@ -695,9 +586,9 @@ describe('the parent dashboard', () => {
     const { page } = await renderDashboard([ADA, LEA], twoChildSlips());
     page.destroy();
 
-    document.querySelector('.js-family-sign').click();
+    filterButtons()[1].click();
     await flush();
-    expect(prompt).not.toHaveBeenCalled();
+    expect(filterButtons()[1].getAttribute('aria-pressed')).toBe('false');
   });
 
   test('every action on the dashboard uses the shared button styles', async () => {

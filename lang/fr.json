@@ -2511,6 +2511,7 @@
   "permission_slip_fingerprint_verified": "Texte de la réponse vérifié",
   "permission_slip_fingerprint_altered": "Texte modifié depuis la réponse",
   "permission_slip_fingerprint_not_verifiable": "Non vérifiable (réponse antérieure à la vérification du texte)",
+  "permission_slip_read_and_answer": "Lire et répondre",
   "permission_slip_already_answered": "Une réponse a déjà été donnée pour cette demande d’autorisation",
   "permission_slip_declined_at": "Refusée le",
   "permission_slip_declined_by": "Refusée par",
