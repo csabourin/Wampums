@@ -3,7 +3,7 @@
  * Seed a disposable database with one unit you can sign in to.
  *
  *   admin@run.test   -- holds every permission in the unit
- *   leader@run.test  -- leader: participants, attendance, points, walk-ins
+ *   leader@run.test  -- leader: participants, attendance, points, honors, walk-ins
  *   parent@run.test  -- parent role (its real permissions), guardian of one
  *                       child (Léa) enrolled this year; standard forms installed
  *   demo.leader@run.test / demo.parent@run.test -- the demo unit's read-only
@@ -90,7 +90,8 @@ try {
      SELECT $1, id FROM permissions
       WHERE permission_key IN ('participants.view', 'participants.create', 'participants.edit', 'participants.walk_in',
                                'attendance.view', 'attendance.manage', 'points.view', 'points.manage', 'activities.view',
-                               'groups.view', 'badges.view', 'badges.manage', 'meetings.view')
+                               'groups.view', 'badges.view', 'badges.manage', 'meetings.view',
+                               'honors.view', 'honors.create')
      ON CONFLICT DO NOTHING`,
     [leaderRole]
   );

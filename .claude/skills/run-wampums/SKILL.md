@@ -43,7 +43,7 @@ every migration through the project's own runner. `seed.mjs` adds one unit with:
 | account | password | what it is |
 |---|---|---|
 | `admin@run.test` | `Wampums2026!` | every permission in the unit |
-| `leader@run.test` | `Wampums2026!` | leader: participants, attendance, points, badges, walk-ins; no `users.invite` |
+| `leader@run.test` | `Wampums2026!` | leader: participants, attendance, points, honors, badges, walk-ins; no `users.invite` |
 | `parent@run.test` | `Wampums2026!` | parent role (`linked` scope) with the real parent permissions; guardian of one child enrolled this year; standard forms installed |
 
 It also holds one outing ("Sortie canot", a month away) with a slip pending

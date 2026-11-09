@@ -324,14 +324,15 @@ test('a failed attendance lookup leaves attendance as the primary action', async
   dashboard.destroy();
 });
 
-test('someone who cannot see honors is not asked for them', async () => {
+test('someone who cannot see honors is neither asked for them nor led to a screen they cannot open', async () => {
   atTime(20, 30);
   mockPermissions.delete('honors.view');
 
   const dashboard = await openDashboard();
 
   expect(getHonors).not.toHaveBeenCalled();
-  expect(primaryAction().getAttribute('href')).toBe('/manageHonors');
+  expect(primaryAction().getAttribute('href')).not.toBe('/manageHonors');
+  expect(otherActions()).not.toContain('/manageHonors');
   dashboard.destroy();
 });
 
