@@ -6316,5 +6316,20 @@
   "camp_approval_email_body": "Une unité scoute vous demande d’examiner son plan de camp. Ouvrez ce lien personnel pour consulter le PDF soumis et enregistrer votre décision. Gardez le lien confidentiel.",
   "camp_approval_live_edits": "Le plan de travail a changé depuis l’approbation de la version {version}. Soumettez une nouvelle version pour approbation.",
   "camp_approval_download_original": "Télécharger le PDF soumis à l’origine",
-  "camp_roster_nothing_to_check": "Rien ne reste à vérifier dans ces listes."
+  "camp_roster_nothing_to_check": "Rien ne reste à vérifier dans ces listes.",
+  "tasks_reminders_legend": "Rappels par courriel",
+  "tasks_reminders_enable": "Envoyer aux membres des courriels sur leurs tâches",
+  "tasks_reminders_help": "Chaque membre reçoit un courriel quand une tâche lui est attribuée, {days} jours avant l’échéance, puis le jour de l’échéance. Une tâche terminée n’est pas rappelée. Une tâche avec un rappel de matériel suit plutôt ce rappel.",
+  "tasks_reminders_saved": "Rappels par courriel mis à jour.",
+  "tasks_reminders_on": "Les rappels par courriel sont activés.",
+  "tasks_reminders_off": "Les rappels par courriel sont désactivés.",
+  "tasks_reminders_save_failed": "Les rappels par courriel n’ont pas pu être modifiés. Vérifiez votre connexion et réessayez.",
+  "tasks_reminders_invalid": "Indiquez si les rappels par courriel sont activés ou non.",
+  "task_reminder_email_subject_assigned": "Une tâche vous a été attribuée",
+  "task_reminder_email_subject_due": "Rappel : vos tâches à faire",
+  "task_reminder_email_assigned": "Tâches qui vous sont attribuées :",
+  "task_reminder_email_today": "À faire aujourd’hui :",
+  "task_reminder_email_soon": "À faire bientôt :",
+  "task_reminder_email_due": "échéance : {date}",
+  "task_reminder_email_open": "Ouvrez vos tâches pour les consulter et indiquer votre progression :"
 }

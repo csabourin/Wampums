@@ -4,7 +4,7 @@ jest.mock('../../spa/config.js', () => ({ CONFIG: { EQUIPMENT_REMINDERS: { MATER
 jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(), isDemoUser: jest.fn(() => false) }));
-jest.mock('../../spa/api/api-tasks.js', () => ({ getMyTasks: jest.fn(), getUnitTasks: jest.fn(), getTaskOptions: jest.fn(), saveTask: jest.fn(), changeTaskStatus: jest.fn(), configureEquipmentReminder: jest.fn(), confirmEquipmentReminder: jest.fn() }));
+jest.mock('../../spa/api/api-tasks.js', () => ({ getMyTasks: jest.fn(), getUnitTasks: jest.fn(), getTaskOptions: jest.fn(), saveTask: jest.fn(), changeTaskStatus: jest.fn(), configureEquipmentReminder: jest.fn(), confirmEquipmentReminder: jest.fn(), getTaskReminderSettings: jest.fn(), saveTaskReminderSettings: jest.fn() }));
 jest.mock('../../spa/api/api-helpers.js', () => ({ getCurrentUserId: () => '00000000-0000-4000-8000-000000000001' }));
 const { Tasks } = require('../../spa/modules/tasks/Tasks.js');
 const api = require('../../spa/api/api-tasks.js');
@@ -25,6 +25,8 @@ beforeEach(() => {
   api.getUnitTasks.mockResolvedValue({ data: [task] });
   api.getTaskOptions.mockResolvedValue({ data: { members: [{ id: USER, full_name: 'Ada' }], activities: [{ id: 4, name: 'Camp', date: '2026-11-14' }], meetings: [] } });
   api.saveTask.mockResolvedValue({ success: true });
+  api.getTaskReminderSettings.mockResolvedValue({ data: { enabled: true, lead_days: 2 } });
+  api.saveTaskReminderSettings.mockResolvedValue({ success: true });
   api.changeTaskStatus.mockResolvedValue({ success: true });
   app = { lang: 'fr', showMessage: jest.fn() };
 });
@@ -353,4 +355,62 @@ test('saving a task without touching its reminder leaves the reminder and its co
   document.getElementById('tasks-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle(); await settle();
   expect(api.saveTask).toHaveBeenCalledWith(expect.not.objectContaining({ expected_reminder_revision: expect.anything() }), 3);
   expect(api.configureEquipmentReminder).not.toHaveBeenCalled();
+});
+
+describe('the unit\'s email reminders', () => {
+  const openUnitView = async () => {
+    hasPermission.mockReturnValue(true);
+    await new Tasks(app).init();
+    document.getElementById('tasks-view-unit').click(); await settle(); await settle();
+    return document.getElementById('tasks-reminders-enabled');
+  };
+
+  test('a member without task management is not shown the unit\'s email reminder switch', async () => {
+    await new Tasks(app).init();
+    expect(document.getElementById('tasks-reminders-enabled')).toBeNull();
+    expect(api.getTaskReminderSettings).not.toHaveBeenCalled();
+  });
+
+  test('a task manager sees that reminders are on, with when they are sent, and no accessibility violation', async () => {
+    const checkbox = await openUnitView();
+    expect(checkbox.checked).toBe(true);
+    expect(checkbox.labels[0].textContent).toContain('tasks_reminders_enable');
+    expect(document.getElementById(checkbox.getAttribute('aria-describedby')).textContent).toContain('tasks_reminders_help');
+    expect(checkbox.closest('fieldset').querySelector('legend').textContent).toBe('tasks_reminders_legend');
+    const results = await axe.run(document.body, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('turning reminders off saves at once, says so, and leaves keyboard focus on the switch', async () => {
+    const checkbox = await openUnitView();
+    checkbox.focus(); checkbox.click(); await settle();
+    expect(api.saveTaskReminderSettings).toHaveBeenCalledWith(false);
+    expect(app.showMessage).toHaveBeenCalledWith('tasks_reminders_off', 'success');
+    expect(checkbox.checked).toBe(false);
+    expect(checkbox.disabled).toBe(false);
+    expect(document.activeElement).toBe(checkbox);
+  });
+
+  test('a refused change puts the switch back and is reported as a failure, never as saved', async () => {
+    const checkbox = await openUnitView();
+    api.saveTaskReminderSettings.mockRejectedValue(Object.assign(new Error('Forbidden'), { status: 500 }));
+    checkbox.click(); await settle();
+    expect(checkbox.checked).toBe(true);
+    expect(app.showMessage).toHaveBeenCalledTimes(1);
+    expect(app.showMessage.mock.calls[0][1]).toBe('error');
+  });
+
+  test('a demo account sees the switch but cannot change it', async () => {
+    const { isDemoUser } = require('../../spa/utils/PermissionUtils.js');
+    isDemoUser.mockReturnValueOnce(true);
+    const checkbox = await openUnitView();
+    expect(checkbox.disabled).toBe(true);
+  });
+
+  test('the unit\'s tasks are not shown as loaded when the reminder setting could not be read', async () => {
+    api.getTaskReminderSettings.mockRejectedValue(new Error('offline'));
+    await openUnitView();
+    expect(document.querySelector('[role="alert"]').textContent).toBe('tasks_load_failed');
+    expect(document.getElementById('tasks-retry')).not.toBeNull();
+  });
 });

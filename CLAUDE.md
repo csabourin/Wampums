@@ -478,7 +478,7 @@ only then. The rules there are as binding as this file; update the devdoc in the
 | Area | Code it covers | Read |
 |---|---|---|
 | Offline points at camp (outbox, idempotency, camp preparation) | `spa/modules/points/`, `CampPreparation`, `point_mutation_receipts`, attendance points | `devdocs/OFFLINE_CAMP_POINTS.md` (French) |
-| Shared activity tasks | `/tasks`, `services/activityTasks.js`, `config/tasks.js` | `devdocs/ACTIVITY_TASKS.md` |
+| Shared activity tasks, their email reminders | `/tasks`, `services/activityTasks.js`, `services/taskReminders.js`, `config/tasks.js` | `devdocs/ACTIVITY_TASKS.md` |
 | Volunteering | `/volunteers`, `services/volunteerShifts.js` | `devdocs/VOLUNTEERS.md` |
 | My account task navigation | `/account-info`, `account-sections.js` | `devdocs/ACCOUNT.md` |
 | Personal contacts and adult health | `services/memberProfile.js`, `/member-profile`, `ProfilePanel` | `devdocs/MEMBER_PROFILE.md` |

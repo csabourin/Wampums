@@ -7,6 +7,7 @@ const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateIdParam, checkValidation } = require('../middleware/validation');
 const { TASK_STATUSES, TASK_TITLE_MAX_LENGTH, EQUIPMENT_REMINDERS: LIMITS } = require('../config/tasks');
 const reminders = require('../services/taskEquipmentReminders');
+const taskReminders = require('../services/taskReminders');
 const { TaskError, saveTask, changeTaskStatus, listTasks } = require('../services/activityTasks');
 
 /** Return known task refusals, forwarding internal failures to the global handler. */
@@ -47,6 +48,14 @@ module.exports = (pool) => {
     ]);
     return success(res, { members: members.rows, activities: activities.rows, meetings: meetings.rows });
   }));
+
+  // Whether the unit emails assignees about their tasks (on assignment, before and on the due date).
+  router.get('/reminder-settings', requirePermission('tasks.manage'), taskHandler(async (req, res) =>
+    success(res, await taskReminders.getSettings(pool, await getOrganizationId(req, pool)))));
+  router.put('/reminder-settings', requirePermission('tasks.manage'), blockDemoRoles,
+    body('enabled').isBoolean({ strict: true }).withMessage('tasks_reminders_invalid'), checkValidation,
+    taskHandler(async (req, res) => success(res, await taskReminders.saveSettings(pool,
+      await getOrganizationId(req, pool), req.body.enabled), 'tasks_reminders_saved')));
 
   const fields = () => [
     body('title').isString().bail().trim().isLength({ min: 1, max: TASK_TITLE_MAX_LENGTH }).withMessage('tasks_invalid_title'),

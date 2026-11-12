@@ -25,3 +25,31 @@ Ordinary task writes require a connection and cannot be queued. Equipment-lot du
 are edited through their lot and use its preparation and receipt rules below. Confirmed writes invalidate
 task reads through the shared API client. The task screen uses minimal event/member
 choices rather than requesting participants, families, contacts or health forms.
+
+## Email reminders
+
+Assignees are emailed about their tasks without anything to configure (`services/taskReminders.js`,
+migration `086_task_email_reminders.sql`, limits in `TASK_REMINDERS` of `config/tasks.js`):
+
+- **On assignment.** `saveTaskInTransaction` queues an `assigned` row in `task_reminder_deliveries`
+  in the task's own transaction whenever the assignee is new, so every writer of tasks (the task
+  form, camp equipment lots) notifies the same way. Someone who assigns a task to themselves is not
+  written to, and a notice not yet sent is dropped when the task is reassigned.
+- **Two days before the due date, and on the day**, from 7:00 in the reminders' time zone
+  (`EQUIPMENT_REMINDER_TIME_ZONE`). A task assigned today is not also reminded today.
+
+One poll a minute, serialized across instances by an advisory lock, sends each person **one email**
+grouping everything a unit owes them at that moment, in their language (English for a missing text).
+The email lists task titles, event names and due dates, then links to `/tasks`; the link changes
+nothing. Each reason is claimed in `task_reminder_deliveries` and committed before transport: a crash
+(`sending`) or an uncertain provider outcome (`uncertain`) is never replayed. A new assignee or a new
+due date is a new reminder.
+
+No email goes to a finished task, a cancelled or removed event, an inactive member, a missing
+address or someone without `tasks.view`. A task with a material reminder
+(`devdocs/EQUIPMENT_REMINDERS.md`) keeps its assignment notice but leaves due reminders to it.
+
+A unit turns all of this off with the switch above its unit tasks (`GET`/`PUT
+/api/v1/tasks/reminder-settings`, `tasks.manage`, refused to demo accounts), stored as the
+`task_email_reminders` setting `{ enabled }`; absent means on. Notices queued while it is off are
+skipped, not sent later. Tests use fictional accounts and a mocked mail provider.
