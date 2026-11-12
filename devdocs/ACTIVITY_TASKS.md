@@ -7,6 +7,9 @@ explicitly grant them through the role matrix; the district role receives new
 permissions through its existing trigger. Task-only helpers can use an ordinary
 unit-scoped custom role with only `tasks.view`.
 
+Managers can use Edit assignment in either task view to change the assignee of
+an ordinary task. The editor starts on the assignee field.
+
 Migration `052_activity_tasks.sql` creates tasks linked to exactly one outing/camp
 or planned meeting. Use `services/activityTasks.js` for writes: it locks and checks
 active membership in the same unit, verifies the event's unit, and commits task
@@ -25,6 +28,8 @@ Ordinary task writes require a connection and cannot be queued. Equipment-lot du
 are edited through their lot and use its preparation and receipt rules below. Confirmed writes invalidate
 task reads through the shared API client. The task screen uses minimal event/member
 choices rather than requesting participants, families, contacts or health forms.
+The assignment form lists meetings and activities together by start date, excluding
+events that ended before today. Editing a task keeps its linked event available.
 
 ## Email reminders
 
