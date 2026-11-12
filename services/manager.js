@@ -2,6 +2,7 @@ const WhatsAppBaileysService = require('./whatsapp-baileys');
 const GoogleChatService = require('./google-chat');
 const MedicationReminderService = require('./medication-reminders');
 const { EquipmentReminderService } = require('./taskEquipmentReminders');
+const { TaskReminderService } = require('./taskReminders');
 const socketService = require('./socket');
 const logger = require('../config/logger');
 const { isTestEnvironment } = require('../test/test-helpers');
@@ -10,6 +11,7 @@ let whatsappService;
 let googleChatService;
 let medicationReminderService;
 let equipmentReminderService;
+let taskReminderService;
 
 /**
  * Initialize all application services
@@ -42,6 +44,7 @@ async function init(pool) {
   // 3. Medication Reminder Service (started in restore())
   medicationReminderService = new MedicationReminderService(pool, logger);
   equipmentReminderService = new EquipmentReminderService(pool, logger);
+  taskReminderService = new TaskReminderService(pool, logger);
 
   logger.info('✅ Services initialized');
 }
@@ -71,6 +74,7 @@ function getGoogleChatService() {
  */
 async function restore() {
   equipmentReminderService?.start();
+  taskReminderService?.start();
   if (whatsappService) {
     try {
       await whatsappService.restoreConnections();
@@ -91,6 +95,7 @@ async function restore() {
  */
 function shutdown() {
   equipmentReminderService?.stop();
+  taskReminderService?.stop();
   if (medicationReminderService) {
     medicationReminderService.stop();
   }

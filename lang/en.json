@@ -6316,5 +6316,20 @@
   "camp_approval_email_body": "A scout unit is asking you to review its camp plan. Open this personal link to read the submitted PDF and record your decision. Keep the link private.",
   "camp_approval_live_edits": "The live plan has changed since version {version} was approved. Submit a new version for approval.",
   "camp_approval_download_original": "Download the original submitted PDF",
-  "camp_roster_nothing_to_check": "Nothing left to check in these lists."
+  "camp_roster_nothing_to_check": "Nothing left to check in these lists.",
+  "tasks_reminders_legend": "Email reminders",
+  "tasks_reminders_enable": "Email members about their tasks",
+  "tasks_reminders_help": "Each member receives an email when a task is assigned to them, {days} days before it is due, and on the day it is due. A finished task is not reminded. A task with a material reminder follows that reminder instead.",
+  "tasks_reminders_saved": "Email reminders updated.",
+  "tasks_reminders_on": "Email reminders are on.",
+  "tasks_reminders_off": "Email reminders are off.",
+  "tasks_reminders_save_failed": "The email reminders could not be changed. Check your connection and try again.",
+  "tasks_reminders_invalid": "Choose whether email reminders are on or off.",
+  "task_reminder_email_subject_assigned": "A task has been assigned to you",
+  "task_reminder_email_subject_due": "Reminder: your tasks to do",
+  "task_reminder_email_assigned": "Assigned to you:",
+  "task_reminder_email_today": "Due today:",
+  "task_reminder_email_soon": "Due soon:",
+  "task_reminder_email_due": "due {date}",
+  "task_reminder_email_open": "Open your tasks to see them and mark your progress:"
 }

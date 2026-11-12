@@ -1,5 +1,7 @@
 /** Shared task persistence. All mutations and their history commit together. */
 
+const { queueAssignmentNotice } = require('./taskReminders');
+
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
 const HTTP_CONFLICT = 409;
@@ -72,9 +74,11 @@ async function recordStatus(db, organizationId, actorId, task, previousStatus) {
  * @returns {Promise<Object>} Saved task
  */
 async function saveTaskInTransaction(db, organizationId, actorId, task, taskId = null) {
+  let previousAssignee = null;
   if (taskId) {
-    const existing = await db.query('SELECT id FROM activity_tasks WHERE organization_id = $1 AND id = $2 FOR UPDATE', [organizationId, taskId]);
+    const existing = await db.query('SELECT id, assignee_id FROM activity_tasks WHERE organization_id = $1 AND id = $2 FOR UPDATE', [organizationId, taskId]);
     if (!existing.rows.length) {throw new TaskError('tasks_not_found', HTTP_NOT_FOUND);}
+    previousAssignee = existing.rows[0].assignee_id;
   }
   await validateAssignment(db, organizationId, task);
   const values = [organizationId, task.activity_id || null, task.meeting_id || null, task.title, task.assignee_id, task.due_date];
@@ -87,6 +91,8 @@ async function saveTaskInTransaction(db, organizationId, actorId, task, taskId =
       `INSERT INTO activity_tasks (organization_id, activity_id, meeting_id, title, assignee_id, due_date, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`, [...values, actorId]);
   if (!taskId) {await recordStatus(db, organizationId, actorId, result.rows[0], null);}
+  // A new assignee is told by email (services/taskReminders.js), queued with the assignment itself.
+  if (previousAssignee !== result.rows[0].assignee_id) {await queueAssignmentNotice(db, organizationId, actorId, result.rows[0]);}
   return result.rows[0];
 }
 
