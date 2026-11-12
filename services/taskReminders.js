@@ -7,7 +7,6 @@ const { TASK_REMINDERS: LIMITS, EQUIPMENT_REMINDERS } = require('../config/tasks
 const { sendEmail, getTranslationsByCode } = require('../utils/index');
 const { isValidAddress, resolveOrganizationEmailSender } = require('./emailSender');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
-const { userHasPermission } = require('../middleware/auth');
 
 /** Reminder dates follow the same civil time zone as material reminders. */
 const { TIME_ZONE } = EQUIPMENT_REMINDERS;
@@ -103,6 +102,9 @@ async function recipientFor(db, organizationId, assigneeId) {
   const result = await db.query(`SELECT u.email, u.language_preference FROM user_organizations uo JOIN users u ON u.id = uo.user_id
     WHERE uo.organization_id = $1 AND uo.user_id = $2 AND uo.status = 'active' FOR SHARE OF uo`, [organizationId, assigneeId]);
   const person = result.rows[0];
+  // Loaded here, not at the top: the middleware refuses to load without a JWT secret, and
+  // services/activityTasks.js, which queues notices, must stay loadable by scripts that have none.
+  const { userHasPermission } = require('../middleware/auth');
   const req = { user: { id: assigneeId, organizationId } };
   if (!person || typeof person.email !== 'string' || !isValidAddress(person.email)
     || !await userHasPermission(req, db, organizationId, 'tasks.view')) {return null;}
