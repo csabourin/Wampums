@@ -185,6 +185,15 @@ describe.skipIf(!DATABASE_URL)('Task email reminders', () => {
     expect(await deliveries()).toEqual([{ kind: 'assigned', status: 'skipped' }]);
   });
 
+  test('a unit that turns reminders off while a poll is sending stops the notices not yet sent', async () => {
+    await assign(10); await assign(10, { assignee_id: colleague, title: 'Print maps' });
+    // The first email leaving is the moment the manager turns reminders off.
+    sendEmail.mockImplementationOnce(async () => { await saveSettings(pool, organizationId, false); return true; });
+    await tick(pool, NOW);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect((await deliveries()).map((row) => row.status).sort()).toEqual(['sent', 'skipped']);
+  });
+
   test('a transport exception is recorded as uncertain and never replayed', async () => {
     await assign(0); await assignedEarlier();
     sendEmail.mockRejectedValueOnce(new Error('socket reset'));

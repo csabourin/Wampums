@@ -39,7 +39,10 @@ const DUE_SQL = `WITH clock AS (SELECT (NOW() AT TIME ZONE $1)::date AS today,
       AND n.kind = 'assigned' AND (n.created_at AT TIME ZONE $1)::date = clock.today)
   ORDER BY t.due_date, t.id LIMIT $6`;
 
-/** Queued assignment notices still true: same assignee, unfinished task, event still planned. */
+/**
+ * Queued assignment notices still true: same assignee, unfinished task, event still planned, and
+ * a unit that has not turned reminders off since the poll began. Parameters: unit, assignee, setting key.
+ */
 const ASSIGNED_SQL = `SELECT d.id, t.id AS task_id, t.title, t.due_date::text AS due_date, COALESCE(a.name, m.theme, '') AS event_name
   FROM task_reminder_deliveries d
   JOIN activity_tasks t ON t.id = d.task_id AND t.organization_id = d.organization_id
@@ -48,6 +51,8 @@ const ASSIGNED_SQL = `SELECT d.id, t.id AS task_id, t.title, t.due_date::text AS
   LEFT JOIN year_plan_meetings m ON m.id = t.meeting_id AND m.organization_id = t.organization_id AND m.is_cancelled = FALSE
   WHERE d.organization_id = $1 AND d.assignee_id = $2 AND d.kind = 'assigned' AND d.status = 'pending'
     AND (a.id IS NOT NULL OR m.id IS NOT NULL)
+    AND NOT EXISTS (SELECT 1 FROM organization_settings s WHERE s.organization_id = d.organization_id
+      AND s.setting_key = $3 AND s.setting_value->>'enabled' = 'false')
   ORDER BY t.due_date, t.id FOR UPDATE OF d`;
 
 /**
@@ -159,7 +164,7 @@ async function dispatchGroup(pool, organizationId, assigneeId, sendHour) {
     // Task rows first, the order task edits lock in, so an edit and a dispatch never deadlock.
     await db.query(`SELECT id FROM activity_tasks WHERE organization_id = $1 AND assignee_id = $2 AND status <> 'done'
       ORDER BY id FOR UPDATE`, [organizationId, assigneeId]);
-    const assigned = (await db.query(ASSIGNED_SQL, [organizationId, assigneeId])).rows;
+    const assigned = (await db.query(ASSIGNED_SQL, [organizationId, assigneeId, LIMITS.SETTING_KEY])).rows;
     await db.query(`UPDATE task_reminder_deliveries SET status = 'skipped'
       WHERE organization_id = $1 AND assignee_id = $2 AND kind = 'assigned' AND status = 'pending' AND id <> ALL($3::int[])`,
     [organizationId, assigneeId, assigned.map((row) => row.id)]);
