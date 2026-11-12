@@ -80,8 +80,9 @@ async function saveSettings(db, organizationId, enabled) {
 
 /**
  * Queue the notice of a new assignment inside the task's own transaction, so it exists exactly
- * when the assignment does. A notice not yet sent to a previous assignee is dropped, and
- * nobody is told about a task they gave themselves.
+ * when the assignment does. A notice not yet sent to a previous assignee is dropped, nobody is
+ * told about a task they gave themselves, and an assignment made while the unit has reminders
+ * off is never announced later, even if they are turned back on before the next poll.
  * @param {Object} db - Transaction client
  * @param {number} organizationId - Authenticated unit
  * @param {string} actorId - Member who assigned the task
@@ -91,8 +92,10 @@ async function queueAssignmentNotice(db, organizationId, actorId, task) {
   await db.query(`UPDATE task_reminder_deliveries SET status = 'skipped'
     WHERE organization_id = $1 AND task_id = $2 AND kind = 'assigned' AND status = 'pending'`, [organizationId, task.id]);
   await db.query(`INSERT INTO task_reminder_deliveries (organization_id, task_id, assignee_id, kind, due_date, status)
-    VALUES ($1, $2, $3, 'assigned', $4, $5)`,
-  [organizationId, task.id, task.assignee_id, task.due_date, actorId === task.assignee_id ? 'skipped' : 'pending']);
+    VALUES ($1, $2, $3, 'assigned', $4, CASE WHEN $5::boolean OR EXISTS (SELECT 1 FROM organization_settings s
+      WHERE s.organization_id = $1 AND s.setting_key = $6 AND s.setting_value->>'enabled' = 'false')
+      THEN 'skipped' ELSE 'pending' END)`,
+  [organizationId, task.id, task.assignee_id, task.due_date, actorId === task.assignee_id, LIMITS.SETTING_KEY]);
 }
 
 /** Re-read membership, address and task access at dispatch: only a member who can open /tasks is written to. */

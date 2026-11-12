@@ -168,6 +168,16 @@ describe.skipIf(!DATABASE_URL)('Task email reminders', () => {
     expect(await getSettings(pool, organizationId)).toEqual({ enabled: false, lead_days: 2 });
     expect((await getSettings(pool, otherUnit)).enabled).toBe(true);
     await assign(10);
+    // Back on before any poll ran: the assignment made while off is still not announced.
+    await saveSettings(pool, organizationId, true);
+    await tick(pool, NOW);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(await deliveries()).toEqual([{ kind: 'assigned', status: 'skipped' }]);
+  });
+
+  test('a notice still waiting when the unit turns reminders off is dropped at the next poll', async () => {
+    await assign(10);
+    await saveSettings(pool, organizationId, false);
     await tick(pool, NOW);
     await saveSettings(pool, organizationId, true);
     await tick(pool, NOW);
