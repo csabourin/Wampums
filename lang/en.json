@@ -4734,6 +4734,7 @@
   "tasks_unit": "Show unit tasks",
   "tasks_create": "Assign a task",
   "tasks_edit": "Edit task",
+  "tasks_edit_assignment": "Edit assignment",
   "tasks_title_label": "Task",
   "tasks_assignee": "Responsible member",
   "tasks_due": "Due date",

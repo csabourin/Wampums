@@ -144,7 +144,7 @@ export class Tasks {
       <p>${translate('tasks_due')} : <time datetime="${escapeAttribute(task.due_date)}">${escapeHTML(formatDate(task.due_date, this.app.lang))}</time></p>
       ${this.statusMarkup(task)}
       ${this.renderReminder(task)}
-      ${!task.equipment_lot_id && this.unitView && !this.readOnly ? `<button type="button" class="button button--ghost" data-task-edit="${Number(task.id)}">${translate('edit')}<span class="sr-only"> ${escapeHTML(task.title)}</span></button>` : ''}
+      ${!task.equipment_lot_id && this.canManage && !this.readOnly ? `<button type="button" class="button button--ghost" data-task-edit="${Number(task.id)}">${translate('tasks_edit_assignment')}<span class="sr-only"> ${escapeHTML(task.title)}</span></button>` : ''}
       <details><summary>${translate('tasks_history')}</summary><ul>${(task.history || []).map((entry) => `<li>
         ${escapeHTML(translate(CONFIG.TASKS.STATUS_KEYS[entry.status]))} · ${escapeHTML(entry.changed_by_name || translate('tasks_member'))} ·
         ${escapeHTML(formatTimestamp(entry.changed_at, this.app.lang))}</li>`).join('')}</ul></details>
@@ -450,6 +450,7 @@ export class Tasks {
     const title = task?.title || prefill.title || '';
     const modal = openModal({
       id: 'tasks-editor', title: translate(task ? 'tasks_edit' : 'tasks_create'),
+      initialFocus: task ? '#tasks-assignee' : null,
       closeOnBackdrop: false,
       canClose: () => document.getElementById('tasks-form')?.getAttribute('aria-busy') !== 'true',
       body: `<form id="tasks-form" class="task-editor">
@@ -551,7 +552,9 @@ export class Tasks {
         await this.init();
         if (!this.destroyed) {
           const target = task ? document.querySelector(`[data-task-edit="${task.id}"]`) : document.getElementById('tasks-create');
-          (target || document.getElementById('tasks-retry'))?.focus();
+          const folded = target?.closest('details');
+          if (folded) {folded.open = true;}
+          (target || document.getElementById('tasks-retry') || document.getElementById('tasks-view-mine'))?.focus();
         }
       });
     });

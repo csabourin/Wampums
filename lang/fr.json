@@ -4734,6 +4734,7 @@
   "tasks_unit": "Voir les tâches de l’unité",
   "tasks_create": "Attribuer une tâche",
   "tasks_edit": "Modifier la tâche",
+  "tasks_edit_assignment": "Modifier l’attribution",
   "tasks_title_label": "Tâche",
   "tasks_assignee": "Responsable",
   "tasks_due": "Échéance",

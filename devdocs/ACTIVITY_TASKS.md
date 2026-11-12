@@ -7,6 +7,9 @@ explicitly grant them through the role matrix; the district role receives new
 permissions through its existing trigger. Task-only helpers can use an ordinary
 unit-scoped custom role with only `tasks.view`.
 
+Managers can use Edit assignment in either task view to change the assignee of
+an ordinary task. The editor starts on the assignee field.
+
 Migration `052_activity_tasks.sql` creates tasks linked to exactly one outing/camp
 or planned meeting. Use `services/activityTasks.js` for writes: it locks and checks
 active membership in the same unit, verifies the event's unit, and commits task

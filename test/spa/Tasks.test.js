@@ -44,6 +44,7 @@ test('an assignee sees task details as text and marks their own task done in one
   expect(document.querySelector('#app img, #app b')).toBeNull();
   expect(document.querySelector('#app').textContent).toContain('novembre');
   expect(document.getElementById('tasks-create')).toBeNull();
+  expect(document.querySelector('[data-task-edit]')).toBeNull();
   api.getMyTasks.mockResolvedValue({ data: [{ ...task, status: 'done' }] });
   document.querySelector('[data-task-status="3"][data-status="done"]').click();
   await settle(); await settle();
@@ -147,6 +148,34 @@ test('the assignment dialog has labelled controls, traps focus and closes with E
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   expect(document.querySelector('[role="dialog"]')).toBeNull();
   expect(document.activeElement).toBe(opener);
+});
+
+test('a manager can change the assignee from their own task list', async () => {
+  const replacement = '00000000-0000-4000-8000-000000000002';
+  hasPermission.mockReturnValue(true);
+  api.getTaskOptions.mockResolvedValue({ data: {
+    members: [{ id: USER, full_name: 'Ada' }, { id: replacement, full_name: 'Charlie' }],
+    activities: [{ id: 4, name: 'Camp', date: eventDate() }], meetings: [],
+  } });
+  await new Tasks(app).init();
+  const edit = document.querySelector('[data-task-edit="3"]');
+  expect(edit.textContent).toBe(`tasks_edit_assignment ${task.title}`);
+  expect(edit.querySelector('img')).toBeNull();
+  edit.click(); await settle();
+  const form = document.getElementById('tasks-form');
+  const assignee = form.elements.task_assignee;
+  expect(document.activeElement).toBe(assignee);
+  expect(assignee.value).toBe(USER);
+  expect((await axe.run(document.getElementById('tasks-editor'), AXE_OPTIONS)).violations).toEqual([]);
+  assignee.value = replacement;
+  api.getMyTasks.mockResolvedValue({ data: [] });
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  expect(api.saveTask).toHaveBeenCalledWith({
+    title: task.title, assignee_id: replacement, activity_id: task.activity_id, meeting_id: null, due_date: task.due_date,
+  }, task.id);
+  expect(document.querySelector('[data-task-card="3"]')).toBeNull();
+  expect(document.activeElement).toBe(document.getElementById('tasks-view-mine'));
 });
 
 test('new assignments offer today and later events together in chronological order after the placeholder', async () => {
