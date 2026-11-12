@@ -25,6 +25,8 @@ Ordinary task writes require a connection and cannot be queued. Equipment-lot du
 are edited through their lot and use its preparation and receipt rules below. Confirmed writes invalidate
 task reads through the shared API client. The task screen uses minimal event/member
 choices rather than requesting participants, families, contacts or health forms.
+The assignment form lists meetings and activities together by start date, excluding
+events that ended before today. Editing a task keeps its linked event available.
 
 ## Email reminders
 

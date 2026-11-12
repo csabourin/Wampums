@@ -434,13 +434,17 @@ export class Tasks {
       return;
     }
     if (this.destroyed) {return;}
-    const events = [
-      ...options.activities.map((item) => ({ value: `activity:${item.id}`, label: item.name, date: item.date })),
-      ...options.meetings.map((item) => ({ value: `meeting:${item.id}`, label: item.name || translate('tasks_meeting'), date: item.date })),
+    const today = localIsoDate(new Date());
+    const eventOptions = [
+      ...options.activities.map((item) => ({ value: `activity:${item.id}`, label: item.name, date: item.date, endDate: item.end_date || item.date })),
+      ...options.meetings.map((item) => ({ value: `meeting:${item.id}`, label: item.name || translate('tasks_meeting'), date: item.date, endDate: item.date })),
     ];
+    const events = eventOptions.filter((item) => item.endDate >= today)
+      .sort((a, b) => a.date.localeCompare(b.date));
     const eventValue = task ? `${task.activity_id ? 'activity' : 'meeting'}:${task.activity_id || task.meeting_id}` : (prefill.event || this.contextEvent(events));
     if (task && !events.some((item) => item.value === eventValue)) {
-      events.push({ value: eventValue, label: this.eventName(task), date: task.meeting_date });
+      events.push(eventOptions.find((item) => item.value === eventValue)
+        || { value: eventValue, label: this.eventName(task), date: task.meeting_date });
     }
     const reminder = task?.equipment_reminder || null;
     const title = task?.title || prefill.title || '';

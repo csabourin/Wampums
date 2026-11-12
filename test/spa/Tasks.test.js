@@ -10,11 +10,17 @@ const { Tasks } = require('../../spa/modules/tasks/Tasks.js');
 const api = require('../../spa/api/api-tasks.js');
 const { hasPermission } = require('../../spa/utils/PermissionUtils.js');
 const { closeAllModals } = require('../../spa/utils/ModalUtils.js');
+const { isoToDateString } = require('../../spa/utils/DateUtils.js');
 const AXE_OPTIONS = { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] }, rules: { 'color-contrast': { enabled: false } } };
 const USER = '00000000-0000-4000-8000-000000000001';
 const task = { id: 3, title: '<img src=x onerror=alert(1)>', activity_id: 4, activity_name: 'Camp', assignee_id: USER, assignee_name: '<b>Ada</b>', due_date: '2026-11-14', status: 'todo', history: [{ status: 'todo', changed_by_name: 'Ada', changed_at: '2026-10-26T14:00:00Z' }] };
 let app;
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+const eventDate = (offset = 0) => {
+  const date = new Date();
+  date.setDate(date.getDate() + offset);
+  return isoToDateString(date);
+};
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -23,7 +29,7 @@ beforeEach(() => {
   hasPermission.mockReturnValue(false);
   api.getMyTasks.mockResolvedValue({ data: [task] });
   api.getUnitTasks.mockResolvedValue({ data: [task] });
-  api.getTaskOptions.mockResolvedValue({ data: { members: [{ id: USER, full_name: 'Ada' }], activities: [{ id: 4, name: 'Camp', date: '2026-11-14' }], meetings: [] } });
+  api.getTaskOptions.mockResolvedValue({ data: { members: [{ id: USER, full_name: 'Ada' }], activities: [{ id: 4, name: 'Camp', date: eventDate() }], meetings: [] } });
   api.saveTask.mockResolvedValue({ success: true });
   api.getTaskReminderSettings.mockResolvedValue({ data: { enabled: true, lead_days: 2 } });
   api.saveTaskReminderSettings.mockResolvedValue({ success: true });
@@ -143,6 +149,38 @@ test('the assignment dialog has labelled controls, traps focus and closes with E
   expect(document.activeElement).toBe(opener);
 });
 
+test('new assignments offer today and later events together in chronological order after the placeholder', async () => {
+  hasPermission.mockReturnValue(true);
+  api.getTaskOptions.mockResolvedValue({ data: {
+    members: [],
+    activities: [
+      { id: 4, name: 'Camp', date: eventDate(3) },
+      { id: 5, name: 'Hike', date: eventDate(1) },
+      { id: 6, name: 'Past outing', date: eventDate(-2), end_date: eventDate(-1) },
+    ],
+    meetings: [
+      { id: 7, name: 'Later meeting', date: eventDate(2) },
+      { id: 8, name: '<b>Today’s meeting</b>', date: eventDate() },
+      { id: 9, name: 'Past meeting', date: eventDate(-1) },
+    ],
+  } });
+  await new Tasks(app).init();
+  document.getElementById('tasks-create').click(); await settle();
+  const select = document.getElementById('tasks-event');
+  expect(Array.from(select.options, (option) => option.value)).toEqual(['', 'meeting:8', 'activity:5', 'meeting:7', 'activity:4']);
+  expect(select.value).toBe('');
+  expect(select.options[1].textContent).toContain('<b>Today’s meeting</b>');
+});
+
+test('an activity that started yesterday is still available through its end date', async () => {
+  api.getTaskOptions.mockResolvedValue({ data: {
+    members: [], meetings: [],
+    activities: [{ id: 4, name: 'Camp', date: eventDate(-1), end_date: eventDate() }],
+  } });
+  await new Tasks(app).edit();
+  expect(document.getElementById('tasks-event').options[1].value).toBe('activity:4');
+});
+
 test('failed saving keeps entered fields available for correction', async () => {
   hasPermission.mockReturnValue(true);
   api.saveTask.mockRejectedValue(new Error('database internals'));
@@ -188,6 +226,15 @@ test.each([
   expect(api.saveTask).toHaveBeenCalledWith(expect.objectContaining({
     title: 'Updated task', activity_id: event.activity_id, meeting_id: event.meeting_id || null,
   }), task.id);
+});
+
+test('editing an existing assignment keeps its past event selected', async () => {
+  const meeting = { id: 42, name: 'Past meeting', date: eventDate(-1) };
+  api.getTaskOptions.mockResolvedValue({ data: { members: [], activities: [], meetings: [meeting] } });
+  await new Tasks(app).edit({ ...task, activity_id: null, meeting_id: meeting.id });
+  const select = document.getElementById('tasks-event');
+  expect(select.value).toBe('meeting:42');
+  expect(select.selectedOptions[0].textContent).toContain(meeting.name);
 });
 
 
@@ -299,7 +346,7 @@ test('an uncertain send stays visible and configuring a lot duty\'s stale remind
 
 test('opening a task from a camp\'s material list fills the form once, with its reminder ready', async () => {
   hasPermission.mockReturnValue(true);
-  api.getTaskOptions.mockResolvedValue({ data: { members: [{ id: USER, full_name: 'Ada' }], activities: [], meetings: [{ id: 42, name: 'Camp', date: '2026-11-14' }] } });
+  api.getTaskOptions.mockResolvedValue({ data: { members: [{ id: USER, full_name: 'Ada' }], activities: [], meetings: [{ id: 42, name: 'Camp', date: eventDate() }] } });
   window.history.replaceState(null, '', '/tasks?meeting_id=42&material=Tente&materials=2+%C3%97+Tente');
   await new Tasks(app).init(); await settle();
   const form = document.getElementById('tasks-form');
