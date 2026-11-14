@@ -9,6 +9,7 @@ import { debugLog, debugError, debugWarn } from './utils/DebugUtils.js';
 import { OfflineIndicator } from './components/OfflineIndicator.js';
 import { offlineManager } from './modules/OfflineManager.js';
 import { campPreparation } from './modules/offline/CampPreparation.js';
+import { offlineBaseline } from './modules/offline/OfflineBaseline.js';
 import { hasPermission, hasOrganizationScope } from './utils/PermissionUtils.js';
 
 let offlineIndicator = null;
@@ -30,6 +31,8 @@ export function initOfflineSupport() {
     // Initialize OfflineManager
     offlineManager.init();
     campPreparation.start(() => hasPermission('activities.view') && hasOrganizationScope());
+    // Everyday screens (tasks, next meeting, contacts) readable without signal, with no step to take.
+    offlineBaseline.start();
 
     // Initialize OfflineIndicator
     offlineIndicator = new OfflineIndicator();
@@ -194,6 +197,7 @@ export function cleanupOfflineSupport() {
     offlineManager.syncTimer = null;
 
     campPreparation.stop();
+    offlineBaseline.stop();
 
     // Destroy indicator
     if (offlineIndicator) {

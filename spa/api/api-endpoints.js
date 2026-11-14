@@ -1013,10 +1013,11 @@ export function getParentDashboard() {
 /**
  * Get parent contact list
  */
-export async function getParentContactList() {
+export async function getParentContactList(cacheOptions = {}) {
   return API.get('v1/reports/parent-contact-list', {}, {
     cacheKey: 'parent_contact_list',
-    cacheDuration: CONFIG.CACHE_DURATION.LONG
+    cacheDuration: CONFIG.CACHE_DURATION.LONG,
+    ...cacheOptions
   });
 }
 
@@ -1782,8 +1783,8 @@ export function getReminder() {
 /**
  * Get next meeting info
  */
-export function getNextMeetingInfo() {
-  return API.get('v1/meetings/next');
+export function getNextMeetingInfo(cacheOptions = {}) {
+  return API.get('v1/meetings/next', {}, cacheOptions);
 }
 
 /**

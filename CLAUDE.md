@@ -477,6 +477,7 @@ only then. The rules there are as binding as this file; update the devdoc in the
 
 | Area | Code it covers | Read |
 |---|---|---|
+| Everyday use without signal (offline shell, retention, automatic preparation) | `src-sw.js` navigation, `spa/indexedDB.js` reads, `OfflineBaseline`, `StaleClientRecovery`, `pwa-update-manager.js` | `devdocs/OFFLINE_EVERYDAY.md` |
 | Offline points at camp (outbox, idempotency, camp preparation) | `spa/modules/points/`, `CampPreparation`, `point_mutation_receipts`, attendance points | `devdocs/OFFLINE_CAMP_POINTS.md` (French) |
 | Shared activity tasks, their email reminders | `/tasks`, `services/activityTasks.js`, `services/taskReminders.js`, `config/tasks.js` | `devdocs/ACTIVITY_TASKS.md` |
 | Volunteering | `/volunteers`, `services/volunteerShifts.js` | `devdocs/VOLUNTEERS.md` |

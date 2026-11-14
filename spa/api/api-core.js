@@ -28,6 +28,9 @@ import {
 } from '../modules/live-sync/LiveSyncState.js';
 import { HTTP_STATUS } from '../utils/HttpStatus.js';
 
+/** Marks a body the service worker answered from its own copy (handleResponse). */
+const SERVED_FROM_DEVICE_CACHE = Symbol('servedFromDeviceCache');
+
 /**
  * Add cache buster parameter to URL
  */
@@ -279,7 +282,14 @@ export async function handleResponse(response, { requestToken } = {}) {
     (contentType && contentType.includes('application/json'))
         || (!contentType && typeof response.json === 'function')
   ) {
-    return response.json();
+    const body = await response.json();
+    if (getHeader('X-From-Cache') === 'true' && body && typeof body === 'object') {
+      // The service worker answered from its own copy because the network
+      // failed. Marked (not enumerable, so never stored) so that copy is not
+      // saved again as if the server had just confirmed it.
+      Object.defineProperty(body, SERVED_FROM_DEVICE_CACHE, { value: true });
+    }
+    return body;
   } else {
     throw new Error(`Unexpected response type: ${contentType}`);
   }
@@ -608,7 +618,7 @@ function recordPageRead(cacheKey, endpoint, options, cacheOptions) {
  * @returns {boolean} Whether to store the response
  */
 function shouldCache(result, cacheOptions) {
-  if (!result?.success) {
+  if (!result?.success || result[SERVED_FROM_DEVICE_CACHE] === true) {
     return false;
   }
   return typeof cacheOptions.isCurrent !== 'function' || cacheOptions.isCurrent();

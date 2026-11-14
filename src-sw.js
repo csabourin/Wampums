@@ -7,7 +7,7 @@
 // owns and replays its token-free offline mutation outbox.
 // ==================================================================
 
-import { precacheAndRoute, cleanupOutdatedCaches, getCacheKeyForURL } from 'workbox-precaching';
+import { precacheAndRoute, cleanupOutdatedCaches, getCacheKeyForURL, matchPrecache } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst, NetworkOnly } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
@@ -75,7 +75,12 @@ const debugWarn = (...args) => { if (!isProduction()) {console.warn(...args);} }
 
 // Workbox injects the precache manifest here at build time
 const offlineManifest = self.__WB_MANIFEST;
-precacheAndRoute(offlineManifest);
+// The manifest includes this build's index.html, installed atomically with the
+// scripts it names, so a worker that has finished installing can always start
+// the app offline, even when no page it controlled was ever loaded. The route
+// only answers a request for that exact file: no directory index and no clean
+// URLs, so navigations stay with the network-first handler below while online.
+precacheAndRoute(offlineManifest, { directoryIndex: null, cleanURLs: false });
 cleanupOutdatedCaches();
 
 // ==================================================================
@@ -125,15 +130,50 @@ const SSR_PATHS = [
   /^\/landing\//,
 ];
 
-/** Use the latest network HTML online and the retained SPA shell for any SPA route offline. */
+/** How long a navigation waits for the network before starting from the installed shell. */
+const NAVIGATION_NETWORK_TIMEOUT_MS = 6000;
+
+/**
+ * The HTML that starts the app without a network: this worker's precached
+ * index.html first, because it names exactly the scripts installed with it,
+ * then the last page the network served (kept by earlier workers).
+ * @returns {Promise<Response|undefined>}
+ */
+async function offlineShellResponse() {
+  const precached = await matchPrecache(OFFLINE_SHELL_URL);
+  if (precached?.ok) { return precached; }
+  const shell = await caches.open(OFFLINE_SHELL_CACHE);
+  return shell.match(OFFLINE_SHELL_URL);
+}
+
+/**
+ * Use the latest network HTML online and the installed SPA shell for any SPA
+ * route offline. A network that neither answers nor fails (one bar, a captive
+ * portal) starts the app from the shell after a few seconds instead of leaving
+ * the person on a blank screen; the network answer, if it comes, still
+ * refreshes the cache for the next launch.
+ */
 async function handleAppNavigation(context) {
+  const network = navigationHandler.handle(context);
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(null), NAVIGATION_NETWORK_TIMEOUT_MS);
+  });
   try {
-    return await navigationHandler.handle(context);
+    const response = await Promise.race([network, timeout]);
+    if (response) { return response; }
+    const shell = await offlineShellResponse();
+    if (shell) {
+      network.catch(() => {});
+      return shell;
+    }
+    return await network;
   } catch (error) {
-    const shell = await caches.open(OFFLINE_SHELL_CACHE);
-    const response = await shell.match(OFFLINE_SHELL_URL);
+    const response = await offlineShellResponse();
     if (response) { return response; }
     throw error;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -864,8 +904,7 @@ async function verifyOfflineAssets(urls = []) {
     return Boolean(await caches.match(key));
   }));
   if (!present.every(Boolean)) { return false; }
-  const shell = await caches.open(OFFLINE_SHELL_CACHE);
-  const response = await shell.match(OFFLINE_SHELL_URL);
+  const response = await offlineShellResponse();
   if (!response?.ok || !response.headers.get('content-type')?.includes('text/html')) { return false; }
   // A retained document must still be able to load its own entry script and styles.
   const html = await response.text();

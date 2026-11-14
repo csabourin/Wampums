@@ -10,7 +10,9 @@
  * Two safety nets live here:
  *
  *  1. `checkForStaleClient()` compares the server's build id against the one
- *     this client booted with. A mismatch triggers a full purge and reload.
+ *     this client booted with. On a mismatch, a page controlled by the service
+ *     worker asks it to install the new build (the update prompt follows); a
+ *     page without one is purged and reloaded.
  *  2. `installChunkErrorRecovery()` catches dynamic-import failures, which is
  *     what a mismatched shell actually produces at runtime, and purges too.
  *
@@ -267,9 +269,42 @@ export async function checkForStaleClient() {
   // and does not attempt recovery again.
   writeStoredBuildId(serverBuild.buildId);
 
+  // A page served by the service worker gets a new build the ordinary way: the
+  // worker installs it beside the current one and the update prompt switches.
+  // Purging here would unregister the worker and delete the installed shell on
+  // the first launch after every deploy, leaving nothing to start offline.
+  // Only a missing chunk (installChunkErrorRecovery) proves the client broken.
+  if (await requestServiceWorkerUpdate()) {
+    return false;
+  }
+
   return await purgeAndReload(
     `build changed ${storedBuildId} -> ${serverBuild.buildId}`,
   );
+}
+
+/**
+ * Ask the service worker controlling this page to look for the new build.
+ *
+ * @returns {Promise<boolean>} True when a controlling worker was asked.
+ */
+async function requestServiceWorkerUpdate() {
+  const serviceWorker = typeof navigator === 'undefined' ? null : navigator.serviceWorker;
+  if (!serviceWorker?.controller || typeof serviceWorker.getRegistration !== 'function') {
+    return false;
+  }
+  try {
+    const registration = await serviceWorker.getRegistration();
+    if (!registration) {
+      return false;
+    }
+    registration.update().catch((error) => debugLog('Service worker update check failed:', error));
+    debugLog('New server build: asked the service worker to install it');
+    return true;
+  } catch (error) {
+    debugLog('Cannot reach the service worker registration:', error);
+    return false;
+  }
 }
 
 /**

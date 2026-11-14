@@ -182,3 +182,20 @@ test('a group award waits behind unsent attendance even if its own outbox is emp
   expect(await API.post('v1/points', [{ type: 'group', id: 1, points: 3 }])).toMatchObject({ queued: true });
   expect(global.fetch).not.toHaveBeenCalled();
 });
+
+test('a copy the service worker served from the device is not saved again as freshly confirmed', async () => {
+  const { setCachedData } = require('../../spa/indexedDB.js');
+  global.fetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    headers: { get: (name) => ({ 'content-type': 'application/json', 'x-from-cache': 'true' })[name.toLowerCase()] || null },
+    json: () => Promise.resolve({ success: true, data: ['saved before leaving'] }),
+  });
+  const result = await API.get('v1/tasks/mine');
+  expect(result.data).toEqual(['saved before leaving']);
+  expect(setCachedData).not.toHaveBeenCalled();
+
+  global.fetch.mockResolvedValueOnce(response(['from the server']));
+  await API.get('v1/tasks/mine', {}, { forceRefresh: true });
+  expect(setCachedData).toHaveBeenCalledTimes(1);
+});
