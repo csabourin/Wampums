@@ -117,33 +117,40 @@ async function refreshOrganizationSettings(application) {
 }
 
 /**
- * Keep this build's other interface languages available offline, so
- * switching language works without a connection. Startup fetches only the
- * visitor's own language; this runs once the browser is idle. Versioned
- * bundles are immutable, so the HTTP cache answers them offline even on a
- * first visit, before a service worker controls the page; once one does, its
- * translation route keeps them too.
+ * Keep this build's interface languages available offline, so the app opens
+ * and switches language without a connection. index.html starts the
+ * visitor's own language before any service worker may control the page (on
+ * a first visit, or the first launch after a new worker), so that download is
+ * not kept. Every language, the visitor's included, is therefore asked again
+ * once a worker controls the page: its translation route keeps versioned
+ * bundles, and answers one it already holds without the network.
  *
- * @param {string} currentLang - The language already loaded
  * @param {string[]} languages - The languages the unit offers
  */
-function cacheOtherLanguagesForOffline(currentLang, languages) {
+function cacheLanguagesForOffline(languages) {
   // Without service workers the app does not work offline at all.
   if (!('serviceWorker' in navigator)) {
     return;
   }
   const prefetch = () => {
     languages
-      .filter((langCode) => langCode !== currentLang && window.__wampumsLangVersions?.[langCode])
+      .filter((langCode) => window.__wampumsLangVersions?.[langCode])
       .forEach((langCode) => {
         fetch(translationUrl(langCode), { priority: 'low' })
           .catch((error) => debugLog(`Offline copy of ${langCode} translations skipped:`, error));
       });
   };
-  if ('requestIdleCallback' in window) {
-    window.requestIdleCallback(prefetch);
+  const whenIdle = () => {
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(prefetch);
+    } else {
+      setTimeout(prefetch, OFFLINE_LANGUAGE_PREFETCH_DELAY_MS);
+    }
+  };
+  if (navigator.serviceWorker.controller) {
+    whenIdle();
   } else {
-    setTimeout(prefetch, OFFLINE_LANGUAGE_PREFETCH_DELAY_MS);
+    navigator.serviceWorker.addEventListener('controllerchange', whenIdle, { once: true });
   }
 }
 
@@ -431,7 +438,7 @@ export const app = {
       // Ensure service worker is registered (fallback if vite-plugin-pwa injection missed)
       this.registerServiceWorker();
 
-      cacheOtherLanguagesForOffline(this.lang, this.getUnitLanguages().available);
+      cacheLanguagesForOffline(this.getUnitLanguages().available);
 
       // Initialize offline support
       initOfflineSupport();
@@ -711,7 +718,7 @@ export const app = {
     localStorage.setItem(FALLBACK_LANG_STORAGE_KEY, fallback);
     // Startup ran before the settings were known; cache the unit's optional
     // languages too, so switching works offline.
-    cacheOtherLanguagesForOffline(this.lang, available);
+    cacheLanguagesForOffline(available);
     const lang = resolveInterfaceLanguage(this.lang, this.organizationSettings);
     const expectedFallback = fallbackLanguageFor(lang, fallback);
     if (lang !== this.lang || expectedFallback !== this.fallbackLang) {

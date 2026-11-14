@@ -112,5 +112,6 @@ in `e2e/accessibility.spec.mjs` on the seeded camp.
 ## Personal health (#1359)
 
 The authorized roster now includes active team members' personal health forms and emergency contacts
-(`adult_health_forms`, `camp_allergies.view`); these reads are network-only. Known under-14 accounts
+(`adult_health_forms`, `camp_allergies.view`); the last answer is kept on the device for offline use
+at camp (`devdocs/OFFLINE_EVERYDAY.md`). Known under-14 accounts
 cannot be assigned to the team. See `devdocs/MEMBER_PROFILE.md` for boundaries and tests.

@@ -7,6 +7,7 @@ const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateIdParam, checkValidation } = require('../middleware/validation');
 const { TASK_STATUSES, TASK_TITLE_MAX_LENGTH, EQUIPMENT_REMINDERS: LIMITS } = require('../config/tasks');
 const reminders = require('../services/taskEquipmentReminders');
+const taskReminders = require('../services/taskReminders');
 const { TaskError, saveTask, changeTaskStatus, listTasks } = require('../services/activityTasks');
 
 /** Return known task refusals, forwarding internal failures to the global handler. */
@@ -42,11 +43,21 @@ module.exports = (pool) => {
     const [members, activities, meetings] = await Promise.all([
       pool.query(`SELECT u.id, u.full_name FROM users u JOIN user_organizations uo ON uo.user_id = u.id
         WHERE uo.organization_id = $1 AND uo.status = 'active' ORDER BY u.full_name, u.id`, [organizationId]),
-      pool.query('SELECT id, name, activity_date::text AS date FROM activities WHERE organization_id = $1 AND is_active = TRUE ORDER BY activity_date DESC, id', [organizationId]),
+      pool.query(`SELECT id, name, COALESCE(activity_start_date, activity_date)::text AS date,
+        activity_end_date::text AS end_date FROM activities
+        WHERE organization_id = $1 AND is_active = TRUE ORDER BY activity_date DESC, id`, [organizationId]),
       pool.query('SELECT id, theme AS name, meeting_date::text AS date FROM year_plan_meetings WHERE organization_id = $1 AND is_cancelled = FALSE ORDER BY meeting_date DESC, id', [organizationId]),
     ]);
     return success(res, { members: members.rows, activities: activities.rows, meetings: meetings.rows });
   }));
+
+  // Whether the unit emails assignees about their tasks (on assignment, before and on the due date).
+  router.get('/reminder-settings', requirePermission('tasks.manage'), taskHandler(async (req, res) =>
+    success(res, await taskReminders.getSettings(pool, await getOrganizationId(req, pool)))));
+  router.put('/reminder-settings', requirePermission('tasks.manage'), blockDemoRoles,
+    body('enabled').isBoolean({ strict: true }).withMessage('tasks_reminders_invalid'), checkValidation,
+    taskHandler(async (req, res) => success(res, await taskReminders.saveSettings(pool,
+      await getOrganizationId(req, pool), req.body.enabled), 'tasks_reminders_saved')));
 
   const fields = () => [
     body('title').isString().bail().trim().isLength({ min: 1, max: TASK_TITLE_MAX_LENGTH }).withMessage('tasks_invalid_title'),

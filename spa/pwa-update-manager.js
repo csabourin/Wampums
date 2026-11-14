@@ -12,7 +12,7 @@ import {
   debugWarn,
   debugInfo,
 } from './utils/DebugUtils.js';
-import { deleteIndexedDB } from './indexedDB.js';
+import { cachesToClearOnUpdate } from './utils/UpdateCacheUtils.js';
 import { setContent } from './utils/DOMUtils.js';
 import { translate } from './app.js';
 
@@ -553,51 +553,19 @@ class PWAUpdateManager {
   }
 
   /**
-     * Clear runtime caches (IndexedDB + non-precache Service Worker caches)
-     * Preserves the Workbox precache so the SW can still serve the app shell offline.
-     * The new SW's activate handler will clean up outdated precache entries.
+     * Clear what belongs to the build being replaced. Offline data, queued
+     * changes, the installed shell and versioned translations are kept, so a
+     * person who accepts an update just before losing signal can still start
+     * the app and read what they prepared (cachesToClearOnUpdate).
      */
   async clearAllCaches() {
+    if (!('caches' in window)) {return;}
     try {
-      debugLog('Clearing runtime caches for version update...');
-
-      // 1. Clear IndexedDB completely
-      try {
-        await deleteIndexedDB();
-        debugLog('IndexedDB cleared successfully');
-      } catch (error) {
-        debugWarn('Failed to clear IndexedDB:', error);
-      }
-
-      // 2. Clear runtime Service Worker caches (preserve Workbox precache)
-      if ('caches' in window) {
-        try {
-          const cacheNames = await caches.keys();
-          const runtimeCaches = cacheNames.filter(
-            (name) => !name.includes('precache'),
-          );
-          await Promise.all(
-            runtimeCaches.map((cacheName) =>
-              caches.delete(cacheName),
-            ),
-          );
-          debugLog(
-            'Runtime caches cleared:',
-            runtimeCaches,
-            'Preserved precache entries:',
-            cacheNames.filter((name) =>
-              name.includes('precache'),
-            ),
-          );
-        } catch (error) {
-          debugWarn('Failed to clear Service Worker caches:', error);
-        }
-      }
-
-      debugLog('All runtime caches cleared successfully');
+      const runtimeCaches = cachesToClearOnUpdate(await caches.keys());
+      await Promise.all(runtimeCaches.map((cacheName) => caches.delete(cacheName)));
+      debugLog('Build-specific caches cleared for the update:', runtimeCaches);
     } catch (error) {
-      debugError('Error clearing caches:', error);
-      // Don't throw - we still want to proceed with the update
+      debugWarn('Failed to clear build-specific caches:', error);
     }
   }
 

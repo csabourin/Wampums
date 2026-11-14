@@ -4,17 +4,23 @@ jest.mock('../../spa/config.js', () => ({ CONFIG: { EQUIPMENT_REMINDERS: { MATER
 jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
 jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn(), isDemoUser: jest.fn(() => false) }));
-jest.mock('../../spa/api/api-tasks.js', () => ({ getMyTasks: jest.fn(), getUnitTasks: jest.fn(), getTaskOptions: jest.fn(), saveTask: jest.fn(), changeTaskStatus: jest.fn(), configureEquipmentReminder: jest.fn(), confirmEquipmentReminder: jest.fn() }));
+jest.mock('../../spa/api/api-tasks.js', () => ({ getMyTasks: jest.fn(), getUnitTasks: jest.fn(), getTaskOptions: jest.fn(), saveTask: jest.fn(), changeTaskStatus: jest.fn(), configureEquipmentReminder: jest.fn(), confirmEquipmentReminder: jest.fn(), getTaskReminderSettings: jest.fn(), saveTaskReminderSettings: jest.fn() }));
 jest.mock('../../spa/api/api-helpers.js', () => ({ getCurrentUserId: () => '00000000-0000-4000-8000-000000000001' }));
 const { Tasks } = require('../../spa/modules/tasks/Tasks.js');
 const api = require('../../spa/api/api-tasks.js');
 const { hasPermission } = require('../../spa/utils/PermissionUtils.js');
 const { closeAllModals } = require('../../spa/utils/ModalUtils.js');
+const { isoToDateString } = require('../../spa/utils/DateUtils.js');
 const AXE_OPTIONS = { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] }, rules: { 'color-contrast': { enabled: false } } };
 const USER = '00000000-0000-4000-8000-000000000001';
 const task = { id: 3, title: '<img src=x onerror=alert(1)>', activity_id: 4, activity_name: 'Camp', assignee_id: USER, assignee_name: '<b>Ada</b>', due_date: '2026-11-14', status: 'todo', history: [{ status: 'todo', changed_by_name: 'Ada', changed_at: '2026-10-26T14:00:00Z' }] };
 let app;
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+const eventDate = (offset = 0) => {
+  const date = new Date();
+  date.setDate(date.getDate() + offset);
+  return isoToDateString(date);
+};
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -23,8 +29,10 @@ beforeEach(() => {
   hasPermission.mockReturnValue(false);
   api.getMyTasks.mockResolvedValue({ data: [task] });
   api.getUnitTasks.mockResolvedValue({ data: [task] });
-  api.getTaskOptions.mockResolvedValue({ data: { members: [{ id: USER, full_name: 'Ada' }], activities: [{ id: 4, name: 'Camp', date: '2026-11-14' }], meetings: [] } });
+  api.getTaskOptions.mockResolvedValue({ data: { members: [{ id: USER, full_name: 'Ada' }], activities: [{ id: 4, name: 'Camp', date: eventDate() }], meetings: [] } });
   api.saveTask.mockResolvedValue({ success: true });
+  api.getTaskReminderSettings.mockResolvedValue({ data: { enabled: true, lead_days: 2 } });
+  api.saveTaskReminderSettings.mockResolvedValue({ success: true });
   api.changeTaskStatus.mockResolvedValue({ success: true });
   app = { lang: 'fr', showMessage: jest.fn() };
 });
@@ -36,6 +44,7 @@ test('an assignee sees task details as text and marks their own task done in one
   expect(document.querySelector('#app img, #app b')).toBeNull();
   expect(document.querySelector('#app').textContent).toContain('novembre');
   expect(document.getElementById('tasks-create')).toBeNull();
+  expect(document.querySelector('[data-task-edit]')).toBeNull();
   api.getMyTasks.mockResolvedValue({ data: [{ ...task, status: 'done' }] });
   document.querySelector('[data-task-status="3"][data-status="done"]').click();
   await settle(); await settle();
@@ -141,6 +150,66 @@ test('the assignment dialog has labelled controls, traps focus and closes with E
   expect(document.activeElement).toBe(opener);
 });
 
+test('a manager can change the assignee from their own task list', async () => {
+  const replacement = '00000000-0000-4000-8000-000000000002';
+  hasPermission.mockReturnValue(true);
+  api.getTaskOptions.mockResolvedValue({ data: {
+    members: [{ id: USER, full_name: 'Ada' }, { id: replacement, full_name: 'Charlie' }],
+    activities: [{ id: 4, name: 'Camp', date: eventDate() }], meetings: [],
+  } });
+  await new Tasks(app).init();
+  const edit = document.querySelector('[data-task-edit="3"]');
+  expect(edit.textContent).toBe(`tasks_edit_assignment ${task.title}`);
+  expect(edit.querySelector('img')).toBeNull();
+  edit.click(); await settle();
+  const form = document.getElementById('tasks-form');
+  const assignee = form.elements.task_assignee;
+  expect(document.activeElement).toBe(assignee);
+  expect(assignee.value).toBe(USER);
+  expect((await axe.run(document.getElementById('tasks-editor'), AXE_OPTIONS)).violations).toEqual([]);
+  assignee.value = replacement;
+  api.getMyTasks.mockResolvedValue({ data: [] });
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  expect(api.saveTask).toHaveBeenCalledWith({
+    title: task.title, assignee_id: replacement, activity_id: task.activity_id, meeting_id: null, due_date: task.due_date,
+  }, task.id);
+  expect(document.querySelector('[data-task-card="3"]')).toBeNull();
+  expect(document.activeElement).toBe(document.getElementById('tasks-view-mine'));
+});
+
+test('new assignments offer today and later events together in chronological order after the placeholder', async () => {
+  hasPermission.mockReturnValue(true);
+  api.getTaskOptions.mockResolvedValue({ data: {
+    members: [],
+    activities: [
+      { id: 4, name: 'Camp', date: eventDate(3) },
+      { id: 5, name: 'Hike', date: eventDate(1) },
+      { id: 6, name: 'Past outing', date: eventDate(-2), end_date: eventDate(-1) },
+    ],
+    meetings: [
+      { id: 7, name: 'Later meeting', date: eventDate(2) },
+      { id: 8, name: '<b>Today’s meeting</b>', date: eventDate() },
+      { id: 9, name: 'Past meeting', date: eventDate(-1) },
+    ],
+  } });
+  await new Tasks(app).init();
+  document.getElementById('tasks-create').click(); await settle();
+  const select = document.getElementById('tasks-event');
+  expect(Array.from(select.options, (option) => option.value)).toEqual(['', 'meeting:8', 'activity:5', 'meeting:7', 'activity:4']);
+  expect(select.value).toBe('');
+  expect(select.options[1].textContent).toContain('<b>Today’s meeting</b>');
+});
+
+test('an activity that started yesterday is still available through its end date', async () => {
+  api.getTaskOptions.mockResolvedValue({ data: {
+    members: [], meetings: [],
+    activities: [{ id: 4, name: 'Camp', date: eventDate(-1), end_date: eventDate() }],
+  } });
+  await new Tasks(app).edit();
+  expect(document.getElementById('tasks-event').options[1].value).toBe('activity:4');
+});
+
 test('failed saving keeps entered fields available for correction', async () => {
   hasPermission.mockReturnValue(true);
   api.saveTask.mockRejectedValue(new Error('database internals'));
@@ -186,6 +255,15 @@ test.each([
   expect(api.saveTask).toHaveBeenCalledWith(expect.objectContaining({
     title: 'Updated task', activity_id: event.activity_id, meeting_id: event.meeting_id || null,
   }), task.id);
+});
+
+test('editing an existing assignment keeps its past event selected', async () => {
+  const meeting = { id: 42, name: 'Past meeting', date: eventDate(-1) };
+  api.getTaskOptions.mockResolvedValue({ data: { members: [], activities: [], meetings: [meeting] } });
+  await new Tasks(app).edit({ ...task, activity_id: null, meeting_id: meeting.id });
+  const select = document.getElementById('tasks-event');
+  expect(select.value).toBe('meeting:42');
+  expect(select.selectedOptions[0].textContent).toContain(meeting.name);
 });
 
 
@@ -297,7 +375,7 @@ test('an uncertain send stays visible and configuring a lot duty\'s stale remind
 
 test('opening a task from a camp\'s material list fills the form once, with its reminder ready', async () => {
   hasPermission.mockReturnValue(true);
-  api.getTaskOptions.mockResolvedValue({ data: { members: [{ id: USER, full_name: 'Ada' }], activities: [], meetings: [{ id: 42, name: 'Camp', date: '2026-11-14' }] } });
+  api.getTaskOptions.mockResolvedValue({ data: { members: [{ id: USER, full_name: 'Ada' }], activities: [], meetings: [{ id: 42, name: 'Camp', date: eventDate() }] } });
   window.history.replaceState(null, '', '/tasks?meeting_id=42&material=Tente&materials=2+%C3%97+Tente');
   await new Tasks(app).init(); await settle();
   const form = document.getElementById('tasks-form');
@@ -353,4 +431,62 @@ test('saving a task without touching its reminder leaves the reminder and its co
   document.getElementById('tasks-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await settle(); await settle();
   expect(api.saveTask).toHaveBeenCalledWith(expect.not.objectContaining({ expected_reminder_revision: expect.anything() }), 3);
   expect(api.configureEquipmentReminder).not.toHaveBeenCalled();
+});
+
+describe('the unit\'s email reminders', () => {
+  const openUnitView = async () => {
+    hasPermission.mockReturnValue(true);
+    await new Tasks(app).init();
+    document.getElementById('tasks-view-unit').click(); await settle(); await settle();
+    return document.getElementById('tasks-reminders-enabled');
+  };
+
+  test('a member without task management is not shown the unit\'s email reminder switch', async () => {
+    await new Tasks(app).init();
+    expect(document.getElementById('tasks-reminders-enabled')).toBeNull();
+    expect(api.getTaskReminderSettings).not.toHaveBeenCalled();
+  });
+
+  test('a task manager sees that reminders are on, with when they are sent, and no accessibility violation', async () => {
+    const checkbox = await openUnitView();
+    expect(checkbox.checked).toBe(true);
+    expect(checkbox.labels[0].textContent).toContain('tasks_reminders_enable');
+    expect(document.getElementById(checkbox.getAttribute('aria-describedby')).textContent).toContain('tasks_reminders_help');
+    expect(checkbox.closest('fieldset').querySelector('legend').textContent).toBe('tasks_reminders_legend');
+    const results = await axe.run(document.body, AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  });
+
+  test('turning reminders off saves at once, says so, and leaves keyboard focus on the switch', async () => {
+    const checkbox = await openUnitView();
+    checkbox.focus(); checkbox.click(); await settle();
+    expect(api.saveTaskReminderSettings).toHaveBeenCalledWith(false);
+    expect(app.showMessage).toHaveBeenCalledWith('tasks_reminders_off', 'success');
+    expect(checkbox.checked).toBe(false);
+    expect(checkbox.disabled).toBe(false);
+    expect(document.activeElement).toBe(checkbox);
+  });
+
+  test('a refused change puts the switch back and is reported as a failure, never as saved', async () => {
+    const checkbox = await openUnitView();
+    api.saveTaskReminderSettings.mockRejectedValue(Object.assign(new Error('Forbidden'), { status: 500 }));
+    checkbox.click(); await settle();
+    expect(checkbox.checked).toBe(true);
+    expect(app.showMessage).toHaveBeenCalledTimes(1);
+    expect(app.showMessage.mock.calls[0][1]).toBe('error');
+  });
+
+  test('a demo account sees the switch but cannot change it', async () => {
+    const { isDemoUser } = require('../../spa/utils/PermissionUtils.js');
+    isDemoUser.mockReturnValueOnce(true);
+    const checkbox = await openUnitView();
+    expect(checkbox.disabled).toBe(true);
+  });
+
+  test('the unit\'s tasks are not shown as loaded when the reminder setting could not be read', async () => {
+    api.getTaskReminderSettings.mockRejectedValue(new Error('offline'));
+    await openUnitView();
+    expect(document.querySelector('[role="alert"]').textContent).toBe('tasks_load_failed');
+    expect(document.getElementById('tasks-retry')).not.toBeNull();
+  });
 });

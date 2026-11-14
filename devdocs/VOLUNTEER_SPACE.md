@@ -61,4 +61,5 @@ and another unit's camp refused; panels by type; nobody else named), `test/route
 `test/spa/VolunteerSpace.test.js` (axe, escaping, states, focus), and both screens in
 `e2e/accessibility.spec.mjs` on the seeded "Camp d'hiver".
 
-Contacts are loaded separately, network-only: an offline schedule never includes an old consent.
+Contacts are loaded separately, online every time; without signal the copy kept on the device is
+shown and labelled as such (`devdocs/MEMBER_PROFILE.md`).

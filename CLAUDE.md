@@ -477,8 +477,9 @@ only then. The rules there are as binding as this file; update the devdoc in the
 
 | Area | Code it covers | Read |
 |---|---|---|
+| Everyday use without signal (offline shell, retention, automatic preparation) | `src-sw.js` navigation, `spa/indexedDB.js` reads, `OfflineBaseline`, `StaleClientRecovery`, `pwa-update-manager.js` | `devdocs/OFFLINE_EVERYDAY.md` |
 | Offline points at camp (outbox, idempotency, camp preparation) | `spa/modules/points/`, `CampPreparation`, `point_mutation_receipts`, attendance points | `devdocs/OFFLINE_CAMP_POINTS.md` (French) |
-| Shared activity tasks | `/tasks`, `services/activityTasks.js`, `config/tasks.js` | `devdocs/ACTIVITY_TASKS.md` |
+| Shared activity tasks, their email reminders | `/tasks`, `services/activityTasks.js`, `services/taskReminders.js`, `config/tasks.js` | `devdocs/ACTIVITY_TASKS.md` |
 | Volunteering | `/volunteers`, `services/volunteerShifts.js` | `devdocs/VOLUNTEERS.md` |
 | My account task navigation | `/account-info`, `account-sections.js` | `devdocs/ACCOUNT.md` |
 | Personal contacts and adult health | `services/memberProfile.js`, `/member-profile`, `ProfilePanel` | `devdocs/MEMBER_PROFILE.md` |
@@ -613,7 +614,9 @@ only then. The rules there are as binding as this file; update the devdoc in the
   two files. Never `fetch()` an authenticated endpoint directly.
 - ✅ Endpoints are written without the prefix: `API.get('v1/messages')`. `API.get(endpoint, params,
   { cacheDuration, forceRefresh })` caches in IndexedDB (`CONFIG.CACHE_DURATION.*`); use
-  `API.getNoCache()` for data that must be fresh (anything just written by someone else, links).
+  `API.getNoCache()` for data that must be fresh (anything just written by someone else, links). It
+  always asks the server and **still keeps a copy for offline use**, unless the endpoint is listed in
+  `NETWORK_ONLY_READS` (`spa/config/offline-reads.js`) with its reason (`devdocs/OFFLINE_EVERYDAY.md`).
 - ✅ **A confirmed write invalidates the cache itself.** When the server accepts it,
   `API.post/put/patch/delete` clear the cached responses built from that resource, and every screen
   derived from the roster when the roster changes (`spa/utils/CacheInvalidation.js`). Do not hand-clear
