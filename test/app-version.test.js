@@ -64,4 +64,24 @@ describe('appVersion BUILD_ID selection', () => {
 
     expect(appVersionRoute.BUILD_ID).toBe('force-refresh-token');
   });
+
+  test('names the entry script of the built shell, so a client can tell whether it already runs it', () => {
+    jest.doMock('fs', () => ({
+      readFileSync: jest.fn(() => '<html><script type="module" crossorigin src="/assets/main-AbC123.js"></script></html>'),
+    }));
+    jest.doMock('../config/logger', () => ({ info: jest.fn() }));
+
+    const appVersionRoute = require('../routes/appVersion');
+
+    expect(appVersionRoute.BUILD_ENTRY).toBe('/assets/main-AbC123.js');
+  });
+
+  test('names no entry script without a build', () => {
+    jest.doMock('fs', () => ({
+      readFileSync: jest.fn(() => { throw Object.assign(new Error('missing'), { code: 'ENOENT' }); }),
+    }));
+    jest.doMock('../config/logger', () => ({ info: jest.fn() }));
+
+    expect(require('../routes/appVersion').BUILD_ENTRY).toBeNull();
+  });
 });

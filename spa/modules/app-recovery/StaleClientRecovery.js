@@ -160,8 +160,8 @@ export async function purgeAndReload(reason) {
  * defeat the check. The timestamp query parameter guarantees a cache miss even
  * in an old service worker that keys entries by URL.
  *
- * @returns {Promise<{version: string, buildId: string}|null>} Server build, or
- *   null when it cannot be determined (offline, timeout, unexpected shape).
+ * @returns {Promise<{version: string, buildId: string, entry: string|null, forced: boolean}|null>}
+ *   Server build, or null when it cannot be determined (offline, timeout, unexpected shape).
  */
 async function fetchServerBuild() {
   const controller = new AbortController();
@@ -193,7 +193,12 @@ async function fetchServerBuild() {
       return null;
     }
 
-    return { version: data.version || CONFIG.VERSION, buildId };
+    return {
+      version: data.version || CONFIG.VERSION,
+      buildId,
+      entry: typeof data.entry === 'string' ? data.entry : null,
+      forced: data.forced === true,
+    };
   } catch (error) {
     // Offline or unreachable is normal for a PWA; nothing to recover from.
     debugLog('Version probe failed:', error);
@@ -201,6 +206,36 @@ async function fetchServerBuild() {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/**
+ * The entry script this page loaded, as index.html names it.
+ *
+ * @returns {string|null} Its path, or null when it cannot be read.
+ */
+function runningEntryScript() {
+  try {
+    const script = document.querySelector('script[type="module"][src]');
+    return script ? new URL(script.getAttribute('src'), window.location.origin).pathname : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+/**
+ * Whether this page already runs the server's build, judged by the entry
+ * script both name. A remembered build id cannot tell: it records what the
+ * server served, not what this page loaded.
+ *
+ * @param {{entry: string|null}} serverBuild
+ * @returns {boolean|null} True or false, or null when either side is unknown.
+ */
+function runsServerBuild(serverBuild) {
+  const running = runningEntryScript();
+  if (!serverBuild.entry || !running) {
+    return null;
+  }
+  return new URL(serverBuild.entry, window.location.origin).pathname === running;
 }
 
 /**
@@ -221,15 +256,22 @@ async function recoverFromConfirmedStaleClient(reason) {
     return false;
   }
 
+  const current = runsServerBuild(serverBuild);
+  if (current === true && !serverBuild.forced) {
+    writeStoredBuildId(serverBuild.buildId);
+    debugWarn(`Skipping stale client recovery for ${reason}: this page runs the server's build`);
+    return false;
+  }
+
   const storedBuildId = readStoredBuildId();
 
-  if (!storedBuildId) {
+  if (current === null && !storedBuildId) {
     writeStoredBuildId(serverBuild.buildId);
     debugLog('Recorded build id after chunk-load probe:', serverBuild.buildId);
     return false;
   }
 
-  if (storedBuildId === serverBuild.buildId) {
+  if (current === null && storedBuildId === serverBuild.buildId) {
     debugWarn(`Skipping stale client recovery for ${reason}: build id still matches`);
     return false;
   }
@@ -265,18 +307,27 @@ export async function checkForStaleClient() {
     return false;
   }
 
-  // Record the new build before reloading so the reloaded client sees a match
-  // and does not attempt recovery again.
-  writeStoredBuildId(serverBuild.buildId);
+  // This page already runs the new build (it came from the network): only the
+  // remembered id was behind.
+  const current = runsServerBuild(serverBuild);
+  if (current === true && !serverBuild.forced) {
+    writeStoredBuildId(serverBuild.buildId);
+    return false;
+  }
 
   // A page served by the service worker gets a new build the ordinary way: the
   // worker installs it beside the current one and the update prompt switches.
   // Purging here would unregister the worker and delete the installed shell on
   // the first launch after every deploy, leaving nothing to start offline.
-  // Only a missing chunk (installChunkErrorRecovery) proves the client broken.
-  if (await requestServiceWorkerUpdate()) {
+  // The old id is kept until this page really runs the new build, so a missing
+  // chunk meanwhile is still recognised as a stale client and recovered.
+  if (!serverBuild.forced && await requestServiceWorkerUpdate()) {
     return false;
   }
+
+  // Record the new build before reloading so the reloaded client sees a match
+  // and does not attempt recovery again.
+  writeStoredBuildId(serverBuild.buildId);
 
   return await purgeAndReload(
     `build changed ${storedBuildId} -> ${serverBuild.buildId}`,
