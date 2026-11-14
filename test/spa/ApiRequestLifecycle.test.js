@@ -199,3 +199,31 @@ test('a copy the service worker served from the device is not saved again as fre
   await API.get('v1/tasks/mine', {}, { forceRefresh: true });
   expect(setCachedData).toHaveBeenCalledTimes(1);
 });
+
+test('a read asked fresh of the server keeps its answer for offline use', async () => {
+  const { setCachedData } = require('../../spa/indexedDB.js');
+  global.fetch.mockResolvedValueOnce(response(['latest carpools']));
+  const result = await API.getNoCache('v1/carpools/activity/9');
+  expect(result.data).toEqual(['latest carpools']);
+  // Still asked of the server past every HTTP cache.
+  expect(new URL(global.fetch.mock.calls[0][0]).searchParams.has('_')).toBe(true);
+  expect(setCachedData).toHaveBeenCalledTimes(1);
+});
+
+test('a fresh read that fails offline shows the last copy instead of an error', async () => {
+  const { getCachedDataIgnoreExpiration } = require('../../spa/indexedDB.js');
+  getCachedDataIgnoreExpiration.mockResolvedValueOnce({ success: true, data: ['kept copy'] });
+  global.fetch.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+  global.fetch.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+  const result = await API.getNoCache('v1/dashboards/parent');
+  expect(result.data).toEqual(['kept copy']);
+});
+
+test('personal health is never kept on the device, whichever read asks for it', async () => {
+  const { setCachedData, getCachedData } = require('../../spa/indexedDB.js');
+  global.fetch.mockResolvedValue(response({ allergies: [] }));
+  await API.getNoCache('v1/member-profile/me/health');
+  await API.get('v1/member-profile/me/health');
+  expect(setCachedData).not.toHaveBeenCalled();
+  expect(getCachedData).not.toHaveBeenCalled();
+});

@@ -614,7 +614,9 @@ only then. The rules there are as binding as this file; update the devdoc in the
   two files. Never `fetch()` an authenticated endpoint directly.
 - ✅ Endpoints are written without the prefix: `API.get('v1/messages')`. `API.get(endpoint, params,
   { cacheDuration, forceRefresh })` caches in IndexedDB (`CONFIG.CACHE_DURATION.*`); use
-  `API.getNoCache()` for data that must be fresh (anything just written by someone else, links).
+  `API.getNoCache()` for data that must be fresh (anything just written by someone else, links). It
+  always asks the server and **still keeps a copy for offline use**, unless the endpoint is listed in
+  `NETWORK_ONLY_READS` (`spa/config/offline-reads.js`) with its reason (`devdocs/OFFLINE_EVERYDAY.md`).
 - ✅ **A confirmed write invalidates the cache itself.** When the server accepts it,
   `API.post/put/patch/delete` clear the cached responses built from that resource, and every screen
   derived from the roster when the roster changes (`spa/utils/CacheInvalidation.js`). Do not hand-clear

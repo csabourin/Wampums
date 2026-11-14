@@ -226,6 +226,26 @@ export async function getCachedDataIgnoreExpiration(key) {
 }
 
 /**
+ * When the server last confirmed a cached copy, whether or not it is fresh.
+ * @param {string} key - Cache key
+ * @returns {Promise<number|null>} Epoch milliseconds, or null without a copy
+ */
+export async function getCachedConfirmedAt(key) {
+  const db = await openDB();
+  const scopedKey = buildScopedCacheKey(key);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const request = tx.objectStore(STORE_NAME).get(scopedKey);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const confirmedAt = Number(request.result?.timestamp);
+      resolve(Number.isFinite(confirmedAt) ? confirmedAt : null);
+    };
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
  * Delete cached responses past their offline retention (offlineReadableUntil).
  * Queued changes and other non-cache records are never touched.
  * @returns {Promise<number>} Number of records removed

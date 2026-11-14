@@ -27,6 +27,8 @@ import {
   noteWriteUnconfirmed,
 } from '../modules/live-sync/LiveSyncState.js';
 import { HTTP_STATUS } from '../utils/HttpStatus.js';
+import { isNetworkOnlyRead } from '../config/offline-reads.js';
+import { noteOfflineRead } from '../utils/OfflineReadRegistry.js';
 
 /** Marks a body the service worker answered from its own copy (handleResponse). */
 const SERVED_FROM_DEVICE_CACHE = Symbol('servedFromDeviceCache');
@@ -605,8 +607,33 @@ function repeatableCacheOptions({ forceRefresh: _forceRefresh, ...options }) {
  * @param {Object} cacheOptions - Cache options
  */
 function recordPageRead(cacheKey, endpoint, options, cacheOptions) {
-  if (typeof cacheOptions.isCurrent !== 'function') {
+  if (typeof cacheOptions.isCurrent !== 'function' && !cacheOptions.offlineReplay) {
     notePageCachedRequest(cacheKey, endpoint, options, repeatableCacheOptions(cacheOptions));
+  }
+}
+
+/**
+ * Remember a read a screen made, so offline preparation keeps it ready
+ * (OfflineBaseline). Its own replays, live-sync replays and archived years
+ * are not recorded.
+ * @param {string} rawCacheKey - Cache key before scoping
+ * @param {string} endpoint - Endpoint as requested
+ * @param {Object} options - Request options
+ * @param {Object} cacheOptions - Cache options
+ */
+function recordOfflineRead(rawCacheKey, endpoint, options, cacheOptions) {
+  if (typeof cacheOptions.isCurrent === 'function' || cacheOptions.offlineReplay || isArchiveMode()) {
+    return;
+  }
+  try {
+    noteOfflineRead(buildScopedCacheKey(''), {
+      endpoint,
+      params: options.params || {},
+      cacheKey: rawCacheKey,
+      cacheDuration: cacheOptions.cacheDuration,
+    });
+  } catch (error) {
+    debugLog('Offline read not recorded:', error);
   }
 }
 
@@ -642,6 +669,10 @@ const pendingRequests = new Map();
  * Make API request with caching support and request deduplication
  */
 export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptions = {}) {
+  if (isNetworkOnlyRead(endpoint)) {
+    // Never kept on the device, whichever function asks (NETWORK_ONLY_READS).
+    return makeApiRequest(endpoint, options);
+  }
   const {
     cacheKey: requestedCacheKey = buildApiCacheKey(endpoint, options.params || {}),
     cacheDuration = CONFIG.CACHE_DURATION.MEDIUM,
@@ -649,6 +680,7 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
   } = cacheOptions;
   const cacheKey = buildScopedCacheKey(requestedCacheKey);
   recordPageRead(cacheKey, endpoint, options, cacheOptions);
+  recordOfflineRead(requestedCacheKey, endpoint, options, cacheOptions);
 
   // Create a unique request key for deduplication
   const requestKey = `${cacheKey}-${JSON.stringify(options)}`;
@@ -787,7 +819,13 @@ export const API = {
      * GET request without caching
      */
   async getNoCache(endpoint, params = {}) {
-    return makeApiRequest(endpoint, { params, cacheBuster: true });
+    // Always asked of the server; the answer is kept so the screen still
+    // opens without a connection, unless the read is network-only
+    // (NETWORK_ONLY_READS, devdocs/OFFLINE_EVERYDAY.md).
+    return makeApiRequestWithCache(endpoint, { params, cacheBuster: true }, {
+      forceRefresh: true,
+      cacheDuration: CONFIG.CACHE_DURATION?.SHORT,
+    });
   },
 
   /**
