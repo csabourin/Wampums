@@ -3,6 +3,7 @@ import { debugLog, debugError, debugWarn } from '../../utils/DebugUtils.js';
 import { login, verify2FA, getApiUrl, getCurrentOrganizationId, fetchOrganizationId } from '../../ajax-functions.js';
 import { getStorage, setStorageMultiple } from '../../utils/StorageUtils.js';
 import { clearAllClientData } from '../../utils/ClientCleanupUtils.js';
+import { OFFLINE_READS } from '../../config/offline-reads.js';
 import { isParent, hasPermission } from '../../utils/PermissionUtils.js';
 import { getOnboardingContext } from '../../api/api-family.js';
 import { setContent } from '../../utils/DOMUtils.js';
@@ -447,6 +448,10 @@ export class Login {
     this.redirectAfterLogin().catch((redirectError) => {
       debugError('Failed to redirect after login:', redirectError);
     });
+
+    // A first sign-in prepares the everyday offline screens at once, without
+    // waiting for the next launch (OfflineBaseline).
+    window.dispatchEvent(new CustomEvent(OFFLINE_READS.SIGNED_IN_EVENT));
   }
 
   /**

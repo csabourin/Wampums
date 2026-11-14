@@ -128,7 +128,9 @@ describe.skipIf(!DATABASE_URL)('Shared activity tasks', () => {
     expect(res.body.data.members.map((member) => member.id)).toContain(assignee);
     expect(res.body.data.members.map((member) => member.id)).not.toContain(outsider);
     expect(Object.keys(res.body.data.members[0]).sort()).toEqual(['full_name', 'id']);
-    expect(res.body.data.activities.map((event) => event.id)).toContain(activity);
+    expect(res.body.data.activities).toContainEqual({
+      id: activity, name: 'Fictional camp', date: '2026-11-14', end_date: '2026-11-14',
+    });
     expect(res.body.data.activities.map((event) => event.id)).not.toContain(foreignActivity);
     expect(res.body.data.meetings.map((event) => event.id)).toContain(meeting);
   });

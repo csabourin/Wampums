@@ -4,7 +4,8 @@ import {
   setCachedData,
   getCachedData,
   getCachedDataIgnoreExpiration,
-  clearCachedApiPaths
+  clearCachedApiPaths,
+  deleteCachedData
 } from '../indexedDB.js';
 import { CONFIG } from '../config.js';
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
@@ -27,6 +28,14 @@ import {
   noteWriteUnconfirmed,
 } from '../modules/live-sync/LiveSyncState.js';
 import { HTTP_STATUS } from '../utils/HttpStatus.js';
+import { isNetworkOnlyRead } from '../config/offline-reads.js';
+import { noteOfflineRead } from '../utils/OfflineReadRegistry.js';
+
+/** Answers that confirm a read is no longer this person's to see: its offline copy is deleted. */
+const REVOKING_STATUSES = new Set([HTTP_STATUS.FORBIDDEN, HTTP_STATUS.NOT_FOUND, HTTP_STATUS.GONE]);
+
+/** Marks a body the service worker answered from its own copy (handleResponse). */
+const SERVED_FROM_DEVICE_CACHE = Symbol('servedFromDeviceCache');
 
 /**
  * Add cache buster parameter to URL
@@ -279,7 +288,14 @@ export async function handleResponse(response, { requestToken } = {}) {
     (contentType && contentType.includes('application/json'))
         || (!contentType && typeof response.json === 'function')
   ) {
-    return response.json();
+    const body = await response.json();
+    if (getHeader('X-From-Cache') === 'true' && body && typeof body === 'object') {
+      // The service worker answered from its own copy because the network
+      // failed. Marked (not enumerable, so never stored) so that copy is not
+      // saved again as if the server had just confirmed it.
+      Object.defineProperty(body, SERVED_FROM_DEVICE_CACHE, { value: true });
+    }
+    return body;
   } else {
     throw new Error(`Unexpected response type: ${contentType}`);
   }
@@ -595,8 +611,33 @@ function repeatableCacheOptions({ forceRefresh: _forceRefresh, ...options }) {
  * @param {Object} cacheOptions - Cache options
  */
 function recordPageRead(cacheKey, endpoint, options, cacheOptions) {
-  if (typeof cacheOptions.isCurrent !== 'function') {
+  if (typeof cacheOptions.isCurrent !== 'function' && !cacheOptions.offlineReplay) {
     notePageCachedRequest(cacheKey, endpoint, options, repeatableCacheOptions(cacheOptions));
+  }
+}
+
+/**
+ * Remember a read a screen made, so offline preparation keeps it ready
+ * (OfflineBaseline). Its own replays, live-sync replays and archived years
+ * are not recorded.
+ * @param {string} rawCacheKey - Cache key before scoping
+ * @param {string} endpoint - Endpoint as requested
+ * @param {Object} options - Request options
+ * @param {Object} cacheOptions - Cache options
+ */
+function recordOfflineRead(rawCacheKey, endpoint, options, cacheOptions) {
+  if (typeof cacheOptions.isCurrent === 'function' || cacheOptions.offlineReplay || isArchiveMode()) {
+    return;
+  }
+  try {
+    noteOfflineRead(buildScopedCacheKey(''), {
+      endpoint,
+      params: options.params || {},
+      cacheKey: rawCacheKey,
+      cacheDuration: cacheOptions.cacheDuration,
+    });
+  } catch (error) {
+    debugLog('Offline read not recorded:', error);
   }
 }
 
@@ -608,7 +649,7 @@ function recordPageRead(cacheKey, endpoint, options, cacheOptions) {
  * @returns {boolean} Whether to store the response
  */
 function shouldCache(result, cacheOptions) {
-  if (!result?.success) {
+  if (!result?.success || result[SERVED_FROM_DEVICE_CACHE] === true) {
     return false;
   }
   return typeof cacheOptions.isCurrent !== 'function' || cacheOptions.isCurrent();
@@ -632,6 +673,10 @@ const pendingRequests = new Map();
  * Make API request with caching support and request deduplication
  */
 export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptions = {}) {
+  if (isNetworkOnlyRead(endpoint)) {
+    // Never kept on the device, whichever function asks (NETWORK_ONLY_READS).
+    return makeApiRequest(endpoint, options);
+  }
   const {
     cacheKey: requestedCacheKey = buildApiCacheKey(endpoint, options.params || {}),
     cacheDuration = CONFIG.CACHE_DURATION.MEDIUM,
@@ -639,6 +684,7 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
   } = cacheOptions;
   const cacheKey = buildScopedCacheKey(requestedCacheKey);
   recordPageRead(cacheKey, endpoint, options, cacheOptions);
+  recordOfflineRead(requestedCacheKey, endpoint, options, cacheOptions);
 
   // Create a unique request key for deduplication
   const requestKey = `${cacheKey}-${JSON.stringify(options)}`;
@@ -691,6 +737,12 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
 
       return result;
     } catch (requestError) {
+      // The server confirmed this person may no longer read it (access
+      // withdrawn, record deleted): the copy kept for offline use goes too.
+      if (REVOKING_STATUSES.has(requestError.status)) {
+        await Promise.resolve().then(() => deleteCachedData(cacheKey))
+          .catch((error) => debugError('Failed to drop a refused copy:', error));
+      }
       // Only connectivity failures may use expired data. HTTP 4xx/5xx
       // responses must reach callers so authorization and validation
       // failures cannot be hidden by stale cache entries.
@@ -777,7 +829,13 @@ export const API = {
      * GET request without caching
      */
   async getNoCache(endpoint, params = {}) {
-    return makeApiRequest(endpoint, { params, cacheBuster: true });
+    // Always asked of the server; the answer is kept so the screen still
+    // opens without a connection, unless the read is network-only
+    // (NETWORK_ONLY_READS, devdocs/OFFLINE_EVERYDAY.md).
+    return makeApiRequestWithCache(endpoint, { params, cacheBuster: true }, {
+      forceRefresh: true,
+      cacheDuration: CONFIG.CACHE_DURATION?.SHORT,
+    });
   },
 
   /**
