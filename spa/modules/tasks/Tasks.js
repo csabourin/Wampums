@@ -8,7 +8,7 @@ import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { formatDate, formatTimestamp } from '../../utils/DateUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
-import { getMyTasks, getUnitTasks, getTaskOptions, saveTask, changeTaskStatus, configureEquipmentReminder, confirmEquipmentReminder } from '../../api/api-tasks.js';
+import { getMyTasks, getUnitTasks, getTaskOptions, saveTask, changeTaskStatus, configureEquipmentReminder, confirmEquipmentReminder, getTaskReminderSettings, saveTaskReminderSettings } from '../../api/api-tasks.js';
 import { CAMP_LOTS } from '../../config/camp-lots.js';
 import { getCurrentUserId } from '../../api/api-helpers.js';
 import { openModal } from '../../utils/ModalUtils.js';
@@ -59,6 +59,8 @@ export class Tasks {
       event: `meeting:${this.campMeetingId}`,
     } : null;
     this.tasks = [];
+    /** The unit's email reminders, loaded with the unit's tasks. */
+    this.reminderSettings = null;
     this.destroyed = false;
   }
 
@@ -68,8 +70,12 @@ export class Tasks {
   async init() {
     this.renderState('loading');
     try {
-      const response = await (this.unitView ? getUnitTasks : getMyTasks)({ forceRefresh: true });
+      const [response, settings] = await Promise.all([
+        (this.unitView ? getUnitTasks : getMyTasks)({ forceRefresh: true }),
+        this.unitView ? getTaskReminderSettings() : null,
+      ]);
       if (this.destroyed) {return;}
+      this.reminderSettings = settings?.data || null;
       this.tasks = response.data.filter((task) => (!this.focusTaskId || task.id === this.focusTaskId) && ((!this.campMeetingId && !this.campActivityId)
         || (this.campMeetingId && Number(task.meeting_id) === this.campMeetingId)
         || (this.campActivityId && Number(task.activity_id) === this.campActivityId)));
@@ -138,7 +144,7 @@ export class Tasks {
       <p>${translate('tasks_due')} : <time datetime="${escapeAttribute(task.due_date)}">${escapeHTML(formatDate(task.due_date, this.app.lang))}</time></p>
       ${this.statusMarkup(task)}
       ${this.renderReminder(task)}
-      ${!task.equipment_lot_id && this.unitView && !this.readOnly ? `<button type="button" class="button button--ghost" data-task-edit="${Number(task.id)}">${translate('edit')}<span class="sr-only"> ${escapeHTML(task.title)}</span></button>` : ''}
+      ${!task.equipment_lot_id && this.canManage && !this.readOnly ? `<button type="button" class="button button--ghost" data-task-edit="${Number(task.id)}">${translate('tasks_edit_assignment')}<span class="sr-only"> ${escapeHTML(task.title)}</span></button>` : ''}
       <details><summary>${translate('tasks_history')}</summary><ul>${(task.history || []).map((entry) => `<li>
         ${escapeHTML(translate(CONFIG.TASKS.STATUS_KEYS[entry.status]))} · ${escapeHTML(entry.changed_by_name || translate('tasks_member'))} ·
         ${escapeHTML(formatTimestamp(entry.changed_at, this.app.lang))}</li>`).join('')}</ul></details>
@@ -164,6 +170,33 @@ export class Tasks {
     return `${sections}${open.length ? '' : `<p>${translate('tasks_all_done')}</p>`}${finished}`;
   }
 
+  /** The unit's switch for task emails, beside the tasks it applies to. */
+  reminderSettingsMarkup() {
+    if (!this.unitView || !this.reminderSettings) {return '';}
+    return `<fieldset class="task-reminder-fields task-reminder-settings"><legend>${translate('tasks_reminders_legend')}</legend>
+      <label class="equipment-reminder-toggle" for="tasks-reminders-enabled"><input id="tasks-reminders-enabled" type="checkbox"
+        aria-describedby="tasks-reminders-help" ${this.reminderSettings.enabled ? 'checked' : ''} ${this.readOnly ? 'disabled' : ''}>${translate('tasks_reminders_enable')}</label>
+      <p id="tasks-reminders-help">${escapeHTML(translate('tasks_reminders_help').replace('{days}', String(Number(this.reminderSettings.lead_days))))}</p>
+    </fieldset>`;
+  }
+
+  /** Save the switch as soon as it changes; a refusal puts it back where it was. */
+  async saveReminderSettings(checkbox) {
+    const enabled = checkbox.checked;
+    checkbox.disabled = true;
+    try {
+      await saveTaskReminderSettings(enabled);
+      this.reminderSettings = { ...this.reminderSettings, enabled };
+      if (!this.destroyed) {this.app.showMessage(translate(enabled ? 'tasks_reminders_on' : 'tasks_reminders_off'), 'success');}
+    } catch (err) {
+      debugError('Failed to save task reminder settings', err);
+      checkbox.checked = !enabled;
+      if (!this.destroyed) {this.app.showMessage(apiErrorMessage(err, 'tasks_reminders_save_failed'), 'error');}
+    }
+    checkbox.disabled = false;
+    if (!this.destroyed && checkbox.isConnected) {checkbox.focus();}
+  }
+
   render() {
     if (this.destroyed) {return;}
     const root = document.getElementById('app');
@@ -177,6 +210,7 @@ export class Tasks {
         </div>
         ${this.readOnly ? '' : `<button type="button" class="button button--primary" id="tasks-create">${translate('tasks_create')}</button>`}
       </div>` : ''}
+      ${this.reminderSettingsMarkup()}
       ${this.listMarkup()}
     </section>`);
     this.bind(root);
@@ -198,6 +232,7 @@ export class Tasks {
       });
     });
     document.getElementById('tasks-create')?.addEventListener('click', () => this.edit());
+    document.getElementById('tasks-reminders-enabled')?.addEventListener('change', (event) => this.saveReminderSettings(event.target));
     root.querySelectorAll('[data-task-edit]').forEach((button) => button.addEventListener('click', () =>
       this.edit(this.tasks.find((task) => task.id === Number(button.dataset.taskEdit)))));
     root.querySelectorAll('[data-task-status]').forEach((button) => button.addEventListener('click', () => this.changeStatus(button)));
@@ -399,18 +434,23 @@ export class Tasks {
       return;
     }
     if (this.destroyed) {return;}
-    const events = [
-      ...options.activities.map((item) => ({ value: `activity:${item.id}`, label: item.name, date: item.date })),
-      ...options.meetings.map((item) => ({ value: `meeting:${item.id}`, label: item.name || translate('tasks_meeting'), date: item.date })),
+    const today = localIsoDate(new Date());
+    const eventOptions = [
+      ...options.activities.map((item) => ({ value: `activity:${item.id}`, label: item.name, date: item.date, endDate: item.end_date || item.date })),
+      ...options.meetings.map((item) => ({ value: `meeting:${item.id}`, label: item.name || translate('tasks_meeting'), date: item.date, endDate: item.date })),
     ];
+    const events = eventOptions.filter((item) => item.endDate >= today)
+      .sort((a, b) => a.date.localeCompare(b.date));
     const eventValue = task ? `${task.activity_id ? 'activity' : 'meeting'}:${task.activity_id || task.meeting_id}` : (prefill.event || this.contextEvent(events));
     if (task && !events.some((item) => item.value === eventValue)) {
-      events.push({ value: eventValue, label: this.eventName(task), date: task.meeting_date });
+      events.push(eventOptions.find((item) => item.value === eventValue)
+        || { value: eventValue, label: this.eventName(task), date: task.meeting_date });
     }
     const reminder = task?.equipment_reminder || null;
     const title = task?.title || prefill.title || '';
     const modal = openModal({
       id: 'tasks-editor', title: translate(task ? 'tasks_edit' : 'tasks_create'),
+      initialFocus: task ? '#tasks-assignee' : null,
       closeOnBackdrop: false,
       canClose: () => document.getElementById('tasks-form')?.getAttribute('aria-busy') !== 'true',
       body: `<form id="tasks-form" class="task-editor">
@@ -512,7 +552,9 @@ export class Tasks {
         await this.init();
         if (!this.destroyed) {
           const target = task ? document.querySelector(`[data-task-edit="${task.id}"]`) : document.getElementById('tasks-create');
-          (target || document.getElementById('tasks-retry'))?.focus();
+          const folded = target?.closest('details');
+          if (folded) {folded.open = true;}
+          (target || document.getElementById('tasks-retry') || document.getElementById('tasks-view-mine'))?.focus();
         }
       });
     });

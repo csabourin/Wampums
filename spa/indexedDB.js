@@ -2,6 +2,7 @@ import { debugLog, debugError, debugWarn } from './utils/DebugUtils.js';
 import { buildApiCacheKey, buildScopedCacheKey, normalizeApiPath } from './utils/OfflineCacheKeys.js';
 import { notePageCacheHit, notePageCacheKey } from './modules/live-sync/LiveSyncState.js';
 import { MS_PER_HOUR } from './utils/TimeUnits.js';
+import { OFFLINE_READS } from './config/offline-reads.js';
 
 const DB_NAME = 'WampumsAppDB';
 const DB_VERSION = 12;
@@ -126,6 +127,30 @@ export async function setCachedData(key, data, expirationTime = 2 * MS_PER_HOUR,
   });
 }
 
+/**
+ * Until when a cached record may still be shown offline: its freshness, or
+ * OFFLINE_READS.RETENTION_MS after the server confirmed it, whichever is later.
+ * @param {{timestamp?: number, expiration?: number}} record - Stored record
+ * @returns {number} Epoch milliseconds
+ */
+export function offlineReadableUntil(record) {
+  const expiration = Number(record?.expiration) || 0;
+  const confirmedAt = Number(record?.timestamp);
+  if (!Number.isFinite(confirmedAt)) {
+    return expiration;
+  }
+  return Math.max(expiration, confirmedAt + OFFLINE_READS.RETENTION_MS);
+}
+
+/**
+ * Read a cached response that is still fresh. An expired record is left in
+ * place: it is the copy a read falls back to when the network then fails
+ * (getCachedDataIgnoreExpiration), and deleting it here would erase the last
+ * good data the moment the device lost its connection. pruneOfflineCache()
+ * removes records past their retention.
+ * @param {string} key - Cache key
+ * @returns {Promise<*>} Fresh cached data, or null
+ */
 export async function getCachedData(key) {
   const db = await openDB();
   const scopedKey = buildScopedCacheKey(key);
@@ -144,27 +169,11 @@ export async function getCachedData(key) {
 
     request.onsuccess = () => {
       const record = request.result;
-      debugLog(request, ' Retrieved record:', record);
-
       if (record && record.expiration > Date.now()) {
-        debugLog('Returning valid cached data:', record.data);
         notePageCacheHit(scopedKey);
         resolve(record.data);
       } else {
-        if (!record) {
-          debugLog('No data found for key:', scopedKey);
-        } else {
-          debugLog(
-            'Data expired for key:',
-            scopedKey,
-            Date.now(),
-            ` exp:`,
-            record.expiration,
-          );
-          const cleanupTx = db.transaction(STORE_NAME, 'readwrite');
-          const cleanupStore = cleanupTx.objectStore(STORE_NAME);
-          cleanupStore.delete(scopedKey);
-        }
+        debugLog(record ? 'Cached data is stale, kept for offline use:' : 'No data found for key:', scopedKey);
         resolve(null);
       }
     };
@@ -176,9 +185,9 @@ export async function getCachedData(key) {
 }
 
 /**
- * Retrieve cached data ignoring expiration.
- * Used exclusively for offline fallback paths where stale data is
- * preferable to no data at all. Does not delete expired records.
+ * Retrieve cached data ignoring freshness, for offline fallback paths where
+ * stale data is preferable to none. A record past its offline retention is
+ * not returned.
  * @param {string} key - Cache key
  * @returns {Promise<*>} Cached data or null if not found
  */
@@ -200,18 +209,74 @@ export async function getCachedDataIgnoreExpiration(key) {
 
     request.onsuccess = () => {
       const record = request.result;
-      if (record) {
+      if (record && offlineReadableUntil(record) > Date.now()) {
         debugLog('Returning cached data (ignoring expiration) for key:', scopedKey);
         notePageCacheHit(scopedKey);
         resolve(record.data);
       } else {
-        debugLog('No data found for key:', scopedKey);
+        debugLog(record ? 'Cached data is past its offline retention:' : 'No data found for key:', scopedKey);
         resolve(null);
       }
     };
 
     tx.oncomplete = () => {
       db.close();
+    };
+  });
+}
+
+/**
+ * When the server last confirmed a cached copy, whether or not it is fresh.
+ * @param {string} key - Cache key
+ * @returns {Promise<number|null>} Epoch milliseconds, or null without a copy
+ */
+export async function getCachedConfirmedAt(key) {
+  const db = await openDB();
+  const scopedKey = buildScopedCacheKey(key);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const request = tx.objectStore(STORE_NAME).get(scopedKey);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const confirmedAt = Number(request.result?.timestamp);
+      resolve(Number.isFinite(confirmedAt) ? confirmedAt : null);
+    };
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
+ * Delete cached responses past their offline retention (offlineReadableUntil).
+ * Queued changes and other non-cache records are never touched.
+ * @returns {Promise<number>} Number of records removed
+ */
+export async function pruneOfflineCache() {
+  const db = await openDB();
+  const now = Date.now();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.index('type_idx').openCursor(IDBKeyRange.only('cache'));
+    let removed = 0;
+
+    request.onsuccess = (event) => {
+      const cursor = event.target.result;
+      if (!cursor) {return;}
+      if (offlineReadableUntil(cursor.value) <= now) {
+        cursor.delete();
+        removed += 1;
+      }
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error);
+    tx.oncomplete = () => {
+      db.close();
+      resolve(removed);
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(tx.error);
     };
   });
 }
