@@ -363,7 +363,18 @@ test.describe('keyboard', () => {
         await page.keyboard.press('Tab');
         // eslint-disable-next-line no-await-in-loop -- measured where that key press left focus
         const stop = await page.evaluate(async () => {
-          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          // html scrolls smoothly: measure once focus's scroll has finished,
+          // not partway through it (two still frames, since it may not have begun).
+          const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+          await frame();
+          let still = 0;
+          let previous = window.scrollY;
+          while (still < 2) {
+            // eslint-disable-next-line no-await-in-loop -- waits frame by frame until scrolling stops
+            await frame();
+            still = window.scrollY === previous ? still + 1 : 0;
+            previous = window.scrollY;
+          }
           const element = document.activeElement;
           const button = document.getElementById('dashboard-fab');
           if (!element || element === document.body || !button) {
