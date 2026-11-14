@@ -16,7 +16,8 @@
  *
  * A read is repeated once its copy is older than BASELINE_ENTRY_MAX_AGE_MS,
  * a few at a time. Copies stay readable offline for OFFLINE_READS.RETENTION_MS
- * after the server confirmed them; older ones are pruned here. Reads listed in
+ * after the server confirmed them; older ones are pruned here, and a copy the
+ * server refuses (403/404) is deleted by api-core. Reads listed in
  * NETWORK_ONLY_READS are never kept (devdocs/OFFLINE_EVERYDAY.md).
  */
 import { OFFLINE_READS } from '../../config/offline-reads.js';
@@ -27,6 +28,9 @@ import {
   getAttendance,
   getAttendanceDates,
   getAttendanceReport,
+  fetchAllergiesReport,
+  fetchHealthReport,
+  fetchMedicationReport,
   getBadgeTrackerSummary,
   getGroups,
   getGuests,
@@ -46,6 +50,8 @@ import { getUpcomingCamps } from '../../api/api-camp-readiness.js';
 import { getCampMaterialList } from '../../api/api-camp-material.js';
 import { getPersonalEquipmentTasks } from '../../api/api-personal-equipment.js';
 import { getVolunteerSpace, getVolunteerSpaceCamp } from '../../api/api-volunteer-space.js';
+import { getCampContacts } from '../../api/api-member-profile.js';
+import { getCampRoster } from '../../api/api-camp-rosters.js';
 import { getActivityEndDateObj, getActivityStartDateObj } from '../../utils/ActivityDateUtils.js';
 import { hasPermission, hasAnyPermission, hasOrganizationScope, holdsFamilyRole } from '../../utils/PermissionUtils.js';
 import { buildScopedCacheKey } from '../../utils/OfflineCacheKeys.js';
@@ -168,7 +174,9 @@ export const BASELINE_READS = Object.freeze([
   {
     name: 'reports',
     allowed: canReadUnitReports,
-    read: () => Promise.all([getPointsReport(), getHonorsReport(), getAttendanceReport()]),
+    // Health, allergies and medication too: vital at camp, where there is no signal.
+    read: () => Promise.all([getPointsReport(), getHonorsReport(), getAttendanceReport(),
+      fetchHealthReport(), fetchAllergiesReport(), fetchMedicationReport()]),
   },
   {
     name: 'activities_and_carpools',
@@ -188,9 +196,10 @@ export const BASELINE_READS = Object.freeze([
     read: async () => {
       const response = await getUpcomingCamps();
       const camps = Array.isArray(response?.data) ? response.data : [];
-      await Promise.all(camps.slice(0, OFFLINE_READS.BASELINE_MAX_CAMPS)
-        .map((camp) => camp?.id).filter(Boolean)
-        .map((meetingId) => getCampMaterialList(meetingId, FRESH)));
+      const meetingIds = camps.slice(0, OFFLINE_READS.BASELINE_MAX_CAMPS).map((camp) => camp?.id).filter(Boolean);
+      // The camp's lists, team health included (routes/camp-rosters.js: participants.view too).
+      const rosters = hasPermission('participants.view') ? meetingIds.map((meetingId) => getCampRoster(meetingId)) : [];
+      await Promise.all([...meetingIds.map((meetingId) => getCampMaterialList(meetingId, FRESH)), ...rosters]);
       return response;
     },
   },
@@ -207,7 +216,8 @@ export const BASELINE_READS = Object.freeze([
       const camps = Array.isArray(overview?.data?.camps) ? overview.data.camps : [];
       const ids = camps.map((camp) => camp?.activity_id).filter(Boolean)
         .slice(0, OFFLINE_READS.BASELINE_MAX_CAMPS);
-      await Promise.all(ids.map((id) => getVolunteerSpaceCamp(id)));
+      // Each camp and the consented contacts of its team, to reach someone without signal.
+      await Promise.all(ids.flatMap((id) => [getVolunteerSpaceCamp(id), getCampContacts(id)]));
       return overview;
     },
   },

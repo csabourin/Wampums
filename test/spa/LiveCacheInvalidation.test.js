@@ -383,7 +383,7 @@ describe('what live sync fetches again before redrawing a screen', () => {
   test('a read no cache keeps cannot be fetched in advance', async () => {
     await API.get('v1/groups', {}, { cacheKey: 'groups' });
     // Network-only: never kept (NETWORK_ONLY_READS). Other fresh reads now keep a copy.
-    await API.getNoCache('v1/member-profile/me');
+    await API.getNoCache('v1/roles/matrix');
 
     expect(pageReadsAreReplayable()).toBe(false);
 

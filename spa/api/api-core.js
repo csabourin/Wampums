@@ -4,7 +4,8 @@ import {
   setCachedData,
   getCachedData,
   getCachedDataIgnoreExpiration,
-  clearCachedApiPaths
+  clearCachedApiPaths,
+  deleteCachedData
 } from '../indexedDB.js';
 import { CONFIG } from '../config.js';
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
@@ -29,6 +30,9 @@ import {
 import { HTTP_STATUS } from '../utils/HttpStatus.js';
 import { isNetworkOnlyRead } from '../config/offline-reads.js';
 import { noteOfflineRead } from '../utils/OfflineReadRegistry.js';
+
+/** Answers that confirm a read is no longer this person's to see: its offline copy is deleted. */
+const REVOKING_STATUSES = new Set([HTTP_STATUS.FORBIDDEN, HTTP_STATUS.NOT_FOUND, HTTP_STATUS.GONE]);
 
 /** Marks a body the service worker answered from its own copy (handleResponse). */
 const SERVED_FROM_DEVICE_CACHE = Symbol('servedFromDeviceCache');
@@ -733,6 +737,12 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
 
       return result;
     } catch (requestError) {
+      // The server confirmed this person may no longer read it (access
+      // withdrawn, record deleted): the copy kept for offline use goes too.
+      if (REVOKING_STATUSES.has(requestError.status)) {
+        await Promise.resolve().then(() => deleteCachedData(cacheKey))
+          .catch((error) => debugError('Failed to drop a refused copy:', error));
+      }
       // Only connectivity failures may use expired data. HTTP 4xx/5xx
       // responses must reach callers so authorization and validation
       // failures cannot be hidden by stale cache entries.

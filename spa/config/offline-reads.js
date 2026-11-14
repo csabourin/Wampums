@@ -42,17 +42,15 @@ export const OFFLINE_READS = Object.freeze({
 /**
  * Reads that are never kept on the device. Every other read keeps a copy for
  * offline use, `API.getNoCache` included (network first, copy as fallback).
- * Each entry says why; a new one needs a reason of the same weight.
+ * Each entry says why; a new one needs a reason of the same weight. Being
+ * personal or sensitive is not, by itself, such a reason: what a leader needs
+ * at camp without signal is kept.
  */
 export const NETWORK_ONLY_READS = Object.freeze([
-  // Personal contacts, health and certifications (devdocs/MEMBER_PROFILE.md).
-  { pattern: /^v1\/member-profile\//, reason: 'personal contacts and health' },
-  { pattern: /^v1\/member-allergies\//, reason: 'personal health' },
-  { pattern: /^v1\/member-certifications\//, reason: 'personal certifications' },
-  // Consent to share a phone cannot be checked offline (devdocs/VOLUNTEER_SPACE.md).
-  { pattern: /^v1\/volunteer-space\/camps\/[^/]+\/contacts\/?$/, reason: 'revocable consented contacts' },
-  // Adult health forms of the camp team (devdocs/CAMP_ROSTERS.md).
-  { pattern: /^v1\/camp-rosters\//, reason: 'camp team health' },
+  // Contacts, allergies and health ARE kept: at camp, reaching a volunteer who consented, or
+  // knowing a youth's allergy, matters more than an instant withdrawal on a device without
+  // signal. The next online read replaces the copy, and a refusal deletes it
+  // (devdocs/OFFLINE_EVERYDAY.md, devdocs/MEMBER_PROFILE.md).
   // Submitted plans name youth and allergies (src-sw.js isPersonalProfileRequest).
   { pattern: /^v1\/camp-plans\/camps\/[^/]+\/versions(?:\/|$)/, reason: 'submitted camp plan versions' },
   // Secrets and links that expire.

@@ -27,10 +27,17 @@ adds a camp's data on top of this.
   `API.getNoCache` always asks the server but now keeps the answer too, so a screen still opens
   without a connection. Online, both still show the server's answer.
 - **Exceptions are explicit.** `NETWORK_ONLY_READS` (`spa/config/offline-reads.js`) lists the reads
-  never kept, each with its reason: personal contacts, health and certifications, consented camp
-  contacts, camp team health, submitted plan versions, secrets and expiring links, and the editors of
-  changes only the server can make (roles, invitations, transfers, scout-year change…). `api-core`
-  refuses to cache them whichever function asks. A new exception needs a reason of the same weight.
+  never kept, each with its reason: submitted plan versions, secrets and expiring links, live access
+  checks, and the editors of changes only the server can make (roles, invitations, transfers,
+  scout-year change…). `api-core` refuses to cache them whichever function asks. A new exception
+  needs a reason of the same weight; being personal or sensitive is not one by itself.
+- **Contacts, allergies and health are kept.** Consented camp contacts, the camp roster with team
+  health, health, allergy and medication reports, and one's own profile are read online every time and
+  kept for offline use. At camp without signal, reaching a volunteer who had consented, or knowing a
+  youth's allergy, matters more than an instant withdrawal the device cannot know of. Withdrawal still
+  applies at the next online read, which replaces the copy.
+- **A refusal deletes the copy.** A read answered 403, 404 or 410 deletes its offline copy
+  (`REVOKING_STATUSES` in `api-core`): access withdrawn or a record removed is not shown again.
 - `getCachedData` never deletes an expired record: freshness decides whether to ask the server,
   not whether the copy survives. After a failed request, `getCachedDataIgnoreExpiration` serves it.
 - A copy stays readable offline until `OFFLINE_READS.RETENTION_MS` (14 days) after the server
@@ -54,7 +61,8 @@ server refuses (4xx) is not asked again that session. It asks the browser for pe
    behind the permission its endpoint requires: my tasks, next meeting, parent contact list, parent
    dashboard, participants, groups, attendance dates, points, honors, badges, unit reports (points,
    honors, attendance), activities and the carpools of the next ones, material lists of upcoming camps,
-   personal equipment, volunteer space and its camps. For today, the next `BASELINE_DAYS_AHEAD` days and
+   personal equipment, volunteer space with its camps and their consented contacts, the rosters of
+   upcoming camps (team health included), and the health, allergy and medication reports. For today, the next `BASELINE_DAYS_AHEAD` days and
    the next meeting: the action roster, attendance, guests, honors and programme of that day.
 2. **Registry** (`spa/utils/OfflineReadRegistry.js`): every cached read a screen made (endpoint,
    query, cache key), per account, unit and year, most recent first, bounded and forgotten after the

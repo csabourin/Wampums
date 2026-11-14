@@ -9,6 +9,7 @@ jest.mock('../../spa/api/api-helpers.js', () => ({
 jest.mock('../../spa/indexedDB.js', () => ({
   setCachedData: jest.fn(), getCachedData: jest.fn(() => Promise.resolve(null)),
   getCachedDataIgnoreExpiration: jest.fn(() => Promise.resolve(null)), clearCachedApiPaths: jest.fn(),
+  deleteCachedData: jest.fn(() => Promise.resolve()),
 }));
 jest.mock('../../spa/utils/PerformanceUtils.js', () => ({ PerformanceMonitor: { logAPICall: jest.fn() } }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({
@@ -219,11 +220,41 @@ test('a fresh read that fails offline shows the last copy instead of an error', 
   expect(result.data).toEqual(['kept copy']);
 });
 
-test('personal health is never kept on the device, whichever read asks for it', async () => {
+test('consented camp contacts are kept for camp without signal, and shown from the device offline', async () => {
+  const { setCachedData, getCachedDataIgnoreExpiration } = require('../../spa/indexedDB.js');
+  global.fetch.mockResolvedValueOnce(response([{ name: 'Ada Lovelace', phone: '555-0100' }]));
+  await API.getNoCache('v1/volunteer-space/camps/4/contacts');
+  expect(setCachedData).toHaveBeenCalledTimes(1);
+
+  getCachedDataIgnoreExpiration.mockResolvedValueOnce({ success: true, data: [{ name: 'Ada Lovelace' }] });
+  global.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+  const offline = await API.getNoCache('v1/volunteer-space/camps/4/contacts');
+  expect(offline.data).toEqual([{ name: 'Ada Lovelace' }]);
+});
+
+test.each([403, 404])('a read the server answers %i deletes the copy kept on the device', async (status) => {
+  const { deleteCachedData } = require('../../spa/indexedDB.js');
+  global.fetch.mockResolvedValueOnce({
+    ok: false, status, statusText: 'refused',
+    headers: { get: (name) => (name.toLowerCase() === 'content-type' ? 'application/json' : null) },
+    json: () => Promise.resolve({ success: false, message: 'forbidden' }),
+  });
+  await expect(API.getNoCache('v1/camp-rosters/12')).rejects.toMatchObject({ status });
+  expect(deleteCachedData).toHaveBeenCalledWith(expect.stringContaining('v1/camp-rosters/12'));
+});
+
+test('a network failure never deletes the copy kept on the device', async () => {
+  const { deleteCachedData } = require('../../spa/indexedDB.js');
+  global.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+  await expect(API.getNoCache('v1/camp-rosters/12')).rejects.toBeTruthy();
+  expect(deleteCachedData).not.toHaveBeenCalled();
+});
+
+test('an online-only editor is never kept on the device, whichever read asks for it', async () => {
   const { setCachedData, getCachedData } = require('../../spa/indexedDB.js');
-  global.fetch.mockResolvedValue(response({ allergies: [] }));
-  await API.getNoCache('v1/member-profile/me/health');
-  await API.get('v1/member-profile/me/health');
+  global.fetch.mockResolvedValue(response({ roles: [] }));
+  await API.getNoCache('v1/roles/matrix');
+  await API.get('v1/roles/matrix');
   expect(setCachedData).not.toHaveBeenCalled();
   expect(getCachedData).not.toHaveBeenCalled();
 });

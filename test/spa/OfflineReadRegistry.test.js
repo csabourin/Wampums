@@ -31,11 +31,12 @@ test('a screen not used within the offline retention is forgotten, and the list 
   expect(kept[0].cacheKey).toBe(`v1/r${OFFLINE_READS.REGISTRY_MAX_ENTRIES + 9}`);
 });
 
-test('personal health, consented contacts and online-only editors are never kept; everyday screens are', () => {
-  ['v1/member-profile/me', 'v1/member-profile/me/health', 'v1/volunteer-space/camps/4/contacts', 'v1/camp-rosters/12',
-    'v1/camp-plans/camps/3/versions', 'v1/calendar-feed', 'v1/roles/matrix', '/api/v1/parent-invitations?kind=family']
+test('online-only editors and secrets are never kept; contacts, allergies and health are, for camp without signal', () => {
+  ['v1/camp-plans/camps/3/versions', 'v1/calendar-feed', 'v1/roles/matrix', '/api/v1/parent-invitations?kind=family',
+    'v1/users/me/access']
     .forEach((endpoint) => expect([endpoint, isNetworkOnlyRead(endpoint)]).toEqual([endpoint, true]));
-  ['v1/points', 'v1/dashboards/parent', 'v1/messages', 'v1/announcements', 'v1/camp-plans/camps/3',
-    'v1/volunteer-space/camps/4', 'v1/carpools/activity/9', 'v1/reports/mailing-list', 'v1/organizations/settings']
+  ['v1/points', 'v1/dashboards/parent', 'v1/messages', 'v1/camp-plans/camps/3', 'v1/volunteer-space/camps/4/contacts',
+    'v1/camp-rosters/12', 'v1/member-profile/me/health', 'v1/member-allergies/me', 'v1/reports/allergies',
+    'v1/carpools/activity/9']
     .forEach((endpoint) => expect([endpoint, isNetworkOnlyRead(endpoint)]).toEqual([endpoint, false]));
 });

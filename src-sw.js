@@ -277,8 +277,9 @@ registerRoute(
 );
 
 /**
- * Personal health, revocable camp contacts, and submitted camp plans (which name youth and
- * may name allergies) must never be stored or replayed offline.
+ * Personal health, camp contacts and submitted camp plans get no second copy in the worker's
+ * generic cache. The SPA keeps the one offline copy of what may be shown without signal
+ * (spa/config/offline-reads.js), where a refusal or sign-out deletes it.
  */
 function isPersonalProfileRequest({ url }) {
   return /^\/camp-branch-approval\/?$/.test(url.pathname)

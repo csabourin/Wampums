@@ -52,6 +52,7 @@
   "member_profile_camp_contacts": "Joindre les autres adultes",
   "member_profile_contacts_empty": "Aucune coordonnée partagée à afficher. Seuls les adultes de ce camp ayant consenti au partage sont affichés.",
   "member_profile_contacts_unavailable": "Coordonnées indisponibles. Une connexion est nécessaire pour vérifier les consentements actuels.",
+  "member_profile_contacts_offline_copy": "Copie gardée sur cet appareil : les consentements seront vérifiés de nouveau à la prochaine connexion.",
   "packing_editor_title": "Effets personnels",
   "packing_list_items": "Effets à préparer",
   "packing_context": "Paramètres · {season} · {nights} {unit}",

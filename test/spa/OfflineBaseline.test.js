@@ -25,7 +25,10 @@ jest.mock('../../spa/api/api-endpoints.js', () => ({
   getBadgeTrackerSummary: jest.fn(), getGroups: jest.fn(), getGuests: jest.fn(), getHonors: jest.fn(), getHonorsReport: jest.fn(),
   getNextMeetingInfo: jest.fn(), getParentContactList: jest.fn(), getParentDashboard: jest.fn(),
   getParticipants: jest.fn(), getPointsReport: jest.fn(),
+  fetchHealthReport: jest.fn(), fetchAllergiesReport: jest.fn(), fetchMedicationReport: jest.fn(),
 }));
+jest.mock('../../spa/api/api-member-profile.js', () => ({ getCampContacts: jest.fn() }));
+jest.mock('../../spa/api/api-camp-rosters.js', () => ({ getCampRoster: jest.fn() }));
 jest.mock('../../spa/api/api-activities.js', () => ({ getActivities: jest.fn() }));
 jest.mock('../../spa/api/api-action-roster.js', () => ({ getActionRoster: jest.fn() }));
 jest.mock('../../spa/api/api-programme.js', () => ({ getDayProgramme: jest.fn() }));
@@ -54,6 +57,8 @@ const { getUpcomingCamps } = require('../../spa/api/api-camp-readiness.js');
 const { getCampMaterialList } = require('../../spa/api/api-camp-material.js');
 const { getPersonalEquipmentTasks } = require('../../spa/api/api-personal-equipment.js');
 const { getVolunteerSpace, getVolunteerSpaceCamp } = require('../../spa/api/api-volunteer-space.js');
+const { getCampContacts } = require('../../spa/api/api-member-profile.js');
+const { getCampRoster } = require('../../spa/api/api-camp-rosters.js');
 const permissions = require('../../spa/utils/PermissionUtils.js');
 const { listOfflineReads } = require('../../spa/utils/OfflineReadRegistry.js');
 const { isArchiveMode } = require('../../spa/modules/scout-year/ScoutYearContext.js');
@@ -79,7 +84,7 @@ beforeEach(() => {
   isArchiveMode.mockReturnValue(false);
   listOfflineReads.mockReturnValue([]);
   getCachedConfirmedAt.mockResolvedValue(null);
-  [getMyTasks, getPersonalEquipmentTasks, getActionRoster, getDayProgramme, getCarpoolOffers, getCampMaterialList, getVolunteerSpaceCamp,
+  [getMyTasks, getPersonalEquipmentTasks, getActionRoster, getDayProgramme, getCampContacts, getCampRoster, getCarpoolOffers, getCampMaterialList, getVolunteerSpaceCamp,
     API.get, API.getNoCache, ...Object.values(endpoints)].forEach((fn) => fn.mockResolvedValue({ success: true, data: [] }));
   getActivities.mockResolvedValue([
     { id: 1, date_debut: isoInDays(3), date_fin: isoInDays(3), activity_start_date: isoInDays(3), activity_end_date: isoInDays(3) },
@@ -106,6 +111,12 @@ test('a leader online gets every main screen prepared without opening it', async
   expect(getCarpoolOffers.mock.calls).toEqual([[1]]);
   expect(getCampMaterialList.mock.calls).toEqual([[41, { forceRefresh: true }], [42, { forceRefresh: true }]]);
   expect(getVolunteerSpaceCamp.mock.calls).toEqual([[4], [9]]);
+  // At camp without signal: consented contacts, team health and the unit's health reports.
+  expect(getCampContacts.mock.calls).toEqual([[4], [9]]);
+  expect(getCampRoster.mock.calls).toEqual([[41], [42]]);
+  expect(endpoints.fetchHealthReport).toHaveBeenCalled();
+  expect(endpoints.fetchAllergiesReport).toHaveBeenCalled();
+  expect(endpoints.fetchMedicationReport).toHaveBeenCalled();
 });
 
 test('a parent gets their own dashboard, and is never sent reads the server would refuse', async () => {
