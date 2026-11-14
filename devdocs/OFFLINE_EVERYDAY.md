@@ -17,6 +17,11 @@ adds a camp's data on top of this.
 - A new server build does not purge anything on a page the worker controls
   (`checkForStaleClient`): the worker installs the build and the update prompt switches. Only a
   missing chunk proves a client broken and purges it.
+- Whether a page already runs the server's build is judged by the entry script both name
+  (`GET /api/v1/app-version` returns `entry`), not by the remembered build id, which keeps its old
+  value until the page really runs the new build. A missing chunk on an older build is therefore
+  recovered, and one on the current build (a network hiccup) is not. `FORCE_CLIENT_REFRESH`
+  (`forced: true`) still purges and reloads every client.
 - Accepting an update clears only the replaced build's HTML and unversioned translations
   (`spa/utils/UpdateCacheUtils.js`). IndexedDB (cached reads, queued changes) is never cleared by
   an update.

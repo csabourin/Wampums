@@ -46,6 +46,25 @@ function hashBuiltShell() {
 }
 
 /**
+ * The entry script the built shell loads (`/assets/main-<hash>.js`). A client
+ * compares it with the one its own page loaded to tell whether it already runs
+ * this build, which a remembered build id cannot tell.
+ *
+ * @returns {string|null} The entry script path, or null without a build.
+ */
+function builtEntryScript() {
+  try {
+    const html = fs.readFileSync(path.join(process.cwd(), 'dist', 'index.html'), 'utf8');
+    const match = String(html).match(/<script\b[^>]*\btype=["']module["'][^>]*\bsrc=["']([^"']+)["']/i);
+    return match ? match[1] : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+const BUILD_ENTRY = builtEntryScript();
+
+/**
  * Identifier for the currently running build.
  *
  * Resolution order:
@@ -75,6 +94,9 @@ module.exports = () => {
     return success(res, {
       version: packageVersion,
       build_id: BUILD_ID,
+      entry: BUILD_ENTRY,
+      // The operator asked every client to purge and reload, whatever it runs.
+      forced: Boolean(process.env.FORCE_CLIENT_REFRESH),
     });
   });
 
@@ -82,3 +104,4 @@ module.exports = () => {
 };
 
 module.exports.BUILD_ID = BUILD_ID;
+module.exports.BUILD_ENTRY = BUILD_ENTRY;
