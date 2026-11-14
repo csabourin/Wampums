@@ -26,10 +26,16 @@ describe('Service Worker Configuration', () => {
   });
 
   describe('Vite PWA Configuration', () => {
-    test('should exclude index.html from precaching to prevent stale asset references', () => {
-      // Verify index.html is in globIgnores to prevent caching old HTML with old asset hashes
-      expect(viteConfig).toContain('globIgnores');
-      expect(viteConfig).toMatch(/globIgnores.*index\.html/s);
+    test('the root index.html is installed with the build, so the app can start offline', () => {
+      // Only nested index.html files are ignored; the root one is the offline shell.
+      expect(viteConfig).toMatch(/globIgnores[\s\S]*'\*\/\*\*\/index\.html'/);
+      expect(viteConfig).not.toMatch(/'\*\*\/index\.html'/);
+    });
+
+    test('the installed index.html never answers navigations ahead of the network', () => {
+      // No directory index and no clean URLs: "/" and "/tasks" reach the
+      // network-first navigation handler, not the precache.
+      expect(serviceWorkerSource).toMatch(/precacheAndRoute\(offlineManifest, \{ directoryIndex: null, cleanURLs: false \}\)/);
     });
 
     test('should use injectManifest strategy for custom service worker logic', () => {

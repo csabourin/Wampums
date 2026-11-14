@@ -258,6 +258,27 @@ test('camp contacts are fetched separately and hostile names remain text', async
   expect(document.querySelector('#camp-peer-contacts a').getAttribute('href')).toBe('tel:5550100');
 });
 
+test('without signal, the contacts kept on this device are shown and labelled as a copy to be checked', async () => {
+  getCampContacts.mockResolvedValue({ data: [{ user_id: 'peer', name: 'Ada Lovelace', phone: '555-0100' }] });
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+  try {
+    await open(3);
+    const contacts = document.querySelector('#camp-peer-contacts');
+    expect(contacts.querySelector('[role="status"]').textContent).toContain('member_profile_contacts_offline_copy');
+    expect(contacts.querySelector('a').getAttribute('href')).toBe('tel:5550100');
+    const results = await axe.run(document.getElementById('app'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
+  } finally {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+  }
+});
+
+test('online, contacts carry no offline label', async () => {
+  getCampContacts.mockResolvedValue({ data: [{ user_id: 'peer', name: 'Ada Lovelace', phone: '555-0100' }] });
+  await open(3);
+  expect(document.querySelector('#camp-peer-contacts').textContent).not.toContain('member_profile_contacts_offline_copy');
+});
+
 test('unavailable contacts are explained without replacing the readable camp schedule, and can be retried', async () => {
   getCampContacts.mockRejectedValueOnce(new Error('offline'));
   await open(3);
