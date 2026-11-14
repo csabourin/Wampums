@@ -257,13 +257,14 @@ async function recoverFromConfirmedStaleClient(reason) {
   }
 
   const current = runsServerBuild(serverBuild);
-  if (current === true && !serverBuild.forced) {
+  const storedBuildId = readStoredBuildId();
+  // On the server's build, a chunk error is a network hiccup. A forced refresh
+  // still applies, but only once: its token, once stored, has been consumed.
+  if (current === true && (!serverBuild.forced || storedBuildId === serverBuild.buildId)) {
     writeStoredBuildId(serverBuild.buildId);
     debugWarn(`Skipping stale client recovery for ${reason}: this page runs the server's build`);
     return false;
   }
-
-  const storedBuildId = readStoredBuildId();
 
   if (current === null && !storedBuildId) {
     writeStoredBuildId(serverBuild.buildId);

@@ -191,6 +191,30 @@ describe('StaleClientRecovery chunk error safeguards', () => {
       expect(window.location.reload).toHaveBeenCalledTimes(1);
     });
 
+    test('a forced refresh already applied does not purge again on a later chunk hiccup', async () => {
+      entry('/assets/main-new.js');
+      localStorage.setItem('wampums.client.buildId', 'force-token');
+      serverAnswers({ build_id: 'force-token', entry: '/assets/main-new.js', forced: true });
+
+      listeners.unhandledrejection({ reason: new Error('Failed to fetch dynamically imported module') });
+      await flushAsyncWork();
+
+      expect(caches.delete).not.toHaveBeenCalled();
+      expect(window.location.reload).not.toHaveBeenCalled();
+    });
+
+    test('a forced refresh not yet applied purges on a chunk error, even on the current build', async () => {
+      entry('/assets/main-new.js');
+      localStorage.setItem('wampums.client.buildId', 'new-build');
+      serverAnswers({ build_id: 'force-token', entry: '/assets/main-new.js', forced: true });
+
+      listeners.unhandledrejection({ reason: new Error('Failed to fetch dynamically imported module') });
+      await flushAsyncWork();
+
+      expect(window.location.reload).toHaveBeenCalledTimes(1);
+      expect(localStorage.getItem('wampums.client.buildId')).toBe('force-token');
+    });
+
     test('an operator-forced refresh still purges and reloads every client', async () => {
       entry('/assets/main-new.js');
       navigator.serviceWorker.controller = {};
