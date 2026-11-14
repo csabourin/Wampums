@@ -12,3 +12,7 @@ export const changeTaskStatus = (id, status, expectedStatus, ownOnly = true) =>
 
 export const configureEquipmentReminder = (id, value) => API.put(`v1/tasks/${encodeURIComponent(id)}/equipment-reminder`, value);
 export const confirmEquipmentReminder = (id, revision) => API.post(`v1/tasks/mine/${encodeURIComponent(id)}/equipment-confirmation`, { revision });
+
+/** Whether the unit emails assignees about their tasks. */
+export const getTaskReminderSettings = () => API.getNoCache('v1/tasks/reminder-settings');
+export const saveTaskReminderSettings = (enabled) => API.put('v1/tasks/reminder-settings', { enabled });

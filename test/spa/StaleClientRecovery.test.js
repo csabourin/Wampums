@@ -110,4 +110,38 @@ describe('StaleClientRecovery chunk error safeguards', () => {
     expect(window.location.reload).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem('wampums.client.buildId')).toBe('new-build');
   });
+
+  test('a new deploy does not delete the installed app when a service worker controls the page', async () => {
+    const update = jest.fn().mockResolvedValue(undefined);
+    navigator.serviceWorker.controller = {};
+    navigator.serviceWorker.getRegistration = jest.fn().mockResolvedValue({ update });
+    localStorage.setItem('wampums.client.buildId', 'old-build');
+    fetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ data: { version: '3.1.0', build_id: 'new-build' } }),
+    });
+    const { checkForStaleClient } = require('../../spa/modules/app-recovery/StaleClientRecovery.js');
+
+    await expect(checkForStaleClient()).resolves.toBe(false);
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(navigator.serviceWorker.getRegistrations).not.toHaveBeenCalled();
+    expect(caches.delete).not.toHaveBeenCalled();
+    expect(window.location.reload).not.toHaveBeenCalled();
+    expect(localStorage.getItem('wampums.client.buildId')).toBe('new-build');
+  });
+
+  test('a new deploy still purges and reloads a page no service worker controls', async () => {
+    localStorage.setItem('wampums.client.buildId', 'old-build');
+    fetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ data: { version: '3.1.0', build_id: 'new-build' } }),
+    });
+    const { checkForStaleClient } = require('../../spa/modules/app-recovery/StaleClientRecovery.js');
+
+    await expect(checkForStaleClient()).resolves.toBe(true);
+
+    expect(caches.delete).toHaveBeenCalledWith('shell-cache');
+    expect(window.location.reload).toHaveBeenCalledTimes(1);
+  });
 });

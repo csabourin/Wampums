@@ -165,3 +165,54 @@ test('demo assignees cannot confirm a reminder', async () => {
   expect(res.status).toBe(403);
   expect(res.body.isDemo).toBe(true);
 });
+
+test.each([['get'], ['put']])('the unit\'s email reminder setting requires authentication to %s', async (method) => {
+  expect((await request(app)[method]('/api/v1/tasks/reminder-settings').send({ enabled: false })).status).toBe(401);
+});
+
+test('a member with only personal task rights cannot read or change the unit\'s email reminders', async () => {
+  permissions = ['tasks.view'];
+  const read = await request(app).get('/api/v1/tasks/reminder-settings').set('Authorization', `Bearer ${token()}`);
+  const write = await request(app).put('/api/v1/tasks/reminder-settings').set('Authorization', `Bearer ${token()}`).send({ enabled: false });
+  expect([read.status, write.status]).toEqual([403, 403]);
+  expect(write.body.required).toEqual(['tasks.manage']);
+  expect(write.body.missing).toEqual(['tasks.manage']);
+});
+
+test('email reminders are on until a unit turns them off', async () => {
+  const res = await request(app).get('/api/v1/tasks/reminder-settings').set('Authorization', `Bearer ${token()}`);
+  expect(res.status).toBe(200);
+  expect(res.body.data).toEqual({ enabled: true, lead_days: 2 });
+});
+
+test('a task manager turns the unit\'s email reminders off for their own unit only', async () => {
+  const res = await request(app).put('/api/v1/tasks/reminder-settings').set('Authorization', `Bearer ${token()}`)
+    .send({ enabled: false, organization_id: 99 });
+  expect(res.status).toBe(200);
+  expect(res.body.data.enabled).toBe(false);
+  const write = db.query.mock.calls.find(([sql]) => sql.includes('INSERT INTO organization_settings'));
+  expect(write[1]).toEqual([7, 'task_email_reminders', JSON.stringify({ enabled: false })]);
+});
+
+test('a reminder setting that is not on or off is refused', async () => {
+  const res = await request(app).put('/api/v1/tasks/reminder-settings').set('Authorization', `Bearer ${token()}`).send({ enabled: 'maybe' });
+  expect(res.status).toBe(400);
+  expect(db.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO organization_settings'))).toBe(false);
+});
+
+test('a demo account cannot change the unit\'s email reminders', async () => {
+  demo = true;
+  const res = await request(app).put('/api/v1/tasks/reminder-settings').set('Authorization', `Bearer ${token()}`).send({ enabled: false });
+  expect(res.status).toBe(403);
+  expect(res.body.isDemo).toBe(true);
+});
+
+test('assigning a task to someone else queues their email notice in the same transaction', async () => {
+  const other = '00000000-0000-4000-8000-000000000002';
+  const res = await request(app).post('/api/v1/tasks').set('Authorization', `Bearer ${token()}`).send({ ...payload, assignee_id: other });
+  expect(res.status).toBe(201);
+  const queued = db.query.mock.calls.find(([sql]) => sql.includes('INSERT INTO task_reminder_deliveries'));
+  expect(queued).toBeDefined();
+  const order = db.query.mock.calls.map(([sql]) => sql);
+  expect(order.indexOf(queued[0])).toBeLessThan(order.indexOf('COMMIT'));
+});
