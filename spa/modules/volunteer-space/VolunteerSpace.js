@@ -390,15 +390,21 @@ export class VolunteerSpace {
     return parts;
   }
 
-  /** Consent may have been withdrawn: peer contacts never use an offline or cached answer. */
+  /**
+   * Peer contacts: read online every time, so a withdrawn consent disappears at the next read.
+   * Without a connection, the copy kept on this device is shown, saying so: reaching a
+   * volunteer at camp matters more than a withdrawal the device cannot yet know of.
+   */
   async loadContacts() {
     try {
       const result = await getCampContacts(this.activityId);
       if (this.stale()) { return; }
       const people = Array.isArray(result.data) ? result.data : [];
-      setContent(document.getElementById('camp-peer-contacts'), people.length
+      const offlineNote = navigator.onLine === false
+        ? `<p class="volunteer-space__offline-note" role="status">${escapeHTML(translate('member_profile_contacts_offline_copy'))}</p>` : '';
+      setContent(document.getElementById('camp-peer-contacts'), offlineNote + (people.length
         ? `<ul class="volunteer-space__tasks">${people.map((person) => `<li><strong>${escapeHTML(person.nickname || person.name)}</strong> ${phoneLink(person.phone)}</li>`).join('')}</ul>`
-        : `<p>${escapeHTML(translate('member_profile_contacts_empty'))}</p>`);
+        : `<p>${escapeHTML(translate('member_profile_contacts_empty'))}</p>`));
     } catch (_err) {
       if (this.stale()) { return; }
       setContent(document.getElementById('camp-peer-contacts'), `<p role="alert">${escapeHTML(translate('member_profile_contacts_unavailable'))}</p>

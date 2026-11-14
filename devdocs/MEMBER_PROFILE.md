@@ -25,8 +25,13 @@ answers 404. The answer lists only currently active, consenting adults of this c
 caller: name, nickname and phone. A known adult birth date is required both for the reader and the
 listed member; minors and unknown ages never disclose or receive peer contacts. Health and emergency
 contacts are never in this response. Revoking consent or leaving the unit removes the phone on the
-next read. These contacts never enter IndexedDB or the service-worker cache; without a connection,
-the screen explains that current consent cannot be checked, while the camp's schedule remains usable.
+next read online. The last answer is kept on the device (IndexedDB, never the service-worker cache)
+for 14 days, so a leader can still reach a volunteer who had consented while there is no signal: at
+camp, reaching someone matters more than a withdrawal the device cannot yet know of. Offline, the
+screen says it shows the copy kept on this device and that consents will be checked at the next
+connection. A refusal (403/404) deletes the copy; sign-out deletes everything
+(`devdocs/OFFLINE_EVERYDAY.md`). With no copy and no connection, the screen says contacts are
+unavailable, while the camp's schedule remains usable.
 
 ## Camp health
 
@@ -34,7 +39,8 @@ The camp roster includes `adult_health_forms` only with `camp_allergies.view` an
 under its existing `meetings.view` / `participants.view` gate. It reads personal health and emergency
 contacts for active members of that camp's team only. Departed team members stay on the team list,
 with no personal health information. An absent health form explicitly says it has not been completed.
-Roster health reads are also network-only.
+Roster health reads are kept on the device the same way, for the same reason: allergies and
+health forms are vital at camp without signal.
 
 ## Minimum age
 
@@ -54,7 +60,8 @@ self-only writes, consent/revocation, health gates and minimum-age boundaries. R
 authentication, demo restrictions and validation. Profile and volunteer-space jsdom suites cover
 escaping, retry, late answers, single writes and axe. Both account and volunteer-space routes already
 belong to the real-browser accessibility suite. `test/service-worker-personal-profile.test.js` checks
-that these sensitive endpoints bypass offline caches.
+that the service worker keeps no second copy of these endpoints; the SPA's own offline copy is
+covered by `test/spa/ApiRequestLifecycle.test.js`.
 
 The account now groups these forms by task rather than stacking every setting. Contact forms use
 compact optional disclosures, with the same data and save contract; see `devdocs/ACCOUNT.md`.

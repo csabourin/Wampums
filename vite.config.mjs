@@ -339,7 +339,11 @@ export default defineConfig({
         globIgnores: [
           '**/node_modules/**',
           'service-worker.js',
-          '**/index.html', // Exclude index.html to prevent stale asset references
+          // The root index.html is precached on purpose: it is the offline
+          // shell, installed with the very scripts it names. Online, navigations
+          // still go to the network first (src-sw.js). Other index.html files
+          // belong to pages the app never starts from.
+          '*/**/index.html',
           // Every visitor installs the precache right after their first load, in
           // competition with the screen they opened. Keep it to the app shell:
           // badge art and unit logos are cached by the image route when shown;
