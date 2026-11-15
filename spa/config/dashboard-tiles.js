@@ -27,6 +27,7 @@
  *               { permission: "x.view" }      hasPermission
  *               { any: ["a.view", "b.view"] } hasAnyPermission
  *               { check: "adminPanel" }       named PermissionUtils helper
+ *               { check: "volunteersWithoutSpace" } volunteers.view without volunteer_space.view
  *   id        optional DOM id, for tiles with extra click behaviour
  */
 
@@ -63,13 +64,16 @@ export const DASHBOARD_TILES = [
     gate: { permission: 'volunteer_space.view' },
   },
   {
+    // One entry for volunteering (#1427): the volunteer space leads to the open places and, for
+    // managers, to managing them. This tile only remains for a role that can take places
+    // without holding the space.
     href: '/volunteers',
     icon: 'fa-handshake-angle',
     label: 'tile_volunteers',
     moment: 'plan',
     priority: 70,
     domain: 'logistics',
-    gate: { permission: 'volunteers.view' },
+    gate: { check: 'volunteersWithoutSpace' },
   },
   // ---------------------------------------------------------------
   // EN CE MOMENT — actions tied to a meeting happening right now.

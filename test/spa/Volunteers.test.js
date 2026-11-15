@@ -11,7 +11,11 @@ const mockPermissions = new Set();
 jest.mock('../../spa/config.js', () => ({ CONFIG: {}, getStorageKey: (key) => key }));
 jest.mock('../../spa/app.js', () => ({ translate: (key) => key }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({ debugLog: jest.fn(), debugError: jest.fn(), debugWarn: jest.fn() }));
-jest.mock('../../spa/utils/PermissionUtils.js', () => ({ hasPermission: jest.fn((key) => mockPermissions.has(key)) }));
+jest.mock('../../spa/utils/PermissionUtils.js', () => ({
+  hasPermission: jest.fn((key) => mockPermissions.has(key)),
+  hasAnyPermission: jest.fn((...keys) => keys.some((key) => mockPermissions.has(key))),
+  canAccessAdminPanel: jest.fn(() => false),
+}));
 jest.mock('../../spa/api/api-volunteers.js', () => ({
   getVolunteerShifts: jest.fn(), getVolunteerShiftActivities: jest.fn(), saveVolunteerShift: jest.fn(),
   deleteVolunteerShift: jest.fn(), signUpForShift: jest.fn(), withdrawFromShift: jest.fn(), removeVolunteer: jest.fn(),
@@ -29,6 +33,8 @@ import {
 } from '../../spa/api/api-volunteers.js';
 import { getMemberCertifications, verifyMemberCertification } from '../../spa/api/api-member-certifications.js';
 import { Volunteers } from '../../spa/modules/volunteers/Volunteers.js';
+import { TabbedPage } from '../../spa/modules/TabbedPage.js';
+import { TABBED_PAGES } from '../../spa/config/tabbed-pages.js';
 import { closeAllModals } from '../../spa/utils/ModalUtils.js';
 
 const AXE_OPTIONS = {
@@ -53,8 +59,13 @@ let screen;
 const app = { lang: 'fr', showMessage: jest.fn() };
 const byShift = (title) => [...document.querySelectorAll('.volunteers__shift')].find((item) => item.querySelector('h3').textContent === title);
 
-async function open() {
-  screen = new Volunteers(app);
+/**
+ * Open one tab of /volunteers: by default "Management" for a manager (the tests that grant
+ * `volunteers.manage` are about managing), "Open places" for anyone else.
+ * @param {'take'|'manage'} [view]
+ */
+async function open(view = mockPermissions.has('volunteers.manage') ? 'manage' : 'take') {
+  screen = new Volunteers(app, { view });
   await screen.init();
 }
 
@@ -79,7 +90,7 @@ test('a volunteer sees each shift under its camp, with the places left written o
   await open();
   expect(document.querySelector('h1').textContent).toBe('volunteers_title');
   expect(document.querySelector('.volunteers__activity h2').textContent).toBe('Camp de la Toussaint');
-  expect(byShift('Cuisine').textContent).toContain('volunteers_places_free');
+  expect(byShift('Cuisine').textContent).toContain('volunteers_free_places');
   expect(byShift('Veille de nuit').textContent).toContain('volunteers_full');
   expect(byShift('Veille de nuit').querySelector('[data-sign-up]')).toBeNull();
   expect(byShift('Transport').textContent).toContain('volunteers_your_place');
@@ -287,6 +298,11 @@ describe('types and what they require', () => {
     })] });
     await open();
     expect(document.querySelector('.volunteers__mine--pending').textContent).toBe('volunteers_your_place_pending');
+    // How many places are held pending is the managers' business.
+    expect(document.querySelector('.volunteers__places').textContent).not.toContain('volunteers_pending_count');
+    screen.destroy();
+    mockPermissions.add('volunteers.manage');
+    await open('manage');
     expect(document.querySelector('.volunteers__places').textContent).toContain('volunteers_pending_count');
   });
 
@@ -478,6 +494,14 @@ describe('background checks of the whole team', () => {
     expect(getTeamChecks).not.toHaveBeenCalled();
   });
 
+  test('on "Open places", a manager sees no checks either, and the list is not requested', async () => {
+    await open('take');
+    expect(document.getElementById('volunteers-checks')).toBeNull();
+    expect(document.getElementById('volunteers-add')).toBeNull();
+    expect(document.querySelector('[data-edit]')).toBeNull();
+    expect(getTeamChecks).not.toHaveBeenCalled();
+  });
+
   test('recording a check asks the day it was done, says it lasts three years, and refuses a missing date', async () => {
     getVolunteerRequirements.mockResolvedValue({ data: [] });
     saveVolunteerRequirements.mockResolvedValue({ data: { confirmed: 0 } });
@@ -504,5 +528,97 @@ describe('background checks of the whole team', () => {
     expect(saveVolunteerRequirements).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000011', {
       background_check: { checked_on: '2026-10-01' },
     });
+  });
+});
+
+describe('"Open places": one line per shift, details on request', () => {
+  test('a shift reads on one line: what, a short day, places left and the button; the rest is folded', async () => {
+    await open();
+    const aide = byShift('volunteer_type_camp_aide');
+    expect(aide.querySelector('.volunteers__places').textContent).toBe('volunteers_free_places');
+    expect(aide.querySelector('[data-sign-up]')).not.toBeNull();
+    const toggle = aide.querySelector('[data-details]');
+    const details = document.getElementById(toggle.getAttribute('aria-controls'));
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.getAttribute('aria-label')).toBe('volunteers_details_of');
+    expect(details.hidden).toBe(true);
+    expect(details.textContent).toContain('volunteers_requires');
+    // A shift with nothing to unfold offers no toggle.
+    expect(byShift('Cuisine').querySelector('[data-details]')).toBeNull();
+    expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
+  });
+
+  test('the details unfold and fold again, and stay open when the list is filtered', async () => {
+    getVolunteerShifts.mockResolvedValue({ data: [shift({ id: 5, title: 'Cuisine', slots: 3, taken: 0, notes: 'Menu : pâtes' })] });
+    await open();
+    document.querySelector('[data-details="5"]').click();
+    expect(document.querySelector('[data-details="5"]').getAttribute('aria-expanded')).toBe('true');
+    expect(document.getElementById('volunteers-details-5').hidden).toBe(false);
+    expect(document.getElementById('volunteers-details-5').textContent).toContain('Menu : pâtes');
+    const filter = document.getElementById('volunteers-vacant-only');
+    filter.checked = true;
+    filter.dispatchEvent(new Event('change'));
+    expect(document.getElementById('volunteers-details-5').hidden).toBe(false);
+    document.querySelector('[data-details="5"]').click();
+    expect(document.querySelector('[data-details="5"]').getAttribute('aria-expanded')).toBe('false');
+    expect(document.getElementById('volunteers-details-5').hidden).toBe(true);
+  });
+
+  test('notes typed by people are shown as text', async () => {
+    getVolunteerShifts.mockResolvedValue({ data: [shift({ id: 6, title: 'Cuisine', slots: 1, taken: 0, notes: '<img src=x onerror=alert(1)>' })] });
+    await open();
+    expect(document.querySelector('#app img')).toBeNull();
+    expect(document.getElementById('volunteers-details-6').textContent).toContain('<img src=x');
+  });
+});
+
+describe('the volunteering page and its tabs', () => {
+  let page;
+  async function openPage() {
+    page = new TabbedPage(app, TABBED_PAGES.volunteers);
+    await page.init();
+    await flush();
+  }
+
+  beforeEach(() => window.history.replaceState(null, '', '/volunteers'));
+  afterEach(() => page?.destroy());
+
+  test('a volunteer sees the open places, with no Management tab', async () => {
+    await openPage();
+    expect(document.querySelectorAll('h1')).toHaveLength(1);
+    expect([...document.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent.trim())).toEqual(['volunteers_tab_places']);
+    expect(document.querySelector('[role="tabpanel"] [data-sign-up]')).not.toBeNull();
+    expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
+  });
+
+  test('a manager opens on the open places, and the arrow keys reach Management', async () => {
+    mockPermissions.add('volunteers.manage');
+    await openPage();
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    expect(tabs.map((tab) => tab.textContent.trim())).toEqual(['volunteers_tab_places', 'volunteers_tab_manage']);
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+    expect(document.getElementById('volunteers-add')).toBeNull();
+    tabs[0].focus();
+    tabs[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await flush();
+    await flush();
+    expect(tabs[1].getAttribute('aria-selected')).toBe('true');
+    expect(tabs[0].getAttribute('aria-selected')).toBe('false');
+    expect(document.activeElement).toBe(tabs[1]);
+    expect(window.location.search).toBe('?tab=gestion');
+    expect(document.getElementById('volunteers-add')).not.toBeNull();
+    expect(document.querySelector('[role="tabpanel"] [data-sign-up]')).toBeNull();
+    expect((await axe.run(document.getElementById('app'), AXE_OPTIONS)).violations).toEqual([]);
+    tabs[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await flush();
+    await flush();
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+  });
+
+  test('a link to Management without the right opens the open places instead', async () => {
+    window.history.replaceState(null, '', '/volunteers?tab=gestion');
+    await openPage();
+    expect(document.querySelector('[role="tab"][aria-selected="true"]').dataset.tab).toBe('places');
+    expect(document.getElementById('volunteers-add')).toBeNull();
   });
 });

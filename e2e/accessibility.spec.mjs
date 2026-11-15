@@ -41,7 +41,7 @@ const SCREENS = {
     '/dashboard', '/manage-participants', '/invitations',
     '/unit-settings', '/roles', '/finance', '/budgets', '/expenses', '/reports',
     `/personal-equipment/${seededRecord('campMeetingId')}/manage`,
-    '/tasks', '/volunteers', '/volunteer-space', `/volunteer-space/${seededRecord('winterCampId')}`,
+    '/tasks', '/volunteers', '/volunteers?tab=gestion', '/volunteer-space', `/volunteer-space/${seededRecord('winterCampId')}`,
     `/camp-readiness/activity-${seededRecord('winterCampId')}`,
     '/messages', '/yearly-planner', '/medication-management', '/material', '/material?tab=articles', '/permission-slips',
     `/permission-slips/${seededActivityId()}`,

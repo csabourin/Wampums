@@ -3,6 +3,23 @@
 `/volunteers` lists what each activity or camp needs, by time slot ("shifts"), and lets members
 take or give up a place. Migration `069_volunteer_shifts.sql`.
 
+## One entry, two tabs (#1427)
+
+Volunteering has **one dashboard entry**: the volunteer space (`/volunteer-space`), which leads to
+"See every open shift" and, with `volunteers.manage`, "Manage the shifts". The Volunteering tile
+(`tile_volunteers`) only remains for a role holding `volunteers.view` without `volunteer_space.view`
+(gate `volunteersWithoutSpace`).
+
+`/volunteers` is a tabbed page (`TABBED_PAGES.volunteers`, `spa/modules/TabbedPage.js`):
+
+| Tab | `?tab=` | Gate | Holds |
+|---|---|---|---|
+| Open places (default) | `places` | `volunteers.view` | Filters, then one line per shift: what, a short day and hours, places left, and the button to take or give up a place. What the type requires and the notes unfold under "Details" (`aria-expanded`). |
+| Management | `gestion` | `volunteers.manage` | Adding, editing and removing shifts, who signed up (verify, remove), pending counts, and the team's background checks. |
+
+The team's checks are requested on the Management tab only. A link to `?tab=gestion` without the
+right opens Open places.
+
 ## Who can do what
 
 | Permission | Grants |
@@ -41,7 +58,7 @@ server and the SPA; migration 069 checks the same keys, `test/volunteer-types.te
 **Every adult needs a background check**, valid three years from the day it was done
 (`validity_years`). A manager records the day of the check; the server sets its expiry, whatever the
 request says (a check done on 29 February lasts until 28 February). Managers follow everyone's
-checks under "Vérification des antécédents" on `/volunteers` (`GET /api/v1/volunteer-shifts/checks`,
+checks under "Vérification des antécédents" on the Management tab of `/volunteers` (`GET /api/v1/volunteer-shifts/checks`,
 `volunteers.manage`): every active member holding a role beyond a family's own children (leaders,
 finance, equipment, district…) and anyone with a place on an upcoming shift, most urgent first:
 missing, expired, expiring within `expiring_soon_days` (60), valid. A parent who takes no shift is

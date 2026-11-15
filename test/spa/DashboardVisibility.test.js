@@ -438,6 +438,13 @@ describe('planning the year and the camps has its own section, after this week',
     expect(sectionOf('/equipment-loans')).toBe('moment-tools');
   });
 
+  test('volunteering has one entry: with the volunteer space, no separate Volunteering tile', () => {
+    mockPermissions.add('volunteer_space.view');
+    renderPlanner();
+    expect(document.querySelector('a[href="/volunteers"]')).toBeNull();
+    expect(sectionOf('/volunteer-space')).toBe('moment-week');
+  });
+
   test('every planning tile is gated, and the camp plans open with the permission each plan needs', () => {
     const planning = DASHBOARD_TILES.filter((tile) => tile.moment === 'plan');
     expect(planning.map((tile) => tile.href)).toEqual(expect.arrayContaining(['/carpool', '/camp-plans']));

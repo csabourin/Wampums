@@ -204,10 +204,13 @@ export class VolunteerSpace {
     const campsBody = camps.length
       ? `<ul class="volunteer-space__grid">${camps.map((camp) => this.campCard(camp)).join('')}</ul>`
       : this.empty('volunteer_space_camps_empty', takeShift);
-    const shiftsBody = shifts.length
+    // Managers reach the shifts' management from here: the space is volunteering's one entry (#1427).
+    const manageShifts = hasPermission('volunteers.manage')
+      ? `<p>${this.link('/volunteers?tab=gestion', 'volunteer_space_manage_shifts')}</p>` : '';
+    const shiftsBody = `${shifts.length
       ? `<ul class="volunteer-space__grid">${shifts.map((shift) => this.shiftItem(shift, { withActivity: true })).join('')}</ul>
         ${canTakeShifts ? `<p>${this.link('/volunteers', 'volunteer_space_more_shifts')}</p>` : ''}`
-      : this.empty('volunteer_space_shifts_empty', camps.length ? takeShift : '');
+      : this.empty('volunteer_space_shifts_empty', camps.length ? takeShift : '')}${manageShifts}`;
     const more = openTasks > tasks.length
       ? translate('volunteer_space_tasks_more').replace('{count}', String(openTasks)) : translate('volunteer_space_tasks_all');
     const tasksBody = tasks.length

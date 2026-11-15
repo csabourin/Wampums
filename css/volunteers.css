@@ -16,6 +16,15 @@
 .volunteers__mine { font-weight: 600; }
 .volunteers__notes { white-space: pre-line; }
 .volunteers__shift > .button { margin-block-start: .5rem; }
+/* "Open places": one line per shift on a wide screen, wrapping under its text on a phone. */
+.volunteers__shift--row { padding-block: .5rem; }
+.volunteers__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+.volunteers__row-text { flex: 1 1 14rem; min-inline-size: 0; }
+.volunteers__row-text h3 { margin: 0; }
+.volunteers__row-meta { margin: .1rem 0 0; }
+.volunteers__row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.volunteers__row-actions .volunteers__mine { margin: 0; flex-basis: 100%; }
+.volunteers__details { margin-block-start: .5rem; padding-block-start: .5rem; border-block-start: 1px solid var(--color-border); }
 .volunteers__names-title { font-size: .95rem; margin: .75rem 0 .25rem; }
 .volunteers__names { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
 .volunteers__names li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
