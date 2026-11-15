@@ -17,7 +17,7 @@ import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { escapeHTML, escapeAttribute, sanitizeURL } from '../../utils/SecurityUtils.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
-import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
+import { formatDate, getTodayISO, formatDateRange } from '../../utils/DateUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { richTextOrPlain } from '../../utils/RichTextUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
@@ -118,10 +118,7 @@ export class VolunteerSpace {
   }
 
   dates(from, to) {
-    return from === to || !to
-      ? formatDate(from, this.lang())
-      : translate('camp_readiness_upcoming_dates')
-        .replace('{from}', formatDate(from, this.lang())).replace('{to}', formatDate(to, this.lang()));
+    return formatDateRange(from, to, this.lang());
   }
 
   /** A section with its heading; `id` is the in-page link's target. */

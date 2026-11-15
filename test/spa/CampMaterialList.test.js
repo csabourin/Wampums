@@ -378,7 +378,7 @@ describe('reserving what is missing', () => {
       { equipment_item_id: 11, quantity: 1 },
       { equipment_item_id: 30, quantity: 3 },
     ]);
-    expect(app.showMessage).toHaveBeenCalledWith('camp_material_reserve_done', 'success');
+    expect(app.showMessage).toHaveBeenCalledWith('camp_material_reserve_done_other', 'success');
     expect(dialog()).toBeNull();
     expect(api.getCampMaterialList).toHaveBeenCalledTimes(2);
     expect(api.getCampMaterialList).toHaveBeenLastCalledWith(CAMP_ID, { forceRefresh: true });

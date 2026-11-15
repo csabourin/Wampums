@@ -15,7 +15,7 @@ import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { pageLoadingMarkup, pageErrorMarkup } from '../../utils/PageStateUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
-import { formatDate } from '../../utils/DateUtils.js';
+import { formatDateRange } from '../../utils/DateUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { hasPermission, hasOrganizationScope } from '../../utils/PermissionUtils.js';
 import { getCampPlans } from '../../api/api-camp-plans.js';
@@ -93,8 +93,7 @@ export class CampPlans {
   campMarkup(camp) {
     const id = Number(camp.id);
     const name = camp.theme || translate('camp_readiness_camp');
-    const dates = translate('camp_readiness_upcoming_dates')
-      .replace('{from}', formatDate(camp.date_from, this.lang())).replace('{to}', formatDate(camp.date_to, this.lang()));
+    const dates = formatDateRange(camp.date_from, camp.date_to, this.lang());
     const left = camp.to_write || camp.to_review;
     return `<li class="camp-plans__camp${left ? ' is-attention' : ''}">
         <h3 class="camp-plans__name">${escapeHTML(name)}</h3>

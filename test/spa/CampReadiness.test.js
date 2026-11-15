@@ -88,7 +88,7 @@ describe('what is left, first', () => {
   test('each visible section says what is left and links to its rows', async () => {
     await screen.init();
     expect(lines().map((line) => line.section)).toEqual(['#camp-readiness-permissions', '#camp-readiness-material', '#camp-readiness-lots', '#camp-readiness-tasks']);
-    expect(lines().find((line) => line.section === '#camp-readiness-material')).toMatchObject({ text: 'camp_readiness_left_material', attention: true });
+    expect(lines().find((line) => line.section === '#camp-readiness-material')).toMatchObject({ text: 'camp_readiness_left_material_one', attention: true });
     expect(document.getElementById('camp-readiness-material')).not.toBeNull();
   });
 
@@ -106,7 +106,7 @@ describe('what is left, first', () => {
     getCampReadiness.mockResolvedValue({ data: payload });
     await screen.init();
     expect(lines().find((line) => line.section === '#camp-readiness-material')).toMatchObject({ text: 'camp_readiness_left_material_done', attention: false });
-    expect(lines().find((line) => line.section === '#camp-readiness-tasks').text).toBe('camp_readiness_left_tasks_late');
+    expect(lines().find((line) => line.section === '#camp-readiness-tasks').text).toBe('camp_readiness_left_tasks_late_one');
     const rows = [...document.querySelectorAll('#camp-readiness-tasks .camp-readiness__row')];
     expect(rows[0].textContent).toContain('tasks_overdue');
     expect(rows[1].textContent).not.toContain('tasks_overdue');
@@ -126,7 +126,7 @@ test('an article outside the inventory is still left to find, never "everything 
   getCampReadiness.mockResolvedValue({ data: payload });
   await screen.init();
   const line = [...document.querySelectorAll('.camp-readiness__left li')].find((item) => item.querySelector('a').getAttribute('href') === '#camp-readiness-material');
-  expect(line.querySelector('span').textContent).toBe('camp_readiness_left_material');
+  expect(line.querySelector('span').textContent).toBe('camp_readiness_left_material_one');
   expect(line.classList.contains('is-attention')).toBe(true);
 });
 

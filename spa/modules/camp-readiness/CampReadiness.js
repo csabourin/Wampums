@@ -7,6 +7,7 @@
  * @module spa/modules/camp-readiness/CampReadiness
  */
 import { translate } from '../../app.js';
+import { translatePlural } from '../../utils/PluralUtils.js';
 import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
 import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
@@ -131,20 +132,24 @@ export class CampReadiness {
       if (!recorded(section)) { return { text: translate('camp_readiness_left_none'), attention: true }; }
       const total = (status) => section.filter((row) => row.status === status).reduce((sum, row) => sum + Number(row.count), 0);
       const pending = total('pending');
-      return { attention: pending > 0, text: translate('camp_readiness_left_permissions')
-        .replace('{pending}', this.count(pending)).replace('{signed}', this.count(total('signed'))) };
+      const signed = total('signed');
+      return { attention: pending > 0, text: translatePlural('camp_readiness_left_permissions', signed, this.lang())
+        .replace('{pending}', this.count(pending)).replace('{signed}', this.count(signed)) };
     }
     if (key === 'material') {
       if (!recorded(section.items) && !recorded(section.free_text || [])) { return { text: translate('camp_readiness_left_none'), attention: true }; }
       const parts = [];
       if (!section.inventory_compared) {
-        parts.push(translate('camp_readiness_left_material_unchecked').replace('{count}', this.count(section.items.length)));
+        parts.push(translatePlural('camp_readiness_left_material_unchecked', section.items.length, this.lang())
+          .replace('{count}', this.count(section.items.length)));
       } else {
         const left = section.items.filter((item) => MATERIAL_TO_DO.includes(item.inventory?.status)).length;
-        parts.push(left ? translate('camp_readiness_left_material').replace('{count}', this.count(left)) : translate('camp_readiness_left_material_done'));
+        parts.push(left ? translatePlural('camp_readiness_left_material', left, this.lang()).replace('{count}', this.count(left))
+          : translate('camp_readiness_left_material_done'));
       }
       if (section.free_text?.length) {
-        parts.push(translate('camp_readiness_left_free_text').replace('{count}', this.count(section.free_text.length)));
+        parts.push(translatePlural('camp_readiness_left_free_text', section.free_text.length, this.lang())
+          .replace('{count}', this.count(section.free_text.length)));
       }
       const attention = !section.inventory_compared || Boolean(section.free_text?.length)
         || section.items.some((item) => MATERIAL_TO_DO.includes(item.inventory?.status));
@@ -174,8 +179,9 @@ export class CampReadiness {
     const late = open.filter((task) => this.overdue(task.due_date, false)).length;
     if (!open.length) { return { text: translate('camp_readiness_left_tasks_done'), attention: false }; }
     const text = late
-      ? translate('camp_readiness_left_tasks_late').replace('{count}', this.count(open.length)).replace('{late}', this.count(late))
-      : translate('camp_readiness_left_tasks').replace('{count}', this.count(open.length));
+      ? translatePlural('camp_readiness_left_tasks_late', open.length, this.lang()).replace('{count}', this.count(open.length))
+        .replace('{late}', this.count(late))
+      : translatePlural('camp_readiness_left_tasks', open.length, this.lang()).replace('{count}', this.count(open.length));
     return { text, attention: true };
   }
 

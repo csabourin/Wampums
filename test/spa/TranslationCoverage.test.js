@@ -362,3 +362,33 @@ test('every camp review category, moment and topic has its label in both languag
   expect(rules.CATEGORIES).toEqual(['liked', 'disliked', 'improve']);
   expect(missing(uses)).toEqual([]);
 });
+
+test('every counted text has its singular and plural form in both languages', () => {
+  const uses = [];
+  for (const file of jsFiles('spa')) {
+    for (const match of code(file).matchAll(/\btranslatePlural\(\s*['"]([a-z0-9_]+)['"]/g)) {
+      ['one', 'other'].forEach((form) => uses.push([`${match[1]}_${form}`, path.relative(ROOT, file)]));
+    }
+  }
+  expect(uses.length).toBeGreaterThan(0);
+  expect(missing(uses)).toEqual([]);
+});
+
+test('the dashboard, camp and volunteering screens write plurals out, never "(s)" (#1428)', () => {
+  const screens = [
+    ...jsFiles('spa/modules/dashboard'), ...jsFiles('spa/modules/volunteers'), ...jsFiles('spa/modules/volunteer-space'),
+    ...jsFiles('spa/modules/camp-readiness'), ...jsFiles('spa/modules/camp-material'),
+    path.join(ROOT, 'spa/modules/camp-plan/CampPlans.js'), path.join(ROOT, 'spa/modules/camp-plan/CampRoster.js'),
+  ];
+  const keys = new Set();
+  for (const file of screens) {
+    const source = code(file);
+    for (const match of source.matchAll(/\btranslate\(\s*['"]([a-zA-Z0-9_.-]+)['"]/g)) { keys.add(match[1]); }
+    for (const match of source.matchAll(/\btranslatePlural\(\s*['"]([a-z0-9_]+)['"]/g)) {
+      keys.add(`${match[1]}_one`);
+      keys.add(`${match[1]}_other`);
+    }
+  }
+  const written = [...keys].filter((key) => /\(s\)/.test(en[key] || '') || /\(s\)/.test(fr[key] || ''));
+  expect(written).toEqual([]);
+});
