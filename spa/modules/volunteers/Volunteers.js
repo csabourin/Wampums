@@ -10,10 +10,16 @@
  * person only. Managers (`volunteers.manage`) add, edit and remove shifts, see who signed up, and
  * record requirements. Nothing here reads a youth, family or health record.
  *
+ * `/volunteers` is a tabbed page (#1427, `TABBED_PAGES.volunteers`): "Open places" (`view: 'take'`,
+ * the default, for everyone) lists each shift on one line with its button, its requirements and
+ * notes folded under a disclosure; "Management" (`view: 'manage'`, `volunteers.manage`) holds
+ * adding, editing and removing shifts, who signed up, and the team's background checks.
+ *
  * @module spa/modules/volunteers/Volunteers
  */
 import { translate } from '../../app.js';
 import { setContent, withFormBusy, loadStylesheet } from '../../utils/DOMUtils.js';
+import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
@@ -34,6 +40,9 @@ import {
 import { getMemberCertifications, verifyMemberCertification } from '../../api/api-member-certifications.js';
 import styles from '../../../css/volunteers.css?url';
 
+/** How a shift's day reads on its one-line row: "sat., Nov. 7". */
+const SHORT_DAY = { weekday: 'short', month: 'short', day: 'numeric' };
+
 /** Server field names, and the form controls that show their errors. */
 const FORM_FIELDS = {
   activity_id: 'volunteer_activity', volunteer_type: 'volunteer_kind', title: 'volunteer_title', shift_date: 'volunteer_date',
@@ -41,14 +50,21 @@ const FORM_FIELDS = {
 };
 
 export class Volunteers {
-  /** @param {Object} app - Application instance */
-  constructor(app) {
+  /**
+   * @param {Object} app - Application instance
+   * @param {{view?: 'take'|'manage', containerId?: string, embedded?: boolean}} [options] - Which tab, and
+   *   where to render (`spa/utils/PageMount.js`); "manage" needs `volunteers.manage`
+   */
+  constructor(app, options = {}) {
     this.app = app;
+    Object.assign(this, resolveMountOptions(options));
     this.shifts = [];
     this.checks = [];
     this.vacantOnly = false;
     this.typeFilter = '';
-    this.canManage = hasPermission('volunteers.manage');
+    this.managing = options.view === 'manage' && hasPermission('volunteers.manage');
+    /** Shifts whose details are unfolded on the "Open places" tab; kept across filtering. */
+    this.expanded = new Set();
     this.destroyed = false;
     this.scope = buildScopedCacheKey('');
   }
@@ -57,7 +73,7 @@ export class Volunteers {
     this.destroyed = true;
   }
 
-  root() { return document.getElementById('app'); }
+  root() { return getMountPoint(this); }
 
   lang() { return this.app.lang || 'fr'; }
 
@@ -79,7 +95,7 @@ export class Volunteers {
   async load() {
     const [response, checks] = await Promise.all([
       getVolunteerShifts(),
-      this.canManage ? getTeamChecks() : Promise.resolve(null),
+      this.managing ? getTeamChecks() : Promise.resolve(null),
     ]);
     this.shifts = Array.isArray(response?.data) ? response.data : [];
     this.checks = Array.isArray(checks?.data) ? checks.data : [];
@@ -93,7 +109,7 @@ export class Volunteers {
 
   /** Managers: every adult of the team and every volunteer, whose check is missing or lapsing first. */
   checksMarkup() {
-    if (!this.canManage) { return ''; }
+    if (!this.managing) { return ''; }
     const todo = this.checks.filter((person) => person.state !== 'valid').length;
     const rows = this.checks.map((person) => {
       const name = person.name || translate('tasks_member');
@@ -117,10 +133,11 @@ export class Volunteers {
     </section>`;
   }
 
+  /** Inside the tabbed page, the host draws the back link and the heading. */
   header() {
-    return `${renderBackLink()}
-      <h1>${escapeHTML(translate('volunteers_title'))}</h1>
-      <p class="volunteers__intro">${escapeHTML(translate(this.canManage ? 'volunteers_intro_manage' : 'volunteers_intro'))}</p>`;
+    const intro = `<p class="volunteers__intro">${escapeHTML(translate(this.managing ? 'volunteers_intro_manage' : 'volunteers_intro'))}</p>`;
+    return this.embedded ? intro : `${renderBackLink()}
+      <h1>${escapeHTML(translate('volunteers_title'))}</h1>${intro}`;
   }
 
   renderLoading() {
@@ -179,23 +196,60 @@ export class Volunteers {
       ${people ? `<ul class="volunteers__names">${people}</ul>` : `<p>${escapeHTML(translate('volunteers_nobody_yet'))}</p>`}`;
   }
 
+  /** The caller's place, or the button to take one; nothing when the shift is full. */
+  actionMarkup(shift) {
+    const id = Number(shift.id);
+    if (shift.mine) {
+      return `${this.mineMarkup(shift)}
+        <button type="button" class="button button--secondary" data-withdraw="${id}">${escapeHTML(translate('volunteers_withdraw'))}</button>`;
+    }
+    return this.free(shift)
+      ? `<button type="button" class="button button--primary" data-sign-up="${id}">${escapeHTML(translate('volunteers_take_place'))}</button>` : '';
+  }
+
+  /**
+   * "Open places": one line per shift (what, when, places left, the button); what it requires
+   * and its notes unfold on request.
+   */
+  placeMarkup(shift) {
+    const id = Number(shift.id);
+    const free = this.free(shift);
+    const when = translate('volunteers_when')
+      .replace('{date}', formatDate(shift.shift_date, this.lang(), SHORT_DAY))
+      .replace('{start}', shift.start_time).replace('{end}', shift.end_time);
+    const places = free ? translate('volunteers_free_places').replace('{free}', String(free)) : translate('volunteers_full');
+    const details = [
+      shift.requirements?.length ? `<p class="volunteers__requires">${escapeHTML(translate('volunteers_requires')
+        .replace('{requirements}', requirementsLabel(shift.requirements)))}</p>` : '',
+      shift.notes ? `<p class="volunteers__notes">${escapeHTML(shift.notes)}</p>` : '',
+    ].join('');
+    const open = this.expanded.has(id);
+    const name = shiftName(shift);
+    const toggle = details ? `<button type="button" class="button button--ghost button--small volunteers__more" data-details="${id}"
+        aria-expanded="${open}" aria-controls="volunteers-details-${id}"
+        aria-label="${escapeAttribute(translate('volunteers_details_of').replace('{title}', name))}">${escapeHTML(translate('volunteers_details'))}</button>` : '';
+    return `<li class="volunteers__shift volunteers__shift--row ${free ? '' : 'is-full'}" data-type="${escapeAttribute(shift.volunteer_type)}">
+      <div class="volunteers__row">
+        <div class="volunteers__row-text">
+          <h3>${escapeHTML(name)}</h3>
+          <p class="volunteers__row-meta">${escapeHTML(when)} · <strong class="volunteers__places">${escapeHTML(places)}</strong></p>
+        </div>
+        <div class="volunteers__row-actions">${this.actionMarkup(shift)}${toggle}</div>
+      </div>
+      ${details ? `<div class="volunteers__details" id="volunteers-details-${id}" ${open ? '' : 'hidden'}>${details}</div>` : ''}</li>`;
+  }
+
+  /** "Management": the whole shift, who signed up, and editing it. */
   shiftMarkup(shift) {
     const id = Number(shift.id);
     const free = this.free(shift);
     const when = translate('volunteers_when')
       .replace('{date}', formatDate(shift.shift_date, this.lang()))
       .replace('{start}', shift.start_time).replace('{end}', shift.end_time);
-    let action = '';
-    if (shift.mine) {
-      action = `${this.mineMarkup(shift)}
-        <button type="button" class="button button--secondary" data-withdraw="${id}">${escapeHTML(translate('volunteers_withdraw'))}</button>`;
-    } else if (free) {
-      action = `<button type="button" class="button button--primary" data-sign-up="${id}">${escapeHTML(translate('volunteers_take_place'))}</button>`;
-    }
-    const names = this.canManage && Array.isArray(shift.volunteers) ? this.namesMarkup(shift) : '';
-    const manage = this.canManage ? `<div class="volunteers__manage">
+    const names = Array.isArray(shift.volunteers) ? this.namesMarkup(shift) : '';
+    const manage = `<div class="volunteers__manage">
         <button type="button" class="button button--secondary button--small" data-edit="${id}">${escapeHTML(translate('edit'))}</button>
-        <button type="button" class="button button--danger button--small" data-delete="${id}">${escapeHTML(translate('delete'))}</button></div>` : '';
+        <button type="button" class="button button--danger button--small" data-delete="${id}">${escapeHTML(translate('delete'))}</button></div>`;
     return `<li class="volunteers__shift ${free ? '' : 'is-full'}" data-type="${escapeAttribute(shift.volunteer_type)}">
       <h3>${escapeHTML(shiftName(shift))}</h3>
       <p>${escapeHTML(when)}</p>
@@ -203,7 +257,7 @@ export class Volunteers {
     .replace('{requirements}', requirementsLabel(shift.requirements)))}</p>` : ''}
       <p class="volunteers__places"><strong>${escapeHTML(this.placesText(shift))}</strong></p>
       ${shift.notes ? `<p class="volunteers__notes">${escapeHTML(shift.notes)}</p>` : ''}
-      ${action}${names}${manage}</li>`;
+      ${names}${manage}</li>`;
   }
 
   /** Shifts grouped by their activity, in date order. */
@@ -211,7 +265,7 @@ export class Volunteers {
     const shown = this.shifts.filter((shift) => (!this.vacantOnly || this.free(shift) > 0)
       && (!this.typeFilter || shift.volunteer_type === this.typeFilter));
     if (!this.shifts.length) {
-      return `<p class="volunteers__empty">${escapeHTML(translate(this.canManage ? 'volunteers_empty_manage' : 'volunteers_empty'))}</p>`;
+      return `<p class="volunteers__empty">${escapeHTML(translate(this.managing ? 'volunteers_empty_manage' : 'volunteers_empty'))}</p>`;
     }
     if (!shown.length) {
       return `<p class="volunteers__empty">${escapeHTML(translate('volunteers_all_filled'))}</p>`;
@@ -230,7 +284,7 @@ export class Volunteers {
       return `<section class="volunteers__activity" aria-labelledby="${headingId}">
         <h2 id="${headingId}">${escapeHTML(first.activity_name)}</h2>
         <p class="volunteers__dates">${first.is_camp ? `<span class="volunteers__chip">${escapeHTML(translate('volunteers_camp'))}</span> ` : ''}${escapeHTML(dates)}</p>
-        <ul class="volunteers__shifts">${shifts.map((shift) => this.shiftMarkup(shift)).join('')}</ul></section>`;
+        <ul class="volunteers__shifts">${shifts.map((shift) => (this.managing ? this.shiftMarkup(shift) : this.placeMarkup(shift))).join('')}</ul></section>`;
     }).join('');
   }
 
@@ -239,7 +293,7 @@ export class Volunteers {
     const root = this.root();
     setContent(root, `<section class="page volunteers">${this.header()}
       <div class="volunteers__tools">
-        ${this.canManage ? `<button type="button" class="button button--primary" id="volunteers-add">${escapeHTML(translate('volunteers_add'))}</button>` : ''}
+        ${this.managing ? `<button type="button" class="button button--primary" id="volunteers-add">${escapeHTML(translate('volunteers_add'))}</button>` : ''}
         <div class="volunteers__type-filter">
           <label for="volunteers-type-filter">${escapeHTML(translate('volunteers_type_filter'))}</label>
           <select id="volunteers-type-filter" data-archive-safe>
@@ -253,7 +307,7 @@ export class Volunteers {
           <label for="volunteers-vacant-only">${escapeHTML(translate('volunteers_vacant_only'))}</label>
         </div>
       </div>
-      ${this.canManage && this.checks.some((person) => person.state !== 'valid') ? `<p class="volunteers__checks-link">
+      ${this.managing && this.checks.some((person) => person.state !== 'valid') ? `<p class="volunteers__checks-link">
         <a href="#volunteers-checks">${escapeHTML(translate('volunteers_checks_todo')
     .replace('{count}', String(this.checks.filter((person) => person.state !== 'valid').length)))}</a></p>` : ''}
       <div id="volunteers-list">${this.groupsMarkup()}</div>
@@ -279,12 +333,21 @@ export class Volunteers {
     const button = event.target.closest('button');
     if (!button) { return; }
     const { dataset } = button;
+    if (dataset.details) { this.toggleDetails(button, Number(dataset.details)); }
     if (dataset.signUp) { this.takePlace(button, dataset.signUp); }
     if (dataset.verify) { this.openVerify(Number(dataset.verify), dataset.user, dataset.name); }
     if (dataset.withdraw) { this.act(button, () => withdrawFromShift(dataset.withdraw), 'volunteers_withdrawn', 'volunteers_withdraw_failed'); }
     if (dataset.remove) { this.removePerson(button, dataset.remove, dataset.user); }
     if (dataset.edit) { this.openForm(this.shifts.find((shift) => Number(shift.id) === Number(dataset.edit))); }
     if (dataset.delete) { this.removeShift(button, Number(dataset.delete)); }
+  }
+
+  /** Unfold or fold what a shift requires and its notes. */
+  toggleDetails(button, id) {
+    const open = button.getAttribute('aria-expanded') !== 'true';
+    button.setAttribute('aria-expanded', String(open));
+    this.root().querySelector(`#volunteers-details-${id}`).hidden = !open;
+    if (open) { this.expanded.add(id); } else { this.expanded.delete(id); }
   }
 
   /**

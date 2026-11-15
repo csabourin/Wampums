@@ -39,6 +39,19 @@ export const TABBED_PAGES = {
         load: () => import('../modules/equipment-catalog/EquipmentCatalog.js').then((m) => m.EquipmentCatalog) },
     ],
   },
+  // Volunteering (#1427): taking a place comes first, for everyone; managing shifts and the
+  // team's background checks has its own tab.
+  volunteers: {
+    path: '/volunteers', titleKey: 'volunteers_title', defaultTab: 'places',
+    tabs: [
+      { key: 'places', labelKey: 'volunteers_tab_places', gate: () => hasPermission('volunteers.view'),
+        options: { view: 'take' },
+        load: () => import('../modules/volunteers/Volunteers.js').then((m) => m.Volunteers) },
+      { key: 'gestion', labelKey: 'volunteers_tab_manage', gate: () => hasPermission('volunteers.manage'),
+        options: { view: 'manage' },
+        load: () => import('../modules/volunteers/Volunteers.js').then((m) => m.Volunteers) },
+    ],
+  },
   progression: {
     path: '/progression',
     titleKey: 'page_progression_title',

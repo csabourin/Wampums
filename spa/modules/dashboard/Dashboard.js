@@ -581,6 +581,8 @@ export class Dashboard extends BaseModule {
         return canSeeTeamReadiness();
       case 'member':
         return true;
+      case 'volunteersWithoutSpace':
+        return hasPermission('volunteers.view') && !hasPermission('volunteer_space.view');
       default:
         debugError('Unknown dashboard tile gate:', gate);
         return false;

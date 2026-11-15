@@ -112,6 +112,16 @@ describe('the space\'s first page', () => {
       .toEqual(['volunteers_your_place', 'volunteers_your_place_pending']);
   });
 
+  test('the space is volunteering\'s one entry: a manager also finds the shifts\' management there', async () => {
+    await open();
+    expect(document.querySelector('#volunteer-space-shifts a[href="/volunteers?tab=gestion"]')).toBeNull();
+    screen.destroy();
+    mockPermissions.add('volunteers.manage');
+    await open();
+    expect(document.querySelector('#volunteer-space-shifts a[href="/volunteers"]').textContent).toBe('volunteer_space_more_shifts');
+    expect(document.querySelector('#volunteer-space-shifts a[href="/volunteers?tab=gestion"]').textContent).toBe('volunteer_space_manage_shifts');
+  });
+
   test('more open tasks than shown lead to the tasks page', async () => {
     await open();
     const link = document.querySelector('#volunteer-space-tasks a[href="/tasks"]');

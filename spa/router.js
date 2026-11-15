@@ -141,7 +141,6 @@ const lazyModules = {
   StarterActivities: () => import('./modules/yearly-planner/StarterActivities.js').then(m => m.StarterActivities),
   CampEquipmentLots: () => import('./modules/camp-lots/CampEquipmentLots.js').then(m => m.CampEquipmentLots),
   CampReadiness: () => import('./modules/camp-readiness/CampReadiness.js').then(m => m.CampReadiness),
-  Volunteers: () => import('./modules/volunteers/Volunteers.js').then(m => m.Volunteers),
   VolunteerSpace: () => import('./modules/volunteer-space/VolunteerSpace.js').then(m => m.VolunteerSpace),
   CampMaterialList: () => import('./modules/camp-material/CampMaterialList.js').then(m => m.CampMaterialList),
   CampSites: () => import('./modules/camp-sites/CampSites.js').then(m => m.CampSites),
@@ -835,9 +834,7 @@ export class Router {
         }
         case 'volunteers': {
           if (!guard(hasPermission('volunteers.view'))) { break; }
-          const Volunteers = await this.loadModule('Volunteers');
-          this.currentModuleInstance = new Volunteers(this.app);
-          await this.currentModuleInstance.init();
+          await this.loadTabbedPage('volunteers');
           break;
         }
         case 'volunteerSpace': {
