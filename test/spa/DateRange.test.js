@@ -11,7 +11,8 @@ import { formatDateRange } from '../../spa/utils/DateUtils.js';
 
 /** Intl uses thin and narrow no-break spaces; compare words, not space characters. */
 const words = (text) => text.replace(/\s+/gu, ' ').replace(/ ?– ?/u, ' – ');
-const year = new Date().getFullYear();
+/** A fixed year, so the weekdays expected below stay true whatever year the suite runs in. */
+const year = 2026;
 const day = (month, date, y = year) => `${y}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
 
 beforeAll(() => {
