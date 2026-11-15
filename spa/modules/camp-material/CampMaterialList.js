@@ -14,6 +14,7 @@
  * @module spa/modules/camp-material/CampMaterialList
  */
 import { translate } from '../../app.js';
+import { translatePlural } from '../../utils/PluralUtils.js';
 import { setContent, loadStylesheet, withFormBusy } from '../../utils/DOMUtils.js';
 import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
@@ -621,7 +622,7 @@ export class CampMaterialList {
     this.reserving = false;
     modal.close();
     const count = Number(result?.data?.count) || entries.length;
-    this.app.showMessage(translate('camp_material_reserve_done').replace('{count}', String(count)), 'success');
+    this.app.showMessage(translatePlural('camp_material_reserve_done', count, this.lang()).replace('{count}', String(count)), 'success');
     await this.reload();
   }
 

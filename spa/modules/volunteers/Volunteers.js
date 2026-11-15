@@ -18,12 +18,13 @@
  * @module spa/modules/volunteers/Volunteers
  */
 import { translate } from '../../app.js';
+import { translatePlural } from '../../utils/PluralUtils.js';
 import { setContent, withFormBusy, loadStylesheet } from '../../utils/DOMUtils.js';
 import { getMountPoint, resolveMountOptions } from '../../utils/PageMount.js';
 import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
-import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
+import { formatDate, getTodayISO, formatDateRange } from '../../utils/DateUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
@@ -128,7 +129,7 @@ export class Volunteers {
       <h2 id="volunteers-checks-title">${escapeHTML(translate('volunteers_checks_title'))}</h2>
       <p>${escapeHTML(translate('volunteers_checks_intro'))}</p>
       <p class="volunteers__checks-summary"><strong>${escapeHTML(todo
-    ? translate('volunteers_checks_todo').replace('{count}', String(todo)) : translate('volunteers_checks_all_valid'))}</strong></p>
+    ? translatePlural('volunteers_checks_todo', todo, this.lang()).replace('{count}', String(todo)) : translate('volunteers_checks_all_valid'))}</strong></p>
       ${rows ? `<ul class="volunteers__names">${rows}</ul>` : `<p>${escapeHTML(translate('volunteers_checks_empty'))}</p>`}
     </section>`;
   }
@@ -217,7 +218,7 @@ export class Volunteers {
     const when = translate('volunteers_when')
       .replace('{date}', formatDate(shift.shift_date, this.lang(), SHORT_DAY))
       .replace('{start}', shift.start_time).replace('{end}', shift.end_time);
-    const places = free ? translate('volunteers_free_places').replace('{free}', String(free)) : translate('volunteers_full');
+    const places = free ? translatePlural('volunteers_free_places', free, this.lang()).replace('{free}', String(free)) : translate('volunteers_full');
     const details = [
       shift.requirements?.length ? `<p class="volunteers__requires">${escapeHTML(translate('volunteers_requires')
         .replace('{requirements}', requirementsLabel(shift.requirements)))}</p>` : '',
@@ -278,9 +279,7 @@ export class Volunteers {
     return [...groups.values()].map((shifts) => {
       const [first] = shifts;
       const headingId = `volunteers-activity-${Number(first.activity_id)}`;
-      const dates = translate('camp_readiness_upcoming_dates')
-        .replace('{from}', formatDate(first.activity_start_date, this.lang()))
-        .replace('{to}', formatDate(first.activity_end_date, this.lang()));
+      const dates = formatDateRange(first.activity_start_date, first.activity_end_date, this.lang());
       return `<section class="volunteers__activity" aria-labelledby="${headingId}">
         <h2 id="${headingId}">${escapeHTML(first.activity_name)}</h2>
         <p class="volunteers__dates">${first.is_camp ? `<span class="volunteers__chip">${escapeHTML(translate('volunteers_camp'))}</span> ` : ''}${escapeHTML(dates)}</p>
@@ -291,6 +290,7 @@ export class Volunteers {
   render() {
     if (this.stale()) { return; }
     const root = this.root();
+    const todo = this.managing ? this.checks.filter((person) => person.state !== 'valid').length : 0;
     setContent(root, `<section class="page volunteers">${this.header()}
       <div class="volunteers__tools">
         ${this.managing ? `<button type="button" class="button button--primary" id="volunteers-add">${escapeHTML(translate('volunteers_add'))}</button>` : ''}
@@ -307,9 +307,9 @@ export class Volunteers {
           <label for="volunteers-vacant-only">${escapeHTML(translate('volunteers_vacant_only'))}</label>
         </div>
       </div>
-      ${this.managing && this.checks.some((person) => person.state !== 'valid') ? `<p class="volunteers__checks-link">
-        <a href="#volunteers-checks">${escapeHTML(translate('volunteers_checks_todo')
-    .replace('{count}', String(this.checks.filter((person) => person.state !== 'valid').length)))}</a></p>` : ''}
+      ${this.managing && todo ? `<p class="volunteers__checks-link">
+        <a href="#volunteers-checks">${escapeHTML(translatePlural('volunteers_checks_todo', todo, this.lang())
+    .replace('{count}', String(todo)))}</a></p>` : ''}
       <div id="volunteers-list">${this.groupsMarkup()}</div>
       ${this.checksMarkup()}</section>`);
     root.querySelector('#volunteers-checks')?.addEventListener('click', (event) => {
@@ -527,7 +527,7 @@ export class Volunteers {
         if (this.stale()) { return; }
         const confirmed = Number(result?.data?.confirmed) || 0;
         this.app.showMessage(confirmed
-          ? translate('volunteers_verified_confirmed').replace('{count}', String(confirmed))
+          ? translatePlural('volunteers_verified_confirmed', confirmed, this.lang()).replace('{count}', String(confirmed))
           : translate('volunteers_verified_saved'), 'success');
         await this.reload();
       });

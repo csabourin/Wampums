@@ -375,7 +375,7 @@ describe('types and what they require', () => {
     expect(saveVolunteerRequirements).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000003', {
       background_check: { checked_on: '2025-09-01' }, safety_training: { valid_until: null },
     });
-    expect(app.showMessage).toHaveBeenCalledWith('volunteers_verified_confirmed', 'success');
+    expect(app.showMessage).toHaveBeenCalledWith('volunteers_verified_confirmed_one', 'success');
   });
 
   test('a manager sees the certifications a person declared and verifies them for every unit of theirs', async () => {
@@ -480,7 +480,7 @@ describe('background checks of the whole team', () => {
     await open();
     const section = document.getElementById('volunteers-checks');
     expect(section.querySelector('h2').textContent).toBe('volunteers_checks_title');
-    expect(section.querySelector('.volunteers__checks-summary').textContent).toBe('volunteers_checks_todo');
+    expect(section.querySelector('.volunteers__checks-summary').textContent).toBe('volunteers_checks_todo_other');
     const states = [...section.querySelectorAll('.volunteers__check-state')].map((item) => item.textContent);
     expect(states).toEqual(['volunteers_check_missing', 'volunteers_check_expiring', 'volunteers_check_valid']);
     expect(document.querySelector('.volunteers__checks-link a').getAttribute('href')).toBe('#volunteers-checks');
@@ -535,7 +535,7 @@ describe('"Open places": one line per shift, details on request', () => {
   test('a shift reads on one line: what, a short day, places left and the button; the rest is folded', async () => {
     await open();
     const aide = byShift('volunteer_type_camp_aide');
-    expect(aide.querySelector('.volunteers__places').textContent).toBe('volunteers_free_places');
+    expect(aide.querySelector('.volunteers__places').textContent).toBe('volunteers_free_places_other');
     expect(aide.querySelector('[data-sign-up]')).not.toBeNull();
     const toggle = aide.querySelector('[data-details]');
     const details = document.getElementById(toggle.getAttribute('aria-controls'));

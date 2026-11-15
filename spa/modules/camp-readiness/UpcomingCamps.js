@@ -6,7 +6,7 @@
  */
 import { translate } from '../../app.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { formatDate } from '../../utils/DateUtils.js';
+import { formatDateRange } from '../../utils/DateUtils.js';
 import { hasPermission, hasOrganizationScope } from '../../utils/PermissionUtils.js';
 import { getUpcomingCamps } from '../../api/api-camp-readiness.js';
 import { debugError } from '../../utils/DebugUtils.js';
@@ -45,8 +45,7 @@ export async function loadUpcomingCamps() {
 export function upcomingCampsMarkup(camps, lang) {
   if (!camps?.length) { return ''; }
   const items = camps.map((camp) => {
-    const dates = translate('camp_readiness_upcoming_dates')
-      .replace('{from}', formatDate(camp.date_from, lang)).replace('{to}', formatDate(camp.date_to, lang));
+    const dates = formatDateRange(camp.date_from, camp.date_to, lang);
     return `<li><a class="button button--secondary" href="${campReadinessHref(camp)}">
       ${escapeHTML(translate('camp_readiness_title'))} : ${escapeHTML(camp.theme || translate('camp_readiness_camp'))}</a>
       <span>${escapeHTML(dates)}</span></li>`;

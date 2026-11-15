@@ -66,6 +66,9 @@ locally. The `fix-issue` project skill (`.claude/skills/fix-issue/`) walks throu
 - ✅ Date/time formatting must respect locale (`formatDate(date, lang)` in `spa/utils/DateUtils.js`).
 - ✅ Number and money formatting must respect locale (`formatCurrency` in `spa/utils/NumberUtils.js`,
   or `Intl` with `localeForLanguage(lang)` from `spa/utils/InterfaceLanguageUtils.js`).
+- ✅ **Plurals are written out, never "place(s)"** (a screen reader reads "(s)" aloud): a counted text
+  has `<key>_one` and `<key>_other` and is chosen with `translatePlural(key, count, lang)`
+  (`spa/utils/PluralUtils.js`). A span of days uses `formatDateRange(start, end, lang)` (`DateUtils.js`).
 - ✅ **The server's `message` is never shown.** It is English, written for developers. Explain a failed
   call with `apiErrorMessage(error, fallbackKey)` from `spa/utils/ApiErrorUtils.js`, which picks a
   translated key from the status, the error code, or a server message that is itself a known key.

@@ -19,7 +19,7 @@ import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { pageLoadingMarkup, pageErrorMarkup } from '../../utils/PageStateUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
-import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
+import { getTodayISO, formatDateRange } from '../../utils/DateUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
 import { hasPermission, isDemoUser } from '../../utils/PermissionUtils.js';
 import { openModal } from '../../utils/ModalUtils.js';
@@ -366,8 +366,7 @@ export class CampRoster {
     }
     const { camp } = this.data;
     const name = camp.theme || translate('camp_readiness_camp');
-    const dates = translate('camp_readiness_upcoming_dates')
-      .replace('{from}', formatDate(camp.date_from, this.lang())).replace('{to}', formatDate(camp.date_to, this.lang()));
+    const dates = formatDateRange(camp.date_from, camp.date_to, this.lang());
     const cancelled = camp.is_cancelled
       ? `<p class="camp-roster__warning" role="note">${escapeHTML(translate('camp_roster_cancelled'))}</p>` : '';
     setContent(this.root(), `<section class="page camp-plan camp-roster">

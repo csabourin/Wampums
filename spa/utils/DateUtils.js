@@ -10,6 +10,7 @@
 import { debugError } from './DebugUtils.js';
 import { getStorage } from './StorageUtils.js';
 import { CONFIG, getStorageKey } from '../config.js';
+import { localeForLanguage } from './InterfaceLanguageUtils.js';
 import { DATE_PART_WIDTH, DAYS_PER_WEEK, HOURS_PER_DAY, MINUTES_PER_HOUR, MS_PER_SECOND, SECONDS_PER_MINUTE } from './TimeUnits.js';
 
 /** Any date: formatTime only needs a Date to carry the hour and minute. */
@@ -60,6 +61,38 @@ export function formatDate(dateString, lang = 'en', options = null) {
   } catch (error) {
     debugError('Error formatting date:', error);
     return String(dateString);
+  }
+}
+
+/** A day of a range: short weekday, day and short month ("mer. 18 nov."). */
+const RANGE_DAY = { weekday: 'short', day: 'numeric', month: 'short' };
+
+/**
+ * A span of days, short enough for one line on a phone (#1428): "mer. 18 nov. – ven. 20 nov.",
+ * "Mon, Nov 30–Wed, Dec 2". The year is written only when the span leaves the current year.
+ * One day, or no end, reads as that day alone.
+ *
+ * @param {string} start - First day, YYYY-MM-DD
+ * @param {string} [end] - Last day, YYYY-MM-DD
+ * @param {string} lang - Interface language code
+ * @returns {string} The span in words; '' without a readable first day
+ */
+export function formatDateRange(start, end, lang = 'en') {
+  const from = parseDate(start);
+  if (!from) {return '';}
+  const to = parseDate(end) || from;
+  const thisYear = new Date().getFullYear();
+  const options = from.getFullYear() === thisYear && to.getFullYear() === thisYear
+    ? RANGE_DAY : { ...RANGE_DAY, year: 'numeric' };
+  try {
+    const format = new Intl.DateTimeFormat(localeForLanguage(lang), options);
+    if (to.getTime() <= from.getTime()) {return format.format(from);}
+    return typeof format.formatRange === 'function'
+      ? format.formatRange(from, to)
+      : `${format.format(from)} – ${format.format(to)}`;
+  } catch (error) {
+    debugError('Error formatting date range:', error);
+    return `${start} – ${end || start}`;
   }
 }
 
