@@ -16,7 +16,7 @@ Point-in-time audits, implementation reports, and test-run summaries are intenti
 
 ## Requirements
 
-- Node.js 22.12 or newer (see `.nvmrc` and `package.json`)
+- Node.js 22.18+ (22.x) or 24.11+ (see `.nvmrc` and `package.json`)
 - npm
 - PostgreSQL
 
