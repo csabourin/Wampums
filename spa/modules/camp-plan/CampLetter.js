@@ -230,7 +230,10 @@ export class CampLetter {
     form.addEventListener('input', () => this.clearErrors());
     form.addEventListener('submit', (event) => {
       event.preventDefault();
-      this.send(form);
+      // Sending is offered only with communications.send: no other way (Enter in a field) reaches it.
+      if (this.canSend) {
+        this.send(form);
+      }
     });
     root.querySelector('#camp-letter-save')?.addEventListener('click', () => this.save(form));
     root.querySelector('#camp-letter-reset')?.addEventListener('click', () => this.reset());

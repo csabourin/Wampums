@@ -188,6 +188,12 @@ test('without meetings.manage, or as a demo account, the letter is read only; wi
   await open();
   expect($('#camp-letter-save')).not.toBeNull();
   expect($('button[type="submit"]')).toBeNull();
+  // Submitting the form some other way (Enter in a field) sends nothing either.
+  confirm.mockResolvedValue(true);
+  $('#camp-letter-form').dispatchEvent(new Event('submit', { cancelable: true }));
+  await flush();
+  expect(confirm).not.toHaveBeenCalled();
+  expect(sendCampLetter).not.toHaveBeenCalled();
   screen.destroy();
 
   hasPermission.mockReturnValue(true);
