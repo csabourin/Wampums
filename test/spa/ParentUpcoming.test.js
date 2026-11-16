@@ -170,6 +170,26 @@ describe('the next meeting\'s hours', () => {
     expect(document.querySelector('.parent-upcoming__when').textContent).not.toMatch(/19[:h]\s?00/);
   });
 
+  test('a meeting nobody prepared yet shows the unit\'s usual evening, as the "Next meeting" screen does', () => {
+    // Planned at 19:00–21:00 with older settings; the unit's evening runs 18:45–20:45.
+    const meeting = { ...MEETING, start_time: '19:00', end_time: '21:00', activities: [], default_schedule: [
+      { time: '18:45', duration: '00:10' },
+      { time: '18:55', duration: '01:45' },
+      { time: '20:40', duration: '00:05' },
+    ] };
+    expect(meetingHours(meeting)).toEqual({ activity_start_time: '18:45', activity_end_time: '20:45' });
+
+    const [event] = buildUpcomingEvents({ nextMeeting: meeting, today: TODAY });
+    document.body.innerHTML = renderUpcomingSection([event], { lang: 'fr', failed: false, calendarLink: false });
+    expect(document.querySelector('.parent-upcoming__when').textContent).toMatch(/18[:h]\s?45/);
+    expect(document.querySelector('.parent-upcoming__when').textContent).not.toMatch(/19[:h]\s?00/);
+  });
+
+  test('a prepared evening wins over the unit\'s usual one', () => {
+    const meeting = { ...MEETING, activities: [{ time: '19:15', duration: '01:00' }], default_schedule: [{ time: '18:45', duration: '02:00' }] };
+    expect(meetingHours(meeting)).toEqual({ activity_start_time: '19:15', activity_end_time: '20:15' });
+  });
+
   test('fall back to the meeting\'s own hours when nothing is scheduled yet', () => {
     expect(meetingHours({ ...MEETING, activities: [] }))
       .toEqual({ activity_start_time: '18:30', activity_end_time: '20:00' });

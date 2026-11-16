@@ -51,16 +51,20 @@ function toClock(minutes) {
 }
 
 /**
- * When a meeting starts and ends, as families will live it. The evening's
- * schedule is what the leaders prepared, so its first and last activities win;
- * the meeting's stored hours were copied from the unit's settings when the
- * year was planned and are not updated when those settings change.
+ * When a meeting starts and ends, as families will live it: the hours the
+ * "Next meeting" screen shows. The evening's schedule is what the leaders
+ * prepared, so its first and last activities win. A meeting nobody prepared
+ * yet shows the unit's usual evening (`default_schedule`, from the unit's
+ * activity templates). Only without either do the meeting's stored hours
+ * count: they were copied from the unit's settings when the year was planned.
  *
- * @param {Object} meeting - As `/v1/meetings/next` returns it, with its `activities`
+ * @param {Object} meeting - As `/v1/meetings/next` returns it, with its `activities` and `default_schedule`
  * @returns {{activity_start_time: string, activity_end_time: string}} Hours, "HH:MM" or empty
  */
 export function meetingHours(meeting) {
-  const timed = (Array.isArray(meeting?.activities) ? meeting.activities : [])
+  const prepared = Array.isArray(meeting?.activities) ? meeting.activities : [];
+  const usual = Array.isArray(meeting?.default_schedule) ? meeting.default_schedule : [];
+  const timed = (prepared.length ? prepared : usual)
     .map((activity) => ({ start: toMinutes(activity.time), length: toMinutes(activity.duration) || 0 }))
     .filter((activity) => activity.start !== null);
   if (!timed.length) {
