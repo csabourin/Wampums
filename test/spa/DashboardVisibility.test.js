@@ -63,6 +63,7 @@ jest.mock('../../spa/utils/SkeletonUtils.js', () => ({ skeletonDashboard: jest.f
 jest.mock('../../spa/utils/DateUtils.js', () => ({
   getTodayISO: jest.fn(() => '2026-08-02'),
   formatDate: jest.fn((value) => value),
+  formatDateRange: jest.fn((from, to) => `${from} – ${to}`),
 }));
 jest.mock('../../spa/utils/ParticipantRoleUtils.js', () => ({
   normalizeParticipantList: (participants) => participants,
@@ -84,15 +85,19 @@ jest.mock('../../spa/utils/DashboardCacheManager.js', () => ({
   DashboardCacheManager: { preloadCachedData: jest.fn() },
 }));
 jest.mock('../../spa/modules/modals/CarpoolQuickAccessModal.js', () => ({ CarpoolQuickAccessModal: jest.fn() }));
+// The device's choice for "Plan the year and the camps", kept between renders like localStorage would.
+let mockPlanSectionOpen = null;
 jest.mock('../../spa/utils/DashboardPreferences.js', () => ({
   applyPalette: jest.fn(),
-  getDashboardPrefs: jest.fn(() => ({ hiddenTiles: [], collapsedToolGroups: [] })),
+  getDashboardPrefs: jest.fn(() => ({ hiddenTiles: [], collapsedToolGroups: [], planSectionOpen: mockPlanSectionOpen })),
   setCollapsedToolGroups: jest.fn(),
+  setPlanSectionOpen: jest.fn((open) => { mockPlanSectionOpen = open; }),
 }));
 jest.mock('../../spa/modules/CommandPalette.js', () => ({
   CommandPalette: jest.fn().mockImplementation(() => ({
     attachGlobalShortcut: jest.fn(),
     setTiles: jest.fn(),
+    detach: jest.fn(),
   })),
 }));
 jest.mock('../../spa/modules/OfflineManager.js', () => ({ offlineManager: {} }));
@@ -178,8 +183,12 @@ describe('tool groups separate weekly work from unit set-up', () => {
       '/reports',
       '/group-participant-report',
       '/progression',
-      '/parent-dashboard',
     ]));
+  });
+
+  test('"see the app as a parent" checks what families see: it sits with my account and display, not the youth', () => {
+    expect(routesIn('people')).not.toContain('/parent-dashboard');
+    expect(routesIn('system')).toContain('/parent-dashboard');
   });
 
   test('"Administration de l\'unité" holds the settings changed a few times a year', () => {
@@ -206,7 +215,7 @@ describe('tool groups separate weekly work from unit set-up', () => {
   test('"Administration" holds my account and display first, then district and system tools', () => {
     const tiles = DASHBOARD_TILES.filter((tile) => tile.domain === 'system');
     expect(tiles.map((tile) => tile.href))
-      .toEqual(['/account-info', '/display-settings', '/district', '/create-organization', '/units']);
+      .toEqual(['/account-info', '/display-settings', '/parent-dashboard', '/district', '/create-organization', '/units']);
     expect(tiles.every((tile) => tile.href === '/account-info' || tile.gate)).toBe(true);
   });
 
@@ -429,7 +438,7 @@ describe('planning the year and the camps has its own section, after this week',
 
   test('it holds the year planner, activities, camp plans and sites, equipment reservations, carpooling and volunteering, in that order', () => {
     renderPlanner();
-    const hrefs = Array.from(document.querySelectorAll('#moment-plan + .dashboard-v2__grid a')).map((tile) => tile.getAttribute('href'));
+    const hrefs = Array.from(document.querySelectorAll('#dashboard-plan-body a')).map((tile) => tile.getAttribute('href'));
     expect(hrefs).toEqual(['/yearly-planner', '/activities', '/camp-plans', '/camp-sites', '/material-management', '/volunteers']);
     // The templates are written once, with the unit's other settings.
     expect(document.querySelector('.dashboard-v2__group[data-group="admin"] a[href="/camp-plan-templates"]')).not.toBeNull();
@@ -464,6 +473,94 @@ describe('planning the year and the camps has its own section, after this week',
   test('the planning section has no WCAG A/AA violations', async () => {
     renderPlanner();
     const results = await axe.run(document.querySelector('#moment-plan').closest('section'), {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
+  });
+});
+
+describe('a shorter leaders\' dashboard (#1430)', () => {
+  const render = (permissions, { camps = [] } = {}) => {
+    permissions.forEach((permission) => mockPermissions.add(permission));
+    mockIsParent = false;
+    const dashboard = new Dashboard({ userRoles: ['leader'], lang: 'fr' });
+    dashboard.isLoading = false;
+    dashboard.organizationSettings = {};
+    dashboard.upcomingCamps = camps;
+    dashboard.render();
+    return dashboard;
+  };
+  const PLANNER = ['meetings.view', 'meetings.manage', 'activities.view', 'volunteers.view', 'inventory.view', 'tasks.view'];
+  const HELPER = ['meetings.view', 'activities.view', 'inventory.view', 'tasks.view'];
+  const toggle = () => document.getElementById('dashboard-plan-toggle');
+  const body = () => document.getElementById('dashboard-plan-body');
+
+  beforeEach(() => {
+    mockPermissions.clear();
+    mockPlanSectionOpen = null;
+  });
+
+  test('planning tiles are compact, like the tools below them', () => {
+    render(PLANNER);
+    const tiles = [...body().querySelectorAll('a')];
+    expect(tiles.length).toBeGreaterThan(0);
+    expect(tiles.every((tile) => tile.classList.contains('dashboard-v2__tile--sm'))).toBe(true);
+    // This week keeps its large tiles.
+    expect(document.querySelector('#moment-week').closest('section').querySelector('.dashboard-v2__tile--sm')).toBeNull();
+  });
+
+  test('planning is open for those who plan, folded for everyone else', () => {
+    render(PLANNER);
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    expect(body().hidden).toBe(false);
+
+    mockPermissions.clear();
+    render(HELPER);
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+    expect(toggle().getAttribute('aria-controls')).toBe('dashboard-plan-body');
+    expect(body().hidden).toBe(true);
+    expect(document.getElementById('moment-plan').textContent).toBe('dashboard_plan_section');
+  });
+
+  test('a leader unfolds planning from the keyboard, and the device remembers it', () => {
+    const dashboard = render(HELPER);
+    dashboard.attachEventListeners();
+    toggle().focus();
+    expect(document.activeElement).toBe(toggle());
+    // Enter or Space on a native button is a click.
+    toggle().click();
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    expect(body().hidden).toBe(false);
+    dashboard.destroy();
+
+    render(HELPER);
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    expect(body().hidden).toBe(false);
+  });
+
+  test('folded sections still open while an archived year is consulted: their toggles only show links', () => {
+    render(HELPER);
+    const toggles = [toggle(), ...document.querySelectorAll('.dashboard-v2__group-toggle')];
+    expect(toggles.length).toBeGreaterThan(1);
+    expect(toggles.every((button) => button.hasAttribute('data-archive-safe'))).toBe(true);
+  });
+
+  test('one heading level for every section, in one style; the camps coming up are a card of this week', () => {
+    render(PLANNER, { camps: [{ id: 3, theme: 'Camp d’hiver', date_from: '2026-12-04', date_to: '2026-12-06' }] });
+    expect(document.querySelectorAll('h1')).toHaveLength(1);
+    const sections = [...document.querySelectorAll('.dashboard-v2 h2')];
+    expect(sections.length).toBeGreaterThan(1);
+    expect(sections.every((heading) => heading.classList.contains('dashboard-v2__section-title'))).toBe(true);
+    const camps = document.getElementById('dashboard-team-camps');
+    expect(camps.closest('section').querySelector('h2').id).toBe('moment-week');
+    expect(camps.querySelector('h3').textContent).toBe('camp_readiness_upcoming_title');
+  });
+
+  test('with planning folded, the dashboard has no WCAG A/AA violations', async () => {
+    render(HELPER, { camps: [{ id: 3, theme: '<img src=x onerror=alert(1)>', date_from: '2026-12-04', date_to: '2026-12-06' }] });
+    expect(document.querySelector('#app img')).toBeNull();
+    const results = await axe.run(document.querySelector('.dashboard-v2'), {
       runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
       rules: { 'color-contrast': { enabled: false } },
     });

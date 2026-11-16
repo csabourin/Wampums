@@ -459,17 +459,34 @@ html:has(.dashboard-fab) {
   min-block-size: 130px;
 }
 
+/* Compact tiles (#1430), for everything but "This week": the icon beside its
+   label on one line, still a 44px target. A count wraps under them. */
 .dashboard-v2__tile--sm {
-  min-block-size: 88px;
-  padding: var(--space-sm) var(--space-md);
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-xs) var(--space-sm);
+  min-block-size: var(--touch-target-min, 44px);
+  padding: var(--space-xs) var(--space-sm);
 }
 
 .dashboard-v2__tile--sm .dashboard-v2__tile-icon {
-  font-size: 1.1rem;
+  font-size: 1rem;
+  flex: 0 0 auto;
 }
 
 .dashboard-v2__tile--sm .dashboard-v2__tile-label {
   font-size: 0.85rem;
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+.dashboard-v2__tile--sm .dashboard-v2__tile-stat {
+  flex-basis: 100%;
+  align-self: auto;
+  justify-content: flex-start;
+  inline-size: fit-content;
 }
 
 /* ---------- Collapsible "Tools" groups ---------- */
@@ -543,6 +560,71 @@ html:has(.dashboard-fab) {
 
 .dashboard-v2__group[data-collapsed="true"] .dashboard-v2__group-body {
   display: none;
+}
+
+/* "Plan the year and the camps": its heading folds and unfolds it (#1430),
+   in the same small capitals as every other section title. */
+.dashboard-v2__section-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 0;
+  min-height: 44px;
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: start;
+  color: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.dashboard-v2__section-toggle:hover:not(:disabled),
+.dashboard-v2__section-toggle:active:not(:disabled) {
+  background-color: transparent;
+  background-image: none;
+  color: var(--color-primary-dark, #0b5b43);
+  transform: none;
+  box-shadow: none;
+}
+
+.dashboard-v2__section-toggle:focus-visible {
+  outline: 3px solid var(--color-focus-ring, #0f7a5a);
+  outline-offset: 2px;
+}
+
+.dashboard-v2__section-toggle .chev {
+  transition: transform 0.2s ease;
+}
+
+.dashboard-v2__section-toggle[aria-expanded="false"] .chev {
+  transform: rotate(-90deg);
+}
+
+/* Upcoming camps: a card of "This week". */
+.dashboard-v2__card {
+  border: 1px solid var(--color-border-light, #e2efea);
+  border-radius: var(--radius-md, 12px);
+  background: var(--color-surface, #ffffff);
+  padding: var(--space-md);
+}
+
+.dashboard-v2__card-title {
+  font-size: 1rem;
+  margin: 0 0 var(--space-sm);
+  text-align: start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-v2__section-toggle .chev {
+    transition: none;
+  }
 }
 
 /* ---------- Empty states ---------- */

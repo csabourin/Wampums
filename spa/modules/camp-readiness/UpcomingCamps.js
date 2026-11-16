@@ -50,7 +50,8 @@ export function upcomingCampsMarkup(camps, lang) {
       ${escapeHTML(translate('camp_readiness_title'))} : ${escapeHTML(camp.theme || translate('camp_readiness_camp'))}</a>
       <span>${escapeHTML(dates)}</span></li>`;
   }).join('');
-  return `<section class="dashboard-section dashboard-team-camps" aria-labelledby="dashboard-team-camps-title">
-    <h2 id="dashboard-team-camps-title">${escapeHTML(translate('camp_readiness_upcoming_title'))}</h2>
-    <ul class="dashboard-team-camps__list">${items}</ul></section>`;
+  // A card of "This week" on the dashboard (#1430), under the section's own heading.
+  return `<div class="dashboard-v2__card dashboard-team-camps" role="group" aria-labelledby="dashboard-team-camps-title">
+    <h3 id="dashboard-team-camps-title" class="dashboard-v2__card-title">${escapeHTML(translate('camp_readiness_upcoming_title'))}</h3>
+    <ul class="dashboard-team-camps__list">${items}</ul></div>`;
 }

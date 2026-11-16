@@ -251,6 +251,22 @@ function describeFocus(page) {
  * @param {number} steps
  * @returns {Promise<Array<Object>>} Problems found
  */
+/**
+ * Unfold a folded dashboard section or group from the keyboard: focus its toggle and
+ * press Enter, as a person would. A section already open is left as it is.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {import('@playwright/test').Locator} toggle - The section's button, with aria-expanded
+ */
+async function unfold(page, toggle) {
+  if (await toggle.getAttribute('aria-expanded') === 'true') {
+    return;
+  }
+  await toggle.focus();
+  await page.keyboard.press('Enter');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+}
+
 async function focusProblemsWhileTabbing(page, steps) {
   await page.locator('body').focus();
   const problems = [];
@@ -320,6 +336,9 @@ test.describe('keyboard', () => {
 
     test('following a link puts focus on the new screen and names the tab after it', async ({ page }) => {
       await openScreen(page, '/dashboard');
+      // "Plan the year and the camps" starts folded for a leader who does not plan (#1430):
+      // unfold it from the keyboard, as a person would, then follow the link.
+      await unfold(page, page.locator('#dashboard-plan-toggle'));
       await page.locator('#app a[href="/activities"]').first().focus();
       await page.keyboard.press('Enter');
       await page.waitForURL('**/activities');
@@ -427,6 +446,8 @@ test.describe('keyboard', () => {
 
     test('the display tile opens the theme choice, which the arrow keys change', async ({ page }) => {
       await openScreen(page, '/dashboard');
+      // "My account, display and units" starts folded (#1430): unfold it from the keyboard.
+      await unfold(page, page.locator('.dashboard-v2__group[data-group="system"] .dashboard-v2__group-toggle'));
       await page.locator('#app a[href="/display-settings"]').first().focus();
       await page.keyboard.press('Enter');
       await page.waitForURL('**/display-settings');
