@@ -331,7 +331,7 @@ async function campFor(db, organizationId, meetingId) {
     `SELECT m.id, m.theme, m.meeting_date::text AS date_from,
             COALESCE(a.activity_end_date, m.meeting_date)::text AS date_to,
             m.activity_id, m.is_cancelled, m.year_plan_id,
-            COALESCE(a.activity_end_date, m.meeting_date) < CURRENT_DATE AS over
+            COALESCE(a.activity_end_date, m.meeting_date) < unit_today($1) AS over
        FROM year_plan_meetings m
        LEFT JOIN activities a ON a.id = m.activity_id AND a.organization_id = m.organization_id
       WHERE m.organization_id = $1 AND m.id = $2 AND m.meeting_kind = 'camp'`,

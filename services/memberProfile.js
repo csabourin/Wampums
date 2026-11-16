@@ -41,6 +41,7 @@ function readInput(input, health = false) {
     data.share_camp_contacts = input.share_camp_contacts;
     if (input.date_of_birth !== undefined) {
       const value = input.date_of_birth;
+      // policy-allow server-clock: an upper bound only, and UTC is never behind the units' day
       const today = new Date().toISOString().slice(0, 'YYYY-MM-DD'.length);
       if (value !== null && value !== '' && (!isCalendarDate(value) || value > today
         || Number(today.slice(0, ISO_YEAR_LENGTH)) - Number(value.slice(0, ISO_YEAR_LENGTH)) > OLDEST_AGE)) {
@@ -114,6 +115,7 @@ async function saveOwnForm(pool, organizationId, userId, input, health = false) 
 /** Refuse a known under-age account after applying an optional date change. Omission keeps the stored date; null clears it. */
 async function assertVolunteerAge(db, userId, dateOfBirth) {
   await lockProfile(db, userId);
+  // policy-allow server-clock: an account's age, asked outside any unit
   const row = (await db.query(`SELECT age(CURRENT_DATE, CASE WHEN $2::boolean THEN $3::date ELSE u.date_of_birth END)
       < make_interval(years => $4::int) AS too_young
     FROM users u WHERE u.id = $1`, [userId, dateOfBirth !== undefined, dateOfBirth ?? null, RULES.minimum_volunteer_age])).rows[0];
@@ -130,9 +132,9 @@ async function campContacts(db, organizationId, userId, activityId) {
     FROM member_profiles p JOIN users u ON u.id = p.user_id
     JOIN user_organizations uo ON uo.user_id = u.id AND uo.organization_id = $1 AND uo.status = 'active'
     WHERE p.share_camp_contacts AND p.phone IS NOT NULL AND u.id <> $2
-      AND age(CURRENT_DATE, u.date_of_birth) >= make_interval(years => $4::int)
+      AND age(unit_today($1), u.date_of_birth) >= make_interval(years => $4::int)
       AND EXISTS (SELECT 1 FROM users caller WHERE caller.id = $2
-        AND age(CURRENT_DATE, caller.date_of_birth) >= make_interval(years => $4::int))
+        AND age(unit_today($1), caller.date_of_birth) >= make_interval(years => $4::int))
       AND (EXISTS (SELECT 1 FROM volunteer_signups v JOIN volunteer_shifts s ON s.id = v.shift_id AND s.organization_id = v.organization_id
         WHERE v.organization_id = $1 AND v.user_id = u.id AND s.activity_id = $3)
       OR EXISTS (SELECT 1 FROM camp_team_members t JOIN year_plan_meetings m ON m.id = t.meeting_id AND m.organization_id = t.organization_id

@@ -100,7 +100,9 @@ function parseFile(filepath, lang) {
     return {
       slug: data.slug,
       title: data.title,
+      // policy-allow server-clock: the public site's articles belong to no unit
       date: data.date || new Date().toISOString().slice(0, ISO_DATE_LENGTH),
+      // policy-allow server-clock: the public site's articles belong to no unit
       updated: data.updated || data.date || new Date().toISOString().slice(0, ISO_DATE_LENGTH),
       lang: data.lang || lang,
       alternate: data.alternate || '',

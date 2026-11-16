@@ -116,6 +116,7 @@ module.exports = (pool) => {
       .withMessage('volunteer_invalid_date')
       // A check that lasts a set time says when it was done, and it cannot be done in the future.
       .bail().custom((value) => Object.entries(value).every(([key, entry]) => !VALIDITY_YEARS[key]
+        // policy-allow server-clock: an upper bound only, and UTC is never behind the units' day
         || (entry.checked_on && entry.checked_on <= new Date().toISOString().slice(0, ISO_DATE_LENGTH))))
       .withMessage('volunteer_checked_on_required'),
     checkValidation, volunteerHandler(async (req, res) => {

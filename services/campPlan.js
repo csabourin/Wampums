@@ -426,7 +426,7 @@ async function listCampPlans(db, organizationId) {
   const camps = (await db.query(
     `SELECT m.id, m.theme, m.meeting_date::text AS date_from,
             COALESCE(a.activity_end_date, m.meeting_date)::text AS date_to,
-            COALESCE(a.activity_end_date, m.meeting_date) >= CURRENT_DATE AS coming
+            COALESCE(a.activity_end_date, m.meeting_date) >= unit_today($1) AS coming
        FROM year_plan_meetings m
        LEFT JOIN activities a ON a.id = m.activity_id AND a.organization_id = m.organization_id
       WHERE m.organization_id = $1 AND m.meeting_kind = 'camp' AND NOT m.is_cancelled

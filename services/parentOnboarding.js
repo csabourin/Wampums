@@ -243,7 +243,7 @@ async function listFamilyChildren(client, { requesterId, familyUserIds, organiza
 async function enrollInYear(client, participantId, organizationId, scoutYearId, inscriptionDate = null) {
   await client.query(
     `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, inscription_date)
-     VALUES ($1, $2, $3, COALESCE($4::date, CURRENT_DATE))
+     VALUES ($1, $2, $3, COALESCE($4::date, unit_today($2)))
      ON CONFLICT (participant_id, organization_id, scout_year_id)
      DO UPDATE SET status = 'active', ended_on = NULL, exit_reason = NULL,
                    inscription_date = COALESCE($4::date, participant_enrollments.inscription_date)`,

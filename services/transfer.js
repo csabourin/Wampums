@@ -333,7 +333,7 @@ async function transferParticipant(client, {
   await client.query(
     `UPDATE participant_enrollments
         SET status = 'transferred',
-            ended_on = CURRENT_DATE,
+            ended_on = unit_today($2),
             exit_reason = 'transfer',
             exception_note = COALESCE($5, exception_note),
             transferred_to_organization_id = $3,

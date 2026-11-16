@@ -9,7 +9,7 @@
  *
  *   node scripts/modernization/check-policy.js [rule ...]       check (all rules by default)
  *
- * Rules: role-names, client-org-id, manual-auth, catch-shadow (source patterns),
+ * Rules: role-names, client-org-id, manual-auth, catch-shadow, server-clock (source patterns),
  * and eslint-warnings (ESLint warnings, which ESLint's own suppressions do not cover).
  *   node scripts/modernization/check-policy.js --update-baseline record lower counts
  *
@@ -98,6 +98,22 @@ const RULES = {
       {
         roots: SERVER_ROOTS,
         scan: findShadowedErrorHelperCalls,
+      },
+    ],
+  },
+  'server-clock': {
+    description: 'Today read from the server\'s clock (UTC) instead of the unit\'s',
+    guidance: 'Use unit_today(<organization id>) or unit_now(<organization id>) in SQL, unitToday(db, organizationId) in JavaScript (utils/unit-clock.js).',
+    scopes: [
+      {
+        roots: ['routes', 'services'],
+        patterns: [
+          /\bCURRENT_DATE\b/,
+          /\b(NOW\(\)|CURRENT_TIMESTAMP)::(date|timestamp|time)\b/i,
+          /\bLOCALTIMESTAMP\b/,
+          /new Date\(\)\.toISOString\(\)\.(slice|split|substring)\(/,
+          /\bformatLocalDate\(new Date\(\)\)/,
+        ],
       },
     ],
   },

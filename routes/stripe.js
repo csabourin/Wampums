@@ -277,7 +277,7 @@ async function handlePaymentSuccess(paymentIntent, pool, logger) {
         stripe_payment_method_id,
         stripe_payment_status,
         stripe_metadata
-      ) VALUES ($1, $2, NOW(), $3, $4, $5, $6, $7, $8, $9)
+      ) VALUES ($1, $2, unit_today($10), $3, $4, $5, $6, $7, $8, $9)
       RETURNING id`,
       [
         participant_fee_id,
@@ -288,7 +288,8 @@ async function handlePaymentSuccess(paymentIntent, pool, logger) {
         paymentIntentId,
         payment_method,
         'succeeded',
-        JSON.stringify(metadata)
+        JSON.stringify(metadata),
+        metadata.organization_id
       ]
     );
 

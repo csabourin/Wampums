@@ -51,7 +51,7 @@ async function moveUpcomingMeetings(client, organizationId, previousTime, nextTi
             end_time = CASE WHEN end_time IS NULL THEN NULL ELSE end_time + ($3::time - $2::time) END,
             updated_at = NOW()
       WHERE organization_id = $1
-        AND meeting_date >= CURRENT_DATE
+        AND meeting_date >= unit_today($1)
         AND NOT is_cancelled
         AND activity_id IS NULL
         AND meeting_kind = 'regular'

@@ -42,6 +42,7 @@ const {
 const { TaskError } = require('../services/activityTasks');
 const { ScheduleLeaderError, readLeaderIds, replaceLineLeaders, withLeaders } = require('../services/scheduleLeaders');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { unitToday } = require('../utils/unit-clock');
 const { ISO_MONTH_LENGTH, TIME_HH_MM_LENGTH } = require('../utils/time-units');
 
 /**
@@ -641,7 +642,7 @@ module.exports = (pool, logger) => {
           await client.query(
             `DELETE FROM year_plan_meetings m
               WHERE m.year_plan_id = $1 AND m.organization_id = $2
-                AND m.meeting_date >= CURRENT_DATE
+                AND m.meeting_date >= unit_today($2)
                 AND m.meeting_kind = 'regular'
                 AND m.activity_id IS NULL
                 AND m.animateur_responsable IS NULL
@@ -743,7 +744,7 @@ module.exports = (pool, logger) => {
           `UPDATE year_plan_meetings m
            SET year_plan_id = NULL, period_id = NULL, updated_at = NOW()
            WHERE m.year_plan_id = $1 AND m.organization_id = $2
-             AND (m.meeting_date < CURRENT_DATE
+             AND (m.meeting_date < unit_today($2)
                   OR m.animateur_responsable IS NOT NULL
                   OR EXISTS (SELECT 1 FROM year_plan_meeting_activities a WHERE a.meeting_id = m.id)
                   OR EXISTS (SELECT 1 FROM activity_tasks t
@@ -1189,10 +1190,7 @@ module.exports = (pool, logger) => {
       meeting.activities = activitiesResult.rows;
 
       // Check locked status
-      const meetingDate = new Date(`${meeting.meeting_date}T00:00:00`);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      meeting.is_locked = meetingDate < today;
+      meeting.is_locked = meeting.meeting_date < await unitToday(pool, organizationId);
 
       return success(res, meeting);
     })
@@ -1910,7 +1908,7 @@ module.exports = (pool, logger) => {
       if (activity_library_id) {
         await pool.query(
           `UPDATE activity_library
-           SET times_used = times_used + 1, last_used_date = CURRENT_DATE, updated_at = NOW()
+           SET times_used = times_used + 1, last_used_date = unit_today($2), updated_at = NOW()
            WHERE id = $1 AND organization_id = $2`,
           [activity_library_id, organizationId]
         );
@@ -2160,7 +2158,7 @@ module.exports = (pool, logger) => {
           await client.query(
             `UPDATE activity_library
                 SET times_used = COALESCE(times_used, 0) + $1,
-                    last_used_date = CURRENT_DATE,
+                    last_used_date = unit_today($3),
                     updated_at = NOW()
               WHERE id = $2 AND organization_id = $3`,
             [targets.length, parseInt(activity.activity_library_id, 10), organizationId]
@@ -2514,13 +2512,13 @@ module.exports = (pool, logger) => {
           const result = await pool.query(
             `INSERT INTO objective_achievements
              (organization_id, objective_id, participant_id, meeting_id, achieved_date, attribution_source, notes, created_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             VALUES ($1, $2, $3, $4, COALESCE($5::date, unit_today($1)), $6, $7, $8)
              ON CONFLICT (organization_id, objective_id, participant_id) DO NOTHING
              RETURNING *`,
             [
               organizationId, objective_id, participantId,
               meeting_id || null,
-              achieved_date || new Date().toISOString().split('T')[0],
+              achieved_date || null,
               attribution_source || 'manual',
               notes || null,
               req.user.id

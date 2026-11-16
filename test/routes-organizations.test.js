@@ -562,7 +562,7 @@ describe('GET /api/v1/organizations/settings', () => {
     expect(move.params).toEqual([ORG_ID, '19:00', '18:45']);
     // Only the meetings still at the old hour, upcoming, ordinary, not cancelled, not an outing's day.
     expect(move.query).toMatch(/start_time = \$2::time/);
-    expect(move.query).toMatch(/meeting_date >= CURRENT_DATE/);
+    expect(move.query).toMatch(/meeting_date >= unit_today\(\$1\)/);
     expect(move.query).toMatch(/NOT is_cancelled/);
     expect(move.query).toMatch(/activity_id IS NULL/);
   });
