@@ -541,7 +541,7 @@ export class Router {
           }
           await this.loadDashboard({ mode: isParent() ? 'finance-focused' : 'default' });
           break;
-        case 'PrintableGroupParticipantReport':
+        case 'PrintableGroupParticipantReport': {
           if (!guard(canViewReports())) {
             break;
           }
@@ -550,6 +550,7 @@ export class Router {
           this.currentModuleInstance = report;
           await report.init();
           break;
+        }
         case 'admin':
           if (!guard(canAccessAdminPanel())) {
             break;
@@ -563,7 +564,7 @@ export class Router {
           }
           await this.loadFundraisersPage();
           break;
-        case 'finance':
+        case 'finance': {
           if (!guard(canViewFinance())) {
             break;
           }
@@ -572,7 +573,8 @@ export class Router {
           this.currentModuleInstance = finance;
           await finance.init();
           break;
-        case 'budgets':
+        }
+        case 'budgets': {
           if (!guard(canViewBudget() || canManageBudget() || canManageFinance())) {
             break;
           }
@@ -581,7 +583,8 @@ export class Router {
           this.currentModuleInstance = budgets; // Track for cleanup
           await budgets.init();
           break;
-        case 'externalRevenue':
+        }
+        case 'externalRevenue': {
           if (!guard(canManageFinance() || canViewFinance())) {
             break;
           }
@@ -590,7 +593,8 @@ export class Router {
           this.currentModuleInstance = externalRevenue;
           await externalRevenue.init();
           break;
-        case 'expenses':
+        }
+        case 'expenses': {
           if (!guard(canManageFinance() || canViewFinance())) {
             break;
           }
@@ -599,7 +603,8 @@ export class Router {
           this.currentModuleInstance = expenses;
           await expenses.init();
           break;
-        case 'revenueDashboard':
+        }
+        case 'revenueDashboard': {
           if (!guard(canViewFinance() || canViewFundraisers() || canViewBudget())) {
             break;
           }
@@ -608,7 +613,8 @@ export class Router {
           this.currentModuleInstance = revenueDashboard;
           await revenueDashboard.init();
           break;
-        case 'resourceDashboard':
+        }
+        case 'resourceDashboard': {
           if (!guard(canViewInventory())) {
             break;
           }
@@ -617,12 +623,13 @@ export class Router {
           this.currentModuleInstance = resourceDashboard;
           await resourceDashboard.init();
           break;
+        }
         case 'material':
           if (!guard(hasVisibleTab('material'))) { break; }
           await this.loadTabbedPage('material');
           break;
         case 'medicationPlanning':
-        case 'medicationDispensing':
+        case 'medicationDispensing': {
           if (!guard(canViewMedication())) {
             break;
           }
@@ -634,7 +641,8 @@ export class Router {
           this.currentModuleInstance = medicationManagement;
           await medicationManagement.init();
           break;
-        case 'medicationPlanningParticipant':
+        }
+        case 'medicationPlanningParticipant': {
           if (!guard(holdsFamilyRole() || canViewMedication())) {
             break;
           }
@@ -648,7 +656,8 @@ export class Router {
           this.currentModuleInstance = medicationManagementParticipant;
           await medicationManagementParticipant.init();
           break;
-        case 'medicationAuthorizationsParticipant':
+        }
+        case 'medicationAuthorizationsParticipant': {
           if (!guard(holdsFamilyRole() || canViewMedication())) {
             break;
           }
@@ -662,7 +671,8 @@ export class Router {
           this.currentModuleInstance = medicationManagementAuth;
           await medicationManagementAuth.init();
           break;
-        case 'medicationReception':
+        }
+        case 'medicationReception': {
           if (!guard(canViewMedication())) {
             break;
           }
@@ -671,7 +681,8 @@ export class Router {
           this.currentModuleInstance = medicationReception;
           await medicationReception.init();
           break;
-        case 'materialManagement':
+        }
+        case 'materialManagement': {
           if (!guard(canManageInventory() || canViewInventory())) {
             break;
           }
@@ -680,6 +691,7 @@ export class Router {
           this.currentModuleInstance = materialManagement;
           await materialManagement.init();
           break;
+        }
         case 'equipmentLoans': {
           // Loans name the unit's youths: the endpoint is for staff of the unit.
           if (!guard(hasPermission('inventory.view') && hasOrganizationScope())) {
@@ -691,7 +703,7 @@ export class Router {
           await equipmentLoans.init();
           break;
         }
-        case 'permissionSlipDashboard':
+        case 'permissionSlipDashboard': {
           if (!guard(canFollowPermissionSlips())) {
             break;
           }
@@ -700,7 +712,8 @@ export class Router {
           this.currentModuleInstance = permissionSlipDashboard;
           await permissionSlipDashboard.init();
           break;
-        case 'permissionSlipDashboardActivity':
+        }
+        case 'permissionSlipDashboardActivity': {
           if (!guard(canFollowPermissionSlips())) {
             break;
           }
@@ -710,20 +723,22 @@ export class Router {
           this.currentModuleInstance = permissionSlipDashboardActivity;
           await permissionSlipDashboardActivity.init();
           break;
-        case 'permissionSlipSign':
+        }
+        case 'permissionSlipSign': {
           // Public route - allow anyone to sign permission slips via email link
           const PermissionSlipSign = await this.loadModule('PermissionSlipSign');
           const permissionSlipSign = new PermissionSlipSign(this.app, param);
           this.currentModuleInstance = permissionSlipSign;
           await permissionSlipSign.init();
           break;
+        }
         case 'calendars':
           if (!guard(canViewFundraisers() || canManageFundraisers())) {
             break;
           }
           await this.loadCalendarsPage(param);
           break;
-        case 'createOrganization':
+        case 'createOrganization': {
           if (!guard(canCreateOrganization())) {
             break;
           }
@@ -732,6 +747,7 @@ export class Router {
           this.currentModuleInstance = createOrganization;
           await createOrganization.init();
           break;
+        }
         case 'unitSwitcher': {
           if (!guard(canSwitchUnits())) {
             break;
@@ -762,7 +778,7 @@ export class Router {
           }
           await this.loadParentFundraisers();
           break;
-        case 'communications':
+        case 'communications': {
           if (!guard(canSendCommunications() || canAccessAdminPanel())) {
             break;
           }
@@ -771,7 +787,8 @@ export class Router {
           this.currentModuleInstance = communicationSettings;
           await communicationSettings.init();
           break;
-        case 'unitSettings':
+        }
+        case 'unitSettings': {
           if (!guard(canAccessAdminPanel())) {
             break;
           }
@@ -780,7 +797,8 @@ export class Router {
           this.currentModuleInstance = unitSettings;
           await unitSettings.init();
           break;
-        case 'scoutYear':
+        }
+        case 'scoutYear': {
           if (!guard(hasPermission('scout_year.view') || hasPermission('scout_year.manage'))) {
             break;
           }
@@ -789,42 +807,48 @@ export class Router {
           this.currentModuleInstance = scoutYearTransition;
           await scoutYearTransition.init();
           break;
-        case 'incidentReports':
+        }
+        case 'incidentReports': {
           if (!guard(canViewIncidents())) {break;}
           const IncidentReportList = await this.loadModule('IncidentReport');
           const incidentList = new IncidentReportList(this.app, { view: 'list' });
           this.currentModuleInstance = incidentList;
           await incidentList.init();
           break;
-        case 'incidentReportNew':
+        }
+        case 'incidentReportNew': {
           if (!guard(canManageIncidents())) {break;}
           const IncidentReportCreate = await this.loadModule('IncidentReport');
           const incidentCreate = new IncidentReportCreate(this.app, { view: 'create' });
           this.currentModuleInstance = incidentCreate;
           await incidentCreate.init();
           break;
-        case 'incidentReportView':
+        }
+        case 'incidentReportView': {
           if (!guard(canViewIncidents())) {break;}
           const IncidentReportView = await this.loadModule('IncidentReport');
           const incidentView = new IncidentReportView(this.app, { view: 'view', incidentId: parseInt(param) });
           this.currentModuleInstance = incidentView;
           await incidentView.init();
           break;
-        case 'incidentReportEdit':
+        }
+        case 'incidentReportEdit': {
           if (!guard(canManageIncidents())) {break;}
           const IncidentReportEdit = await this.loadModule('IncidentReport');
           const incidentEdit = new IncidentReportEdit(this.app, { view: 'edit', incidentId: parseInt(param) });
           this.currentModuleInstance = incidentEdit;
           await incidentEdit.init();
           break;
+        }
         case 'yearlyPlanner':
-        case 'yearlyPlannerDetail':
+        case 'yearlyPlannerDetail': {
           if (!guard(canViewMeetings())) {break;}
           const YearlyPlanner = await this.loadModule('YearlyPlanner');
           const yearlyPlanner = new YearlyPlanner(this.app);
           this.currentModuleInstance = yearlyPlanner;
           await yearlyPlanner.init(routeName === 'yearlyPlannerDetail' ? parseInt(param, 10) : null);
           break;
+        }
         case 'campLots':
         case 'myCampLots': {
           const ownOnly = routeName === 'myCampLots';
@@ -953,13 +977,14 @@ export class Router {
           await starterActivities.init();
           break;
         }
-        case 'offlinePreparation':
+        case 'offlinePreparation': {
           if (!guard(canViewActivities())) {break;}
           const OfflinePreparation = await this.loadModule('OfflinePreparation');
           const offlinePreparation = new OfflinePreparation(this.app);
           this.currentModuleInstance = offlinePreparation;
           await offlinePreparation.init();
           break;
+        }
         case 'login':
           if (this.app.isLoggedIn) {
             // Redirect to appropriate dashboard if already logged in
@@ -1093,13 +1118,14 @@ export class Router {
           }
           await this.loadManageGroups();
           break;
-        case 'guardianManagement':
+        case 'guardianManagement': {
           if (!guard(canViewParticipants())) {
             break;
           }
           const GuardianManagement = await this.loadModule('GuardianManagement');
           this.currentModuleInstance = await GuardianManagement(this.app);
           break;
+        }
         case 'viewParticipantDocuments':
           if (!guard(canViewParticipants())) {
             break;
@@ -1173,7 +1199,7 @@ export class Router {
           // Stored on this device only: open to every signed-in member.
           await this.loadModuleInstance('DisplaySettings');
           break;
-        case 'formBuilder':
+        case 'formBuilder': {
           if (!guard(canManageForms())) {
             break;
           }
@@ -1182,7 +1208,8 @@ export class Router {
           this.currentModuleInstance = formBuilder;
           await formBuilder.init();
           break;
-        case 'activities':
+        }
+        case 'activities': {
           if (!guard(canViewActivities() || canManageActivities())) {
             break;
           }
@@ -1191,7 +1218,8 @@ export class Router {
           this.currentModuleInstance = activities;
           await activities.init();
           break;
-        case 'carpoolLanding':
+        }
+        case 'carpoolLanding': {
           if (!guard(holdsFamilyRole() || canViewCarpools())) {
             break;
           }
@@ -1200,6 +1228,7 @@ export class Router {
           this.currentModuleInstance = carpoolLanding;
           await carpoolLanding.init();
           break;
+        }
         case 'personalEquipmentIndex':
         case 'personalEquipmentManage':
         case 'personalEquipment': {
@@ -1226,7 +1255,7 @@ export class Router {
           await messages.init();
           break;
         }
-        case 'carpool':
+        case 'carpool': {
           if (!guard(holdsFamilyRole() || canViewCarpools())) {
             break;
           }
@@ -1235,6 +1264,7 @@ export class Router {
           this.currentModuleInstance = carpoolDashboard;
           await carpoolDashboard.init();
           break;
+        }
         case 'roles':
           // Each tab carries the permission its endpoints require.
           if (!guard(hasVisibleTab('roles'))) {
@@ -1242,7 +1272,7 @@ export class Router {
           }
           await this.loadTabbedPage('roles');
           break;
-        case 'districtManagement':
+        case 'districtManagement': {
           if (!guard(canViewRoles())) {
             break;
           }
@@ -1251,6 +1281,7 @@ export class Router {
           this.currentModuleInstance = districtManagement;
           await districtManagement.init();
           break;
+        }
         case 'register':
           if (this.app.isLoggedIn) {
             // Redirect to appropriate dashboard if already logged in

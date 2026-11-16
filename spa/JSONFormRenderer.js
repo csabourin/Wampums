@@ -225,13 +225,14 @@ export class JSONFormRenderer {
           output += `</select>`;
         }
         break;
-      case 'checkbox':
+      case 'checkbox': {
         // Every stored spelling of "yes", including "yes" and "oui"
         const checked = isDependencySatisfied(value, 'yes') ? 'checked' : '';
         output += `<input type="checkbox" id="${fieldId}" name="${name}" value="1" ${checked} ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
         output += labelHtml;
         break;
-      case 'radio':
+      }
+      case 'radio': {
         // Wrapped so the options lay out as a row. Bare inputs and labels
         // dropped straight into `.form-group` (a column flex container)
         // put every option on its own line under the question.
@@ -247,6 +248,7 @@ export class JSONFormRenderer {
         });
         output += `</div>`;
         break;
+      }
       default:
         output += `<input type="${type}" id="${fieldId}" name="${name}" value="${value}" ${requiredAttr} ${dependsOnAttr} ${disabled}>`;
     }

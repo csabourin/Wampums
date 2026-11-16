@@ -1,14 +1,4 @@
 {
-  "spa/JSONFormRenderer.js": {
-    "no-case-declarations": {
-      "count": 2
-    }
-  },
-  "spa/router.js": {
-    "no-case-declarations": {
-      "count": 64
-    }
-  },
   "spa/utils/SecurityUtils.js": {
     "no-control-regex": {
       "count": 1
