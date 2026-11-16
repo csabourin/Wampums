@@ -53,6 +53,7 @@ import {
   applyPalette,
   getDashboardPrefs,
   setCollapsedToolGroups,
+  setPlanSectionOpen,
 } from '../../utils/DashboardPreferences.js';
 import { hasVisibleTab } from '../../config/tabbed-pages.js';
 import { CommandPalette } from '../CommandPalette.js';
@@ -105,6 +106,8 @@ const DEFAULT_CAMP_ROLL_CALL_UNTIL_HOUR = 12;
 const MINUTES_PER_HOUR = 60;
 const MS_PER_MINUTE = 60000;
 const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
+/** Planning activities or meetings: "Plan the year and the camps" starts open for them. */
+const PLANNER_PERMISSIONS = Object.freeze(['activities.create', 'activities.edit', 'meetings.manage']);
 
 export class Dashboard extends BaseModule {
   constructor(app, options = {}) {
@@ -495,7 +498,6 @@ export class Dashboard extends BaseModule {
       ${this._renderHero(buckets.now)}
       ${this._renderCampShortcuts(isOffline)}
       <div id="dashboard-camp-readiness">${renderCampReadinessSummary(this.app.lang || this.app.currentLanguage)}</div>
-      <div id="dashboard-team-camps">${upcomingCampsMarkup(this.upcomingCamps, this.app.lang || this.app.currentLanguage)}</div>
       ${this._renderWeek(buckets.week)}
       ${this._renderPlan(buckets.plan)}
       ${this._renderTools(buckets.tools)}
@@ -1352,25 +1354,48 @@ export class Dashboard extends BaseModule {
     return formatted;
   }
 
+  /**
+   * This week: its tiles, then the camps coming up as a card of the same
+   * section (#1430). The camps' slot is always drawn, since they arrive after
+   * the first paint (`showUpcomingCamps`).
+   */
   _renderWeek(weekTiles) {
-    if (!weekTiles.length) {return '';}
+    const camps = `<div id="dashboard-team-camps">${upcomingCampsMarkup(this.upcomingCamps, this.app.lang || this.app.currentLanguage)}</div>`;
+    if (!weekTiles.length) {return camps;}
     const gridHtml = weekTiles.map((t) => this._renderTile(t)).join('');
     return `
       <section class="dashboard-v2__section" aria-labelledby="moment-week">
         <h2 id="moment-week" class="dashboard-v2__section-title">${escapeHTML(translate('dashboard_this_week_section'))}</h2>
         <div class="dashboard-v2__grid">${gridHtml}</div>
+        ${camps}
       </section>
     `;
   }
 
-  /** Planning the year and the camps: the long-range work, after this week's. */
+  /**
+   * Whether "Plan the year and the camps" starts open: as the person last left
+   * it on this device, else open for those who plan activities or meetings
+   * and folded for everyone else (#1430).
+   *
+   * @returns {boolean}
+   */
+  _isPlanOpen() {
+    const chosen = this._prefs?.planSectionOpen;
+    if (typeof chosen === 'boolean') {return chosen;}
+    return hasAnyPermission(...PLANNER_PERMISSIONS);
+  }
+
+  /** Planning the year and the camps: the long-range work, after this week's, in compact tiles. */
   _renderPlan(planTiles) {
     if (!planTiles.length) {return '';}
-    const gridHtml = planTiles.map((t) => this._renderTile(t)).join('');
+    const gridHtml = planTiles.map((t) => this._renderTile(t, { small: true })).join('');
+    const open = this._isPlanOpen();
     return `
       <section class="dashboard-v2__section" aria-labelledby="moment-plan">
-        <h2 id="moment-plan" class="dashboard-v2__section-title">${escapeHTML(translate('dashboard_plan_section'))}</h2>
-        <div class="dashboard-v2__grid">${gridHtml}</div>
+        <h2 id="moment-plan" class="dashboard-v2__section-title"><button type="button" class="dashboard-v2__section-toggle" id="dashboard-plan-toggle" aria-expanded="${open}" aria-controls="dashboard-plan-body">${escapeHTML(translate('dashboard_plan_section'))}<i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i></button></h2>
+        <div class="dashboard-v2__section-body" id="dashboard-plan-body"${open ? '' : ' hidden'}>
+          <div class="dashboard-v2__grid">${gridHtml}</div>
+        </div>
       </section>
     `;
   }
@@ -1592,6 +1617,16 @@ export class Dashboard extends BaseModule {
 
     this.addEventListener(document.getElementById('dashboard-fab'), 'click', () => {
       this.commandPalette?.open();
+    });
+
+    // Fold or unfold "Plan the year and the camps", remembered on this device.
+    const planToggle = document.getElementById('dashboard-plan-toggle');
+    this.addEventListener(planToggle, 'click', () => {
+      const open = planToggle.getAttribute('aria-expanded') !== 'true';
+      planToggle.setAttribute('aria-expanded', String(open));
+      document.getElementById('dashboard-plan-body').hidden = !open;
+      setPlanSectionOpen(open);
+      if (this._prefs) {this._prefs.planSectionOpen = open;}
     });
 
     // Collapse/expand "Tools" groups — persisted across renders/sessions.

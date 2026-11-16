@@ -854,8 +854,9 @@ input[type="radio"] {
   font-size: 24px;
   min-inline-size: var(--touch-target-min);
   min-block-size: var(--touch-target-min);
-  inline-size: var(--touch-target-min);
   block-size: var(--touch-target-min);
+  padding-inline: var(--space-sm) var(--space-md);
+  gap: var(--space-xs);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -13378,6 +13379,12 @@ body:has(> .settings-icon) .demo-banner__inner {
 
 .form-required-note {
   margin: 0 0 var(--space-md);
+}
+
+/* The gear names where it leads ("My account"), in the page's text size. */
+.settings-icon__label {
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: 600;
 }
 
 /* Upcoming camps on the leaders' dashboard: each camp's link, then its dates

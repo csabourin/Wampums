@@ -774,16 +774,18 @@ export const app = {
     // Remove existing icon if any
     this.removeSettingsIcon();
 
-    // Create settings icon element
+    // The gear leads to "My account", and says so (#1430): its visible label is its name.
     const settingsIcon = createElement('a', {
       className: 'settings-icon',
-      text: '⚙️',
       attributes: {
         href: '/account-info',
-        'aria-label': this.translate('settings') || 'Settings',
         id: 'global-settings-icon'
       }
     });
+    settingsIcon.append(
+      createElement('span', { className: 'settings-icon__glyph', text: '⚙️', attributes: { 'aria-hidden': 'true' } }),
+      createElement('span', { className: 'settings-icon__label', text: this.translate('tile_account_info') }),
+    );
 
     // Add to body
     document.body.appendChild(settingsIcon);

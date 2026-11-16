@@ -57,6 +57,9 @@ const DEFAULT_PREFS = Object.freeze({
   pinnedActions: [],
   collapsedToolGroups: DEFAULT_COLLAPSED_TOOL_GROUPS,
   toolGroupsTouched: false,
+  // "Plan the year and the camps": null until the person opens or folds it
+  // themselves; until then it follows whether they plan (#1430).
+  planSectionOpen: null,
   // Consulting an earlier year is occasional: the selector waits to be asked for.
   showScoutYearSelector: false,
 });
@@ -102,6 +105,17 @@ export function setCollapsedToolGroups(groups) {
   const prefs = readPrefs();
   prefs.collapsedToolGroups = Array.from(new Set(groups || []));
   prefs.toolGroupsTouched = true;
+  writePrefs(prefs);
+}
+
+/**
+ * Remember on this device whether "Plan the year and the camps" is open.
+ *
+ * @param {boolean} open - The section is unfolded
+ */
+export function setPlanSectionOpen(open) {
+  const prefs = readPrefs();
+  prefs.planSectionOpen = Boolean(open);
   writePrefs(prefs);
 }
 

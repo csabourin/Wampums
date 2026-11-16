@@ -63,7 +63,7 @@ export function renderCampReadinessSummary(language, now = new Date()) {
   const activities = campPreparation.activities.filter((activity) => isCampReadinessDue(activity, now));
   if (!activities.length) { return ''; }
   return `<section class="dashboard-section" aria-label="${escapeHTML(translate('camp_device_title'))}">
-    <h2>${translate('camp_device_title')}</h2>
+    <h2 class="dashboard-v2__section-title">${translate('camp_device_title')}</h2>
     ${activities.map((activity) => `<div><strong>${escapeHTML(activity.name)}</strong>${renderCampReadiness(activity.id, language)}</div>`).join('')}
     <a class="button button--secondary" href="/prepare-offline">${translate('camp_device_check')}</a>
   </section>`;

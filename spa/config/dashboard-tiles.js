@@ -245,16 +245,6 @@ export const DASHBOARD_TILES = [
     gate: { any: ['badges.view', 'badges.approve', 'participants.view'] },
   },
   {
-    featureKey: 'parent_preview',
-    href: '/parent-dashboard',
-    icon: 'fa-users',
-    label: 'tile_parent_preview',
-    aliases: 'tile_parent_preview_aliases',
-    moment: 'tools',
-    domain: 'people',
-    gate: { check: 'parentTools' },
-  },
-  {
     featureKey: 'mailing_list',
     href: '/mailing-list',
     icon: 'fa-comments',
@@ -565,6 +555,17 @@ export const DASHBOARD_TILES = [
     gate: { check: 'member' },
   },
   {
+    featureKey: 'parent_preview',
+    href: '/parent-dashboard',
+    icon: 'fa-users',
+    label: 'tile_parent_preview',
+    aliases: 'tile_parent_preview_aliases',
+    moment: 'tools',
+    // A check of what families see, not a task about them (#1430).
+    domain: 'system',
+    gate: { check: 'parentTools' },
+  },
+  {
     featureKey: 'district',
     // Merged destination: "Espace district" + "Unités du district".
     href: '/district',
@@ -686,7 +687,11 @@ export const CAMP_DAY_SHORTCUTS = [
  * Groups collapsed the first time a user opens the dashboard. Once they
  * expand or collapse anything the stored preference wins for good.
  */
-export const DEFAULT_COLLAPSED_TOOL_GROUPS = ['logistics', 'money', 'admin'];
+// Every group of "Everything else" starts folded (#1430): this week's work and the
+// planning come first, and a group opens with one tap. The group a person's role lives
+// in still starts open (ROLE_WEIGHTS), and a group someone opened stays open.
+// "My account, display and units" is also behind the "My account" button at the top.
+export const DEFAULT_COLLAPSED_TOOL_GROUPS = ['people', 'safety', 'logistics', 'money', 'admin', 'system'];
 
 /**
  * Routes usable while offline, i.e. whose modules are pre-loaded during camp
