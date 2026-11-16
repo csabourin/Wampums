@@ -197,10 +197,13 @@ children. Each family gets the version of its language (`users.language_preferen
 email language; an optional language falls back to the unit's fallback language).
 
 Every address has a receipt (`camp_parent_letter_deliveries`, migration 087) claimed before the provider is
-called: only a refused address is sent again (`POST …/versions/:n/retry`), an uncertain one never is, the
-rule of the authorization emails. The screen shows, per version, who sent it, when, and how many addresses
-it reached, failed or is uncertain: **counts only**, never the addresses (the read is kept on the device
-for offline use). Youth whose family has no address are named to holders of `participants.view`, counted
+called. **Sending to the addresses not reached** (`POST …/versions/:n/retry`) writes to a refused address,
+and to the camp's addresses the version never tried (a family added since, a send interrupted before its
+last address); an uncertain one is never sent again, the rule of the authorization emails, and nobody already
+reached is written to twice. The screen shows, per version, who sent it, when, and how many addresses it
+reached, failed, is uncertain about or has not tried yet (`unreached`): **counts only**, never the addresses
+(the read is kept on the device for offline use). That action redraws only the list of versions: the letter
+being edited above stays as it is. Youth whose family has no address are named to holders of `participants.view`, counted
 for others.
 
 The permit's `parent_letter` line is **complete** once a version is sent (`letter_sent`, citing its

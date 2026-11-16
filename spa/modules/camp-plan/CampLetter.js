@@ -167,8 +167,10 @@ export class CampLetter {
         .replace('{date}', formatDate(version.sent_at, this.lang()))
         .replace('{name}', version.sent_by_name || translate('tasks_member'));
       const counts = translate('camp_letter_sent_counts')
-        .replace('{sent}', String(version.sent)).replace('{failed}', String(version.failed)).replace('{unknown}', String(version.unknown));
-      const retry = this.canSend && version.failed > 0
+        .replace('{sent}', String(version.sent)).replace('{failed}', String(version.failed))
+        .replace('{unknown}', String(version.unknown)).replace('{unreached}', String(version.unreached || 0));
+      // A refused address, a family added since, or a send interrupted: never one already reached or uncertain.
+      const retry = this.canSend && (version.failed > 0 || version.unreached > 0)
         ? `<button type="button" class="button button--secondary button--small" data-retry="${Number(version.version_number)}">
             ${escapeHTML(translate('camp_letter_retry'))}<span class="visually-hidden"> — ${escapeHTML(translate('camp_letter_retry_version').replace('{version}', String(version.version_number)))}</span>
           </button>`
@@ -348,7 +350,10 @@ export class CampLetter {
     });
   }
 
-  /** Send one version again where the provider refused it. */
+  /**
+   * Send one version to the addresses it has not reached. Only the list of versions is redrawn: the
+   * letter being edited above is the team's work in progress, and stays as it is.
+   */
   async retry(button, versionNumber) {
     button.disabled = true;
     try {
@@ -356,8 +361,11 @@ export class CampLetter {
       if (this.destroyed) {
         return;
       }
-      this.data = response.data;
-      this.render();
+      this.data = { ...this.data, sent: response.data.sent, audience: response.data.audience };
+      const list = this.root().querySelector('#camp-letter-sent');
+      setContent(list, this.sentMarkup());
+      // Focus was on the button just replaced: keep it in the list it belonged to.
+      list.querySelector('[data-retry]')?.focus();
       this.app.showMessage(translate('camp_letter_retried'), 'success');
     } catch (err) {
       if (this.destroyed) {

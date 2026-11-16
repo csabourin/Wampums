@@ -151,6 +151,21 @@ test('a sent letter lists its version, and one that failed somewhere is sent aga
   expect($('[data-retry]')).toBeNull();
 });
 
+test('sending to the addresses not reached keeps the letter being edited, and is offered for a family added since', async () => {
+  const version = { version_number: 1, sent_at: '2027-06-02T12:00:00Z', sent_by_name: 'Ada Lovelace', sent: 9, failed: 0, unknown: 0, unreached: 1 };
+  retryCampLetter.mockResolvedValue(letter({ sent: [{ ...version, sent: 10, unreached: 0 }] }));
+  await open(letter({ sent: [version] }));
+  // Nothing failed, but one family of the camp was never written to: the action is offered.
+  expect($('[data-retry="1"]')).not.toBeNull();
+  $('#camp-letter-subject-fr').value = 'Unsaved edit';
+  $('[data-retry="1"]').click();
+  await flush();
+  expect(retryCampLetter).toHaveBeenCalledWith(12, 1);
+  expect($('#camp-letter-subject-fr').value).toBe('Unsaved edit');
+  expect($('[data-retry]')).toBeNull();
+  expect(app.showMessage).toHaveBeenCalledWith('camp_letter_retried', 'success');
+});
+
 test('starting again from the camp asks first, then puts the proposed letter back', async () => {
   confirm.mockResolvedValue(true);
   await open();

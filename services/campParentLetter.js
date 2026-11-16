@@ -281,20 +281,29 @@ async function familyLanguage(db, email, organizationId) {
   return LANGUAGES.includes(fallback) ? fallback : 'fr';
 }
 
-/** How every sent version stands, newest first: who sent it, when, and how many addresses it reached. */
-async function sentVersions(db, organizationId, meetingId) {
+/**
+ * How every sent version stands, newest first: who sent it, when, how many addresses it reached,
+ * failed or is uncertain about, and how many of the camp's current addresses it never tried
+ * (a family added since, or a send interrupted before its last address).
+ *
+ * @param {string[]} currentEmails - The camp's addresses now
+ */
+async function sentVersions(db, organizationId, meetingId, currentEmails = []) {
   const rows = (await db.query(
     `SELECT l.id, l.version_number, l.sent_at, u.full_name AS sent_by_name,
             COUNT(d.id) FILTER (WHERE d.status = 'sent')::int AS sent,
             COUNT(d.id) FILTER (WHERE d.status = 'failed')::int AS failed,
-            COUNT(d.id) FILTER (WHERE d.status IN ('sending', 'unknown'))::int AS unknown
+            COUNT(d.id) FILTER (WHERE d.status IN ('sending', 'unknown'))::int AS unknown,
+            (SELECT COUNT(*) FROM unnest($3::text[]) AS current(email)
+              WHERE NOT EXISTS (SELECT 1 FROM camp_parent_letter_deliveries tried
+                                 WHERE tried.letter_id = l.id AND tried.email = current.email))::int AS unreached
        FROM camp_parent_letters l
        LEFT JOIN users u ON u.id = l.sent_by
        LEFT JOIN camp_parent_letter_deliveries d ON d.letter_id = l.id AND d.organization_id = l.organization_id
       WHERE l.organization_id = $1 AND l.meeting_id = $2 AND l.status = 'sent'
       GROUP BY l.id, u.full_name
       ORDER BY l.version_number DESC`,
-    [organizationId, meetingId]
+    [organizationId, meetingId, currentEmails]
   )).rows;
   // Counts only: the screen is kept on the device for offline use, the families' addresses are not.
   return rows.map(({ id: _id, ...row }) => row);
@@ -314,14 +323,16 @@ async function readCampLetter(pool, organizationId, meetingId, { names = false }
   const facts = await letterFacts(pool, organizationId, meetingId);
   const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
   const proposed = Object.fromEntries(LANGUAGES.map((language) => [language, draftLetter(facts, language, baseUrl)]));
-  const [draftRow, sent, reach] = await Promise.all([
+  const reach = facts.camp.activity_id
+    ? await recipients(pool, organizationId, facts.camp.activity_id)
+    : { children: [], emails: [] };
+  const [draftRow, sent] = await Promise.all([
     pool.query(
       `SELECT subject_fr, body_fr_html, subject_en, body_en_html, updated_at FROM camp_parent_letters
         WHERE organization_id = $1 AND meeting_id = $2 AND status = 'draft'`,
       [organizationId, meetingId]
     ).then((result) => result.rows[0] || null),
-    sentVersions(pool, organizationId, meetingId),
-    facts.camp.activity_id ? recipients(pool, organizationId, facts.camp.activity_id) : Promise.resolve({ children: [], emails: [] }),
+    sentVersions(pool, organizationId, meetingId, reach.emails),
   ]);
   const draft = draftRow
     ? { saved: true, updated_at: draftRow.updated_at,

@@ -189,6 +189,17 @@ describe.skipIf(!DATABASE_URL)('Letter to parents drawn from the camp', () => {
     expect(retried.body.data.sent[0]).toMatchObject({ version_number: 2, sent: 1, failed: 0, unknown: 1 });
   });
 
+  test('a family added after a version was sent is reached by that version, and nobody else is written to again', async () => {
+    ids.lateFamily = `let-late-${Date.now()}@example.test`;
+    await child('Mia', ids.lateFamily);
+    const read = await request(app).get(path(ids.camp)).set(auth(ids.sender));
+    expect(read.body.data.sent.find((version) => version.version_number === 1)).toMatchObject({ unreached: 1, failed: 0 });
+    const retried = await request(app).post(path(ids.camp, '/versions/1/retry')).set(auth(ids.sender));
+    expect(retried.status).toBe(200);
+    expect(sendEmail.mock.calls.map(([to]) => to)).toEqual([ids.lateFamily]);
+    expect(retried.body.data.sent.find((version) => version.version_number === 1)).toMatchObject({ sent: 3, unreached: 0 });
+  });
+
   test('editing takes meetings.manage, sending communications.send as well', async () => {
     const edit = await request(app).put(path(ids.camp)).set(auth(ids.viewer)).send(letter());
     expect(edit.status).toBe(403);
