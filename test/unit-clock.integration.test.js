@@ -110,6 +110,17 @@ describe.skipIf(!DATABASE_URL)('the unit\'s clock', () => {
     expect(await one('SELECT unit_today(NULL)::text')).toBe(dayIn('America/Toronto'));
   });
 
+  test('every city the unit settings offer keeps a zone the database accepts', async () => {
+    const offered = require('../config/unit_time_zones.json').regions.flatMap((region) => region.zones);
+
+    const unknown = (await pool.query(
+      `SELECT zone FROM unnest($1::text[]) AS zone
+        WHERE NOT EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = zone)`, [offered]
+    )).rows.map((row) => row.zone);
+
+    expect(unknown).toEqual([]);
+  });
+
   test('a time zone PostgreSQL does not know is refused', async () => {
     await expect(pool.query("UPDATE organizations SET time_zone = 'Mars/Olympus_Mons' WHERE id = $1", [ids.early]))
       .rejects.toMatchObject({ code: '23514' });

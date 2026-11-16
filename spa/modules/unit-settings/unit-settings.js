@@ -24,6 +24,7 @@ import {
   removeUnitDomain,
   setPrimaryUnitDomain,
   updateUnitBranch,
+  updateUnitTimeZone,
 } from '../../api/api-organizations.js';
 import { CONFIG } from '../../config.js';
 import CAMP_PERMIT_RULES from '../../../config/camp_permit.json';
@@ -39,6 +40,15 @@ import {
 } from '../../config/languages.js';
 import { getUnitLanguages, nativeLanguageName } from '../../utils/InterfaceLanguageUtils.js';
 import { DAYS_OF_WEEK } from '../../utils/MeetingDateUtils.js';
+import {
+  DEFAULT_TIME_ZONE,
+  TIME_ZONE_REGIONS,
+  isOfferedTimeZone,
+  timeInZone,
+  timeZoneCityKey,
+  timeZoneOffset,
+  timeZoneRegionKey,
+} from '../../utils/TimeZoneUtils.js';
 import {
   hasPermission,
   canSendCommunications,
@@ -163,6 +173,7 @@ export class UnitSettings extends BaseModule {
     };
     this.orgName = this.organizationInfo.name || '';
     this.programSection = data.program_section || 'general';
+    this.timeZone = data.time_zone || DEFAULT_TIME_ZONE;
     this.emailLanguage = data.default_email_language || 'fr';
     this.interfaceLanguages = getUnitLanguages(data);
     const profile = getVocabularyProfile(data);
@@ -264,6 +275,7 @@ export class UnitSettings extends BaseModule {
           ${this.activeTab === 'general' ? `
             ${this.renderUnitDetailsSection()}
             ${this.renderBranchSection()}
+            ${this.renderTimeZoneSection()}
             ${this.canViewOrg ? this.renderAddressesSection() : ''}
             ${this.canEditOrg ? this.renderInterfaceLanguagesSection() : ''}
             ${this.canEditOrg ? this.renderLanguageSection() : ''}
@@ -411,6 +423,56 @@ export class UnitSettings extends BaseModule {
             <p class="field-hint" id="unit-branch-hint">${escapeHTML(translate('unit_branch_hint'))}</p>
           </div>
           ${this.canEditOrg ? `<button type="submit" id="save-unit-branch-btn" class="button button--primary">
+            ${escapeHTML(translate('save'))}
+          </button>` : ''}
+        </form>
+      </section>`;
+  }
+
+  /**
+   * What the "now" line under the time-zone selector says for a zone.
+   * @param {string} timeZone - IANA name
+   * @returns {string} Sentence, or '' when the browser cannot tell the time there
+   */
+  timeZoneNowText(timeZone) {
+    const time = timeInZone(timeZone, this.app?.lang);
+    return time ? translate('unit_time_zone_now').replace('{time}', time) : '';
+  }
+
+  /**
+   * Where the unit is, chosen by its closest large city. "Today" across the
+   * app follows that city's clock. A zone set outside this list stays shown.
+   */
+  renderTimeZoneSection() {
+    const disabled = this.canEditOrg ? '' : 'disabled';
+    const lang = this.app?.lang;
+    const option = (zone, label) => {
+      const offset = timeZoneOffset(zone, lang);
+      return `<option value="${escapeAttribute(zone)}" ${this.timeZone === zone ? 'selected' : ''}>
+        ${escapeHTML(offset ? `${label} (${offset})` : label)}
+      </option>`;
+    };
+    const groups = TIME_ZONE_REGIONS.map((region) => `
+      <optgroup label="${escapeAttribute(translate(timeZoneRegionKey(region.key)))}">
+        ${region.zones.map((zone) => option(zone, translate(timeZoneCityKey(zone)))).join('')}
+      </optgroup>`).join('');
+    const other = isOfferedTimeZone(this.timeZone)
+      ? ''
+      : option(this.timeZone, translate('unit_time_zone_other').replace('{zone}', this.timeZone));
+    return `
+      <section class="account-section" aria-labelledby="unit-time-zone-title">
+        <h2 id="unit-time-zone-title">${escapeHTML(translate('unit_time_zone_title'))}</h2>
+        <form id="unit-time-zone-form" class="unit-settings-form">
+          <div class="form-group">
+            <label for="unit-time-zone-select">${escapeHTML(translate('unit_time_zone_label'))}</label>
+            <select id="unit-time-zone-select" name="time_zone" class="form-control"
+              aria-describedby="unit-time-zone-hint unit-time-zone-now" ${disabled}>
+              ${other}${groups}
+            </select>
+            <p class="field-hint" id="unit-time-zone-hint">${escapeHTML(translate('unit_time_zone_hint'))}</p>
+            <p class="field-hint" id="unit-time-zone-now">${escapeHTML(this.timeZoneNowText(this.timeZone))}</p>
+          </div>
+          ${this.canEditOrg ? `<button type="submit" id="save-unit-time-zone-btn" class="button button--primary">
             ${escapeHTML(translate('save'))}
           </button>` : ''}
         </form>
@@ -936,6 +998,18 @@ export class UnitSettings extends BaseModule {
       this.addEventListener(twoFaToggle, 'change', (e) => this.handleTwoFactorToggle(e.target.checked));
     }
 
+    const timeZoneForm = document.getElementById('unit-time-zone-form');
+    if (timeZoneForm && this.canEditOrg) {
+      const timeZoneSelect = document.getElementById('unit-time-zone-select');
+      this.addEventListener(timeZoneSelect, 'change', () => {
+        document.getElementById('unit-time-zone-now').textContent = this.timeZoneNowText(timeZoneSelect.value);
+      });
+      this.addEventListener(timeZoneForm, 'submit', (event) => {
+        event.preventDefault();
+        withFormBusy(timeZoneForm, () => this.handleSaveTimeZone());
+      });
+    }
+
     const branchForm = document.getElementById('unit-branch-form');
     if (branchForm && this.canEditOrg) {
       this.addEventListener(branchForm, 'submit', (event) => {
@@ -1207,6 +1281,26 @@ export class UnitSettings extends BaseModule {
       document.getElementById('unit-branch-select')?.focus();
     } catch (error) {
       debugError('Failed to save unit branch:', error);
+      this.app?.showMessage?.(apiErrorMessage(error, 'error_saving'), 'error');
+    }
+  }
+
+  /** Save the city whose clock the unit's days follow. */
+  async handleSaveTimeZone() {
+    const timeZone = document.getElementById('unit-time-zone-select')?.value;
+    try {
+      const response = await updateUnitTimeZone(timeZone);
+      this.timeZone = response?.data?.time_zone || timeZone;
+      if (this.app) {
+        this.app.organizationSettings = { ...(this.app.organizationSettings || {}), time_zone: this.timeZone };
+      }
+      this.app?.showMessage?.(translate('unit_time_zone_saved'), 'success');
+      if (this.isDestroyed) {return;}
+      this.render();
+      this.attachEventListeners();
+      document.getElementById('unit-time-zone-select')?.focus();
+    } catch (error) {
+      debugError('Failed to save unit time zone:', error);
       this.app?.showMessage?.(apiErrorMessage(error, 'error_saving'), 'error');
     }
   }

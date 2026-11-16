@@ -50,6 +50,10 @@ const { createInvitation, resolveInvitationLanguage } = require('../services/par
 const { deliverParentInvitation } = require('../services/familyDelivery');
 const { installDefaultStarterActivities } = require('../services/activityLibraryStarter');
 const CAMP_PERMIT_RULES = require('../config/camp_permit.json');
+const UNIT_TIME_ZONES = require('../config/unit_time_zones.json');
+
+/** Time zones a unit may choose, by the cities that keep them. */
+const OFFERED_TIME_ZONES = new Set(UNIT_TIME_ZONES.regions.flatMap((region) => region.zones));
 const {
   EMAIL_SENDER_SETTING_KEY,
   getDefaultSenderEmail,
@@ -303,7 +307,7 @@ async function loadOrganizationSettings(pool, organizationId, skipCache = false)
 
   const [organizationContext, localGroupMemberships, allLocalGroups] = await Promise.all([
     pool.query(
-      `SELECT program_section
+      `SELECT program_section, time_zone
        FROM organizations
        WHERE id = $1`,
       [organizationId]
@@ -325,6 +329,7 @@ async function loadOrganizationSettings(pool, organizationId, skipCache = false)
   ]);
 
   settings.program_section = organizationContext.rows[0]?.program_section || 'general';
+  settings.time_zone = organizationContext.rows[0]?.time_zone || UNIT_TIME_ZONES.default;
 
   settings.local_groups = {
     memberships: localGroupMemberships.rows,
@@ -781,6 +786,32 @@ module.exports = (pool, logger) => {
     } finally {
       client.release();
     }
+  }));
+
+  /**
+   * Choose where the unit is: "today", "upcoming" and "overdue" follow that
+   * zone's clock (unit_today, migration 088). Only the zones of
+   * config/unit_time_zones.json are offered, each named after its cities.
+   */
+  router.patch('/settings/time-zone', authenticate, blockDemoRoles, requirePermission('org.edit'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const timeZone = req.body?.time_zone;
+    if (typeof timeZone !== 'string' || !OFFERED_TIME_ZONES.has(timeZone)) {
+      return errorResponse(res, 'Invalid time zone', HTTP_BAD_REQUEST, [{ field: 'time_zone', msg: 'unit_time_zone_invalid' }]);
+    }
+
+    const updated = await pool.query(
+      `UPDATE organizations SET time_zone = $2, updated_at = NOW()
+       WHERE id = $1
+       RETURNING time_zone`,
+      [organizationId, timeZone]
+    );
+    if (updated.rows.length === 0) {
+      return errorResponse(res, 'Organization not found', HTTP_NOT_FOUND);
+    }
+
+    orgSettingsCache.delete(`org_${organizationId}`);
+    return success(res, { time_zone: updated.rows[0].time_zone }, 'Unit time zone updated');
   }));
 
   /**

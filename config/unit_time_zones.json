@@ -1,0 +1,53 @@
+{
+  "default": "America/Toronto",
+  "regions": [
+    {
+      "key": "canada",
+      "zones": [
+        "America/St_Johns",
+        "America/Halifax",
+        "America/Toronto",
+        "America/Winnipeg",
+        "America/Regina",
+        "America/Edmonton",
+        "America/Vancouver",
+        "America/Whitehorse"
+      ]
+    },
+    {
+      "key": "united_states",
+      "zones": [
+        "America/New_York",
+        "America/Chicago",
+        "America/Denver",
+        "America/Phoenix",
+        "America/Los_Angeles",
+        "America/Anchorage",
+        "Pacific/Honolulu"
+      ]
+    },
+    {
+      "key": "europe",
+      "zones": [
+        "Europe/London",
+        "Europe/Lisbon",
+        "Europe/Paris",
+        "Europe/Rome",
+        "Europe/Kyiv"
+      ]
+    },
+    {
+      "key": "elsewhere",
+      "zones": [
+        "America/Mexico_City",
+        "America/Port-au-Prince",
+        "America/Sao_Paulo",
+        "Africa/Abidjan",
+        "Africa/Casablanca",
+        "Asia/Beirut",
+        "Asia/Jakarta",
+        "Australia/Sydney"
+      ]
+    }
+  ]
+}

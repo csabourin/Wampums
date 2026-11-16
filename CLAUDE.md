@@ -392,6 +392,10 @@ and grants, and review comments and DDL literals for PII or secrets before commi
 - ✅ **"Today" is the day where the unit is, not the server's.** The application and PostgreSQL keep UTC,
   where the day turns over during an evening meeting. Each unit has a time zone
   (`organizations.time_zone`, IANA name, default `America/Toronto`, migration 088).
+  An administrator chooses it by closest large city under Unit settings › Time zone
+  (`PATCH /api/v1/organizations/settings/time-zone`, `org.edit`). `config/unit_time_zones.json` lists the
+  zones offered, shared by the server and the SPA (`spa/utils/TimeZoneUtils.js`); a zone added there needs
+  its `unit_time_zone_city_<zone>` key in both languages.
 - ✅ In SQL: `unit_today(<organization id>)` instead of `CURRENT_DATE`, and `unit_now(<organization id>)`
   (a timestamp without zone) to compare with an activity's date and time, which carry no zone. In
   JavaScript: `unitToday(db, organizationId)` from `utils/unit-clock.js`.
