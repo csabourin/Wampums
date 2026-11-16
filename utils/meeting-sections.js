@@ -1,5 +1,6 @@
 const defaultMeetingSections = require('../config/meeting_sections.json');
 const { DEFAULT_PROGRAM_SECTIONS } = require('./programSections');
+const { DATE_PART_WIDTH } = require('./time-units');
 
 const PROGRAM_SECTION_KEYS = new Set(DEFAULT_PROGRAM_SECTIONS.map((section) => section.key));
 
@@ -51,6 +52,63 @@ function mergeMeetingSectionConfig(customConfig) {
     defaultSection: defaultSectionKey,
     sections
   };
+}
+
+const MINUTES_PER_HOUR = 60;
+const MINUTES_PER_DAY = 1440;
+const CLOCK_TIME = /^([01]\d|2[0-3]):([0-5]\d)/;
+
+/**
+ * @param {string} value - "HH:MM" or "HH:MM:SS"
+ * @returns {number|null} Minutes since midnight, or null when unreadable
+ */
+function clockMinutes(value) {
+  const match = CLOCK_TIME.exec(String(value || ''));
+  return match ? Number(match[1]) * MINUTES_PER_HOUR + Number(match[2]) : null;
+}
+
+/**
+ * @param {number} minutes - Minutes since midnight, any value
+ * @returns {string} "HH:MM", wrapped into the day
+ */
+function clockTime(minutes) {
+  const within = ((minutes % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
+  const pad = (value) => String(value).padStart(DATE_PART_WIDTH, '0');
+  return `${pad(Math.floor(within / MINUTES_PER_HOUR))}:${pad(within % MINUTES_PER_HOUR)}`;
+}
+
+/**
+ * Make each section's usual evening start at the unit's meeting time (Unit
+ * settings): every activity template moves by the same amount, so the evening
+ * keeps its shape and its durations. "Next meeting", meeting preparation and
+ * the parent dashboard all read the templates from here, so they show the
+ * same hours. Without a meeting time set, the templates keep their own.
+ *
+ * @param {object} config - Merged meeting section configuration
+ * @param {string} [meetingTime] - The unit's meeting time, "HH:MM"
+ * @returns {object} The configuration, its templates aligned on the meeting time
+ */
+function alignTemplatesToMeetingTime(config, meetingTime) {
+  const target = clockMinutes(meetingTime);
+  if (target === null || !config?.sections) {
+    return config;
+  }
+  const sections = Object.fromEntries(Object.entries(config.sections).map(([key, section]) => {
+    const templates = Array.isArray(section?.activityTemplates) ? section.activityTemplates : [];
+    const starts = templates.map((template) => clockMinutes(template?.time)).filter((minutes) => minutes !== null);
+    if (!starts.length) {
+      return [key, section];
+    }
+    const shift = target - Math.min(...starts);
+    return [key, {
+      ...section,
+      activityTemplates: templates.map((template) => {
+        const start = clockMinutes(template?.time);
+        return start === null ? template : { ...template, time: clockTime(start + shift) };
+      }),
+    }];
+  }));
+  return { ...config, sections };
 }
 
 /**
@@ -122,7 +180,7 @@ async function getMeetingSectionConfig(pool, organizationId, logger) {
   if (parsedOrgSetting) {
     const mergedConfig = mergeMeetingSectionConfig(parsedOrgSetting);
     mergedConfig.defaultSection = resolveMeetingSectionKey(mergedConfig, sectionContext);
-    return mergedConfig;
+    return alignTemplatesToMeetingTime(mergedConfig, organizationInfo.meeting_time);
   }
 
   // Fallback to shared defaults stored under organization_id = 0
@@ -135,16 +193,17 @@ async function getMeetingSectionConfig(pool, organizationId, logger) {
   if (parsedShared) {
     const mergedShared = mergeMeetingSectionConfig(parsedShared);
     mergedShared.defaultSection = resolveMeetingSectionKey(mergedShared, sectionContext);
-    return mergedShared;
+    return alignTemplatesToMeetingTime(mergedShared, organizationInfo.meeting_time);
   }
 
   // Final fallback to static defaults
   const mergedDefaults = mergeMeetingSectionConfig(defaultMeetingSections);
   mergedDefaults.defaultSection = resolveMeetingSectionKey(mergedDefaults, sectionContext);
-  return mergedDefaults;
+  return alignTemplatesToMeetingTime(mergedDefaults, organizationInfo.meeting_time);
 }
 
 module.exports = {
+  alignTemplatesToMeetingTime,
   getMeetingSectionConfig,
   mergeMeetingSectionConfig,
   resolveMeetingSectionKey

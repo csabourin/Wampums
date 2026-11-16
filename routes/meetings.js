@@ -187,6 +187,32 @@ module.exports = (pool, logger) => {
     return serializeMeeting(meeting, await withMaterialItems(pool, organizationId, activitiesResult.rows));
   }
 
+  /**
+   * An ordinary meeting nobody has prepared yet shows the unit's usual evening
+   * (the default section's activity templates) on the "Next meeting" screen.
+   * `default_schedule` carries those times, so every screen that reads
+   * `/next` gives the same hours instead of those copied into the meeting
+   * when the year was planned. A prepared meeting, or a day linked to an
+   * outing or camp, has none.
+   *
+   * @param {Object|null} meeting - Serialized meeting
+   * @param {number} organizationId - Authenticated unit
+   * @returns {Promise<Object|null>} The meeting, with `default_schedule` when it applies
+   */
+  async function withDefaultSchedule(meeting, organizationId) {
+    if (!meeting || meeting.activity_id || meeting.activities.length) {
+      return meeting;
+    }
+    const config = await getMeetingSectionConfig(pool, organizationId, logger);
+    const templates = config?.sections?.[config.defaultSection]?.activityTemplates;
+    return {
+      ...meeting,
+      default_schedule: (Array.isArray(templates) ? templates : [])
+        .filter((template) => template && template.time)
+        .map((template) => ({ time: template.time, duration: template.duration || '' })),
+    };
+  }
+
   // ===========================================================================
   // PREPARATION
   // ===========================================================================
@@ -515,7 +541,7 @@ module.exports = (pool, logger) => {
       }
 
       const meeting = await loadMeetingByDate(organizationId, nextDate);
-      return success(res, meeting);
+      return success(res, await withDefaultSchedule(meeting, organizationId));
     })
   );
 
