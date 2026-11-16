@@ -43,9 +43,9 @@ introduced by the word "Blocking:".
 ## Rules
 
 - **Nothing is complete by default**, and nothing says a camp is compliant. An empty source is "to
-  complete"; a source Wampums lacks (menu #1260, letter to parents #1321) or cannot
+  complete"; a source Wampums lacks (menu #1260) or cannot
   check (transportation, free-text material, swimming supervision) is
-  "not verified".
+  "not verified". The letter to parents is "to complete" until a version is sent (#1321, below).
 - **States and counts only.** The answer names no youth and carries no health information. The camp
   lists are read with no right to names, certifications or allergies (`ROSTER_RIGHTS`).
 - A line the person may not verify reads `no_access`, with no detail and no link.
@@ -171,3 +171,45 @@ Erasure keeps the redacted version and its historical attestations. Those attest
 the original fingerprints and are marked as predating redaction. The obsolete approved PDF, the
 allergies PDF and any pending branch link are removed. Submit a new version to obtain approvals
 for the redacted plan.
+
+## Letter to parents (#1321)
+
+The permit asks for a letter to the families giving the arrival, the return and how to reach the team
+in an emergency. **`/camp-letter/:meetingId`** ("Letter to parents"; `meetings.view`, unit-wide), opened
+from the permit's line, drafts it from what the camp already records, in **French and English**:
+
+- **Going and return**: the camp's activity (`activities.meeting_location_going`, `meeting_time_going`,
+  `departure_time_going`, `meeting_location_return`, `meeting_time_return`, start and end dates).
+- **Emergency**: the on-site lead's number (`camp_details.contact_phone`), else the camp site's phone
+  (#1317). Never a number typed twice.
+- **Links** to the family's own pages: what is left to do (`/parent-dashboard`), carpooling
+  (`/carpool/:activityId`), the personal list once published (`/personal-equipment/:meetingId`). They
+  name no child; each family sees only its own children once signed in.
+- A missing fact is written "to be confirmed" in the letter and listed on the screen with the screen
+  that completes it (`missing`, `FACTS`).
+
+The team edits both versions (`RichTextEditor`; the server rebuilds them, `utils/richText.js`) and saves a
+draft (`PUT …/letter`, `meetings.manage`). **Sending** (`POST …/letter/versions`, `meetings.manage` and
+`communications.send`, never a demo account, rate-limited per person) freezes a numbered version and emails
+the **families of the youth invited to the camp's activity**, without those whose authorization was
+declined or withdrawn (`activityAuthorizations.audience`). One address is one recipient, whatever its
+children. Each family gets the version of its language (`users.language_preference`, else the unit's
+email language; an optional language falls back to the unit's fallback language).
+
+Every address has a receipt (`camp_parent_letter_deliveries`, migration 087) claimed before the provider is
+called. **Sending to the addresses not reached** (`POST …/versions/:n/retry`) writes to a refused address,
+and to the camp's addresses the version never tried (a family added since, a send interrupted before its
+last address); an uncertain one is never sent again, the rule of the authorization emails, and nobody already
+reached is written to twice. The screen shows, per version, who sent it, when, and how many addresses it
+reached, failed, is uncertain about or has not tried yet (`unreached`): **counts only**, never the addresses
+(the read is kept on the device for offline use). That action redraws only the list of versions: the letter
+being edited above stays as it is. A cancelled camp refuses both sending and sending again (409 `camp_letter_camp_cancelled`): no family
+receives the instructions of a camp that will not take place. Youth whose family has no address are named to holders of `participants.view`, counted
+for others.
+
+The permit's `parent_letter` line is **complete** once a version is sent (`letter_sent`, citing its
+number) and **to complete** before (`letter_not_sent`).
+
+Tests: `test/camp-parent-letter.test.js` (the draft), `test/camp-parent-letter.integration.test.js`
+(families, languages, receipts, retry, the permit's line, unit isolation), the `#1321` block of
+`test/routes-camp-plans.test.js`, `test/spa/CampLetter.test.js`, and the screen in `e2e/accessibility.spec.mjs`.

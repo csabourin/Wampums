@@ -10,6 +10,8 @@
  * versions (#1418) name the camp's youth and team: reading them takes
  * `participants.view` too, and submitting one `meetings.manage`; the copy of a
  * document that names allergies is served only with `camp_allergies.view`.
+ * The letter to parents (#1321) is read with `meetings.view` (unit-wide), its draft written with
+ * `meetings.manage`, and sending it to the camp's families takes `communications.send` as well.
  *
  * @module routes/camp-plans
  */
@@ -27,6 +29,9 @@ const {
 } = require('../services/campPlan');
 const { readCampPermit } = require('../services/campPermit');
 const { submitPlanVersion, listPlanVersions, readPlanVersionPdf } = require('../services/campPlanVersions');
+const {
+  LIMITS: LETTER_LIMITS, readCampLetter, saveCampLetterDraft, sendCampLetter, retryCampLetter,
+} = require('../services/campParentLetter');
 
 /**
  * A submitted plan names the camp's youth and its team with their qualifications: unit-wide
@@ -43,6 +48,9 @@ const approvalAccess = (permission) => ({ ...READ_VERSIONS, permissions: [...REA
 const versionParams = () => [validateIdParam('meetingId'), validateIdParam('versionNumber')];
 const expectedDigest = () => body('pdf_sha256').isString().matches(/^[0-9a-f]{64}$/);
 const SUBMIT = { permissions: ['meetings.manage', 'participants.view'], organizationScope: true };
+const READ_LETTER = { permissions: ['meetings.view'], organizationScope: true };
+const WRITE_LETTER = { permissions: ['meetings.manage'], organizationScope: true };
+const SEND_LETTER = { permissions: ['meetings.manage', 'communications.send'], organizationScope: true };
 
 /** Answer known refusals with their translation key, naming the field when there is one. */
 const handle = (handler, required = []) => asyncHandler(async (req, res) => {
@@ -68,6 +76,16 @@ module.exports = (pool) => {
     windowMs: MS_PER_HOUR, limit: RULES.link_requests_per_hour,
     standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => req.user.id,
     handler: (_req, res) => error(res, 'camp_approval_rate_limit', HTTP_STATUS.TOO_MANY_REQUESTS),
+  });
+  // Each send emails every family of the camp: a slip of the finger must not do it twenty times.
+  const letterSendLimiter = rateLimit({
+    windowMs: MS_PER_HOUR, limit: LETTER_LIMITS.sends_per_hour,
+    standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => req.user.id,
+    handler: (_req, res) => error(res, 'camp_letter_rate_limit', HTTP_STATUS.TOO_MANY_REQUESTS),
+  });
+  /** Youth without a family address are named only to whoever may read the youth. */
+  const letterRights = async (req, organizationId) => ({
+    names: await userHasPermission(req, pool, organizationId, 'participants.view'),
   });
 
   // Read by every camp's plan (meetings.view) and by the template editor, who may hold only its own right.
@@ -235,6 +253,53 @@ module.exports = (pool) => {
     handle(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       return success(res, await saveRainGames(pool, organizationId, req.user.id, Number(req.params.meetingId), req.body), 'camp_plan_saved');
+    }));
+
+  // The letter to parents drawn from the camp (#1321).
+  router.get('/camps/:meetingId/letter',
+    requirePermission(READ_LETTER),
+    validateIdParam('meetingId'),
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      res.set('Cache-Control', 'no-store');
+      return success(res, await readCampLetter(pool, organizationId, Number(req.params.meetingId),
+        await letterRights(req, organizationId)));
+    }));
+
+  router.put('/camps/:meetingId/letter',
+    blockDemoRoles,
+    requirePermission(WRITE_LETTER),
+    validateIdParam('meetingId'),
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      return success(res, await saveCampLetterDraft(pool, organizationId, req.user.id, Number(req.params.meetingId),
+        req.body, await letterRights(req, organizationId)), 'camp_letter_saved');
+    }));
+
+  router.post('/camps/:meetingId/letter/versions',
+    blockDemoRoles,
+    requirePermission(SEND_LETTER),
+    letterSendLimiter,
+    validateIdParam('meetingId'),
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      return success(res, await sendCampLetter(pool, organizationId, req.user.id, Number(req.params.meetingId),
+        req.body, await letterRights(req, organizationId)), 'camp_letter_sent', HTTP_STATUS.CREATED);
+    }));
+
+  router.post('/camps/:meetingId/letter/versions/:versionNumber/retry',
+    blockDemoRoles,
+    requirePermission(SEND_LETTER),
+    letterSendLimiter,
+    ...versionParams(),
+    checkValidation,
+    handle(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      return success(res, await retryCampLetter(pool, organizationId, Number(req.params.meetingId),
+        Number(req.params.versionNumber), await letterRights(req, organizationId)), 'camp_letter_retried');
     }));
 
   return router;

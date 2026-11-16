@@ -46,12 +46,19 @@ test('a camp with everything recorded is complete where Wampums can tell, and ne
   ['identification', 'dates', 'site', 'camp_type', 'emergency', 'insurance', 'directions', 'written_sections',
     'rain_games', 'schedule', 'group_material', 'personal_material', 'youth_list', 'team_list', 'health_forms', 'allergies', 'evaluation']
     .forEach((key) => expect(lines[key].state).toBe('complete'));
-  // The menu and the letter to parents have no source yet. Transportation is only cited.
-  ['menu', 'parent_letter', 'transport']
+  // The menu has no source yet. Transportation is only cited.
+  ['menu', 'transport']
     .forEach((key) => expect(lines[key].state).toBe('unverified'));
+  // The letter to parents (#1321) is to complete until a version is sent to the families.
+  expect(lines.parent_letter).toMatchObject({ state: 'to_complete', reasons: ['letter_not_sent'] });
   // Wampums is the source of the camp's lists: no outside comparison is asked for.
   expect(lines.youth_list.reasons).toEqual([]);
   expect(lines.youth_list.counts.youth).toBe(2);
+});
+
+test('the letter to parents is complete once a version was sent, citing its number', () => {
+  const lines = byKey(permitLines({ ...complete(), parent_letter: { version: 2, sent_at: '2099-06-01T12:00:00Z' } }, RIGHTS));
+  expect(lines.parent_letter).toMatchObject({ state: 'complete', reasons: ['letter_sent'], counts: { version: 2 } });
 });
 
 test.each([

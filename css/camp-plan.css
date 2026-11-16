@@ -118,3 +118,19 @@
 .camp-permit__digest summary:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 2px; }
 .camp-permit__digest code { display: block; overflow-wrap: anywhere; word-break: break-all; font-size: .85rem; }
 .camp-permit__versions h2:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 2px; }
+
+/* Letter to parents (#1321): both versions one under the other, the actions wrapping at 390px. */
+.camp-letter__form { display: grid; gap: var(--space-md, 1rem); }
+.camp-letter__version { border: 1px solid var(--color-border); border-radius: var(--radius-md, .5rem); padding: .75rem 1rem;
+  display: grid; gap: .35rem; min-inline-size: 0; }
+.camp-letter__version legend { font-weight: 600; padding-inline: .25rem; }
+.camp-letter__version label, .camp-letter__label { font-weight: 600; margin: .5rem 0 0; }
+.camp-letter__version input { min-block-size: var(--touch-target-min, 44px); max-inline-size: 100%; }
+.camp-letter__actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.camp-letter__missing { border-inline-start: 4px solid var(--color-warning, #b54708); padding-inline-start: .75rem; }
+.camp-letter__missing a { display: inline-flex; align-items: center; min-block-size: var(--touch-target-min, 44px); }
+.camp-letter__sent, .camp-letter__names { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.camp-letter__sent li { padding: .5rem .75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md, .5rem); }
+.camp-letter__sent p { margin: .2rem 0; }
+#camp-letter-error:not([hidden]) { font-weight: 600; }
+.camp-letter__missing ul { padding-inline-start: 1.25rem; }

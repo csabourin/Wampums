@@ -22,6 +22,11 @@ jest.mock('../services/campPermit', () => ({ readCampPermit: jest.fn() }));
 const permitService = require('../services/campPermit');
 jest.mock('../services/campPlanVersions', () => ({ submitPlanVersion: jest.fn(), listPlanVersions: jest.fn(), readPlanVersionPdf: jest.fn() }));
 const versionService = require('../services/campPlanVersions');
+jest.mock('../services/campParentLetter', () => ({
+  ...jest.requireActual('../services/campParentLetter'),
+  readCampLetter: jest.fn(), saveCampLetterDraft: jest.fn(), sendCampLetter: jest.fn(), retryCampLetter: jest.fn(),
+}));
+const letterService = require('../services/campParentLetter');
 jest.mock('../services/campPlanApprovals', () => ({
   ...jest.requireActual('../services/campPlanApprovals'),
   attestCampPlan: jest.fn(), requestBranchApproval: jest.fn(),
@@ -351,5 +356,75 @@ describe('camp plan approval authorization (#1419)', () => {
     const result = await call('post', route, payload);
     expect(result.status).toBe(403);
     expect(result.body).toMatchObject({ message: 'camp_approval_self', required: expect.arrayContaining([key]), missing: [] });
+  });
+});
+
+describe('the letter to parents (#1321)', () => {
+  const LETTER = { camp: { id: 12 }, draft: {}, sent: [] };
+  beforeEach(() => {
+    permissions = ['meetings.view', 'meetings.manage', 'communications.send', 'participants.view'];
+    letterService.readCampLetter.mockResolvedValue(LETTER);
+    letterService.saveCampLetterDraft.mockResolvedValue(LETTER);
+    letterService.sendCampLetter.mockResolvedValue(LETTER);
+    letterService.retryCampLetter.mockResolvedValue(LETTER);
+  });
+
+  test('without a token, the letter is not read, saved or sent', async () => {
+    for (const [method, path] of [['get', '/camps/12/letter'], ['put', '/camps/12/letter'], ['post', '/camps/12/letter/versions'],
+      ['post', '/camps/12/letter/versions/1/retry']]) {
+      // eslint-disable-next-line no-await-in-loop -- each refusal is checked in turn
+      expect((await request(app)[method](`/api/v1/camp-plans${path}`)).status).toBe(401);
+    }
+  });
+
+  test('a leader sends the authenticated unit’s letter as the signed-in person, and reads it never cached', async () => {
+    const read = await call('get', '/camps/12/letter?organization_id=99');
+    expect(read.status).toBe(200);
+    expect(read.headers['cache-control']).toBe('no-store');
+    expect(letterService.readCampLetter).toHaveBeenCalledWith(expect.anything(), UNIT_ID, 12, { names: true });
+    const sent = await call('post', '/camps/12/letter/versions', { subject_fr: 'Camp' });
+    expect(sent.status).toBe(201);
+    expect(sent.body.message).toBe('camp_letter_sent');
+    expect(letterService.sendCampLetter).toHaveBeenCalledWith(expect.anything(), UNIT_ID, USER_ID, 12, { subject_fr: 'Camp' }, { names: true });
+  });
+
+  test('without participants.view, the youth without an address are not named', async () => {
+    permissions = ['meetings.view'];
+    await call('get', '/camps/12/letter');
+    expect(letterService.readCampLetter).toHaveBeenCalledWith(expect.anything(), UNIT_ID, 12, { names: false });
+  });
+
+  test('editing takes meetings.manage; sending takes communications.send too, and the refusal says so', async () => {
+    permissions = ['meetings.view'];
+    const edit = await call('put', '/camps/12/letter', {});
+    expect(edit.status).toBe(403);
+    expect(edit.body.missing).toEqual(['meetings.manage']);
+    permissions = ['meetings.view', 'meetings.manage'];
+    const send = await call('post', '/camps/12/letter/versions', {});
+    expect(send.status).toBe(403);
+    expect(send.body.required).toEqual(['meetings.manage', 'communications.send']);
+    expect(send.body.missing).toEqual(['communications.send']);
+    const retry = await call('post', '/camps/12/letter/versions/1/retry');
+    expect(retry.status).toBe(403);
+    expect(letterService.sendCampLetter).not.toHaveBeenCalled();
+    expect(letterService.retryCampLetter).not.toHaveBeenCalled();
+  });
+
+  test('a demo account neither saves nor sends', async () => {
+    roles = [{ role_name: 'demoadmin', display_name: 'Demo', data_scope: 'organization' }];
+    for (const [method, path] of [['put', '/camps/12/letter'], ['post', '/camps/12/letter/versions'], ['post', '/camps/12/letter/versions/1/retry']]) {
+      // eslint-disable-next-line no-await-in-loop -- each refusal is checked in turn
+      const response = await call(method, path, {});
+      expect(response.status).toBe(403);
+      expect(response.body.isDemo).toBe(true);
+    }
+    expect(letterService.saveCampLetterDraft).not.toHaveBeenCalled();
+    expect(letterService.sendCampLetter).not.toHaveBeenCalled();
+  });
+
+  test('a malformed camp id or version number is a 400, and nothing is sent', async () => {
+    expect((await call('get', '/camps/abc/letter')).status).toBe(400);
+    expect((await call('post', '/camps/12/letter/versions/0/retry')).status).toBe(400);
+    expect(letterService.retryCampLetter).not.toHaveBeenCalled();
   });
 });

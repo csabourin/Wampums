@@ -114,3 +114,45 @@ export function getCampAttestationPdf(meetingId, versionNumber, options) {
 export function getCampPlanPlainPdf(meetingId, versionNumber, options) {
   return API.getFile(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/versions/${encodeURIComponent(versionNumber)}/pdf?copy=plain`, options);
 }
+
+/**
+ * The letter to parents drawn from the camp (#1321): its facts, what is missing, the saved draft
+ * (or the one Wampums proposes), who it would reach, and the versions sent.
+ *
+ * @param {number} meetingId - The planned camp
+ * @returns {Promise<Object>}
+ */
+export function getCampLetter(meetingId) {
+  return API.getNoCache(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/letter`);
+}
+
+/**
+ * @param {number} meetingId - The planned camp
+ * @param {{subject_fr: string, body_fr_html: string, subject_en: string, body_en_html: string}} letter - Both versions
+ * @returns {Promise<Object>} The letter as it now is
+ */
+export function saveCampLetterDraft(meetingId, letter) {
+  return API.put(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/letter`, letter);
+}
+
+/**
+ * Freeze the letter as a new version and email it to the camp's families, each in its language.
+ *
+ * @param {number} meetingId - The planned camp
+ * @param {Object} letter - Both versions, as saveCampLetterDraft takes them
+ * @returns {Promise<Object>} The letter, with the new version's results
+ */
+export function sendCampLetter(meetingId, letter) {
+  return API.post(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/letter/versions`, letter);
+}
+
+/**
+ * Send a version again to the addresses the provider refused; an uncertain one is never sent twice.
+ *
+ * @param {number} meetingId - The planned camp
+ * @param {number} versionNumber - The version
+ * @returns {Promise<Object>} The letter, with the version's results
+ */
+export function retryCampLetter(meetingId, versionNumber) {
+  return API.post(`v1/camp-plans/camps/${encodeURIComponent(meetingId)}/letter/versions/${encodeURIComponent(versionNumber)}/retry`, {});
+}

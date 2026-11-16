@@ -49,6 +49,7 @@ const REASON_COUNTS = Object.freeze({
   days_without_title: 'untitled_days',
   consent_pending: 'pending',
   cite_transport: 'offers',
+  letter_sent: 'version',
 });
 
 /** How many characters of the PDF's fingerprint people compare, in groups of four. */
@@ -167,6 +168,7 @@ export class CampPermit {
       health_forms: hasPermission('participants.view') ? `/camp-roster/${id}` : null,
       allergies: hasPermission('participants.view') ? `/camp-roster/${id}` : null,
       evaluation: hasPermission('camp_reviews.view') ? `/camp-review/${id}` : null,
+      parent_letter: `/camp-letter/${id}`,
     };
     return links[key] || null;
   }
