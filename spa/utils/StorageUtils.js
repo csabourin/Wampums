@@ -138,6 +138,7 @@ export function clearUserData(isSession = false) {
       'dashboard_points_collapsed', // UI preference (non-critical)
       'lastSwVersionPrompt',       // PWA update state (non-critical)
       'demo_missions',             // Demo tour progress, kept when switching demo views
+      'parent_offers_dismissed',   // Parent dashboard offers closed on this device
     ];
 
     // For sessionStorage, clear everything (no need to preserve device-level prefs)

@@ -23,7 +23,7 @@ jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugWarn: jest.fn(),
   debugInfo: jest.fn(),
 }));
-jest.mock('../../spa/config.js', () => ({ CONFIG: { DEFAULT_LANG: 'fr', CACHE_DURATION: {}, UI: {} } }));
+jest.mock('../../spa/config.js', () => ({ CONFIG: { DEFAULT_LANG: 'fr', CACHE_DURATION: {}, UI: {} }, getStorageKey: (key) => key }));
 jest.mock('../../spa/utils/DOMUtils.js', () => ({
   ...jest.requireActual('../../spa/utils/DOMUtils.js'),
   // jsdom never fires a stylesheet's load event.

@@ -39,7 +39,7 @@ jest.mock('../../spa/app.js', () => ({
   registerPushSubscription: jest.fn(),
 }));
 jest.mock('../../spa/functions.js', () => ({}));
-jest.mock('../../spa/config.js', () => ({ CONFIG: {} }));
+jest.mock('../../spa/config.js', () => ({ CONFIG: {}, getStorageKey: (key) => key }));
 jest.mock('../../spa/utils/DOMUtils.js', () => ({ setContent: jest.fn(), loadStylesheet: jest.fn() }));
 jest.mock('../../spa/utils/DateUtils.js', () => ({
   formatDateShort: (v) => v,
@@ -148,10 +148,10 @@ describe('parent dashboard buttons', () => {
     mockHeld.clear();
     PARENT_PERMISSIONS.forEach((key) => mockHeld.add(key));
     const page = new ParentDashboard({});
-    expect(page.renderCarpoolButton()).toContain('id="view-carpool-activities"');
+    expect(page.renderFamilyLinks(true)).toContain('id="view-carpool-activities"');
 
     mockHeld.delete('carpools.view');
-    expect(page.renderCarpoolButton()).toBe('');
+    expect(page.renderFamilyLinks(true)).not.toContain('id="view-carpool-activities"');
   });
 });
 
@@ -306,6 +306,114 @@ describe('buttons the unit hides', () => {
     expect(results.violations).toEqual([]);
   });
 
+  describe('the order of the page: what needs doing, then everything else (#1426)', () => {
+    const flush = () => new Promise((resolve) => { setTimeout(resolve, 0); });
+    const banner = (offer) => document.querySelector(`.parent-offer[data-offer="${offer}"]`);
+
+    /**
+     * Render the dashboard with its real listeners.
+     *
+     * @returns {Promise<ParentDashboard>} The page
+     */
+    async function renderWithListeners() {
+      const page = await renderDashboard({ organizationSettings: {}, showMessage: jest.fn() });
+      ParentDashboard.prototype.attachEventListeners.call(page);
+      return page;
+    }
+
+    beforeEach(() => {
+      localStorage.clear();
+      window.Notification = { permission: 'default', requestPermission: jest.fn(() => Promise.resolve('granted')) };
+    });
+    afterEach(() => {
+      delete window.Notification;
+      localStorage.clear();
+    });
+
+    test('the other pages a family may open form one list, in the same secondary style', async () => {
+      await renderDashboard({ organizationSettings: {} });
+      const section = document.querySelector('.parent-links');
+      expect(section.querySelector('h2').textContent).toBe('parent_dashboard_more_title');
+      const entries = [...section.querySelectorAll('li > a, li > button')];
+      expect(entries.map((entry) => entry.getAttribute('href') || entry.id)).toEqual([
+        '/parent-finance', 'view-carpool-activities', '/family-access', '/parent-fundraisers',
+        '/parent-program-progress', 'downloadCalendarButton',
+      ]);
+      expect(entries.every((entry) => entry.classList.contains('button--secondary'))).toBe(true);
+      // The calendar button is explained by the line under the list.
+      expect(document.getElementById('downloadCalendarButton').getAttribute('aria-describedby')).toBe('parent-links-calendar-help');
+    });
+
+    test('only the things to do are primary: finances, adding a child and volunteering are not', async () => {
+      await renderDashboard({ organizationSettings: {} });
+      const primaries = [...document.querySelectorAll('.parent-dashboard .button--primary')];
+      expect(primaries.filter((button) => !button.closest('.family-tasks'))).toEqual([]);
+    });
+
+    test('account settings stay behind the gear at the top, not in the list', async () => {
+      await renderDashboard({ organizationSettings: {} });
+      expect(document.querySelector('.parent-dashboard a[href="/account-info"]')).toBeNull();
+    });
+
+    test('a parent closes an offer from the keyboard; focus moves on, and it does not come back', async () => {
+      const page = await renderWithListeners();
+      expect(banner('notifications')).not.toBeNull();
+      expect(banner('install')).not.toBeNull();
+      const close = banner('notifications').querySelector('[data-offer-close]');
+      expect(close.textContent.trim()).toBe('close — parent_offer_notifications_action');
+      close.focus();
+      // Enter or Space on a native button is a click.
+      close.click();
+      expect(banner('notifications')).toBeNull();
+      expect(document.activeElement).toBe(document.getElementById('installPwaButton'));
+      page.destroy();
+
+      const again = await renderWithListeners();
+      expect(banner('notifications')).toBeNull();
+      expect(banner('install')).not.toBeNull();
+      again.destroy();
+    });
+
+    test('closing the last offer moves focus to the list that follows', async () => {
+      // Notifications already answered: the install offer is the only one.
+      window.Notification.permission = 'granted';
+      const page = await renderWithListeners();
+      expect(banner('notifications')).toBeNull();
+      const close = banner('install').querySelector('[data-offer-close]');
+      close.focus();
+      close.click();
+      expect(document.querySelector('.parent-offers')).toBeNull();
+      expect(document.activeElement.closest('.parent-links')).not.toBeNull();
+      page.destroy();
+    });
+
+    test('once the browser has the answer, the notification offer goes, without being marked closed', async () => {
+      const page = await renderWithListeners();
+      document.getElementById('enableNotifications').click();
+      await flush();
+      expect(window.Notification.requestPermission).toHaveBeenCalledTimes(1);
+      expect(banner('notifications')).toBeNull();
+      expect(localStorage.length).toBe(0);
+      page.destroy();
+    });
+
+    test('a browser already answered offers nothing about notifications', async () => {
+      window.Notification.permission = 'denied';
+      await renderDashboard({ organizationSettings: {} });
+      expect(banner('notifications')).toBeNull();
+    });
+
+    test('with its offers, the page has no WCAG A/AA violations', async () => {
+      await renderDashboard({ organizationSettings: {} });
+      expect(banner('notifications')).not.toBeNull();
+      const results = await axe.run(document.querySelector('.parent-dashboard'), {
+        runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+        rules: { 'color-contrast': { enabled: false } },
+      });
+      expect(results.violations).toEqual([]);
+    });
+  });
+
   describe('installing the app', () => {
     const flush = () => new Promise((resolve) => { setTimeout(resolve, 0); });
     const installButton = () => document.getElementById('installPwaButton');
@@ -367,7 +475,9 @@ describe('buttons the unit hides', () => {
       // Gone from the page (a [hidden] button would still show: the button
       // class sets display), and focus is not lost with it.
       expect(installButton()).toBeNull();
-      expect(document.activeElement.closest('.parent-dashboard__footer')).not.toBeNull();
+      expect(document.querySelector('.parent-offer[data-offer="install"]')).toBeNull();
+      expect(document.activeElement).not.toBe(document.body);
+      expect(document.activeElement.closest('.parent-offer')).toBeNull();
       expect(app.showMessage).toHaveBeenCalledWith('install_app_installed', 'success');
 
       page.destroy();

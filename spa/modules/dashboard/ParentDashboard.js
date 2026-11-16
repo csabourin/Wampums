@@ -19,6 +19,9 @@ import { getActivities } from '../../api/api-activities.js';
 import { buildUpcomingEvents, renderUpcomingSection } from './ParentUpcoming.js';
 import { getVolunteerShifts } from '../../api/api-volunteers.js';
 import { renderVolunteeringSection, summarizeVolunteering } from './ParentVolunteering.js';
+import {
+  PARENT_OFFER, canAskForNotifications, offersToShow, rememberDismissed, removeOfferBanner, renderOfferBanners,
+} from './ParentOffers.js';
 import { formTypeLabel } from '../../utils/FormLabelUtils.js';
 import { loadHiddenParentDashboardButtons } from '../../config/parent-dashboard-buttons.js';
 import {
@@ -574,25 +577,11 @@ export class ParentDashboard {
     const organizationName =
                         this.app.organizationSettings?.organization_info
                           ?.name || 'Scouts';
-    const notificationButton = this.shouldShowNotificationButton()
-      ? `<button id="enableNotifications" class="button button--secondary">
-                                                ${translate('enable_notifications')}
-                                        </button>`
-      : ''; // Only render the button if needed
-
-    // Offered until the app is installed: the browser's prompt when it has
-    // one, else the steps for this browser, so a dismissed prompt is not final.
-    const installButton = isAppInstalled()
-      ? ''
-      : `<button id="installPwaButton" type="button" class="button button--secondary">
-                                                ${translate('install_app')}
-                                        </button>`;
-
-    const calendarDownloadAction = `
-                        <div class="parent-dashboard__calendar-download">
-                                <p class="muted-text">${translate('calendar_download_description')}</p>
-                        </div>
-                `;
+    // One-time offers, each closable; gone once done (#1426).
+    const offers = renderOfferBanners(offersToShow({
+      [PARENT_OFFER.NOTIFICATIONS]: canAskForNotifications(),
+      [PARENT_OFFER.INSTALL]: !isAppInstalled(),
+    }));
 
     // Only show staff back link when accessed outside the parent context
     const backLink = isParent() ? '' : renderBackLink('/dashboard');
@@ -602,14 +591,6 @@ export class ParentDashboard {
     // the paperwork. It is the only path that guarantees the link.
     const managesOwnFamily = hasPermission('participants.create_own');
     const addChildHref = managesOwnFamily ? '/parent-onboarding' : '/formulaire-inscription';
-    const familySharingLink = managesOwnFamily && !this.hiddenButtons.has('family_access')
-      ? `<a href="/family-access" class="button button--secondary">${translate('family_access_title')}</a>`
-      : '';
-    // Where the family's children stand in the campaigns under way.
-    // The unit-wide campaign screens stay behind fundraisers.view.
-    const fundraisersLink = this.hiddenButtons.has('fundraisers')
-      ? ''
-      : `<a href="/parent-fundraisers" class="button button--secondary">${translate('parent_fundraisers_title')}</a>`;
 
     // Dynamically replace the title with the organization name
     const userName =
@@ -635,38 +616,16 @@ export class ParentDashboard {
                                         ${this.renderParticipantsList()}
                                 </section>
 
-                                <section class="parent-dashboard__actions">
-                                        <h2 class="visually-hidden">${translate('main_actions')}</h2>
-                                        <div class="parent-dashboard__actions-grid">
-                                                ${this.hiddenButtons.has('finances') ? '' : `<a href="/parent-finance" class="button button--primary">
-                                                        ${translate('my_finances')}
-                                                </a>`}
-                                                ${fundraisersLink}
-                                                ${familySharingLink}
-                                                <a href="/account-info" class="button button--secondary">
-                                                        ${translate('account_settings')}
-                                                </a>
-                                                ${this.hiddenButtons.has('program_progress') ? '' : `<a href="/parent-program-progress" class="button button--secondary">
-                                                        ${translate('program_progress_parent_link')}
-                                                </a>`}
-                                                ${canViewActivities() && !this.hiddenButtons.has('download_calendar') ? `<button id="downloadCalendarButton" type="button" class="button button--secondary">
-                                                        ${translate('download_activities_calendar')}
-                                                </button>` : ''}
-                                        </div>
-                                        ${canViewActivities() && !this.hiddenButtons.has('download_calendar') ? calendarDownloadAction : ''}
-                                        ${this.renderCarpoolButton()}
-                                </section>
+                                ${offers}
+
+                                ${this.renderFamilyLinks(managesOwnFamily)}
 
                                 <footer class="parent-dashboard__footer">
-                                        <div class="parent-dashboard__footer-actions">
-                                                ${notificationButton}
-                                                ${installButton}
-                                        </div>
                                         <div class="parent-dashboard__footer-account">
-                                                <a href="${addChildHref}" class="button button--primary">
+                                                <a href="${addChildHref}" class="button button--secondary">
                                                         ${translate('ajouter_participant')}
                                                 </a>
-                                                <a href="/logout" class="button button--secondary">
+                                                <a href="/logout" class="button button--ghost">
                                                         ${translate('deconnexion')}
                                                 </a>
                                         </div>
@@ -892,25 +851,39 @@ export class ParentDashboard {
     }
   }
 
-  renderCarpoolButton() {
-    // Show a carpooling link for parents to coordinate rides; it
-    // lists the unit's activities, then opens their carpools.
-    if (!canViewActivities() || !canViewCarpools() || this.hiddenButtons.has('carpool')) {
+  /**
+   * Everything else a family may open, after what needs doing (#1426): one compact list, every
+   * entry the same secondary style, so none reads as the page's main action. The unit may hide
+   * each one (`PARENT_DASHBOARD_BUTTONS`); account settings stay behind the gear at the top.
+   *
+   * @param {boolean} managesOwnFamily - The account registers its own children (`participants.create_own`)
+   * @returns {string} Markup; empty when every entry is hidden or out of reach
+   */
+  renderFamilyLinks(managesOwnFamily) {
+    const shown = (key) => !this.hiddenButtons.has(key);
+    const link = (href, label) => `<li><a href="${href}" class="button button--secondary parent-links__item">${translate(label)}</a></li>`;
+    const calendar = canViewActivities() && shown('download_calendar');
+    const items = [
+      shown('finances') ? link('/parent-finance', 'my_finances') : '',
+      // Rides are coordinated per activity: the list of activities opens in a dialog.
+      canViewActivities() && canViewCarpools() && shown('carpool')
+        ? `<li><button type="button" id="view-carpool-activities" class="button button--secondary parent-links__item">${translate('carpool_parent_entry')}</button></li>` : '',
+      managesOwnFamily && shown('family_access') ? link('/family-access', 'family_access_title') : '',
+      // Where the family's children stand in the campaigns under way.
+      shown('fundraisers') ? link('/parent-fundraisers', 'parent_fundraisers_title') : '',
+      shown('program_progress') ? link('/parent-program-progress', 'program_progress_parent_link') : '',
+      calendar ? `<li><button id="downloadCalendarButton" type="button" class="button button--secondary parent-links__item"
+        aria-describedby="parent-links-calendar-help">${translate('download_activities_calendar')}</button></li>` : '',
+    ].join('');
+    if (!items) {
       return '';
     }
     return `
-                        <div class="parent-dashboard__carpool-section">
-                                <a href="#" id="view-carpool-activities" class="button button--secondary">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                                <rect x="1" y="3" width="15" height="13"></rect>
-                                                <path d="M16 8h2"></path>
-                                                <circle cx="18.5" cy="15.5" r="2.5"></circle>
-                                                <circle cx="5.5" cy="15.5" r="2.5"></circle>
-                                        </svg>
-                                        ${translate('carpool_parent_entry')}
-                                </a>
-                        </div>
-                `;
+      <section class="parent-dashboard__actions parent-links" aria-labelledby="parent-links-title">
+        <h2 class="parent-dashboard__section-title" id="parent-links-title">${translate('parent_dashboard_more_title')}</h2>
+        <ul class="parent-links__list">${items}</ul>
+        ${calendar ? `<p class="muted-text parent-links__help" id="parent-links-calendar-help">${translate('calendar_download_description')}</p>` : ''}
+      </section>`;
   }
 
   formatCurrency(amount = 0) {
@@ -949,17 +922,6 @@ export class ParentDashboard {
                                 </span>
                         </button>
                 `;
-  }
-
-  // Check notification permission and decide whether to show the button
-  shouldShowNotificationButton() {
-    if ('Notification' in window) {
-      return (
-        Notification.permission === 'default' ||
-                                Notification.permission === 'denied'
-      );
-    }
-    return false;
   }
 
   renderParticipantsList() {
@@ -1324,17 +1286,19 @@ export class ParentDashboard {
   attachEventListeners() {
     document.getElementById('parent-dashboard-retry')?.addEventListener('click', () => this.init());
 
-    const notificationButton = document.getElementById(
-      'enableNotifications',
-    );
-    if (notificationButton) {
-      notificationButton.addEventListener(
-        'click',
-        async () => {
-          await this.requestNotificationPermission();
-        },
-      );
-    }
+    document.getElementById('enableNotifications')?.addEventListener('click', async () => {
+      const permission = await this.requestNotificationPermission();
+      // Answered either way: the offer has nothing left to do.
+      if (permission !== 'default') {
+        removeOfferBanner(PARENT_OFFER.NOTIFICATIONS, this.root());
+      }
+    });
+    this.root().querySelectorAll('[data-offer-close]').forEach((button) => {
+      button.addEventListener('click', () => {
+        rememberDismissed(button.dataset.offerClose);
+        removeOfferBanner(button.dataset.offerClose, this.root());
+      });
+    });
 
     // Carpool activities button
     const carpoolButton = document.getElementById(
@@ -1370,16 +1334,8 @@ export class ParentDashboard {
       if (!installed || this.destroyed) {
         return;
       }
-      // Removed, not hidden: `.button { display: inline-flex }` outranks
-      // the browser's [hidden] rule. Focus on it moves to the next action.
-      const button = document.getElementById('installPwaButton');
-      if (button) {
-        const hadFocus = document.activeElement === button;
-        button.remove();
-        if (hadFocus) {
-          document.querySelector('.parent-dashboard__footer a, .parent-dashboard__footer button')?.focus();
-        }
-      }
+      // The offer is done: its banner goes, and focus on it moves to what follows.
+      removeOfferBanner(PARENT_OFFER.INSTALL, this.root());
       this.app.showMessage(translate('install_app_installed'), 'success');
     });
   }
@@ -1561,25 +1517,34 @@ export class ParentDashboard {
     await new CarpoolQuickAccessModal(this.app, { allowCreate: false }).show();
   }
 
+  /**
+   * Ask the browser for notifications, and subscribe this device when they are allowed.
+   *
+   * @returns {Promise<string>} The browser's answer: 'granted', 'denied' or 'default'
+   */
   async requestNotificationPermission() {
-    if ('Notification' in window) {
-      // Proceed with Notification logic
-      if (Notification.permission === 'granted') {
-        registerPushSubscription();
-      } else if (Notification.permission === 'default') {
-        Notification.requestPermission().then(
-          (permission) => {
-            if (permission === 'granted') {
-              registerPushSubscription();
-            }
-          },
-        );
-      }
-    } else {
-      debugError(
-        'This browser does not support notifications.',
-      );
+    if (!('Notification' in window)) {
+      debugError('This browser does not support notifications.');
+      return 'default';
     }
+    let permission = Notification.permission;
+    if (permission === 'default') {
+      try {
+        permission = await Notification.requestPermission();
+      } catch (error) {
+        debugError('Notification permission request failed:', error);
+        return 'default';
+      }
+    }
+    if (permission === 'granted') {
+      registerPushSubscription();
+    }
+    return permission;
+  }
+
+  /** @returns {HTMLElement} Where the dashboard is drawn */
+  root() {
+    return document.getElementById('app');
   }
 
   renderError() {

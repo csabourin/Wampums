@@ -49,7 +49,7 @@ jest.mock('../../spa/app.js', () => ({
   registerPushSubscription: jest.fn(),
 }));
 jest.mock('../../spa/functions.js', () => ({}));
-jest.mock('../../spa/config.js', () => ({ CONFIG: { DEFAULT_LANG: 'en', DEFAULT_CURRENCY: 'CAD' } }));
+jest.mock('../../spa/config.js', () => ({ CONFIG: { DEFAULT_LANG: 'en', DEFAULT_CURRENCY: 'CAD' }, getStorageKey: (key) => key }));
 jest.mock('../../spa/utils/DOMUtils.js', () => ({
   ...jest.requireActual('../../spa/utils/DOMUtils.js'),
   loadStylesheet: jest.fn(() => Promise.resolve()),

@@ -51,7 +51,7 @@ export function renderVolunteeringSection(summary, { space }) {
     ? `<a class="button button--secondary" href="/volunteer-space">${translate('parent_volunteering_my_space')}</a>`
     : '';
   const openLink = summary.openPlaces > 0
-    ? `<a class="button button--primary" href="/volunteers">${translate('parent_volunteering_take')}</a>`
+    ? `<a class="button button--secondary" href="/volunteers">${translate('parent_volunteering_take')}</a>`
     : '';
   return `
     <section class="parent-dashboard__volunteering parent-volunteering" aria-labelledby="parent-volunteering-title">
