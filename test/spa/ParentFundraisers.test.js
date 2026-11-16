@@ -34,6 +34,7 @@ jest.mock('../../spa/app.js', () => ({
 
 jest.mock('../../spa/config.js', () => ({
   CONFIG: { DEFAULT_LANG: 'fr', DEFAULT_CURRENCY: 'CAD' },
+  getStorageKey: (key) => key,
 }));
 
 jest.mock('../../spa/utils/DOMUtils.js', () => {
@@ -474,7 +475,7 @@ describe('how the page is reached', () => {
   });
 
   test('the parent dashboard no longer links back to a dashboard', () => {
-    expect(dashboardSource).toContain('href="/parent-fundraisers"');
+    expect(dashboardSource).toContain("'/parent-fundraisers'");
     expect(dashboardSource).not.toContain('/main-dashboard');
   });
 

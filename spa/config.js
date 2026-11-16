@@ -143,6 +143,8 @@ export const CONFIG = {
     LANGUAGE: 'language',
     THEME: 'theme',
     TIME_FORMAT: 'timeFormat',
+    // Parent dashboard offers closed on this device (notifications, install); kept across sign-outs.
+    PARENT_OFFERS_DISMISSED: 'parent_offers_dismissed',
   },
 
   /**
