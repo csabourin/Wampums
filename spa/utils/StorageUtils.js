@@ -209,7 +209,7 @@ export function getStorageSize(isSession = false) {
     let size = 0;
 
     for (const key in storage) {
-      if (storage.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(storage, key)) {
         size += key.length + storage[key].length;
       }
     }

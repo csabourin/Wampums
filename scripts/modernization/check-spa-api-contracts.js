@@ -18,7 +18,7 @@ for (const contract of contracts) {
   const routeSource = fs.readFileSync(path.join(repositoryRoot, contract.routeFile), 'utf8');
   const method = contract.method.toLowerCase();
   const routePattern = new RegExp(
-    `router\\.${method}\\(\\s*['\"]${escapeRegExp(contract.routePath)}['\"]`,
+    `router\\.${method}\\(\\s*['"]${escapeRegExp(contract.routePath)}['"]`,
     'm'
   );
 
@@ -27,7 +27,7 @@ for (const contract of contracts) {
   }
 
   const mountPattern = new RegExp(
-    `app\\.use\\(\\s*['\"][^'\"]+['\"]\\s*,\\s*${escapeRegExp(contract.routerVariable)}\\s*\\)`
+    `app\\.use\\(\\s*['"][^'"]+['"]\\s*,\\s*${escapeRegExp(contract.routerVariable)}\\s*\\)`
   );
   if (!mountPattern.test(registrySource)) {
     failures.push(`${contract.method} ${contract.path}: ${contract.routerVariable} is not mounted in routes/index.js`);

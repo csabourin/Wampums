@@ -100,7 +100,7 @@ function parseColumns(columnDefs) {
     if (!trimmed || trimmed.startsWith('--')) {return;}
     
     // Match: column_name TYPE [NOT NULL] [DEFAULT value]
-    const match = trimmed.match(/^(\w+)\s+([\w\s\[\]()]+?)(?:\s+NOT NULL)?(?:\s+DEFAULT\s+(.+?))?(?:\s+CHECK.*)?(?:,|$)/);
+    const match = trimmed.match(/^(\w+)\s+([\w\s[\]()]+?)(?:\s+NOT NULL)?(?:\s+DEFAULT\s+(.+?))?(?:\s+CHECK.*)?(?:,|$)/);
     if (match) {
       const [, name, rawType, defaultValue] = match;
       const type = rawType.trim().split(/\s+/)[0]; // Extract base type

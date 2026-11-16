@@ -858,20 +858,15 @@ export async function unlinkParticipantUser(participantId, userId) {
  * Link user to participants
  */
 export async function linkUserToParticipants(participantIds, userId = null) {
-  try {
-    if (userId) {
-      return API.post('v1/participants/link-users', {
-        user_id: userId,
-        participant_ids: participantIds
-      });
-    }
+  if (userId) {
     return API.post('v1/participants/link-users', {
+      user_id: userId,
       participant_ids: participantIds
     });
-  } catch (error) {
-    // Handle error if needed
-    throw error;
   }
+  return API.post('v1/participants/link-users', {
+    participant_ids: participantIds
+  });
 }
 
 /**
