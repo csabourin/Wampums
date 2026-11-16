@@ -1385,14 +1385,18 @@ export class Dashboard extends BaseModule {
     return hasAnyPermission(...PLANNER_PERMISSIONS);
   }
 
-  /** Planning the year and the camps: the long-range work, after this week's, in compact tiles. */
+  /**
+   * Planning the year and the camps: the long-range work, after this week's, in compact tiles.
+   * Its toggle only unfolds links, so it stays live while an archived year is consulted
+   * (`data-archive-safe`), like the toggles of "Everything else".
+   */
   _renderPlan(planTiles) {
     if (!planTiles.length) {return '';}
     const gridHtml = planTiles.map((t) => this._renderTile(t, { small: true })).join('');
     const open = this._isPlanOpen();
     return `
       <section class="dashboard-v2__section" aria-labelledby="moment-plan">
-        <h2 id="moment-plan" class="dashboard-v2__section-title"><button type="button" class="dashboard-v2__section-toggle" id="dashboard-plan-toggle" aria-expanded="${open}" aria-controls="dashboard-plan-body">${escapeHTML(translate('dashboard_plan_section'))}<i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i></button></h2>
+        <h2 id="moment-plan" class="dashboard-v2__section-title"><button type="button" class="dashboard-v2__section-toggle" id="dashboard-plan-toggle" aria-expanded="${open}" aria-controls="dashboard-plan-body" data-archive-safe>${escapeHTML(translate('dashboard_plan_section'))}<i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i></button></h2>
         <div class="dashboard-v2__section-body" id="dashboard-plan-body"${open ? '' : ' hidden'}>
           <div class="dashboard-v2__grid">${gridHtml}</div>
         </div>
@@ -1437,7 +1441,7 @@ export class Dashboard extends BaseModule {
         const isCollapsed = collapsedSet.has(domain);
         return `
           <div class="dashboard-v2__group" data-collapsed="${isCollapsed}" data-group="${escapeHTML(domain)}">
-            <button type="button" class="dashboard-v2__group-toggle" aria-expanded="${!isCollapsed}">
+            <button type="button" class="dashboard-v2__group-toggle" aria-expanded="${!isCollapsed}" data-archive-safe>
               <span><i class="fa-solid fa-folder-open" aria-hidden="true"></i> ${escapeHTML(title)}</span>
               <i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i>
             </button>

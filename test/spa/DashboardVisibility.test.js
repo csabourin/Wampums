@@ -539,6 +539,13 @@ describe('a shorter leaders\' dashboard (#1430)', () => {
     expect(body().hidden).toBe(false);
   });
 
+  test('folded sections still open while an archived year is consulted: their toggles only show links', () => {
+    render(HELPER);
+    const toggles = [toggle(), ...document.querySelectorAll('.dashboard-v2__group-toggle')];
+    expect(toggles.length).toBeGreaterThan(1);
+    expect(toggles.every((button) => button.hasAttribute('data-archive-safe'))).toBe(true);
+  });
+
   test('one heading level for every section, in one style; the camps coming up are a card of this week', () => {
     render(PLANNER, { camps: [{ id: 3, theme: 'Camp d’hiver', date_from: '2026-12-04', date_to: '2026-12-06' }] });
     expect(document.querySelectorAll('h1')).toHaveLength(1);
