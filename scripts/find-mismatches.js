@@ -74,7 +74,9 @@ imports.forEach(imp => {
         endpoints.push(`${r[1].toUpperCase()} ${fullPath}`);
       });
     }
-  } catch (e) { }
+  } catch (_e) {
+    // A route file that cannot be read contributes no endpoints.
+  }
 });
 
 const spaContent = fs.readFileSync('../spa/api/api-endpoints.js', 'utf8');
