@@ -200,6 +200,22 @@ describe.skipIf(!DATABASE_URL)('Letter to parents drawn from the camp', () => {
     expect(retried.body.data.sent.find((version) => version.version_number === 1)).toMatchObject({ sent: 3, unreached: 0 });
   });
 
+  test('a camp cancelled since sends nothing more, not even to the addresses not reached', async () => {
+    ids.afterCancel = `let-after-cancel-${Date.now()}@example.test`;
+    await child('Ivy', ids.afterCancel);
+    await pool.query('UPDATE year_plan_meetings SET is_cancelled = TRUE WHERE id = $1', [ids.camp]);
+    try {
+      const retried = await request(app).post(path(ids.camp, '/versions/1/retry')).set(auth(ids.sender));
+      expect(retried.status).toBe(409);
+      expect(retried.body.message).toBe('camp_letter_camp_cancelled');
+      const sent = await request(app).post(path(ids.camp, '/versions')).set(auth(ids.sender)).send(letter());
+      expect(sent.status).toBe(409);
+      expect(sendEmail).not.toHaveBeenCalled();
+    } finally {
+      await pool.query('UPDATE year_plan_meetings SET is_cancelled = FALSE WHERE id = $1', [ids.camp]);
+    }
+  });
+
   test('editing takes meetings.manage, sending communications.send as well', async () => {
     const edit = await request(app).put(path(ids.camp)).set(auth(ids.viewer)).send(letter());
     expect(edit.status).toBe(403);

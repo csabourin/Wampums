@@ -509,6 +509,10 @@ async function retryCampLetter(pool, organizationId, meetingId, versionNumber, r
   if (!letter) {
     refuse('camp_letter_version_not_found', HTTP_NOT_FOUND);
   }
+  // A camp cancelled since: no family receives its instructions, whatever version they would get.
+  if (facts.camp.is_cancelled) {
+    refuse('camp_letter_camp_cancelled', HTTP_CONFLICT);
+  }
   if (!facts.camp.activity_id) {
     refuse('camp_letter_no_activity', HTTP_CONFLICT);
   }

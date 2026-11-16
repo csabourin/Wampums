@@ -203,7 +203,8 @@ last address); an uncertain one is never sent again, the rule of the authorizati
 reached is written to twice. The screen shows, per version, who sent it, when, and how many addresses it
 reached, failed, is uncertain about or has not tried yet (`unreached`): **counts only**, never the addresses
 (the read is kept on the device for offline use). That action redraws only the list of versions: the letter
-being edited above stays as it is. Youth whose family has no address are named to holders of `participants.view`, counted
+being edited above stays as it is. A cancelled camp refuses both sending and sending again (409 `camp_letter_camp_cancelled`): no family
+receives the instructions of a camp that will not take place. Youth whose family has no address are named to holders of `participants.view`, counted
 for others.
 
 The permit's `parent_letter` line is **complete** once a version is sent (`letter_sent`, citing its
