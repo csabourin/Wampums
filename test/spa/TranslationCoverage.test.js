@@ -319,6 +319,19 @@ test('every camp plan section, group and duplication part has its labels in both
   expect(missing(uses)).toEqual([]);
 });
 
+test('the letter to parents has every fact it may lack, both versions and the texts the server writes (#1321)', () => {
+  const { FACTS } = require('../../services/campParentLetter');
+  const server = fs.readFileSync(path.join(ROOT, 'services/campParentLetter.js'), 'utf8');
+  const uses = [
+    ...FACTS.map((fact) => [`camp_letter_missing_${fact}`, 'CampLetter']),
+    ...['fr', 'en'].map((language) => [`camp_letter_version_${language}`, 'CampLetter']),
+    // The draft and the refusals are written by the server, in each family's language.
+    ...[...server.matchAll(/'(camp_letter_[a-z_]+)'/g)].map((match) => [match[1], 'services/campParentLetter.js']),
+  ];
+  expect(uses.length).toBeGreaterThan(20);
+  expect(missing(uses)).toEqual([]);
+});
+
 test('every camp permit line, group, state, reason and coeducation choice has its label in both languages', () => {
   const permit = require('../../config/camp_permit.json');
   const { REASONS } = require('../../services/campPermit');

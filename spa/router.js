@@ -149,6 +149,7 @@ const lazyModules = {
   CampPlanTemplates: () => import('./modules/camp-plan/CampPlanTemplates.js').then(m => m.CampPlanTemplates),
   CampPlans: () => import('./modules/camp-plan/CampPlans.js').then(m => m.CampPlans),
   CampPermit: () => import('./modules/camp-plan/CampPermit.js').then(m => m.CampPermit),
+  CampLetter: () => import('./modules/camp-plan/CampLetter.js').then(m => m.CampLetter),
   CampRoster: () => import('./modules/camp-plan/CampRoster.js').then(m => m.CampRoster),
   CampReview: () => import('./modules/camp-review/CampReview.js').then(m => m.CampReview),
   CampReviews: () => import('./modules/camp-review/CampReviews.js').then(m => m.CampReviews),
@@ -284,6 +285,7 @@ const routes = {
   '/camp-site/:id': 'campSite',
   '/camp-plan/:id': 'campPlan',
   '/camp-permit/:id': 'campPermit',
+  '/camp-letter/:id': 'campLetter',
   '/camp-plan-templates': 'campPlanTemplates',
   '/camp-plans': 'campPlans',
   '/camp-roster/:id': 'campRoster',
@@ -891,6 +893,14 @@ export class Router {
           if (!guard(hasPermission('meetings.view') && hasOrganizationScope())) {break;}
           const CampPermit = await this.loadModule('CampPermit');
           this.currentModuleInstance = new CampPermit(this.app, { meetingId: Number(param) });
+          await this.currentModuleInstance.init();
+          break;
+        }
+        case 'campLetter': {
+          // The letter to parents is read with meetings.view, unit-wide, as its endpoint is.
+          if (!guard(hasPermission('meetings.view') && hasOrganizationScope())) {break;}
+          const CampLetter = await this.loadModule('CampLetter');
+          this.currentModuleInstance = new CampLetter(this.app, { meetingId: Number(param) });
           await this.currentModuleInstance.init();
           break;
         }

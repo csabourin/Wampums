@@ -75,6 +75,7 @@ const SCREENS = {
     '/camp-reviews',
     `/camp-plan/${seededRecord('campMeetingId')}`,
     `/camp-permit/${seededRecord('campMeetingId')}`,
+    `/camp-letter/${seededRecord('campMeetingId')}`,
     '/camp-plan-templates',
     '/camp-plans',
     `/camp-roster/${seededRecord('campMeetingId')}`,
