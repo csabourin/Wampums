@@ -109,3 +109,47 @@ test('a scouts unit uses the general meeting layout, not the cubs\' default', ()
   const { mergeMeetingSectionConfig: merge, resolveMeetingSectionKey: resolve } = require('../utils/meeting-sections');
   expect(resolve(merge(null), { programSection: 'scouts', organizationInfo: {}, hasUnitVocabulary: true })).toBe('general');
 });
+
+describe('the usual evening follows the unit\'s meeting time', () => {
+  const { alignTemplatesToMeetingTime } = require('../utils/meeting-sections');
+  const times = (config, section = 'cubs') => config.sections[section].activityTemplates.map((template) => template.time);
+  const loaded = (organizationInfo, meetingSections = null) => ({
+    query: jest.fn()
+      .mockResolvedValueOnce({
+        rows: [{ program_section: 'cubs', meeting_sections: meetingSections, organization_info: organizationInfo, has_unit_vocabulary: true }],
+      })
+      .mockResolvedValueOnce({ rows: [] }),
+  });
+
+  test('every template moves by the same amount, so the evening keeps its shape', () => {
+    const defaults = mergeMeetingSectionConfig(null);
+    expect(times(defaults)[0]).toBe('18:45');
+    const aligned = alignTemplatesToMeetingTime(defaults, '18:30');
+    expect(times(aligned)).toEqual(['18:30', '18:40', '19:10', '19:15', '19:35', '19:55', '20:25']);
+    // Durations and names are untouched.
+    expect(aligned.sections.cubs.activityTemplates.map((template) => template.duration))
+      .toEqual(defaults.sections.cubs.activityTemplates.map((template) => template.duration));
+  });
+
+  test('a unit without a meeting time keeps the templates\' own hours', () => {
+    const defaults = mergeMeetingSectionConfig(null);
+    expect(times(alignTemplatesToMeetingTime(defaults, undefined))).toEqual(times(defaults));
+    expect(times(alignTemplatesToMeetingTime(defaults, 'not a time'))).toEqual(times(defaults));
+  });
+
+  test('a unit meeting at 19:00 sees its evening start at 19:00 wherever the templates are read', async () => {
+    const config = await getMeetingSectionConfig(loaded({ meeting_time: '19:00' }), 12);
+    expect(config.defaultSection).toBe('cubs');
+    expect(times(config)[0]).toBe('19:00');
+    expect(times(config).at(-1)).toBe('20:55');
+  });
+
+  test('a unit\'s own templates follow its meeting time too', async () => {
+    const own = { sections: { cubs: { name: 'Cubs', activityTemplates: [
+      { time: '18:00', duration: '01:00', activityKey: 'activity_big_game' },
+      { time: '19:00', duration: '00:30', activityKey: 'activity_discussion' },
+    ] } } };
+    const config = await getMeetingSectionConfig(loaded({ meeting_time: '18:30:00' }, own), 12);
+    expect(times(config)).toEqual(['18:30', '19:30']);
+  });
+});

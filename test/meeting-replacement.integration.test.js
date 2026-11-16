@@ -325,8 +325,12 @@ describe.skipIf(!DATABASE_URL)('An outing that replaces a meeting', () => {
     expect(response.body.data.date).toBe('2032-03-09');
   });
 
-  test('a meeting nobody prepared yet carries the unit\'s usual evening; a prepared one does not', async () => {
+  test('a meeting nobody prepared yet carries the unit\'s usual evening, from its meeting time; a prepared one does not', async () => {
     const quietUnit = await unit();
+    await pool.query(`INSERT INTO organization_settings (organization_id, setting_key, setting_value)
+      VALUES ($1, 'organization_info', '{"meeting_time": "18:30"}'::jsonb)
+      ON CONFLICT (organization_id, setting_key) DO UPDATE
+        SET setting_value = organization_settings.setting_value || EXCLUDED.setting_value`, [quietUnit]);
     const leader = await member(quietUnit, LEADER, 'Léa Tremblay');
     await pool.query("INSERT INTO scout_years (organization_id, label, start_date, end_date, status) VALUES ($1, 'Current', '2030-09-01', '2031-08-31', 'active')", [quietUnit]);
     const planned = await pool.query(`INSERT INTO year_plan_meetings (organization_id, meeting_date, theme, meeting_kind, start_time, end_time)
@@ -337,6 +341,7 @@ describe.skipIf(!DATABASE_URL)('An outing that replaces a meeting', () => {
     expect(unprepared.body.data.activities).toEqual([]);
     expect(unprepared.body.data.default_schedule.length).toBeGreaterThan(0);
     unprepared.body.data.default_schedule.forEach((item) => expect(item.time).toMatch(/^\d{2}:\d{2}$/));
+    expect(unprepared.body.data.default_schedule[0].time).toBe('18:30');
 
     await pool.query(`INSERT INTO year_plan_meeting_activities (organization_id, meeting_id, name, start_time, duration_minutes)
       VALUES ($1, $2, 'Fictional game', '19:15', 60)`, [quietUnit, planned.rows[0].id]);
