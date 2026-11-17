@@ -135,83 +135,6 @@ describe('Fee Definitions', () => {
     expect(res.body.data[0].registration_fee).toBe('50.00');
   });
 
-  test.skip('STALE CONTRACT: POST /api/v1/finance/fee-definitions creates new fee definition', async () => {
-    const { __mClient, __mPool } = require('pg');
-    const token = generateToken({
-      permissions: ['finance.manage']
-    });
-
-    let transactionStarted = false;
-    let feeInserted = false;
-    let participantsAssigned = false;
-
-    __mPool.connect.mockResolvedValue(__mClient);
-    
-    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
-      if (query === 'BEGIN') {
-        transactionStarted = true;
-        return Promise.resolve({ rows: [] });
-      }
-      if (query.includes('INSERT INTO fee_definitions')) {
-        feeInserted = true;
-        return Promise.resolve({
-          rows: [{
-            id: 3,
-            organization_id: ORG_ID,
-            registration_fee: '60.00',
-            membership_fee: '120.00',
-            year_start: '2026-01-01',
-            year_end: '2026-12-31',
-            created_at: new Date()
-          }]
-        });
-      }
-      if (query.includes('INSERT INTO participant_fees')) {
-        participantsAssigned = true;
-        return Promise.resolve({ rows: [] });
-      }
-      if (query === 'COMMIT') {
-        return Promise.resolve({ rows: [] });
-      }
-      return Promise.resolve({ rows: [] });
-    });
-
-    __mPool.connect.mockResolvedValue(__mClient);
-    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
-      if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
-        return Promise.resolve({ rows: [] });
-      }
-      if (query.includes('permission_key')) {
-        return Promise.resolve({
-          rows: [{ permission_key: 'finance.manage' }]
-        });
-      }
-      if (query.includes('role_name')) {
-        return Promise.resolve({
-          rows: [{ role_name: 'finance' }]
-        });
-      }
-      // Return undefined to fall back to default mocks (permissions, roles, etc.)
-      return undefined;
-    });
-
-    const res = await request(app)
-      .post('/api/v1/finance/fee-definitions')
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        registration_fee: 60.00,
-        membership_fee: 120.00,
-        year_start: '2026-01-01',
-        year_end: '2026-12-31'
-      });
-
-    expect(res.status).toBe(201);
-    expect(res.body.data.registration_fee).toBe(60);
-    expect(transactionStarted).toBe(true);
-    expect(feeInserted).toBe(true);
-    expect(participantsAssigned).toBe(true);
-  });
-
   test('rejects fee definition with invalid registration_fee', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({
@@ -311,7 +234,7 @@ describe('Fee Definitions', () => {
     expect(res.body.message).toMatch(/date|invalid/i);
   });
 
-  test.skip('STALE CONTRACT: PUT /api/v1/finance/fee-definitions/:id updates fee definition', async () => {
+  test.each([false, true])('deleting a fee definition removes its unpaid fees, and is refused once a payment exists (paid: %s)', async (paid) => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.manage']
@@ -326,53 +249,11 @@ describe('Fee Definitions', () => {
           rows: [{ id: 1 }]
         });
       }
-      if (query.includes('UPDATE fee_definitions')) {
-        return Promise.resolve({
-          rows: [{
-            id: 1,
-            organization_id: ORG_ID,
-            registration_fee: '75.00',
-            membership_fee: '150.00',
-            year_start: '2026-01-01',
-            year_end: '2026-12-31'
-          }]
-        });
-      }
-      // Return undefined to fall back to default mocks (permissions, roles, etc.)
-      return undefined;
-    });
-
-    const res = await request(app)
-      .put('/api/v1/finance/fee-definitions/1')
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        registration_fee: 75.00,
-        membership_fee: 150.00,
-        year_start: '2026-01-01',
-        year_end: '2026-12-31'
-      });
-
-    expect(res.status).toBe(200);
-    expect(res.body.data.registration_fee).toBe(75);
-  });
-
-  test('DELETE /api/v1/finance/fee-definitions/:id deletes fee definition', async () => {
-    const { __mClient, __mPool } = require('pg');
-    const token = generateToken({
-      permissions: ['finance.manage']
-    });
-
-    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
-      if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
+      if (query.includes('DELETE FROM fee_definitions') || query.includes('DELETE FROM participant_fees')) {
         return Promise.resolve({ rows: [] });
       }
-      if (query.includes('SELECT id FROM fee_definitions WHERE id')) {
-        return Promise.resolve({
-          rows: [{ id: 1 }]
-        });
-      }
-      if (query.includes('DELETE FROM fee_definitions')) {
-        return Promise.resolve({ rows: [] });
+      if (query.includes('FROM payments pay JOIN participant_fees pf')) {
+        return Promise.resolve({ rows: paid ? [{ '?column?': 1 }] : [] });
       }
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
@@ -382,47 +263,13 @@ describe('Fee Definitions', () => {
       .delete('/api/v1/finance/fee-definitions/1')
       .set('Authorization', `Bearer ${token}`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    expect(res.status).toBe(paid ? 409 : 200);
+    expect(res.body.success).toBe(!paid);
+    if (paid) {
+      expect(res.body.message).toBe('fee_definition_has_payments');
+    }
   });
 
-  test.skip('STALE CONTRACT: requires finance.manage permission to create/update/delete fee definitions', async () => {
-    const { __mClient, __mPool } = require('pg');
-    const token = generateToken({
-      permissions: ['finance.view'] // Can view, not manage
-    });
-
-    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
-      if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
-        return Promise.resolve({ rows: [] });
-      }
-      if (query.includes('permission_key')) {
-        return Promise.resolve({
-          rows: [{ permission_key: 'finance.view' }]
-        });
-      }
-      if (query.includes('role_name')) {
-        return Promise.resolve({
-          rows: [{ role_name: 'parent' }]
-        });
-      }
-      // Return undefined to fall back to default mocks (permissions, roles, etc.)
-      return undefined;
-    });
-
-    const res = await request(app)
-      .post('/api/v1/finance/fee-definitions')
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        registration_fee: 50.00,
-        membership_fee: 100.00,
-        year_start: '2026-01-01',
-        year_end: '2026-12-31'
-      });
-
-    expect(res.status).toBe(403);
-    expect(res.body.message).toMatch(/demo mode|read-only/i);
-  });
 });
 
 // ============================================
@@ -475,55 +322,6 @@ describe('Participant Fees and Payments', () => {
     // Outstanding should be calculated as 150 - 50 = 100
   });
 
-  test.skip('STALE CONTRACT: POST /api/v1/finance/payments records payment for participant fee', async () => {
-    const { __mClient, __mPool } = require('pg');
-    const token = generateToken({
-      permissions: ['finance.manage'],
-      user_id: 1
-    });
-
-    let paymentInserted = false;
-
-    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
-      if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
-        return Promise.resolve({ rows: [] });
-      }
-      if (query.includes('SELECT id FROM participant_fees WHERE id')) {
-        return Promise.resolve({
-          rows: [{ id: 100 }]
-        });
-      }
-      if (query.includes('INSERT INTO payments')) {
-        paymentInserted = true;
-        return Promise.resolve({
-          rows: [{
-            id: 1,
-            participant_fee_id: 100,
-            amount: '50.00',
-            payment_method: 'cash',
-            created_at: new Date()
-          }]
-        });
-      }
-      // Return undefined to fall back to default mocks (permissions, roles, etc.)
-      return undefined;
-    });
-
-    const res = await request(app)
-      .post('/api/v1/finance/participant-fees/100/payments')
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        participant_fee_id: 100,
-        amount: 50.00,
-        payment_method: 'cash',
-        notes: 'Cash payment at event'
-      });
-
-    expect(res.status).toBe(201);
-    expect(res.body.data.amount).toBe(50);
-    expect(paymentInserted).toBe(true);
-  });
-
   test('validateMoney rejects invalid amounts', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({
@@ -565,50 +363,6 @@ describe('Participant Fees and Payments', () => {
 // ============================================
 
 describe('Financial Reports', () => {
-  test.skip('STALE CONTRACT: GET /api/v1/finance/summary returns organization financial overview', async () => {
-    const { __mClient, __mPool } = require('pg');
-    const token = generateToken({
-      permissions: ['finance.view']
-    });
-
-    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
-      if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
-        return Promise.resolve({ rows: [] });
-      }
-      if (query.includes('total_billed') || query.includes('FROM participant_fees pf')) {
-        return Promise.resolve({
-          rows: [{
-            total_billed: '10000.00',
-            total_paid: '6500.00',
-            fee_count: 100
-          }]
-        });
-      }
-      // Mock the participant breakdown query
-      if (query.includes('pf.participant_id') && query.includes('GROUP BY pf.participant_id')) {
-        return Promise.resolve({ rows: [] });
-      }
-      // Mock the by definition query
-      if (query.includes('fd.id, fd.year_start') && query.includes('FROM fee_definitions fd')) {
-        return Promise.resolve({ rows: [] });
-      }
-      // Mock the payment methods query
-      if (query.includes('pay.method') && query.includes('FROM payments pay')) {
-        return Promise.resolve({ rows: [] });
-      }
-      // Return undefined to fall back to default mocks (permissions, roles, etc.)
-      return undefined;
-    });
-
-    const res = await request(app)
-      .get('/api/v1/finance/reports/summary')
-      .set('Authorization', `Bearer ${token}`);
-
-    expect(res.status).toBe(200);
-    expect(res.body.data.totals.total_billed).toBe(10000);
-    expect(res.body.data.totals.total_outstanding).toBe(3500);
-  });
-
   test('GET /api/v1/finance/participant-fees returns fees including outstanding balance', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({

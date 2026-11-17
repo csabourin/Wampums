@@ -3,7 +3,8 @@ const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, userHasPermission } = require('../middleware/auth');
 const { success, error, forbidden, asyncHandler } = require('../middleware/response');
-const { validateIdParam, checkValidation } = require('../middleware/validation');
+const { validateIdParam, validateIdBody, checkValidation } = require('../middleware/validation');
+const { recalculateFeeStatus } = require('../services/feeStatus');
 
 const {
   toNumeric,
@@ -11,6 +12,13 @@ const {
   validateDate,
   validatePositiveInteger
 } = require('../utils/validation-helpers');
+
+/** The unique constraint that keeps one fee per youth and fee definition. */
+const UNIQUE_FEE_CONSTRAINT = 'unique_participant_fee_period';
+const UNIQUE_VIOLATION = '23505';
+
+/** Refuse a fee year that ends before it starts. */
+const yearRangeError = (start, end) => (start && end && start > end ? 'year_end must not be before year_start' : null);
 
 function formatFeeRow(row) {
   const totalAmount = toNumeric(row.total_amount);
@@ -56,6 +64,9 @@ module.exports = (pool, _logger) => {
         regValidation.message || membershipValidation.message || yearStartValidation.message || yearEndValidation.message,
         HTTP_STATUS.BAD_REQUEST
       );
+    }
+    if (yearRangeError(yearStartValidation.value, yearEndValidation.value)) {
+      return error(res, yearRangeError(yearStartValidation.value, yearEndValidation.value), HTTP_STATUS.BAD_REQUEST);
     }
 
     const client = await pool.connect();
@@ -117,6 +128,9 @@ module.exports = (pool, _logger) => {
         HTTP_STATUS.BAD_REQUEST
       );
     }
+    if (yearRangeError(yearStartValidation.value, yearEndValidation.value)) {
+      return error(res, yearRangeError(yearStartValidation.value, yearEndValidation.value), HTTP_STATUS.BAD_REQUEST);
+    }
 
     const existing = await pool.query(
       'SELECT id FROM fee_definitions WHERE id = $1 AND organization_id = $2',
@@ -146,16 +160,38 @@ module.exports = (pool, _logger) => {
 
     const { id } = req.params;
 
-    const existing = await pool.query(
-      'SELECT id FROM fee_definitions WHERE id = $1 AND organization_id = $2',
-      [id, organizationId]
-    );
-
-    if (existing.rows.length === 0) {
-      return error(res, 'Fee definition not found', HTTP_STATUS.NOT_FOUND);
+    // A fee definition is attributed to every youth when created: deleting it
+    // removes those fees too, unless a payment was recorded against one, which
+    // stays (409) rather than vanish from the books.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const existing = await client.query(
+        'SELECT id FROM fee_definitions WHERE id = $1 AND organization_id = $2 FOR UPDATE',
+        [id, organizationId]
+      );
+      if (existing.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'Fee definition not found', HTTP_STATUS.NOT_FOUND);
+      }
+      const paid = await client.query(
+        `SELECT 1 FROM payments pay JOIN participant_fees pf ON pf.id = pay.participant_fee_id
+          WHERE pf.fee_definition_id = $1 AND pf.organization_id = $2 LIMIT 1`,
+        [id, organizationId]
+      );
+      if (paid.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'fee_definition_has_payments', HTTP_STATUS.CONFLICT);
+      }
+      await client.query('DELETE FROM participant_fees WHERE fee_definition_id = $1 AND organization_id = $2', [id, organizationId]);
+      await client.query('DELETE FROM fee_definitions WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-
-    await pool.query('DELETE FROM fee_definitions WHERE id = $1 AND organization_id = $2', [id, organizationId]);
 
     return success(res, true, 'Fee definition deleted');
   }));
@@ -188,7 +224,7 @@ module.exports = (pool, _logger) => {
     return success(res, formatted, 'Participant fees loaded');
   }));
 
-  router.post('/v1/finance/participant-fees', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
+  router.post('/v1/finance/participant-fees', authenticate, blockDemoRoles, requirePermission('finance.manage'), validateIdBody('participant_id'), validateIdBody('fee_definition_id'), checkValidation, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const {
@@ -196,7 +232,6 @@ module.exports = (pool, _logger) => {
       fee_definition_id,
       total_registration_fee,
       total_membership_fee,
-      status = 'unpaid',
       notes = ''
     } = req.body;
 
@@ -229,27 +264,35 @@ module.exports = (pool, _logger) => {
       return error(res, 'Fee definition not found for this organization', HTTP_STATUS.NOT_FOUND);
     }
 
-    const insertResult = await pool.query(
-      `INSERT INTO participant_fees (
-         participant_id,
-         organization_id,
-         fee_definition_id,
-         total_registration_fee,
-         total_membership_fee,
-         status,
-         notes
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [
-        participant_id,
-        organizationId,
-        fee_definition_id,
-        registrationValidation.value,
-        membershipValidation.value,
-        status,
-        notes
-      ]
-    );
+    let insertResult;
+    try {
+      // A new fee has no payment yet: it starts unpaid.
+      insertResult = await pool.query(
+        `INSERT INTO participant_fees (
+           participant_id,
+           organization_id,
+           fee_definition_id,
+           total_registration_fee,
+           total_membership_fee,
+           status,
+           notes
+         ) VALUES ($1, $2, $3, $4, $5, 'unpaid', $6)
+         RETURNING *`,
+        [
+          participant_id,
+          organizationId,
+          fee_definition_id,
+          registrationValidation.value,
+          membershipValidation.value,
+          notes
+        ]
+      );
+    } catch (err) {
+      if (err.code === UNIQUE_VIOLATION && err.constraint === UNIQUE_FEE_CONSTRAINT) {
+        return error(res, 'participant_fee_exists', HTTP_STATUS.CONFLICT);
+      }
+      throw err;
+    }
 
     return success(res, formatFeeRow(insertResult.rows[0]), 'Participant fee created', HTTP_STATUS.CREATED);
   }));
@@ -261,7 +304,6 @@ module.exports = (pool, _logger) => {
     const {
       total_registration_fee,
       total_membership_fee,
-      status,
       notes
     } = req.body;
 
@@ -286,25 +328,36 @@ module.exports = (pool, _logger) => {
       return error(res, registrationValidation.message || membershipValidation.message, HTTP_STATUS.BAD_REQUEST);
     }
 
-    const updateResult = await pool.query(
-      `UPDATE participant_fees
-       SET total_registration_fee = $1,
-           total_membership_fee = $2,
-           status = $3,
-           notes = $4
-       WHERE id = $5 AND organization_id = $6
-       RETURNING *`,
-      [
-        registrationValidation.value,
-        membershipValidation.value,
-        status || base.status,
-        notes !== undefined ? notes : base.notes,
-        id,
-        organizationId
-      ]
-    );
+    // The status follows the payments, recalculated from the new amounts: a
+    // fee that was paid and grows becomes partial. It is never taken from the request.
+    const client = await pool.connect();
+    let updated;
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE participant_fees
+         SET total_registration_fee = $1,
+             total_membership_fee = $2,
+             notes = $3
+         WHERE id = $4 AND organization_id = $5`,
+        [
+          registrationValidation.value,
+          membershipValidation.value,
+          notes !== undefined ? notes : base.notes,
+          id,
+          organizationId
+        ]
+      );
+      updated = await recalculateFeeStatus(client, Number(id), organizationId);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
 
-    return success(res, formatFeeRow(updateResult.rows[0]), 'Participant fee updated');
+    return success(res, formatFeeRow(updated), 'Participant fee updated');
   }));
 
   router.get('/v1/finance/participant-fees/:id/payments', authenticate, requirePermission('finance.view'), validateIdParam('id'), checkValidation, asyncHandler(async (req, res) => {
@@ -353,6 +406,17 @@ module.exports = (pool, _logger) => {
       return error(res, amountValidation.message || dateValidation.message, HTTP_STATUS.BAD_REQUEST);
     }
 
+    // A payment plan named with the payment must be this fee's own.
+    if (payment_plan_id !== undefined && payment_plan_id !== null && payment_plan_id !== '') {
+      const plan = await pool.query(
+        'SELECT 1 FROM payment_plans WHERE id = $1 AND participant_fee_id = $2',
+        [Number.isInteger(Number(payment_plan_id)) ? Number(payment_plan_id) : -1, id]
+      );
+      if (plan.rows.length === 0) {
+        return error(res, 'payment_plan_not_found', HTTP_STATUS.BAD_REQUEST);
+      }
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -365,17 +429,7 @@ module.exports = (pool, _logger) => {
         [id, payment_plan_id || null, amountValidation.value, payment_date, method || null, reference_number || null]
       );
 
-      // Auto-calculate and update status
-      await client.query(
-        `UPDATE participant_fees pf
-         SET status = CASE
-           WHEN COALESCE((SELECT SUM(amount) FROM payments WHERE participant_fee_id = pf.id), 0) >= pf.total_amount THEN 'paid'
-           WHEN COALESCE((SELECT SUM(amount) FROM payments WHERE participant_fee_id = pf.id), 0) > 0 THEN 'partial'
-           ELSE 'unpaid'
-         END
-         WHERE pf.id = $1`,
-        [id]
-      );
+      await recalculateFeeStatus(client, Number(id), organizationId);
 
       await client.query('COMMIT');
       return success(res, insertResult.rows[0], 'Payment recorded', HTTP_STATUS.CREATED);
@@ -429,18 +483,7 @@ module.exports = (pool, _logger) => {
         [amountValidation.value, payment_date, method || null, reference_number || null, paymentId]
       );
 
-      // Auto-calculate and update status
-      const feeId = updated.rows[0].participant_fee_id;
-      await client.query(
-        `UPDATE participant_fees pf
-         SET status = CASE
-           WHEN COALESCE((SELECT SUM(amount) FROM payments WHERE participant_fee_id = pf.id), 0) >= pf.total_amount THEN 'paid'
-           WHEN COALESCE((SELECT SUM(amount) FROM payments WHERE participant_fee_id = pf.id), 0) > 0 THEN 'partial'
-           ELSE 'unpaid'
-         END
-         WHERE pf.id = $1`,
-        [feeId]
-      );
+      await recalculateFeeStatus(client, updated.rows[0].participant_fee_id, organizationId);
 
       await client.query('COMMIT');
       return success(res, updated.rows[0], 'Payment updated');

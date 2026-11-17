@@ -5,6 +5,7 @@ const { authenticate, getOrganizationId, blockDemoRoles, userHasPermission } = r
 const { success, error, asyncHandler } = require('../middleware/response');
 const { check } = require('express-validator');
 const { validateIdBody, checkValidation } = require('../middleware/validation');
+const { recalculateFeeStatus } = require('../services/feeStatus');
 
 const CENTS_PER_DOLLAR = 100;
 
@@ -295,37 +296,9 @@ async function handlePaymentSuccess(paymentIntent, pool, logger) {
 
     const paymentId = insertResult.rows[0].id;
 
-    // Update participant_fee status
-    const feeResult = await client.query(
-      `SELECT
-        total_amount,
-        COALESCE(SUM(p.amount), 0) as total_paid
-      FROM participant_fees pf
-      LEFT JOIN payments p ON pf.id = p.participant_fee_id
-      WHERE pf.id = $1
-      GROUP BY pf.id, pf.total_amount`,
-      [participant_fee_id]
-    );
-
-    if (feeResult.rows.length > 0) {
-      const fee = feeResult.rows[0];
-      const totalAmount = parseFloat(fee.total_amount);
-      const totalPaid = parseFloat(fee.total_paid);
-
-      let newStatus = 'unpaid';
-      if (totalPaid >= totalAmount) {
-        newStatus = 'paid';
-      } else if (totalPaid > 0) {
-        newStatus = 'partial';
-      }
-
-      await client.query(
-        'UPDATE participant_fees SET status = $1 WHERE id = $2',
-        [newStatus, participant_fee_id]
-      );
-
-      logger.info(`Updated participant_fee ${participant_fee_id} status to: ${newStatus}`);
-    }
+    // The fee's status follows its payments, as for a payment a leader records.
+    const fee = await recalculateFeeStatus(client, Number(participant_fee_id), Number(metadata.organization_id));
+    logger.info(`Updated participant_fee ${participant_fee_id} status to: ${fee?.status}`);
 
     await client.query('COMMIT');
 
