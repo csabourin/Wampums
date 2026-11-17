@@ -3,7 +3,7 @@ import { EQUIPMENT_CATEGORIES, equipmentCategoryLabel, equipmentCategoryOptions 
 import { debugError, debugLog, debugWarn } from '../../utils/DebugUtils.js';
 import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
-import { setContent } from '../../utils/DOMUtils.js';
+import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import { CONFIG } from '../../config.js';
 import {
   getEquipmentInventory,
@@ -927,7 +927,7 @@ export class Inventory {
       bindOwnershipFields(equipmentForm);
       equipmentForm.addEventListener('submit', async (event) => {
         event.preventDefault();
-        await this.handleCreateSubmit();
+        await withFormBusy(equipmentForm, () => this.handleCreateSubmit());
       });
     }
 
@@ -1742,9 +1742,10 @@ export class Inventory {
       },
     });
     bindOwnershipFields(document.getElementById('editEquipmentForm'));
-    document.getElementById('editEquipmentForm').addEventListener('submit', async (e) => {
+    const editForm = document.getElementById('editEquipmentForm');
+    editForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      await this.handleEditSubmit();
+      await withFormBusy(editForm, () => this.handleEditSubmit());
     });
     this.setupPhotoUpload('modal-photo-upload-container', 'modal-photo-input', 'modal-photo-preview-img', 'modal-photo-placeholder', 'modal-remove-photo-btn', true);
 

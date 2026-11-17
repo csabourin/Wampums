@@ -343,6 +343,28 @@ describe('external revenue', () => {
     expectErrorState('external_revenue');
   });
 
+  test('a second click while a revenue is saving records it once', async () => {
+    loaded();
+    let finish;
+    api.createExternalRevenue.mockReturnValue(new Promise((done) => { finish = done; }));
+    const screen = new ExternalRevenue(makeApp());
+    await screen.init();
+    screen.showRevenueModal();
+    document.getElementById('revenue-type').value = 'donation';
+    document.getElementById('revenue-date').value = '2026-10-01';
+    document.getElementById('revenue-description').value = 'Fictional donation';
+    document.getElementById('revenue-amount').value = '20';
+    const form = document.getElementById('revenue-form');
+
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    expect(document.querySelector('button[form="revenue-form"]').disabled).toBe(true);
+    finish({ success: true, data: { id: 5 } });
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+
+    expect(api.createExternalRevenue).toHaveBeenCalledTimes(1);
+  });
+
   test('saving a removed revenue explains the refusal, refreshes the list and restores focus', async () => {
     loaded();
     const app = makeApp();

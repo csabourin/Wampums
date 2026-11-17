@@ -144,6 +144,24 @@ describe.each(SCREENS)('%s', (_name, Screen, titleKey) => {
   });
 });
 
+describe('adding equipment', () => {
+  test('a second click while an item is saving sends it once', async () => {
+    loadAll();
+    let finish;
+    api.saveEquipmentItem.mockReturnValue(new Promise((done) => { finish = done; }));
+    await new Inventory(makeApp()).init();
+    const form = document.getElementById('equipmentForm');
+    form.elements.namedItem('equipment_name').value = 'Fictional tent';
+
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    finish({ data: { equipment: { id: 9, name: 'Fictional tent' } } });
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+
+    expect(api.saveEquipmentItem).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('inventory views', () => {
   test('table cards keep the quantity, value and actions with their translated labels', async () => {
     loadAll();
