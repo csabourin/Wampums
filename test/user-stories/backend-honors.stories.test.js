@@ -233,7 +233,7 @@ describe('US-HON-006 — Fixing an honor\'s date moves its points too (server)',
       if (query.includes('demoadmin')) {
         return { rows: [] };
       }
-      if (query.includes('FROM honors h') && query.includes('po.organization_id = $2')) {
+      if (query.includes('FROM honors h') && query.includes('h.organization_id = $2')) {
         return { rows: found ? [{ id: 42, date: '2026-07-10', participant_id: 1 }] : [] };
       }
       if (query.includes('UPDATE honors')) {

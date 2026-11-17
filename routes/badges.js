@@ -9,6 +9,7 @@
 
 const express = require('express');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { isCalendarDate } = require('../utils/calendar-date');
 const router = express.Router();
 
 // Import utilities
@@ -302,6 +303,9 @@ module.exports = (pool, logger) => {
 
     if (!participant_id || !badge_template_id) {
       return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Participant ID and badge_template_id are required' });
+    }
+    if (date_obtention !== undefined && date_obtention !== null && date_obtention !== '' && !isCalendarDate(date_obtention)) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'invalid_date' });
     }
 
     const client = await pool.connect();

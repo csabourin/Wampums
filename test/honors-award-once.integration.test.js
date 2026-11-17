@@ -129,4 +129,30 @@ describe.skipIf(!DATABASE_URL)('Awarding an honor', () => {
     expect(elsewhere.body.data.results).toEqual([expect.objectContaining({ action: 'awarded' })]);
     expect(await one('SELECT COUNT(*)::int FROM honors WHERE participant_id = $1', [zoe])).toBe(2);
   });
+
+  test('a unit can neither change nor delete the honor another unit gave the same youth', async () => {
+    const ivy = await youth('Ivy');
+    await pool.query('INSERT INTO participant_organizations (participant_id, organization_id) VALUES ($1, $2)', [ivy, ids.otherUnit]);
+    await award({ participant_id: ivy, date: HONOR_DATE }, ids.otherUnit, ids.otherLeader).expect(200);
+    const theirs = await one('SELECT id FROM honors WHERE participant_id = $1 AND organization_id = $2', [ivy, ids.otherUnit]);
+    const token = signJWTToken({ user_id: ids.leader, organizationId: ids.unit });
+
+    const changed = await request(app).patch(`/api/v1/honors/${theirs}`).set('Authorization', `Bearer ${token}`).send({ reason: 'Fictional' });
+    const removed = await request(app).delete(`/api/v1/honors/${theirs}`).set('Authorization', `Bearer ${token}`);
+
+    expect([changed.status, removed.status]).toEqual([404, 404]);
+    expect(await one('SELECT reason FROM honors WHERE id = $1', [theirs])).not.toBe('Fictional');
+  });
+
+  test('an impossible date for an honor is refused, not read as the next month', async () => {
+    const eve = await youth('Eve');
+    await award({ participant_id: eve, date: HONOR_DATE }).expect(200);
+    const id = await one('SELECT id FROM honors WHERE participant_id = $1 AND organization_id = $2', [eve, ids.unit]);
+    const token = signJWTToken({ user_id: ids.leader, organizationId: ids.unit });
+
+    const res = await request(app).patch(`/api/v1/honors/${id}`).set('Authorization', `Bearer ${token}`).send({ date: '2026-02-30' });
+
+    expect(res.status).toBe(400);
+  });
 });
+

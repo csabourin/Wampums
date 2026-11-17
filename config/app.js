@@ -8,7 +8,14 @@ const initRoutes = require('../routes/index');
 const socketService = require('../services/socket');
 const { liveSyncBroadcaster } = require('../middleware/live-sync');
 
-const INVALID_INPUT_SQLSTATES = new Set(['22P02', '22003']);
+/**
+ * PostgreSQL refusing a value the request supplied: unreadable as its type
+ * (22P02), out of range (22003), a malformed date or time (22007), an
+ * impossible one such as 30 February (22008), or text longer than its column
+ * (22001). A CHECK violation (23514) is left a 500: a server computation can
+ * cause one too, and calling it the request's fault would hide that.
+ */
+const INVALID_INPUT_SQLSTATES = new Set(['22P02', '22003', '22007', '22008', '22001']);
 
 /**
  * Create and configure the Express application
@@ -67,8 +74,8 @@ function createApp() {
       });
     }
 
-    // PostgreSQL refusing a value as typed (22P02) or out of range (22003) means
-    // input slipped past validation: the request is at fault, not the server.
+    // A value PostgreSQL refuses (INVALID_INPUT_SQLSTATES) means input slipped
+    // past validation: the request is at fault, not the server.
     if (INVALID_INPUT_SQLSTATES.has(err?.code)) {
       logger.warn(`Input refused by the database (${err.code}) on ${req.method} ${req.path}`);
       return res.status(400).json({
