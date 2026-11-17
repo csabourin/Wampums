@@ -5,6 +5,7 @@
 const express = require('express');
 const { HTTP_STATUS } = require('../utils/http-status');
 const { MS_PER_DAY } = require('../utils/time-units');
+const { unitToday } = require('../utils/unit-clock');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, userHasPermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
@@ -371,7 +372,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getOrganizationId(req, pool);
 
       // Get upcoming multi-day activities
-      const today = new Date().toISOString().split('T')[0];
+      const today = await unitToday(pool, organizationId);
       const upcomingResult = await pool.query(
         `SELECT id, name,
                         activity_start_date::text as activity_start_date,

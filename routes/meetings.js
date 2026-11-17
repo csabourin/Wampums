@@ -16,7 +16,8 @@ const { authenticate, requirePermission, requireAnyPermission, blockDemoRoles, g
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateDate, validateDateOptional, checkValidation } = require('../middleware/validation');
 const { getMeetingSectionConfig } = require('../utils/meeting-sections');
-const { getMeetingDefaults, formatLocalDate } = require('../utils/meeting-defaults');
+const { getMeetingDefaults } = require('../utils/meeting-defaults');
+const { unitToday } = require('../utils/unit-clock');
 const { durationToMinutes, getProgrammeForDate } = require('../services/meetingProgramme');
 const { findReplacedMeetings } = require('../services/meetingReplacement');
 const {
@@ -230,7 +231,7 @@ module.exports = (pool, logger) => {
     checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const date = req.query.date || formatLocalDate(new Date());
+      const date = req.query.date || await unitToday(pool, organizationId);
 
       const [meeting, meetingSections] = await Promise.all([
         loadMeetingByDate(organizationId, date),
@@ -507,7 +508,7 @@ module.exports = (pool, logger) => {
     requireAnyPermission(...MEETING_READ_PERMISSIONS),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const today = formatLocalDate(new Date());
+      const today = await unitToday(pool, organizationId);
 
       // A meeting an outing replaces is not the next meeting. Consecutive
       // replacements may exceed one window of candidates, so the following
@@ -559,7 +560,7 @@ module.exports = (pool, logger) => {
     checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const date = req.query.date || formatLocalDate(new Date());
+      const date = req.query.date || await unitToday(pool, organizationId);
 
       const result = await pool.query(
         `SELECT id, name, email, attendance_date::text AS attendance_date
@@ -758,7 +759,7 @@ module.exports = (pool, logger) => {
          FROM year_plan_meetings m
          JOIN year_plan_meeting_activities a ON a.meeting_id = m.id
          WHERE m.organization_id = $1
-           AND m.meeting_date < CURRENT_DATE
+           AND m.meeting_date < unit_today($1)
            AND m.meeting_date BETWEEN $3::date AND $4::date
            AND a.badge_template_id IS NOT NULL
            AND a.processed = FALSE

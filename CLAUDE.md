@@ -388,6 +388,24 @@ and grants, and review comments and DDL literals for PII or secrets before commi
 - ✅ JSONB columns for flexible data: `settings JSONB`, `metadata JSONB`
 - ✅ Foreign key constraints with appropriate `ON DELETE` behavior
 
+#### The Unit's Clock
+- ✅ **"Today" is the day where the unit is, not the server's.** The application and PostgreSQL keep UTC,
+  where the day turns over during an evening meeting. Each unit has a time zone
+  (`organizations.time_zone`, IANA name, default `America/Toronto`, migration 088).
+  An administrator chooses it by closest large city under Unit settings › Time zone
+  (`PATCH /api/v1/organizations/settings/time-zone`, `org.edit`). `config/unit_time_zones.json` lists the
+  zones offered, shared by the server and the SPA (`spa/utils/TimeZoneUtils.js`); a zone added there needs
+  its `unit_time_zone_city_<zone>` key in both languages.
+- ✅ In SQL: `unit_today(<organization id>)` instead of `CURRENT_DATE`, and `unit_now(<organization id>)`
+  (a timestamp without zone) to compare with an activity's date and time, which carry no zone. In
+  JavaScript: `unitToday(db, organizationId)` from `utils/unit-clock.js`.
+- ❌ Never `CURRENT_DATE`, `NOW()::date`, `NOW()::timestamp` or `new Date().toISOString().slice(0, 10)`
+  to decide today, upcoming, past or overdue in `routes/` and `services/` (`npm run lint:server-clock`).
+  `NOW()` for an instant (`created_at`, an expiry) is fine.
+- ✅ Integration fixtures may say `CURRENT_DATE + 3`: test sessions run in the default zone
+  (`test/globalSetup.js`). A test about another zone sets the unit's `time_zone`
+  (`test/unit-clock.integration.test.js`).
+
 #### Query Security
 ```javascript
 // ✅ GOOD - Parameterized query
@@ -808,10 +826,11 @@ only the checks your change concerns ("Working on an issue").
 | `npm run lint:client-org-id` | No `organization_id` / `x-organization-id` read from the client outside `getOrganizationId` and `getCurrentOrganizationId` |
 | `npm run lint:manual-auth` | No `verifyJWT`, `verifyOrganizationMembership` or `getCurrentOrganizationId` in routes — use `authenticate` + `requirePermission` |
 | `npm run lint:catch-shadow` | No `catch (error)` hiding the `error()` response helper |
+| `npm run lint:server-clock` | No "today" read from the server's clock in `routes/` and `services/` (§4) |
 | `npm run lint:eslint-warnings` | No file gains an ESLint warning (§10) |
 | `npm run lint:eslint` | ESLint errors (§10) |
 
-**Policy checks (`lint:policy` runs the five above) are a ratchet.** Existing violations are counted per
+**Policy checks (`lint:policy` runs the six above, from `lint:role-names` on) are a ratchet.** Existing violations are counted per
 file in `scripts/modernization/policy-baseline.json`:
 
 - A file may never gain a violation. Fix it, or — only for a use CLAUDE.md permits — annotate it on that

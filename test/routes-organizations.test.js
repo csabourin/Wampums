@@ -562,7 +562,7 @@ describe('GET /api/v1/organizations/settings', () => {
     expect(move.params).toEqual([ORG_ID, '19:00', '18:45']);
     // Only the meetings still at the old hour, upcoming, ordinary, not cancelled, not an outing's day.
     expect(move.query).toMatch(/start_time = \$2::time/);
-    expect(move.query).toMatch(/meeting_date >= CURRENT_DATE/);
+    expect(move.query).toMatch(/meeting_date >= unit_today\(\$1\)/);
     expect(move.query).toMatch(/NOT is_cancelled/);
     expect(move.query).toMatch(/activity_id IS NULL/);
   });
@@ -1116,6 +1116,65 @@ describe('the addresses and branch of a unit', () => {
     expect(primary.status).toBe(400);
   });
 
+  test('an administrator places the unit in the time zone of a city offered', async () => {
+    const queries = mockUnitAdmin(['org.view', 'org.edit']);
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      queries.push({ query, params });
+      if (query.includes("r.role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('SELECT DISTINCT p.permission_key')) {
+        return Promise.resolve({ rows: [{ permission_key: 'org.edit' }] });
+      }
+      if (query.includes('UPDATE organizations SET time_zone')) {
+        return Promise.resolve({ rows: [{ time_zone: params[1] }] });
+      }
+      return undefined;
+    });
+
+    const res = await request(app)
+      .patch('/api/v1/organizations/settings/time-zone')
+      .set('Authorization', token())
+      .send({ time_zone: 'America/Vancouver', organization_id: 999 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ time_zone: 'America/Vancouver' });
+    const update = queries.find(({ query }) => query.includes('UPDATE organizations SET time_zone'));
+    expect(update.params).toEqual([ORG_ID, 'America/Vancouver']);
+  });
+
+  test.each([
+    ['a zone no city of the list keeps', 'Etc/GMT+12'],
+    ['a name PostgreSQL would not know', 'Mars/Olympus_Mons'],
+    ['nothing', undefined],
+    ['something that is not a name', ['America/Toronto']],
+  ])('the time zone is refused when it is %s', async (_label, timeZone) => {
+    const queries = mockUnitAdmin(['org.view', 'org.edit']);
+
+    const res = await request(app)
+      .patch('/api/v1/organizations/settings/time-zone')
+      .set('Authorization', token())
+      .send({ time_zone: timeZone });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toEqual([{ field: 'time_zone', msg: 'unit_time_zone_invalid' }]);
+    expect(queries.some(({ query }) => query.includes('UPDATE organizations'))).toBe(false);
+  });
+
+  test('changing the time zone takes a session, and org.edit', async () => {
+    const anonymous = await request(app).patch('/api/v1/organizations/settings/time-zone').send({ time_zone: 'America/Halifax' });
+    const queries = mockUnitAdmin(['org.view']);
+    const reader = await request(app).patch('/api/v1/organizations/settings/time-zone')
+      .set('Authorization', token()).send({ time_zone: 'America/Halifax' });
+
+    expect(anonymous.status).toBe(401);
+    expect(reader.status).toBe(403);
+    expect(reader.body.required).toEqual(['org.edit']);
+    expect(reader.body.missing).toEqual(['org.edit']);
+    expect(queries.some(({ query }) => query.includes('UPDATE organizations'))).toBe(false);
+  });
+
   test('changing the branch requires org.edit', async () => {
     const queries = mockUnitAdmin(['org.view']);
 
@@ -1129,7 +1188,7 @@ describe('the addresses and branch of a unit', () => {
     expect(queries.some(({ query }) => query.includes('UPDATE organizations'))).toBe(false);
   });
 
-  test('a demo account can change neither the branch nor the addresses', async () => {
+  test('a demo account can change neither the branch, the time zone nor the addresses', async () => {
     const { __mClient, __mPool } = require('pg');
     mockQueryImplementation(__mClient, __mPool, (query) => {
       if (query.includes("r.role_name IN ('demoadmin', 'demoparent')")) {
@@ -1143,11 +1202,15 @@ describe('the addresses and branch of a unit', () => {
 
     const branch = await request(app).patch('/api/v1/organizations/settings/branch')
       .set('Authorization', token()).send({ program_section: 'scouts' });
+    const timeZone = await request(app).patch('/api/v1/organizations/settings/time-zone')
+      .set('Authorization', token()).send({ time_zone: 'America/Halifax' });
     const address = await request(app).post('/api/v1/organizations/domains')
       .set('Authorization', token()).send({ subdomain: 'meute-ada' });
 
     expect(branch.status).toBe(403);
     expect(branch.body.isDemo).toBe(true);
+    expect(timeZone.status).toBe(403);
+    expect(timeZone.body.isDemo).toBe(true);
     expect(address.status).toBe(403);
     expect(address.body.isDemo).toBe(true);
   });

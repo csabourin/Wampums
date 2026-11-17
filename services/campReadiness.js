@@ -104,12 +104,12 @@ async function upcomingCamps(db, organizationId, days, limit) {
         COALESCE(a.activity_end_date, m.meeting_date)::text AS date_to
       FROM year_plan_meetings m LEFT JOIN activities a ON a.id = m.activity_id AND a.organization_id = m.organization_id
       WHERE m.organization_id = $1 AND m.meeting_kind = 'camp' AND NOT m.is_cancelled
-        AND COALESCE(a.activity_end_date, m.meeting_date) >= CURRENT_DATE AND m.meeting_date <= CURRENT_DATE + $2::int
+        AND COALESCE(a.activity_end_date, m.meeting_date) >= unit_today($1) AND m.meeting_date <= unit_today($1) + $2::int
       UNION ALL
       SELECT NULL::int, a.id, a.name, a.activity_start_date::text, a.activity_end_date::text
       FROM activities a
       WHERE a.organization_id = $1 AND a.is_active = TRUE AND a.is_camp
-        AND a.activity_end_date >= CURRENT_DATE AND a.activity_start_date <= CURRENT_DATE + $2::int
+        AND a.activity_end_date >= unit_today($1) AND a.activity_start_date <= unit_today($1) + $2::int
         AND NOT EXISTS (SELECT 1 FROM year_plan_meetings m WHERE m.organization_id = a.organization_id
           AND m.activity_id = a.id AND m.meeting_kind = 'camp')
     ) camps ORDER BY date_from, theme LIMIT $3`, [organizationId, days, limit])).rows;

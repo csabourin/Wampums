@@ -165,7 +165,7 @@ async function findPlannedMedication(pool, organizationId, participantIds) {
        FROM medication_requirements mr
       WHERE mr.organization_id = $1
         AND mr.participant_id = ANY($2::int[])
-        AND (mr.end_date IS NULL OR mr.end_date >= CURRENT_DATE)
+        AND (mr.end_date IS NULL OR mr.end_date >= unit_today($1))
      UNION
      SELECT pm.participant_id
        FROM participant_medications pm
@@ -173,7 +173,7 @@ async function findPlannedMedication(pool, organizationId, participantIds) {
         AND mr.organization_id = pm.organization_id
       WHERE pm.organization_id = $1
         AND pm.participant_id = ANY($2::int[])
-        AND (mr.end_date IS NULL OR mr.end_date >= CURRENT_DATE)`,
+        AND (mr.end_date IS NULL OR mr.end_date >= unit_today($1))`,
     [organizationId, participantIds]
   );
   return new Set((result?.rows || []).map((row) => row.participant_id));
@@ -841,7 +841,7 @@ module.exports = (pool) => {
         const scoutYear = await ensureActiveScoutYear(client, organizationId);
         await client.query(
           `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, inscription_date)
-           VALUES ($1, $2, $3, COALESCE($4::date, CURRENT_DATE))
+           VALUES ($1, $2, $3, COALESCE($4::date, unit_today($2)))
            ON CONFLICT (participant_id, organization_id, scout_year_id) DO NOTHING`,
           [participantId, organizationId, scoutYear.id, inscriptionDate]
         );
@@ -937,7 +937,7 @@ module.exports = (pool) => {
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
-              DATE_PART('year', AGE(CURRENT_DATE, p.date_naissance)) as age,
+              DATE_PART('year', AGE(unit_today($1), p.date_naissance)) as age,
               g.name as group_name
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
@@ -1053,7 +1053,7 @@ module.exports = (pool) => {
       const scoutYear = await ensureActiveScoutYear(client, organizationId);
       const enrollment = await client.query(
         `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, inscription_date)
-         VALUES ($1, $2, $3, COALESCE($4::date, CURRENT_DATE))
+         VALUES ($1, $2, $3, COALESCE($4::date, unit_today($2)))
          ON CONFLICT (participant_id, organization_id, scout_year_id)
          DO UPDATE SET status = 'active', ended_on = NULL, exit_reason = NULL
          WHERE participant_enrollments.status IS DISTINCT FROM 'active'
@@ -1222,7 +1222,7 @@ module.exports = (pool) => {
       `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
               CASE
                 WHEN p.date_naissance IS NULL THEN NULL
-                ELSE DATE_PART('year', AGE(CURRENT_DATE, p.date_naissance))::int
+                ELSE DATE_PART('year', AGE(unit_today($1), p.date_naissance))::int
               END as age,
               g.name as group_name
        FROM participants p
@@ -1741,7 +1741,7 @@ module.exports = (pool) => {
     const result = await pool.query(
       `UPDATE participant_enrollments
           SET status = 'left',
-              ended_on = CURRENT_DATE,
+              ended_on = unit_today($2),
               exit_reason = COALESCE($4, exit_reason)
         WHERE participant_id = $1
           AND organization_id = $2

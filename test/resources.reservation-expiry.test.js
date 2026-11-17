@@ -141,7 +141,7 @@ describe('the expiry sweep', () => {
 
     const [sweep] = matching("SET status = 'expired'");
     expect(sweep.text).toContain(
-      'COALESCE(date_to, meeting_date) < CURRENT_DATE',
+      'COALESCE(date_to, meeting_date) < unit_today($1)',
     );
   });
 
@@ -160,7 +160,7 @@ describe('queries that decide whether equipment is spoken for', () => {
     const [listing] = matching('AS reserved_quantity');
     expect(listing).toBeDefined();
     expect(listing.text).toContain(
-      'COALESCE(er.date_to, er.meeting_date) >= CURRENT_DATE',
+      'COALESCE(er.date_to, er.meeting_date) >= unit_today(er.organization_id)',
     );
   });
 
@@ -170,7 +170,7 @@ describe('queries that decide whether equipment is spoken for', () => {
     const [guard] = matching('COUNT(*) as count FROM equipment_reservations');
     expect(guard).toBeDefined();
     expect(guard.text).toContain(
-      'COALESCE(date_to, meeting_date) >= CURRENT_DATE',
+      'COALESCE(date_to, meeting_date) >= unit_today(organization_id)',
     );
   });
 
@@ -180,7 +180,7 @@ describe('queries that decide whether equipment is spoken for', () => {
 
     // The original bug in one line: a status filter with no date beside it.
     for (const entry of matching("status IN ('reserved', 'confirmed')")) {
-      expect(entry.text).toContain('CURRENT_DATE');
+      expect(entry.text).toContain('unit_today(');
     }
   });
 });

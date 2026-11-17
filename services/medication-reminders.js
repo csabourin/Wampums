@@ -84,9 +84,8 @@ class MedicationReminderService {
     //
     //    The EXISTS sub-query enforces "only during an active activity":
     //    activities store date and time as separate columns without timezone
-    //    context, so we compare against NOW()::timestamp (server-local).
-    //    This works correctly when the server runs in the same civil timezone
-    //    as the organisations it serves.
+    //    context: they are the unit's local hours, so they are compared with
+    //    the clock where the unit is (unit_now), never the server's.
     // ------------------------------------------------------------------ //
     const upcomingResult = await pool.query(
       `SELECT
@@ -110,8 +109,8 @@ class MedicationReminderService {
            SELECT 1
            FROM activities a
            WHERE a.organization_id = md.organization_id
-             AND (a.activity_start_date + a.activity_start_time)::timestamp <= NOW()::timestamp
-             AND (a.activity_end_date   + a.activity_end_time  )::timestamp >= NOW()::timestamp
+             AND (a.activity_start_date + a.activity_start_time)::timestamp <= unit_now(a.organization_id)
+             AND (a.activity_end_date   + a.activity_end_time  )::timestamp >= unit_now(a.organization_id)
          )
        ORDER BY md.organization_id, md.scheduled_for`,
       [REMINDER_WINDOW_MINUTES]

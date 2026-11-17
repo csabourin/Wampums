@@ -71,7 +71,7 @@ export const CONFIG = {
     // Sending mail needs an explicit result; a lost response must never replay it.
     'announcements', 'activities', 'activity-authorizations', 'resources/permission-slips',
     // How the unit is reached and what it is: never replayed later from a queue.
-    'organizations/domains', 'organizations/settings/branch',
+    'organizations/domains', 'organizations/settings/branch', 'organizations/settings/time-zone',
     // A place on a shift is confirmed or refused now, never later from a queue.
     'volunteer-shifts',
     // An emergency number must be the current one, never a later replay.

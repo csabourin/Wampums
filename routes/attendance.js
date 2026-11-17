@@ -2,6 +2,7 @@
 const express = require('express');
 const { HTTP_STATUS } = require('../utils/http-status');
 const { rowPlaceholders } = require('../utils/sql-placeholders');
+const { unitToday } = require('../utils/unit-clock');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, allowDemoSandbox, withScoutYear } = require('../middleware/auth');
 const { DEMO_SANDBOX } = require('../middleware/demoSandbox');
@@ -498,7 +499,7 @@ module.exports = (pool, logger) => {
     withScoutYear(pool),
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const requestedDate = req.query.date || new Date().toISOString().split('T')[0];
+      const requestedDate = req.query.date || await unitToday(pool, organizationId);
 
       // Get the participants enrolled that year, with attendance for the date
       const result = await pool.query(

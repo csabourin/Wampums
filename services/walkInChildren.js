@@ -359,7 +359,7 @@ async function createWalkInChild(pool, params) {
     const scoutYear = await ensureActiveScoutYear(client, organizationId);
     await client.query(
       `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id, inscription_date)
-       VALUES ($1, $2, $3, CURRENT_DATE)`,
+       VALUES ($1, $2, $3, unit_today($2))`,
       [participantId, organizationId, scoutYear.id]
     );
 

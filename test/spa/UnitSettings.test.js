@@ -3,7 +3,8 @@
  */
 
 jest.mock('../../spa/app.js', () => ({
-  translate: (key) => key
+  // One sentence keeps its placeholder, so a test can read the time put into it.
+  translate: (key) => (key === 'unit_time_zone_now' ? 'unit_time_zone_now {time}' : key)
 }));
 
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
@@ -32,12 +33,14 @@ jest.mock('../../spa/config.js', () => ({
 }));
 
 const mockUpdateUnitBranch = jest.fn();
+const mockUpdateUnitTimeZone = jest.fn();
 const mockGetUnitDomains = jest.fn();
 const mockAddUnitDomain = jest.fn();
 const mockSetPrimaryUnitDomain = jest.fn();
 const mockRemoveUnitDomain = jest.fn();
 jest.mock('../../spa/api/api-organizations.js', () => ({
   updateUnitBranch: (...args) => mockUpdateUnitBranch(...args),
+  updateUnitTimeZone: (...args) => mockUpdateUnitTimeZone(...args),
   getUnitDomains: (...args) => mockGetUnitDomains(...args),
   addUnitDomain: (...args) => mockAddUnitDomain(...args),
   setPrimaryUnitDomain: (...args) => mockSetPrimaryUnitDomain(...args),
@@ -584,6 +587,124 @@ describe('the unit\'s branch', () => {
 
     expect(document.getElementById('unit-branch-select').disabled).toBe(true);
     expect(document.getElementById('save-unit-branch-btn')).toBeNull();
+  });
+});
+
+describe('the unit\'s time zone', () => {
+  const zones = require('../../config/unit_time_zones.json');
+  const offered = zones.regions.flatMap((region) => region.zones);
+  const submit = () => document.getElementById('unit-time-zone-form')
+    .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  const withZone = (timeZone) => require('../../spa/api/api-endpoints.js').fetchEditableOrganizationSettings
+    .mockResolvedValueOnce({ data: { organization_info: { name: 'Meute Ada' }, time_zone: timeZone } });
+
+  test('cities are offered by region, and the unit\'s own is the one shown', async () => {
+    withZone('America/Vancouver');
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {}, lang: 'fr' }).init();
+
+    const select = document.getElementById('unit-time-zone-select');
+    expect(select.value).toBe('America/Vancouver');
+    expect(Array.from(select.querySelectorAll('optgroup')).map((group) => group.label)).toEqual(
+      zones.regions.map((region) => `unit_time_zone_region_${region.key}`)
+    );
+    expect(Array.from(select.options).map((option) => option.value)).toEqual(offered);
+    // A city, never the technical name, followed by its present offset.
+    expect(select.selectedOptions[0].textContent.trim()).toMatch(/^unit_time_zone_city_america_vancouver \(UTC[−-][78]\)$/);
+    expect(document.querySelector('label[for="unit-time-zone-select"]').textContent).toBe('unit_time_zone_label');
+  });
+
+  test('a unit that never chose is in the default city', async () => {
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} }).init();
+
+    expect(document.getElementById('unit-time-zone-select').value).toBe(zones.default);
+  });
+
+  test('choosing another city says what time it is there before anything is saved', async () => {
+    const { timeInZone } = jest.requireActual('../../spa/utils/TimeZoneUtils.js');
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {}, lang: 'en' }).init();
+    const select = document.getElementById('unit-time-zone-select');
+    const now = () => document.getElementById('unit-time-zone-now').textContent;
+    // The minute may turn while the test runs: either side of it is right.
+    const sentenceFor = (timeZone) => {
+      const before = timeInZone(timeZone, 'en');
+      const shown = now();
+      return [before, timeInZone(timeZone, 'en')].map((time) => `unit_time_zone_now ${time}`).includes(shown);
+    };
+    expect(select.getAttribute('aria-describedby')).toBe('unit-time-zone-hint unit-time-zone-now');
+    expect(sentenceFor(zones.default)).toBe(true);
+
+    select.value = 'Asia/Jakarta';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(sentenceFor('Asia/Jakarta')).toBe(true);
+    // Toronto and Jakarta, eleven or twelve hours apart, never read the same clock.
+    expect(timeInZone('Asia/Jakarta', 'en', new Date('2026-11-16T23:00:00Z'))).not.toBe(timeInZone(zones.default, 'en', new Date('2026-11-16T23:00:00Z')));
+    expect(mockUpdateUnitTimeZone).not.toHaveBeenCalled();
+  });
+
+  test('saving another city sends it, says so and keeps the keyboard on the selector', async () => {
+    mockUpdateUnitTimeZone.mockResolvedValueOnce({ data: { time_zone: 'America/Halifax' } });
+    const app = { showMessage: jest.fn(), organizationSettings: { program_section: 'cubs' } };
+    await new UnitSettings(app).init();
+
+    document.getElementById('unit-time-zone-select').value = 'America/Halifax';
+    submit();
+    await flushPromises();
+
+    expect(mockUpdateUnitTimeZone).toHaveBeenCalledWith('America/Halifax');
+    expect(app.organizationSettings).toEqual({ program_section: 'cubs', time_zone: 'America/Halifax' });
+    expect(app.showMessage).toHaveBeenCalledWith('unit_time_zone_saved', 'success');
+    expect(document.getElementById('unit-time-zone-select').value).toBe('America/Halifax');
+    expect(document.activeElement).toBe(document.getElementById('unit-time-zone-select'));
+  });
+
+  test('a refused change says so and is not announced as saved', async () => {
+    mockUpdateUnitTimeZone.mockRejectedValueOnce(Object.assign(new Error('nope'), { status: 403 }));
+    const app = { showMessage: jest.fn(), organizationSettings: {} };
+    await new UnitSettings(app).init();
+
+    submit();
+    await flushPromises();
+
+    expect(app.showMessage).toHaveBeenCalledWith('api_error_forbidden', 'error');
+    expect(app.showMessage).not.toHaveBeenCalledWith('unit_time_zone_saved', 'success');
+  });
+
+  test('a zone set outside the list stays shown, as text', async () => {
+    withZone('<img src=x onerror=alert(1)>');
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} }).init();
+
+    const select = document.getElementById('unit-time-zone-select');
+    expect(select.querySelector('img')).toBeNull();
+    expect(select.value).toBe('<img src=x onerror=alert(1)>');
+    expect(select.options).toHaveLength(offered.length + 1);
+  });
+
+  test('someone who cannot edit the unit sees the city without a way to change it', async () => {
+    hasPermission.mockImplementation((permission) => permission === 'org.view');
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} }).init();
+
+    expect(document.getElementById('unit-time-zone-select').disabled).toBe(true);
+    expect(document.getElementById('save-unit-time-zone-btn')).toBeNull();
+  });
+
+  test('every city and region offered has a name in French and in English', () => {
+    const { timeZoneCityKey, timeZoneRegionKey } = jest.requireActual('../../spa/utils/TimeZoneUtils.js');
+    const keys = [...offered.map(timeZoneCityKey), ...zones.regions.map((region) => timeZoneRegionKey(region.key))];
+
+    for (const lang of ['en', 'fr']) {
+      const bundle = require(`../../lang/${lang}.json`);
+      expect(keys.filter((key) => !bundle[key])).toEqual([]);
+    }
+    expect(offered).toContain(zones.default);
+    expect(new Set(offered).size).toBe(offered.length);
+  });
+
+  test('the time zone section has no accessibility violations', async () => {
+    await new UnitSettings({ showMessage: jest.fn(), organizationSettings: {} }).init();
+
+    const results = await axe.run(document.getElementById('unit-time-zone-title').closest('section'), AXE_OPTIONS);
+    expect(results.violations).toEqual([]);
   });
 });
 

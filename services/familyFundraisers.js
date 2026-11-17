@@ -87,7 +87,7 @@ async function listFamilyFundraisers(pool, { organizationId, userId }) {
            to_char(f.start_date, 'YYYY-MM-DD') AS start_date,
            to_char(f.end_date, 'YYYY-MM-DD') AS end_date,
            ${campaignModelColumnsSql('f', extended)},
-           (f.end_date IS NOT NULL AND f.end_date < CURRENT_DATE) AS ended,
+           (f.end_date IS NOT NULL AND f.end_date < unit_today($1)) AS ended,
            COALESCE((
              SELECT SUM(c.amount_paid)
                FROM fundraiser_entries c

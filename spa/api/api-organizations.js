@@ -1,5 +1,5 @@
 /**
- * The unit's branch and the addresses it answers at. Their writes need a
+ * The unit's branch, its time zone and the addresses it answers at. Their writes need a
  * connection (CONFIG.ONLINE_REQUIRED_MUTATION_RESOURCES): they are never queued.
  *
  * @module spa/api/api-organizations
@@ -18,6 +18,22 @@ export async function updateUnitBranch(programSection) {
   const response = await API.patch('v1/organizations/settings/branch', { program_section: programSection });
   try {
     // The settings the app keeps under its own name, as the vocabulary save clears them.
+    await deleteCachedData('org_settings');
+  } catch (cacheError) {
+    debugWarn('Failed to invalidate organization settings cache', cacheError);
+  }
+  return response;
+}
+
+/**
+ * Choose the time zone the unit's days follow.
+ *
+ * @param {string} timeZone - IANA name from config/unit_time_zones.json, e.g. `America/Toronto`
+ * @returns {Promise<Object>} `{ data: { time_zone } }`
+ */
+export async function updateUnitTimeZone(timeZone) {
+  const response = await API.patch('v1/organizations/settings/time-zone', { time_zone: timeZone });
+  try {
     await deleteCachedData('org_settings');
   } catch (cacheError) {
     debugWarn('Failed to invalidate organization settings cache', cacheError);

@@ -182,5 +182,6 @@
   "manual-auth": {},
   "role-names": {
     "mobile/src/screens/CreateOrganizationScreen.js": 1
-  }
+  },
+  "server-clock": {}
 }

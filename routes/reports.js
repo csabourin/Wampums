@@ -1015,13 +1015,13 @@ module.exports = (pool, _logger) => {
                 po.inscription_date,
                 CASE
                   WHEN po.inscription_date IS NOT NULL THEN
-                    EXTRACT(YEAR FROM AGE(CURRENT_DATE, po.inscription_date))
+                    EXTRACT(YEAR FROM AGE(unit_today($1), po.inscription_date))
                   ELSE NULL
                 END as years_with_group,
                 CASE
                   WHEN po.inscription_date IS NOT NULL THEN
-                    EXTRACT(MONTH FROM AGE(CURRENT_DATE, po.inscription_date)) -
-                    (EXTRACT(YEAR FROM AGE(CURRENT_DATE, po.inscription_date)) * 12)
+                    EXTRACT(MONTH FROM AGE(unit_today($1), po.inscription_date)) -
+                    (EXTRACT(YEAR FROM AGE(unit_today($1), po.inscription_date)) * 12)
                   ELSE NULL
                 END as months_with_group
          FROM participants p

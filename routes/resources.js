@@ -138,7 +138,7 @@ const POSTGRES_INT_MAX = 2147483647;
 function activeReservationPredicate(alias = '') {
   const prefix = alias ? `${alias}.` : '';
   return `${prefix}status IN ('reserved', 'confirmed')
-          AND COALESCE(${prefix}date_to, ${prefix}meeting_date) >= CURRENT_DATE`;
+          AND COALESCE(${prefix}date_to, ${prefix}meeting_date) >= unit_today(${prefix}organization_id)`;
 }
 
 /**
@@ -170,7 +170,7 @@ async function expireLapsedReservations(pool, organizationId, logger) {
               updated_at = CURRENT_TIMESTAMP
         WHERE organization_id = $1
           AND status = 'reserved'
-          AND COALESCE(date_to, meeting_date) < CURRENT_DATE
+          AND COALESCE(date_to, meeting_date) < unit_today($1)
         RETURNING id`,
       [organizationId],
     );
@@ -472,7 +472,7 @@ module.exports = (pool, logger) => {
                     WHERE er.equipment_id = e.id
                       AND ${activeReservationPredicate('er')}
                   ), 0) AS reserved_quantity,
-                  equipment_loaned_quantity(e.id, CURRENT_DATE) AS loaned_quantity,
+                  equipment_loaned_quantity(e.id, unit_today($1)) AS loaned_quantity,
                   CASE WHEN $2::date IS NULL THEN NULL ELSE GREATEST(0,
                     COALESCE(e.quantity_total, 0)
                     - COALESCE((

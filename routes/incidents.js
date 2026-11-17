@@ -248,7 +248,7 @@ module.exports = (pool, logger) => {
       // Get participant with age calculation
       const participant = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
-                EXTRACT(YEAR FROM age(CURRENT_DATE, p.date_naissance))::INTEGER as age
+                EXTRACT(YEAR FROM age(unit_today($2), p.date_naissance))::INTEGER as age
          FROM participants p
          JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $2
          WHERE p.id = $1`,

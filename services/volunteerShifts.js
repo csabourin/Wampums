@@ -116,7 +116,7 @@ async function listShifts(db, organizationId, userId, { withNames }) {
        FROM volunteer_shifts s
        JOIN activities a ON a.id = s.activity_id AND a.organization_id = s.organization_id AND a.is_active = TRUE
        LEFT JOIN volunteer_signups v ON v.shift_id = s.id AND v.organization_id = s.organization_id
-      WHERE s.organization_id = $1 AND s.shift_date >= CURRENT_DATE
+      WHERE s.organization_id = $1 AND s.shift_date >= unit_today($1)
       GROUP BY s.id, a.id
       ORDER BY s.shift_date, s.start_time, s.id`,
     [organizationId, userId]
@@ -152,7 +152,7 @@ async function listShiftActivities(db, organizationId) {
   return (await db.query(
     `SELECT id, name, is_camp, activity_start_date::text AS activity_start_date, activity_end_date::text AS activity_end_date
        FROM activities
-      WHERE organization_id = $1 AND is_active = TRUE AND activity_end_date >= CURRENT_DATE
+      WHERE organization_id = $1 AND is_active = TRUE AND activity_end_date >= unit_today($1)
       ORDER BY activity_start_date, id`,
     [organizationId]
   )).rows;
@@ -249,7 +249,7 @@ function signUp(pool, organizationId, shiftId, userId) {
       `SELECT s.id, s.slots, s.volunteer_type, s.shift_date::text AS shift_date
          FROM volunteer_shifts s
          JOIN activities a ON a.id = s.activity_id AND a.organization_id = s.organization_id AND a.is_active = TRUE
-        WHERE s.organization_id = $1 AND s.id = $2 AND s.shift_date >= CURRENT_DATE
+        WHERE s.organization_id = $1 AND s.id = $2 AND s.shift_date >= unit_today($1)
         FOR UPDATE OF s`,
       [organizationId, shiftId]
     )).rows[0];
@@ -293,7 +293,7 @@ async function refreshStatuses(db, organizationId, { userId = null, shiftId = nu
   const locked = (await db.query(
     `SELECT v.id FROM volunteer_signups v
        JOIN volunteer_shifts s ON s.id = v.shift_id AND s.organization_id = v.organization_id
-      WHERE v.organization_id = $1 AND s.shift_date >= CURRENT_DATE
+      WHERE v.organization_id = $1 AND s.shift_date >= unit_today($1)
         AND ($2::uuid IS NULL OR v.user_id = $2) AND ($3::int IS NULL OR v.shift_id = $3)
       FOR UPDATE OF v`,
     [organizationId, userId, shiftId]
@@ -424,11 +424,11 @@ async function teamChecks(db, organizationId) {
                      WHERE r.data_scope IS DISTINCT FROM 'linked') AS on_team,
             EXISTS (SELECT 1 FROM volunteer_signups v
                       JOIN volunteer_shifts s ON s.id = v.shift_id AND s.organization_id = v.organization_id
-                     WHERE v.organization_id = uo.organization_id AND v.user_id = u.id AND s.shift_date >= CURRENT_DATE) AS volunteering,
+                     WHERE v.organization_id = uo.organization_id AND v.user_id = u.id AND s.shift_date >= unit_today($1)) AS volunteering,
             c.checked_on::text AS checked_on, c.valid_until::text AS valid_until,
             CASE WHEN c.valid_until IS NULL THEN 'missing'
-                 WHEN c.valid_until < CURRENT_DATE THEN 'expired'
-                 WHEN c.valid_until <= CURRENT_DATE + $2::int THEN 'expiring'
+                 WHEN c.valid_until < unit_today($1) THEN 'expired'
+                 WHEN c.valid_until <= unit_today($1) + $2::int THEN 'expiring'
                  ELSE 'valid' END AS state
        FROM user_organizations uo
        JOIN users u ON u.id = uo.user_id

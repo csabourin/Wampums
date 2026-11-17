@@ -35,7 +35,7 @@ beforeEach(() => {
   workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'policy-check-'));
   baselinePath = path.join(workspace, 'policy-baseline.json');
   fs.writeFileSync(baselinePath, JSON.stringify({
-    'role-names': {}, 'client-org-id': {}, 'manual-auth': {}, 'catch-shadow': {}, 'eslint-warnings': {},
+    'role-names': {}, 'client-org-id': {}, 'manual-auth': {}, 'catch-shadow': {}, 'server-clock': {}, 'eslint-warnings': {},
   }));
 });
 
@@ -116,6 +116,34 @@ describe('manual-auth', () => {
 
     expect(status).toBe(1);
     expect(output).toContain('6 found, 0 allowed');
+  });
+});
+
+describe('server-clock', () => {
+  test.each([
+    ['const sql = `SELECT id FROM meetings WHERE meeting_date >= CURRENT_DATE`;'],
+    ['const sql = `SELECT 1 WHERE (a.day + a.hour)::timestamp <= NOW()::timestamp`;'],
+    ["const today = new Date().toISOString().split('T')[0];"],
+    ['const today = new Date().toISOString().slice(0, 10);'],
+    ['const today = formatLocalDate(new Date());'],
+  ])('flags %s', (line) => {
+    writeSource('services/sample.js', `${line}\n`);
+
+    const { status, output } = runPolicy('server-clock');
+
+    expect(status).toBe(1);
+    expect(output).toContain('services/sample.js:1');
+  });
+
+  test('accepts the unit\'s clock, and an instant kept as an instant', () => {
+    writeSource('routes/sample.js', [
+      'const sql = `SELECT id FROM meetings WHERE organization_id = $1 AND meeting_date >= unit_today($1)`;',
+      'const window = `SELECT 1 FROM activities a WHERE a.starts <= unit_now(a.organization_id)`;',
+      'const stamp = `UPDATE things SET updated_at = NOW() WHERE id = $1`;',
+      'const sentAt = new Date().toISOString();',
+    ].join('\n'));
+
+    expect(runPolicy('server-clock').status).toBe(0);
   });
 });
 

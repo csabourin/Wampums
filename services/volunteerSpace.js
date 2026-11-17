@@ -94,7 +94,7 @@ async function readOverview(db, organizationId, userId) {
                  JOIN volunteer_shifts s ON s.id = v.shift_id AND s.organization_id = v.organization_id
                 WHERE v.organization_id = $1 AND v.user_id = $2 AND s.activity_id = a.id AND v.status = 'pending') AS pending_count
          FROM activities a
-        WHERE a.organization_id = $1 AND a.is_camp AND a.is_active AND a.activity_end_date >= CURRENT_DATE
+        WHERE a.organization_id = $1 AND a.is_camp AND a.is_active AND a.activity_end_date >= unit_today($1)
           AND ${TAKES_PART_SQL}
         ORDER BY a.activity_start_date, a.id`,
       [organizationId, userId]
@@ -104,7 +104,7 @@ async function readOverview(db, organizationId, userId) {
          FROM volunteer_signups v
          JOIN volunteer_shifts s ON s.id = v.shift_id AND s.organization_id = v.organization_id
          JOIN activities a ON a.id = s.activity_id AND a.organization_id = s.organization_id AND a.is_active
-        WHERE v.organization_id = $1 AND v.user_id = $2 AND s.shift_date >= CURRENT_DATE
+        WHERE v.organization_id = $1 AND v.user_id = $2 AND s.shift_date >= unit_today($1)
         ORDER BY s.shift_date, s.start_time, s.id`,
       [organizationId, userId]
     ),

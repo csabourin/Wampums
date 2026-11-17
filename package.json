@@ -34,6 +34,7 @@
     "lint:client-org-id": "node scripts/modernization/check-policy.js client-org-id",
     "lint:manual-auth": "node scripts/modernization/check-policy.js manual-auth",
     "lint:catch-shadow": "node scripts/modernization/check-policy.js catch-shadow",
+    "lint:server-clock": "node scripts/modernization/check-policy.js server-clock",
     "lint:eslint-warnings": "node scripts/modernization/check-policy.js eslint-warnings",
     "lint:eslint": "eslint . --quiet",
     "lint:eslint:prune": "eslint . --prune-suppressions",

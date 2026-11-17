@@ -25,6 +25,7 @@ const { success, error, asyncHandler } = require('../middleware/response');
 const { checkValidation, validateIdParam, validateIdQuery } = require('../middleware/validation');
 const { findAccessibleEquipmentIds, listAccessibleEquipmentIds } = require('../services/equipmentAccess');
 const { listUnitLeaders } = require('../services/unitLeaders');
+const { unitToday } = require('../utils/unit-clock');
 
 const HTTP_CREATED = 201;
 const HTTP_BAD_REQUEST = 400;
@@ -69,7 +70,7 @@ const LOAN_SELECT = `
          el.reason, el.loaned_on::text AS loaned_on, el.due_date::text AS due_date, el.returned_at,
          el.returned_at::date::text AS returned_on,
          el.notes, el.return_note, el.created_at, el.updated_at,
-         (el.returned_at IS NULL AND el.due_date IS NOT NULL AND el.due_date < CURRENT_DATE) AS overdue,
+         (el.returned_at IS NULL AND el.due_date IS NOT NULL AND el.due_date < unit_today(el.organization_id)) AS overdue,
          ei.name AS equipment_name, ei.category AS equipment_category,
          a.name AS activity_name,
          CASE
@@ -94,22 +95,12 @@ const LIST_LOANS_SQL = `${LOAN_SELECT}
     AND ($2 = 'all' OR ($2 = 'open') = (el.returned_at IS NULL))
     AND ($3::int IS NULL OR el.activity_id = $3)
     AND ($4::int IS NULL OR el.equipment_id = $4)
-  ORDER BY COALESCE(el.returned_at IS NULL AND el.due_date < CURRENT_DATE, false) DESC,
+  ORDER BY COALESCE(el.returned_at IS NULL AND el.due_date < unit_today(el.organization_id), false) DESC,
            el.returned_at DESC NULLS FIRST,
            holder_name NULLS LAST, ei.name, el.id`;
 
 /** Loans by id ($1), in id order. */
 const LOANS_BY_IDS_SQL = `${LOAN_SELECT} WHERE el.id = ANY($1::int[]) ORDER BY el.id`;
-
-/**
- * Today's date in the database's calendar, as YYYY-MM-DD.
- * @param {Object} db - Pool or client
- * @returns {Promise<string>}
- */
-async function databaseToday(db) {
-  const result = await db.query('SELECT CURRENT_DATE::text AS today');
-  return result.rows[0].today;
-}
 
 /**
  * The most units of each item that would be committed on any one day, from
@@ -131,10 +122,11 @@ async function databaseToday(db) {
  *
  * @param {Object} db - Pool or client
  * @param {Map<number, number>} wanted - Units the loan keeps out, by item
- * @param {{until: (string|null), activityId: (number|null), exceptLoanId: (number|null)}} loan
+ * @param {{until: (string|null), activityId: (number|null), exceptLoanId: (number|null), organizationId: number}} loan -
+ *   The loan, and the unit lending: "today" is that unit's day
  * @returns {Promise<Map<number, number>>} Peak committed units by item, the loan included
  */
-async function peakWithLoan(db, wanted, { until, activityId, exceptLoanId }) {
+async function peakWithLoan(db, wanted, { until, activityId, exceptLoanId, organizationId }) {
   const ids = [...wanted.keys()];
   const result = await db.query(
     `WITH new_loan AS (
@@ -145,19 +137,19 @@ async function peakWithLoan(db, wanted, { until, activityId, exceptLoanId }) {
        SELECT r.equipment_id, 'reservation' AS kind,
               COALESCE('activity:' || r.activity_id, 'reservation:' || r.id) AS commitment_group,
               r.reserved_quantity AS quantity,
-              GREATEST(COALESCE(r.date_from, r.meeting_date), CURRENT_DATE) AS starts,
+              GREATEST(COALESCE(r.date_from, r.meeting_date), unit_today($6)) AS starts,
               COALESCE(r.date_to, r.meeting_date) AS ends
          FROM equipment_reservations r
         WHERE r.equipment_id = ANY($1::int[])
           AND r.status IN ('reserved', 'confirmed')
-          AND COALESCE(r.date_to, r.meeting_date) >= CURRENT_DATE
-          AND ($2::date IS NULL OR $2::date < CURRENT_DATE OR COALESCE(r.date_from, r.meeting_date) <= $2::date)
+          AND COALESCE(r.date_to, r.meeting_date) >= unit_today($6)
+          AND ($2::date IS NULL OR $2::date < unit_today($6) OR COALESCE(r.date_from, r.meeting_date) <= $2::date)
        UNION ALL
        SELECT l.equipment_id, 'loan',
               COALESCE('activity:' || l.activity_id, 'loan:' || l.id),
               l.quantity - l.returned_quantity,
-              CURRENT_DATE,
-              CASE WHEN l.due_date IS NULL OR l.due_date < CURRENT_DATE THEN 'infinity'::date ELSE l.due_date END
+              unit_today($6),
+              CASE WHEN l.due_date IS NULL OR l.due_date < unit_today($6) THEN 'infinity'::date ELSE l.due_date END
          FROM equipment_loans l
         WHERE l.equipment_id = ANY($1::int[])
           AND l.returned_at IS NULL
@@ -166,9 +158,9 @@ async function peakWithLoan(db, wanted, { until, activityId, exceptLoanId }) {
        SELECT n.equipment_id, 'loan',
               COALESCE('activity:' || $3::int, 'new loan'),
               n.quantity,
-              CURRENT_DATE,
+              unit_today($6),
               -- Like the loans above: a due date already past has no end.
-              CASE WHEN $2::date IS NULL OR $2::date < CURRENT_DATE THEN 'infinity'::date ELSE $2::date END
+              CASE WHEN $2::date IS NULL OR $2::date < unit_today($6) THEN 'infinity'::date ELSE $2::date END
          FROM new_loan n
      ),
      days AS (
@@ -194,6 +186,7 @@ async function peakWithLoan(db, wanted, { until, activityId, exceptLoanId }) {
       activityId,
       exceptLoanId,
       JSON.stringify(ids.map((id) => ({ equipment_id: id, quantity: wanted.get(id) }))),
+      organizationId,
     ],
   );
   return new Map(result.rows.map((row) => [Number(row.equipment_id), Number(row.peak)]));
@@ -208,12 +201,12 @@ async function peakWithLoan(db, wanted, { until, activityId, exceptLoanId }) {
  *
  * @param {Object} client - Client inside an open transaction
  * @param {Map<number, number>} wanted - Units the loan keeps out, by item
- * @param {{until: (string|null), activityId: (number|null), exceptLoanId?: (number|null)}} loan -
- *   The loan's due date and activity, and its id when an existing loan is checked in its own place
+ * @param {{until: (string|null), activityId: (number|null), exceptLoanId?: (number|null), organizationId: number}} loan -
+ *   The loan's due date and activity, its id when an existing loan is checked in its own place, and the unit lending
  * @returns {Promise<Array<{equipment_id: number, available: number, requested: number}>>}
  *   The items there are not enough of; empty when the loan fits
  */
-async function findShortages(client, wanted, { until, activityId, exceptLoanId = null }) {
+async function findShortages(client, wanted, { until, activityId, exceptLoanId = null, organizationId }) {
   const ids = [...wanted.keys()].sort((a, b) => a - b);
   const items = await client.query(
     `SELECT id, quantity_total FROM equipment_items
@@ -222,7 +215,7 @@ async function findShortages(client, wanted, { until, activityId, exceptLoanId =
       FOR UPDATE`,
     [ids],
   );
-  const peaks = await peakWithLoan(client, wanted, { until, activityId, exceptLoanId });
+  const peaks = await peakWithLoan(client, wanted, { until, activityId, exceptLoanId, organizationId });
   return items.rows
     .map((item) => {
       const id = Number(item.id);
@@ -324,8 +317,8 @@ module.exports = (pool) => {
            FROM activities a
           WHERE a.organization_id = $1
             AND a.is_active IS DISTINCT FROM false
-            AND a.activity_end_date >= CURRENT_DATE - $2::int
-            AND a.activity_start_date <= CURRENT_DATE + $3::int
+            AND a.activity_end_date >= unit_today($1) - $2::int
+            AND a.activity_start_date <= unit_today($1) + $3::int
           ORDER BY a.activity_end_date DESC, a.id DESC
           LIMIT $4`,
         [organizationId, HANDOUT_PAST_DAYS, HANDOUT_UPCOMING_DAYS, MAX_HANDOUT_ACTIVITIES],
@@ -351,7 +344,7 @@ module.exports = (pool) => {
         ? await pool.query(
           `SELECT ei.id AS equipment_id, ei.name, ei.category, ei.quantity_total,
                   SUM(er.reserved_quantity)::int AS reserved_quantity,
-                  equipment_loaned_quantity(ei.id, CURRENT_DATE) AS out_quantity,
+                  equipment_loaned_quantity(ei.id, unit_today($1)) AS out_quantity,
                   COALESCE((
                     SELECT SUM(el.quantity - el.returned_quantity)
                       FROM equipment_loans el
@@ -375,12 +368,12 @@ module.exports = (pool) => {
         const allResult = await pool.query(
           `SELECT ei.id AS equipment_id, ei.name, ei.category, ei.quantity_total,
                   NULL::int AS reserved_quantity,
-                  equipment_loaned_quantity(ei.id, CURRENT_DATE) AS out_quantity,
+                  equipment_loaned_quantity(ei.id, unit_today($2)) AS out_quantity,
                   0 AS lent_for_activity
              FROM equipment_items ei
             WHERE ei.id = ANY($1::int[])
             ORDER BY ei.category NULLS LAST, ei.name`,
-          [accessible],
+          [accessible, organizationId],
         );
         items = allResult.rows;
       }
@@ -501,7 +494,7 @@ module.exports = (pool) => {
           }
         }
 
-        const today = await databaseToday(client);
+        const today = await unitToday(client, organizationId);
         if (dueDate && dueDate < today) {
           await client.query('ROLLBACK');
           return error(res, 'equipment_loan_due_date_past', HTTP_BAD_REQUEST);
@@ -539,7 +532,7 @@ module.exports = (pool) => {
           return error(res, 'equipment_loan_holder_not_in_unit', HTTP_BAD_REQUEST);
         }
 
-        const shortages = await findShortages(client, wanted, { until: dueDate, activityId });
+        const shortages = await findShortages(client, wanted, { until: dueDate, activityId, organizationId });
         if (shortages.length > 0) {
           await client.query('ROLLBACK');
           return error(res, 'equipment_loan_exceeds_stock', HTTP_CONFLICT, shortages);
@@ -548,9 +541,9 @@ module.exports = (pool) => {
         const inserted = await client.query(
           `INSERT INTO equipment_loans
              (organization_id, equipment_id, activity_id, holder_participant_id, holder_user_id,
-              quantity, reason, due_date, notes, created_by)
+              quantity, reason, due_date, notes, created_by, loaned_on)
            SELECT $1, item.equipment_id, $2, item.participant_id, item.user_id,
-                  item.quantity, $3, $4, $5, $6
+                  item.quantity, $3, $4, $5, $6, unit_today($1)
              FROM jsonb_to_recordset($7::jsonb)
                AS item(equipment_id int, participant_id int, user_id uuid, quantity int)
            RETURNING id`,
@@ -650,7 +643,7 @@ module.exports = (pool) => {
         // already past, keeps the units out with no end, as the checks count it.
         const goingBackOut = returnedQuantity < Number(loan.returned_quantity);
         const stillOut = returnedQuantity < Number(loan.quantity);
-        const today = await databaseToday(client);
+        const today = await unitToday(client, organizationId);
         const holdsUntil = (date) => (!date || date < today ? OPEN_ENDED : date);
         const keptLonger = has('due_date') && stillOut && holdsUntil(dueDate) > holdsUntil(loan.due_date);
         if (goingBackOut || keptLonger) {
@@ -661,6 +654,7 @@ module.exports = (pool) => {
             until: has('due_date') ? dueDate : loan.due_date,
             activityId: loan.activity_id,
             exceptLoanId: Number(loan.id),
+            organizationId,
           });
           if (shortages.length > 0) {
             await client.query('ROLLBACK');

@@ -91,7 +91,7 @@ async function manageFamilyChild(pool, { organizationId, participantId, userId, 
     }
     const year = await ensureActiveScoutYear(client, organizationId);
     const removed = await client.query(
-      `UPDATE participant_enrollments SET status = 'left', ended_on = CURRENT_DATE
+      `UPDATE participant_enrollments SET status = 'left', ended_on = unit_today($2)
         WHERE participant_id = $1 AND organization_id = $2 AND scout_year_id = $3 AND status = 'active'
         RETURNING participant_id`,
       [participantId, organizationId, year.id]
