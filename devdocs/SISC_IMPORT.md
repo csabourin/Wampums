@@ -20,3 +20,21 @@ no empty health submission is created for someone who has not filled one in. Reg
 supported authorization fields continue to import normally. Older empty placeholders are not
 removed automatically: distinguishing them from a family's own declaration requires a separate
 review. Tests: `test/sisc-import.test.js` and `test/sisc-health-preservation.integration.test.js`.
+
+## One row at a time (#1459)
+
+The whole import is one transaction, and each row runs inside its own savepoint
+(`SAVEPOINT sisc_row`). A row the database refuses (a value longer than its column, say) is undone
+alone and reported; the rows before and after it are saved. Without the savepoint, PostgreSQL aborts
+the transaction at the first refused statement and the final `COMMIT` silently rolls everything back.
+As a safety net, a `COMMIT` that PostgreSQL answers with `ROLLBACK` makes the import fail (500) rather
+than report counts for rows that were not saved. A failed row also takes back its counters.
+
+Birth dates are eight digits forming a real day (`20160503`). A blank one stays unknown; any other
+value skips the row before anything is written.
+
+The report lists `stats.errors` as `{ row, code }`: `row` is the line in the file, header included,
+and `code` one of `SISC_IMPORT_ROW_ERRORS` (`config/constants.js`), a translation key the admin screen
+shows as "Row 4: …". A database message never reaches the client; the server logs it with the row
+number. Tests: `test/sisc-import.test.js` and `test/sisc-import-rows.integration.test.js`.
+

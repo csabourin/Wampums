@@ -52,6 +52,20 @@ const RATE_LIMITS = {
   EMAIL_CHANGE_MAX_DEV: parseEnvInt(process.env.RATE_LIMIT_EMAIL_CHANGE_MAX_DEV, 100),                  // Development limit
 };
 
+/**
+ * Why a SISC import row was skipped, or what it could not do. The import reports
+ * `{ row, code }`; each code is a translation key the admin screen shows.
+ */
+const SISC_IMPORT_ROW_ERRORS = Object.freeze({
+  MISSING_NAME: 'sisc_row_missing_name',
+  MISSING_STAFF_EMAIL: 'sisc_row_missing_staff_email',
+  CANNOT_GRANT_ANIMATION: 'sisc_row_cannot_grant_animation',
+  CANNOT_GRANT_PARENT: 'sisc_row_cannot_grant_parent',
+  INVALID_SITUATION: 'sisc_row_invalid_situation',
+  INVALID_BIRTH_DATE: 'sisc_row_invalid_birth_date',
+  NOT_SAVED: 'sisc_row_not_saved',
+});
+
 /** Limits for one synchronous SISC import, including its header row. */
 const SISC_IMPORT_LIMITS = Object.freeze({
   MAX_BYTES: 5 * 1024 * 1024,
@@ -180,6 +194,7 @@ module.exports = {
   RATE_LIMITS,
   FILE_LIMITS,
   SISC_IMPORT_LIMITS,
+  SISC_IMPORT_ROW_ERRORS,
   AI_LIMITS,
   DATE_LIMITS,
   PAGINATION,

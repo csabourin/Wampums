@@ -19,7 +19,7 @@
     "routes/dashboards.js": 2,
     "routes/forms.js": 28,
     "routes/honors.js": 5,
-    "routes/import.js": 30,
+    "routes/import.js": 16,
     "routes/incidents.js": 3,
     "routes/medication.js": 6,
     "routes/offline.js": 5,

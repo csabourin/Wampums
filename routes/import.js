@@ -8,6 +8,18 @@ const { asyncHandler, error: errorResponse } = require('../middleware/response')
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 const { ACCESS_SOURCE, grantParticipantAccess } = require('../services/participantAccess');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { isCalendarDate } = require('../utils/calendar-date');
+const { SISC_IMPORT_ROW_ERRORS: ROW_ERRORS } = require('../config/constants');
+
+/** A SISC date: eight digits, year, month, day. */
+const SISC_DATE = /^(\d{4})(\d{2})(\d{2})$/;
+
+/** Counters an import reports; a row that fails takes its own back. */
+const IMPORT_COUNTERS = [
+  'participantsCreated', 'participantsUpdated', 'guardiansCreated', 'guardiansUpdated',
+  'animationUsersCreated', 'animationUsersUpdated', 'usersCreated', 'userParticipantLinksCreated',
+  'formSubmissionsCreated',
+];
 
 module.exports = function (pool, logger) {
   const router = express.Router();
@@ -20,12 +32,16 @@ module.exports = function (pool, logger) {
     'Aut': 'Autre'
   };
 
+  /**
+   * Read a SISC date (`20160503`) as `2016-05-03`.
+   * @param {string|null} dateStr - Date as the CSV writes it
+   * @returns {string|null} ISO date, or null when blank or not a real day
+   */
   function parseDate(dateStr) {
-    if (!dateStr || dateStr.length !== 8) {return null;}
-    const year = dateStr.substring(0, 4);
-    const month = dateStr.substring(4, 6);
-    const day = dateStr.substring(6, 8);
-    return `${year}-${month}-${day}`;
+    const match = SISC_DATE.exec(String(dateStr ?? '').trim());
+    if (!match) {return null;}
+    const date = `${match[1]}-${match[2]}-${match[3]}`;
+    return isCalendarDate(date) ? date : null;
   }
 
   function cleanPhone(phone) {
@@ -155,305 +171,335 @@ module.exports = function (pool, logger) {
       }
       const animationGrant = await checkRolesGrantable(client, [importRoleIds.animation], req.userPermissions);
       const parentGrant = await checkRolesGrantable(client, [importRoleIds.parent], req.userPermissions);
-      const cannotGrant = (roleName, grant) => (
-        `You cannot grant the ${roleName} role: it carries ${grant.missing.join(', ')}, which you do not hold`
-      );
 
-      for (let i = 1; i < rows.length; i++) {
-        try {
-          const values = rows[i];
-          const get = (field) => {
-            const idx = headerMap[field];
-            return idx !== undefined ? values[idx]?.replace(/"/g, '') : null;
-          };
+      /**
+       * Import one CSV row. A row that cannot be imported says why through
+       * `report` and writes nothing; one the database refuses throws.
+       * @param {string[]} values - The row's fields
+       * @param {function(string): void} report - Records a code from ROW_ERRORS for this row
+       * @returns {Promise<void>}
+       */
+      const importRow = async (values, report) => {
+        const get = (field) => {
+          const idx = headerMap[field];
+          return idx !== undefined ? values[idx]?.replace(/"/g, '') : null;
+        };
 
-          const lastName = get('nom');
-          const firstName = get('prenom');
-          const birthDate = parseDate(get('naissance'));
-          const situation = get('situation')?.toLowerCase();
+        const lastName = get('nom');
+        const firstName = get('prenom');
+        const birthDate = parseDate(get('naissance'));
+        const situation = get('situation')?.toLowerCase();
 
-          if (!lastName || !firstName) {
-            stats.errors.push(`Row ${i + 1}: Missing name`);
-            continue;
+        if (!lastName || !firstName) {
+          report(ROW_ERRORS.MISSING_NAME);
+          return;
+        }
+
+        if (situation === 'a') {
+          const email = get('courriel')?.toLowerCase();
+          const fullName = `${firstName} ${lastName}`.trim();
+
+          if (!email) {
+            report(ROW_ERRORS.MISSING_STAFF_EMAIL);
+            return;
           }
 
-          if (situation === 'a') {
-            const email = get('courriel')?.toLowerCase();
-            const fullName = `${firstName} ${lastName}`.trim();
+          if (!animationGrant.allowed) {
+            report(ROW_ERRORS.CANNOT_GRANT_ANIMATION);
+            return;
+          }
 
-            if (!email) {
-              stats.errors.push(`Row ${i + 1}: Missing email for animation user`);
-              logger.warn(`Row ${i + 1}: Animation user missing email`, { row: i + 1 });
-              continue;
-            }
+          const userResult = await client.query(
+            `INSERT INTO users (email, password, full_name, is_verified)
+             VALUES (LOWER($1), '', $2, TRUE)
+             ON CONFLICT (email) DO UPDATE SET full_name = EXCLUDED.full_name, is_verified = TRUE
+             RETURNING id, (xmax = 0) AS inserted`,
+            [email, fullName]
+          );
 
-            if (!animationGrant.allowed) {
-              stats.errors.push(`Row ${i + 1}: ${cannotGrant('animation', animationGrant)}`);
-              continue;
-            }
+          const userId = userResult.rows[0].id;
+          const wasInserted = userResult.rows[0].inserted;
 
+          if (wasInserted) {
+            stats.animationUsersCreated++;
+          } else {
+            stats.animationUsersUpdated++;
+          }
+
+          // Add the role without removing any the member already holds: an
+          // admin listed as staff must not be demoted by an import.
+          await client.query(
+            `INSERT INTO user_organizations (user_id, organization_id, role_ids)
+             VALUES ($1, $2, $3::jsonb)
+             ON CONFLICT (user_id, organization_id) DO UPDATE SET role_ids =
+               CASE WHEN COALESCE(user_organizations.role_ids, '[]'::jsonb) @> $3::jsonb
+                    THEN user_organizations.role_ids
+                    ELSE COALESCE(user_organizations.role_ids, '[]'::jsonb) || $3::jsonb
+               END`,
+            [userId, organizationId, JSON.stringify([importRoleIds.animation])]
+          );
+
+          return;
+        }
+
+        if (situation && situation !== 'j') {
+          report(ROW_ERRORS.INVALID_SITUATION);
+          return;
+        }
+
+        // A blank birth date stays unknown; one that is not a real day is refused
+        // rather than guessed or sent to the database.
+        if (String(get('naissance') ?? '').trim() && !birthDate) {
+          report(ROW_ERRORS.INVALID_BIRTH_DATE);
+          return;
+        }
+
+        let participantId;
+        const existingParticipant = await client.query(
+          `SELECT p.id FROM participants p
+           JOIN participant_organizations po ON p.id = po.participant_id
+           WHERE LOWER(p.first_name) = LOWER($1)
+           AND LOWER(p.last_name) = LOWER($2)
+           AND (p.date_naissance IS NOT DISTINCT FROM $3)
+           AND po.organization_id = $4`,
+          [firstName, lastName, birthDate, organizationId]
+        );
+
+        if (existingParticipant.rows.length > 0) {
+          participantId = existingParticipant.rows[0].id;
+          stats.participantsUpdated++;
+        } else {
+          const newParticipant = await client.query(
+            `INSERT INTO participants (first_name, last_name, date_naissance)
+             VALUES ($1, $2, $3) RETURNING id`,
+            [firstName, lastName, birthDate]
+          );
+          participantId = newParticipant.rows[0].id;
+
+          // participant_organizations is a read-only view over
+          // participant_enrollments: enroll in the active scout year.
+          const scoutYear = await ensureActiveScoutYear(client, organizationId);
+          await client.query(
+            `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id)
+             VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+            [participantId, organizationId, scoutYear.id]
+          );
+          stats.participantsCreated++;
+        }
+
+        // Create form submissions for each form type the organization has
+        for (const formType of orgFormTypes) {
+          const formData = buildFormData(get, formType);
+
+          // Check if submission already exists for this participant/form type
+          const existingSubmission = await client.query(
+            `SELECT id FROM form_submissions
+             WHERE participant_id = $1 AND organization_id = $2 AND form_type = $3`,
+            [participantId, organizationId, formType]
+          );
+
+          if (existingSubmission.rows.length > 0) {
+            // Update existing submission
+            await client.query(
+              `UPDATE form_submissions SET submission_data = $1, updated_at = NOW()
+               WHERE id = $2`,
+              [JSON.stringify(formData), existingSubmission.rows[0].id]
+            );
+          } else {
+            // Create new submission
+            await client.query(
+              `INSERT INTO form_submissions (organization_id, participant_id, form_type, submission_data)
+               VALUES ($1, $2, $3, $4)`,
+              [organizationId, participantId, formType, JSON.stringify(formData)]
+            );
+            stats.formSubmissionsCreated++;
+          }
+        }
+
+        // Also create participant_registration if not in org form types (for backward compatibility)
+        if (!orgFormTypes.includes('participant_registration') && !orgFormTypes.includes('inscription')) {
+          const regData = buildFormData(get, 'participant_registration');
+          const existingReg = await client.query(
+            `SELECT id FROM form_submissions
+             WHERE participant_id = $1 AND organization_id = $2 AND form_type = 'participant_registration'`,
+            [participantId, organizationId]
+          );
+
+          if (existingReg.rows.length === 0) {
+            await client.query(
+              `INSERT INTO form_submissions (organization_id, participant_id, form_type, submission_data)
+               VALUES ($1, $2, 'participant_registration', $3)`,
+              [organizationId, participantId, JSON.stringify(regData)]
+            );
+            stats.formSubmissionsCreated++;
+          }
+        }
+
+        for (const prefix of ['r1_', 'r2_']) {
+          const gNom = get(`${prefix}nom`);
+          const gPrenom = get(`${prefix}prenom`);
+          const gEmail = get(`${prefix}courriel`)?.toLowerCase();
+          const gLienRaw = get(`${prefix}lien`);
+          const gLien = RELATIONSHIP_MAP[gLienRaw] || gLienRaw || 'Autre';
+
+          if (!gNom && !gPrenom) {continue;}
+
+          let guardianId;
+          let existingGuardian = null;
+
+          if (gEmail) {
+            existingGuardian = await client.query(
+              `SELECT id FROM parents_guardians WHERE LOWER(courriel) = LOWER($1)`,
+              [gEmail]
+            );
+          }
+
+          if (!existingGuardian?.rows?.length && gNom && gPrenom) {
+            existingGuardian = await client.query(
+              `SELECT id FROM parents_guardians
+               WHERE LOWER(nom) = LOWER($1) AND LOWER(prenom) = LOWER($2)`,
+              [gNom, gPrenom]
+            );
+          }
+
+          if (existingGuardian?.rows?.length > 0) {
+            guardianId = existingGuardian.rows[0].id;
+            await client.query(
+              `UPDATE parents_guardians SET
+               telephone_residence = COALESCE($1, telephone_residence),
+               telephone_travail = COALESCE($2, telephone_travail),
+               telephone_cellulaire = COALESCE($3, telephone_cellulaire),
+               courriel = COALESCE($4, courriel)
+               WHERE id = $5`,
+              [
+                cleanPhone(get(`${prefix}tel_res`)),
+                cleanPhone(get(`${prefix}tel_tra`)),
+                cleanPhone(get(`${prefix}tel_autre`)),
+                gEmail,
+                guardianId
+              ]
+            );
+            stats.guardiansUpdated++;
+          } else {
+            // Use ON CONFLICT to handle race conditions where guardian was just created
+            const newGuardian = await client.query(
+              `INSERT INTO parents_guardians (nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               ON CONFLICT (courriel) DO UPDATE SET
+                 telephone_residence = COALESCE(EXCLUDED.telephone_residence, parents_guardians.telephone_residence),
+                 telephone_travail = COALESCE(EXCLUDED.telephone_travail, parents_guardians.telephone_travail),
+                 telephone_cellulaire = COALESCE(EXCLUDED.telephone_cellulaire, parents_guardians.telephone_cellulaire)
+               RETURNING id`,
+              [
+                gNom,
+                gPrenom,
+                gEmail,
+                cleanPhone(get(`${prefix}tel_res`)),
+                cleanPhone(get(`${prefix}tel_tra`)),
+                cleanPhone(get(`${prefix}tel_autre`))
+              ]
+            );
+            guardianId = newGuardian.rows[0].id;
+            stats.guardiansCreated++;
+          }
+
+          await client.query(
+            `INSERT INTO participant_guardians (guardian_id, participant_id, lien)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (guardian_id, participant_id) DO UPDATE SET lien = $3`,
+            [guardianId, participantId, gLien]
+          );
+
+          if (gEmail && !parentGrant.allowed) {
+            report(ROW_ERRORS.CANNOT_GRANT_PARENT);
+          } else if (gEmail) {
+            // Use upsert to handle duplicate emails gracefully
+            const fullName = `${gPrenom} ${gNom}`.trim();
             const userResult = await client.query(
               `INSERT INTO users (email, password, full_name, is_verified)
-               VALUES (LOWER($1), '', $2, TRUE)
-               ON CONFLICT (email) DO UPDATE SET full_name = EXCLUDED.full_name, is_verified = TRUE
+               VALUES (LOWER($1), '', $2, FALSE)
+               ON CONFLICT (email) DO UPDATE SET email = users.email
                RETURNING id, (xmax = 0) AS inserted`,
-              [email, fullName]
+              [gEmail, fullName]
             );
 
             const userId = userResult.rows[0].id;
             const wasInserted = userResult.rows[0].inserted;
 
             if (wasInserted) {
-              stats.animationUsersCreated++;
-            } else {
-              stats.animationUsersUpdated++;
+              stats.usersCreated++;
             }
 
-            // Add the role without removing any the member already holds: an
-            // admin listed as staff must not be demoted by an import.
+            const parentRoleId = importRoleIds.parent;
+
+            // Always ensure user is linked to organization
             await client.query(
               `INSERT INTO user_organizations (user_id, organization_id, role_ids)
-               VALUES ($1, $2, $3::jsonb)
-               ON CONFLICT (user_id, organization_id) DO UPDATE SET role_ids =
-                 CASE WHEN COALESCE(user_organizations.role_ids, '[]'::jsonb) @> $3::jsonb
-                      THEN user_organizations.role_ids
-                      ELSE COALESCE(user_organizations.role_ids, '[]'::jsonb) || $3::jsonb
-                 END`,
-              [userId, organizationId, JSON.stringify([importRoleIds.animation])]
-            );
-
-            continue;
-          }
-
-          if (situation && situation !== 'j') {
-            const errorMessage = `Row ${i + 1}: Invalid situation '${situation}'`;
-            stats.errors.push(errorMessage);
-            logger.error(errorMessage);
-            continue;
-          }
-
-          let participantId;
-          const existingParticipant = await client.query(
-            `SELECT p.id FROM participants p
-             JOIN participant_organizations po ON p.id = po.participant_id
-             WHERE LOWER(p.first_name) = LOWER($1)
-             AND LOWER(p.last_name) = LOWER($2)
-             AND (p.date_naissance IS NOT DISTINCT FROM $3)
-             AND po.organization_id = $4`,
-            [firstName, lastName, birthDate, organizationId]
-          );
-
-          if (existingParticipant.rows.length > 0) {
-            participantId = existingParticipant.rows[0].id;
-            stats.participantsUpdated++;
-          } else {
-            const newParticipant = await client.query(
-              `INSERT INTO participants (first_name, last_name, date_naissance)
-               VALUES ($1, $2, $3) RETURNING id`,
-              [firstName, lastName, birthDate]
-            );
-            participantId = newParticipant.rows[0].id;
-
-            // participant_organizations is a read-only view over
-            // participant_enrollments: enroll in the active scout year.
-            const scoutYear = await ensureActiveScoutYear(client, organizationId);
-            await client.query(
-              `INSERT INTO participant_enrollments (participant_id, organization_id, scout_year_id)
                VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-              [participantId, organizationId, scoutYear.id]
+              [userId, organizationId, JSON.stringify([parentRoleId])]
             );
-            stats.participantsCreated++;
-          }
-
-          // Create form submissions for each form type the organization has
-          for (const formType of orgFormTypes) {
-            const formData = buildFormData(get, formType);
-
-            // Check if submission already exists for this participant/form type
-            const existingSubmission = await client.query(
-              `SELECT id FROM form_submissions
-               WHERE participant_id = $1 AND organization_id = $2 AND form_type = $3`,
-              [participantId, organizationId, formType]
-            );
-
-            if (existingSubmission.rows.length > 0) {
-              // Update existing submission
-              await client.query(
-                `UPDATE form_submissions SET submission_data = $1, updated_at = NOW()
-                 WHERE id = $2`,
-                [JSON.stringify(formData), existingSubmission.rows[0].id]
-              );
-            } else {
-              // Create new submission
-              await client.query(
-                `INSERT INTO form_submissions (organization_id, participant_id, form_type, submission_data)
-                 VALUES ($1, $2, $3, $4)`,
-                [organizationId, participantId, formType, JSON.stringify(formData)]
-              );
-              stats.formSubmissionsCreated++;
-            }
-          }
-
-          // Also create participant_registration if not in org form types (for backward compatibility)
-          if (!orgFormTypes.includes('participant_registration') && !orgFormTypes.includes('inscription')) {
-            const regData = buildFormData(get, 'participant_registration');
-            const existingReg = await client.query(
-              `SELECT id FROM form_submissions
-               WHERE participant_id = $1 AND organization_id = $2 AND form_type = 'participant_registration'`,
-              [participantId, organizationId]
-            );
-
-            if (existingReg.rows.length === 0) {
-              await client.query(
-                `INSERT INTO form_submissions (organization_id, participant_id, form_type, submission_data)
-                 VALUES ($1, $2, 'participant_registration', $3)`,
-                [organizationId, participantId, JSON.stringify(regData)]
-              );
-              stats.formSubmissionsCreated++;
-            }
-          }
-
-          for (const prefix of ['r1_', 'r2_']) {
-            const gNom = get(`${prefix}nom`);
-            const gPrenom = get(`${prefix}prenom`);
-            const gEmail = get(`${prefix}courriel`)?.toLowerCase();
-            const gLienRaw = get(`${prefix}lien`);
-            const gLien = RELATIONSHIP_MAP[gLienRaw] || gLienRaw || 'Autre';
-
-            if (!gNom && !gPrenom) {continue;}
-
-            let guardianId;
-            let existingGuardian = null;
-
-            if (gEmail) {
-              existingGuardian = await client.query(
-                `SELECT id FROM parents_guardians WHERE LOWER(courriel) = LOWER($1)`,
-                [gEmail]
-              );
-            }
-
-            if (!existingGuardian?.rows?.length && gNom && gPrenom) {
-              existingGuardian = await client.query(
-                `SELECT id FROM parents_guardians
-                 WHERE LOWER(nom) = LOWER($1) AND LOWER(prenom) = LOWER($2)`,
-                [gNom, gPrenom]
-              );
-            }
-
-            if (existingGuardian?.rows?.length > 0) {
-              guardianId = existingGuardian.rows[0].id;
-              await client.query(
-                `UPDATE parents_guardians SET
-                 telephone_residence = COALESCE($1, telephone_residence),
-                 telephone_travail = COALESCE($2, telephone_travail),
-                 telephone_cellulaire = COALESCE($3, telephone_cellulaire),
-                 courriel = COALESCE($4, courriel)
-                 WHERE id = $5`,
-                [
-                  cleanPhone(get(`${prefix}tel_res`)),
-                  cleanPhone(get(`${prefix}tel_tra`)),
-                  cleanPhone(get(`${prefix}tel_autre`)),
-                  gEmail,
-                  guardianId
-                ]
-              );
-              stats.guardiansUpdated++;
-            } else {
-              // Use ON CONFLICT to handle race conditions where guardian was just created
-              const newGuardian = await client.query(
-                `INSERT INTO parents_guardians (nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire)
-                 VALUES ($1, $2, $3, $4, $5, $6)
-                 ON CONFLICT (courriel) DO UPDATE SET
-                   telephone_residence = COALESCE(EXCLUDED.telephone_residence, parents_guardians.telephone_residence),
-                   telephone_travail = COALESCE(EXCLUDED.telephone_travail, parents_guardians.telephone_travail),
-                   telephone_cellulaire = COALESCE(EXCLUDED.telephone_cellulaire, parents_guardians.telephone_cellulaire)
-                 RETURNING id`,
-                [
-                  gNom,
-                  gPrenom,
-                  gEmail,
-                  cleanPhone(get(`${prefix}tel_res`)),
-                  cleanPhone(get(`${prefix}tel_tra`)),
-                  cleanPhone(get(`${prefix}tel_autre`))
-                ]
-              );
-              guardianId = newGuardian.rows[0].id;
-              stats.guardiansCreated++;
-            }
 
             await client.query(
-              `INSERT INTO participant_guardians (guardian_id, participant_id, lien)
-               VALUES ($1, $2, $3)
-               ON CONFLICT (guardian_id, participant_id) DO UPDATE SET lien = $3`,
-              [guardianId, participantId, gLien]
+              `INSERT INTO guardian_users (guardian_id, user_id)
+               VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+              [guardianId, userId]
             );
 
-            if (gEmail && !parentGrant.allowed) {
-              stats.errors.push(`Row ${i + 1}: ${cannotGrant('parent', parentGrant)}`);
-            } else if (gEmail) {
-              // Use upsert to handle duplicate emails gracefully
-              const fullName = `${gPrenom} ${gNom}`.trim();
-              const userResult = await client.query(
-                `INSERT INTO users (email, password, full_name, is_verified)
-                 VALUES (LOWER($1), '', $2, FALSE)
-                 ON CONFLICT (email) DO UPDATE SET email = users.email
-                 RETURNING id, (xmax = 0) AS inserted`,
-                [gEmail, fullName]
-              );
+            await client.query(
+              `UPDATE parents_guardians SET user_uuid = $1 WHERE id = $2`,
+              [userId, guardianId]
+            );
 
-              const userId = userResult.rows[0].id;
-              const wasInserted = userResult.rows[0].inserted;
-
-              if (wasInserted) {
-                stats.usersCreated++;
-              }
-
-              const parentRoleId = importRoleIds.parent;
-
-              // Always ensure user is linked to organization
-              await client.query(
-                `INSERT INTO user_organizations (user_id, organization_id, role_ids)
-                 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-                [userId, organizationId, JSON.stringify([parentRoleId])]
-              );
-
-              await client.query(
-                `INSERT INTO guardian_users (guardian_id, user_id)
-                 VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                [guardianId, userId]
-              );
-
-              await client.query(
-                `UPDATE parents_guardians SET user_uuid = $1 WHERE id = $2`,
-                [userId, guardianId]
-              );
-
-              // Link user to participant so parent can see child in dashboard.
-              // The access rests on the guardian record the import matched, so
-              // it is recorded as that guardian's.
-              const alreadyLinked = await client.query(
-                'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',
-                [userId, participantId]
-              );
-              await grantParticipantAccess(client, {
-                participantId,
-                userId,
-                sourceType: ACCESS_SOURCE.GUARDIAN,
-                sourceId: guardianId,
-              });
-              if (alreadyLinked.rows.length === 0) {
-                stats.userParticipantLinksCreated++;
-              }
+            // Link user to participant so parent can see child in dashboard.
+            // The access rests on the guardian record the import matched, so
+            // it is recorded as that guardian's.
+            const alreadyLinked = await client.query(
+              'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',
+              [userId, participantId]
+            );
+            await grantParticipantAccess(client, {
+              participantId,
+              userId,
+              sourceType: ACCESS_SOURCE.GUARDIAN,
+              sourceId: guardianId,
+            });
+            if (alreadyLinked.rows.length === 0) {
+              stats.userParticipantLinksCreated++;
             }
           }
+        }
 
+      };
+
+      // Each row is its own savepoint: a row the database refuses is undone
+      // alone, instead of aborting the transaction and with it every other row.
+      for (let i = 1; i < rows.length; i++) {
+        const rowNumber = i + 1;
+        const notes = [];
+        const counted = Object.fromEntries(IMPORT_COUNTERS.map((key) => [key, stats[key]]));
+        // eslint-disable-next-line no-await-in-loop -- rows share one transaction, one at a time
+        await client.query('SAVEPOINT sisc_row');
+        try {
+          // eslint-disable-next-line no-await-in-loop -- rows share one transaction, one at a time
+          await importRow(rows[i], (code) => notes.push({ row: rowNumber, code }));
+          // eslint-disable-next-line no-await-in-loop -- rows share one transaction, one at a time
+          await client.query('RELEASE SAVEPOINT sisc_row');
+          stats.errors.push(...notes);
         } catch (rowError) {
-          stats.errors.push(`Row ${i + 1}: ${rowError.message}`);
-          logger.error(`Import error at row ${i + 1}:`, rowError);
+          // eslint-disable-next-line no-await-in-loop -- rows share one transaction, one at a time
+          await client.query('ROLLBACK TO SAVEPOINT sisc_row');
+          Object.assign(stats, counted);
+          stats.errors.push({ row: rowNumber, code: ROW_ERRORS.NOT_SAVED });
+          logger.error(`SISC import row ${rowNumber} not saved:`, { code: rowError.code, message: rowError.message });
         }
       }
 
-      await client.query('COMMIT');
+      // A transaction PostgreSQL had aborted answers COMMIT with ROLLBACK and no
+      // error: never report an import that saved nothing as completed.
+      const committed = await client.query('COMMIT');
+      if (committed?.command === 'ROLLBACK') {
+        throw new Error('SISC import transaction was rolled back');
+      }
       logger.info('Transaction COMMIT executed successfully');
 
       // Verify data was actually saved

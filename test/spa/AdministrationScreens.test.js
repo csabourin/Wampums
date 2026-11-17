@@ -17,7 +17,8 @@ import axe from 'axe-core';
 
 jest.mock('../../spa/app.js', () => ({
   app: { loadTranslation: jest.fn().mockResolvedValue() },
-  translate: (key) => key,
+  // One sentence keeps its placeholders, so a test can read what was put into it.
+  translate: (key) => (key === 'sisc_import_row_error' ? 'Row {row}: {reason}' : key),
 }));
 jest.mock('../../spa/utils/DebugUtils.js', () => ({
   debugLog: jest.fn(),
@@ -249,6 +250,34 @@ describe('admin panel', () => {
     expect(page().querySelector('a[href="/form-builder"]').className).toBe('button button--secondary');
     expect(page().querySelector('a[href="/form-builder"]').getAttribute('style')).toBeNull();
     expect(await violations()).toEqual([]);
+  });
+
+  test('a SISC import says, row by row and in words, which rows it skipped, and a name stays text', async () => {
+    ajax.getUsers.mockResolvedValue({ success: true, data: [] });
+    ajax.getRoleCatalog.mockResolvedValue({ success: true, data: [] });
+    ajax.importSISC.mockResolvedValue({
+      success: true,
+      stats: {
+        participantsCreated: 2, participantsUpdated: 0, guardiansCreated: 0, guardiansUpdated: 0,
+        usersCreated: 0, userParticipantLinksCreated: 0, formSubmissionsCreated: 2,
+        errors: [{ row: 3, code: 'sisc_row_not_saved' }, { row: 5, code: 'sisc_row_invalid_birth_date' }, { row: 6, code: HOSTILE }],
+      },
+    });
+    // jsdom has no TextDecoder; the screen decodes the file it reads with one.
+    global.TextDecoder ??= require('util').TextDecoder;
+    await new Admin(makeApp()).init();
+
+    const input = page().querySelector('#sisc-file-input');
+    Object.defineProperty(input, 'files', { value: [new File(['nom;prenom\nFiction;Ada'], 'sisc.csv', { type: 'text/csv' })] });
+    input.dispatchEvent(new Event('change'));
+    page().querySelector('#import-sisc-btn').click();
+    await new Promise((resolve) => { setTimeout(resolve, 50); });
+
+    expect(ajax.importSISC).toHaveBeenCalledWith('nom;prenom\nFiction;Ada');
+    const lines = Array.from(page().querySelectorAll('#import-result .error-list li')).map((item) => item.textContent);
+    expect(lines).toEqual(['Row 3: sisc_row_not_saved', 'Row 5: sisc_row_invalid_birth_date', `Row 6: ${HOSTILE}`]);
+    expect(page().querySelector('#import-result img')).toBeNull();
+    expect(page().textContent).not.toContain('[object Object]');
   });
 
   test('as a tab of the district page, its loading state adds no second way back or title', async () => {
