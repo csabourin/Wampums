@@ -85,6 +85,49 @@ describe('SISC import validation before database work', () => {
   });
 
 
+  test('an import the database did not commit is never announced as completed', async () => {
+    const client = {
+      query: jest.fn((sql) => Promise.resolve(sql === 'COMMIT' ? { command: 'ROLLBACK', rows: [] } : { rows: [] })),
+      release: jest.fn(),
+    };
+    pool.connect.mockResolvedValue(client);
+    const response = await request(app).post('/api/v1/import/sisc').send({
+      csvContent: 'nom;prenom;naissance\nFiction;Ada;20160503',
+    });
+
+    expect(response.status).toBe(500);
+    expect(response.body.success).toBe(false);
+    expect(response.body.stats).toBeUndefined();
+    expect(client.release).toHaveBeenCalledTimes(1);
+  });
+
+  test('each row is undone alone when the database refuses it, and says so without the database\'s words', async () => {
+    const client = {
+      query: jest.fn((sql, values) => {
+        if (sql.includes('INSERT INTO participants') && values[0] === 'Ada') {
+          return Promise.reject(Object.assign(new Error('value too long for type character varying(255)'), { code: '22001' }));
+        }
+        // A new youth: no match in the unit; every other read finds a row (the active year, an id).
+        return Promise.resolve({ rows: sql.includes('SELECT p.id FROM participants') ? [] : [{ id: 8 }] });
+      }),
+      release: jest.fn(),
+    };
+    pool.connect.mockResolvedValue(client);
+    pool.query.mockResolvedValue({ rows: [{ count: '1' }] });
+    const response = await request(app).post('/api/v1/import/sisc').send({
+      csvContent: 'nom;prenom;naissance\nFiction;Ada;20160503\nFiction;Grace;20150212',
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.stats.errors).toEqual([{ row: 2, code: 'sisc_row_not_saved' }]);
+    expect(response.body.stats.participantsCreated).toBe(1);
+    expect(JSON.stringify(response.body)).not.toContain('character varying');
+    const statements = client.query.mock.calls.map(([sql]) => sql);
+    expect(statements.filter((sql) => sql === 'SAVEPOINT sisc_row')).toHaveLength(2);
+    expect(statements).toContain('ROLLBACK TO SAVEPOINT sisc_row');
+    expect(statements).toContain('RELEASE SAVEPOINT sisc_row');
+  });
+
   test.each([true, false])('a SISC import leaves health declarations to the family (existing health form: %s)', async (hasHealthForm) => {
     const healthId = 42;
     const client = {

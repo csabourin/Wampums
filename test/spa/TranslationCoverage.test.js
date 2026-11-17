@@ -196,6 +196,7 @@ test('every key built from a state exists for each state the server returns', ()
     ...['same', 'different'].map((s) => [`participant_duplicates_decided_${s}`, 'ParticipantDuplicates']),
     ...[...programProgressStatuses(), 'other'].map((s) => [`program_progress_status_${s}`, 'ProgramProgressDashboard']),
     ['sync.rejected', 'OfflineManager'],
+    ...Object.values(require('../../config/constants.js').SISC_IMPORT_ROW_ERRORS).map((code) => [code, 'Admin (SISC import)']),
     ...[...offlineMutationKinds(), 'other'].map((kind) => [`sync.rejected_kind_${kind}`, 'OfflineManager']),
     ...loginList('DEMO_VIEWS').flatMap((view) => [[`demo_view_${view}`, 'Login'], [`demo_view_${view}_text`, 'Login']]),
     ...loginList('DEMO_REFUSALS').map((refusal) => [refusal, 'Login']),

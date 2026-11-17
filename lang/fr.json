@@ -6467,5 +6467,13 @@
   "unit_time_zone_city_africa_casablanca": "Casablanca",
   "unit_time_zone_city_asia_beirut": "Beyrouth",
   "unit_time_zone_city_asia_jakarta": "Jakarta",
-  "unit_time_zone_city_australia_sydney": "Sydney, Melbourne"
+  "unit_time_zone_city_australia_sydney": "Sydney, Melbourne",
+  "sisc_import_row_error": "Ligne {row} : {reason}",
+  "sisc_row_missing_name": "le prénom ou le nom du jeune manque, la ligne a été ignorée.",
+  "sisc_row_missing_staff_email": "cet animateur n’a pas d’adresse courriel, aucun compte n’a été créé.",
+  "sisc_row_cannot_grant_animation": "vous ne pouvez pas donner le rôle d’animation, cet animateur a été ignoré.",
+  "sisc_row_cannot_grant_parent": "vous ne pouvez pas donner le rôle de parent, aucun compte parent n’a été créé pour cette ligne.",
+  "sisc_row_invalid_situation": "la situation n’est ni jeune (J) ni animateur (A), la ligne a été ignorée.",
+  "sisc_row_invalid_birth_date": "la date de naissance n’est pas un vrai jour (format attendu AAAAMMJJ), la ligne a été ignorée.",
+  "sisc_row_not_saved": "cette ligne n’a pas pu être enregistrée et a été ignorée. Les autres lignes ont été importées."
 }

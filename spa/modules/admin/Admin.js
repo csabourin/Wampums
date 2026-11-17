@@ -27,6 +27,18 @@ import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { renderPushRecipients, pushSendResultKey, describePushSendResult } from '../push/pushRecipients.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { rolesToOffer } from '../../utils/RoleVisibilityUtils.js';
+
+/**
+ * One line of the SISC import's report: the row and why it was skipped,
+ * in the person's language. The server sends `{ row, code }`, the code a key.
+ * @param {{row: number, code: string}} entry - What the import says of one row
+ * @returns {string} "Row 4: the birth date is not a real day"
+ */
+function siscRowErrorText(entry) {
+  return translate('sisc_import_row_error')
+    .replace('{row}', String(entry?.row ?? ''))
+    .replace('{reason}', translate(entry?.code || 'sisc_row_not_saved'));
+}
 export class Admin {
   constructor(app, options = {}) {
     this.app = app;
@@ -650,7 +662,7 @@ ${showNotifications ? `
                                                                         ${stats.errors.length > 0 ? `
                                                                                 <h5>${translate('errors')}:</h5>
                                                                                 <ul class="error-list">
-                                                                                        ${stats.errors.map(err => `<li>${escapeHTML(err)}</li>`).join('')}
+                                                                                        ${stats.errors.map((err) => `<li>${escapeHTML(siscRowErrorText(err))}</li>`).join('')}
                                                                                 </ul>
                                                                         ` : ''}
                                                                         ${result.verification ? `
