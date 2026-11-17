@@ -4,7 +4,7 @@ import { updateHonor, deleteHonor } from '../../api/api-endpoints.js';
 import { debugLog, debugError, debugWarn } from '../../utils/DebugUtils.js';
 import { translate } from '../../app.js';
 import { getTodayISO, formatDate, isValidDate, isPastDate as isDateInPast } from '../../utils/DateUtils.js';
-import { setContent } from '../../utils/DOMUtils.js';
+import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import { deleteCachedData, getCachedData } from '../../indexedDB.js';
 import { escapeHTML, sanitizeHTML } from '../../utils/SecurityUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
@@ -817,27 +817,30 @@ export class ManageHonors {
     });
     const form = overlay.querySelector('#edit-reason-form');
 
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener('submit', (e) => {
       e.preventDefault();
-      const newReason = document.getElementById('edit-reason-input').value.trim();
+      // One request per submit: the form's buttons stay disabled until it ends.
+      withFormBusy(form, async () => {
+        const newReason = document.getElementById('edit-reason-input').value.trim();
 
-      if (!newReason) {
-        this.app.showMessage(translate('honor_reason_required'), 'error');
-        return;
-      }
+        if (!newReason) {
+          this.app.showMessage(translate('honor_reason_required'), 'error');
+          return;
+        }
 
-      try {
-        await updateHonor(honorId, { reason: newReason });
-        this.app.showMessage(translate('honor_updated_successfully'), 'success');
-        closeDialog();
-        await this.clearHonorsCaches();
-        await this.fetchData();
-        this.processHonors();
-        this.updateHonorsListUI();
-      } catch (error) {
-        debugError('Error updating honor reason:', error);
-        this.app.showMessage(translate('error_updating_honor'), 'error');
-      }
+        try {
+          await updateHonor(honorId, { reason: newReason });
+          this.app.showMessage(translate('honor_updated_successfully'), 'success');
+          closeDialog();
+          await this.clearHonorsCaches();
+          await this.fetchData();
+          this.processHonors();
+          this.updateHonorsListUI();
+        } catch (error) {
+          debugError('Error updating honor reason:', error);
+          this.app.showMessage(translate('error_updating_honor'), 'error');
+        }
+      });
     });
 
   }
@@ -875,27 +878,30 @@ export class ManageHonors {
     });
     const form = overlay.querySelector('#edit-date-form');
 
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener('submit', (e) => {
       e.preventDefault();
-      const newDate = document.getElementById('edit-date-input').value;
+      // One request per submit: the form's buttons stay disabled until it ends.
+      withFormBusy(form, async () => {
+        const newDate = document.getElementById('edit-date-input').value;
 
-      if (!newDate) {
-        this.app.showMessage(translate('date_required'), 'error');
-        return;
-      }
+        if (!newDate) {
+          this.app.showMessage(translate('date_required'), 'error');
+          return;
+        }
 
-      try {
-        await updateHonor(honorId, { date: newDate });
-        this.app.showMessage(translate('honor_date_updated_successfully'), 'success');
-        closeDialog();
-        await this.clearHonorsCaches();
-        await this.fetchData();
-        this.processHonors();
-        this.updateHonorsListUI();
-      } catch (error) {
-        debugError('Error updating honor date:', error);
-        this.app.showMessage(translate('error_updating_honor'), 'error');
-      }
+        try {
+          await updateHonor(honorId, { date: newDate });
+          this.app.showMessage(translate('honor_date_updated_successfully'), 'success');
+          closeDialog();
+          await this.clearHonorsCaches();
+          await this.fetchData();
+          this.processHonors();
+          this.updateHonorsListUI();
+        } catch (error) {
+          debugError('Error updating honor date:', error);
+          this.app.showMessage(translate('error_updating_honor'), 'error');
+        }
+      });
     });
 
   }

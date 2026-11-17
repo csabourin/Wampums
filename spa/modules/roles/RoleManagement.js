@@ -13,7 +13,7 @@ import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { roleDescription, roleLabel } from '../../utils/RoleLabelUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { setContent, loadStylesheet } from '../../utils/DOMUtils.js';
+import { setContent, loadStylesheet, withFormBusy } from '../../utils/DOMUtils.js';
 import { deleteCachedData } from '../../indexedDB.js';
 import {
   getUsers,
@@ -684,34 +684,37 @@ export class RoleManagement {
       });
     }
 
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener('submit', (e) => {
       e.preventDefault();
+      // One request per submit: the form's buttons stay disabled until it ends.
+      withFormBusy(form, async () => {
 
-      const userId = document.getElementById('selected-user-id').value;
-      const checkboxes = form.querySelectorAll('input[name="role_ids"]:checked');
-      const roleIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+        const userId = document.getElementById('selected-user-id').value;
+        const checkboxes = form.querySelectorAll('input[name="role_ids"]:checked');
+        const roleIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
 
-      if (roleIds.length === 0) {
-        this.showAssignmentMessage(translate('select_at_least_one_role'), 'error');
-        return;
-      }
+        if (roleIds.length === 0) {
+          this.showAssignmentMessage(translate('select_at_least_one_role'), 'error');
+          return;
+        }
 
-      try {
-        await this.updateUserRoles(userId, roleIds);
-        this.showAssignmentMessage(translate('roles_updated_successfully'), 'success');
+        try {
+          await this.updateUserRoles(userId, roleIds);
+          this.showAssignmentMessage(translate('roles_updated_successfully'), 'success');
 
-        // Refresh user list
-        await this.fetchUsers();
-        setContent(document.getElementById('user-list'), this.renderUserList());
-        this.attachUserListListeners();
-      } catch (error) {
-        debugError('Error updating roles:', error);
-        const FORBIDDEN = 403;
-        this.showAssignmentMessage(
-          error.status === FORBIDDEN ? translate('role_grant_forbidden') : apiErrorMessage(error, 'error_updating_role'),
-          'error'
-        );
-      }
+          // Refresh user list
+          await this.fetchUsers();
+          setContent(document.getElementById('user-list'), this.renderUserList());
+          this.attachUserListListeners();
+        } catch (error) {
+          debugError('Error updating roles:', error);
+          const FORBIDDEN = 403;
+          this.showAssignmentMessage(
+            error.status === FORBIDDEN ? translate('role_grant_forbidden') : apiErrorMessage(error, 'error_updating_role'),
+            'error'
+          );
+        }
+      });
     });
   }
 

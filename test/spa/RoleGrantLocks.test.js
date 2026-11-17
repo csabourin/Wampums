@@ -231,6 +231,19 @@ describe('role management assignment form', () => {
     expect(message.textContent).toBe('role_grant_forbidden');
   });
 
+  test('a second click while the roles are saving sends them once', async () => {
+    let finish;
+    endpoints.updateUserRolesV1.mockReturnValue(new Promise((done) => { finish = done; }));
+    const { form } = await openForm();
+
+    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    finish({ success: true });
+    await flush();
+
+    expect(endpoints.updateUserRolesV1).toHaveBeenCalledTimes(1);
+  });
+
   test('has no WCAG A/AA violations', async () => {
     const { form } = await openForm();
     const results = await axe.run(form, AXE_OPTIONS);

@@ -162,6 +162,29 @@ describe('adding equipment', () => {
   });
 });
 
+describe('reserving from the dashboard', () => {
+  test('a second click while a reservation is saving sends it once', async () => {
+    loadAll();
+    api.getEquipmentInventory.mockResolvedValue({ success: true, data: { equipment: [{ id: 3, name: 'Fictional stove', quantity_total: 2 }] } });
+    let finish;
+    api.saveEquipmentReservation.mockReturnValue(new Promise((done) => { finish = done; }));
+    await new ResourceDashboard(makeApp()).init();
+    const form = document.getElementById('reservationForm');
+    const select = form.elements.namedItem('equipment_id');
+    if (!select.options.length) {
+      select.add(new Option('Fictional stove', '3'));
+    }
+    select.value = '3';
+
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    finish({ data: { reservation: { id: 1 } } });
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+
+    expect(api.saveEquipmentReservation).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('inventory views', () => {
   test('table cards keep the quantity, value and actions with their translated labels', async () => {
     loadAll();

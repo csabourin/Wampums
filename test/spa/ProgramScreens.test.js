@@ -242,6 +242,25 @@ describe('honours', () => {
     expect(page().querySelector('h1').textContent).toBe('manage_honors');
   });
 
+  test('changing a reason twice in a row while it saves sends it once', async () => {
+    ajax.getHonorsAndParticipants.mockResolvedValue(honours);
+    const saving = deferred();
+    endpoints.updateHonor.mockReturnValue(saving.promise);
+    const screen = new ManageHonors(makeApp());
+    await screen.init();
+    screen.allHonors = [{ id: 7, participant_id: 1, date: '2026-11-10', reason: 'Fictional' }];
+    await screen.showEditReasonModal(7);
+    document.getElementById('edit-reason-input').value = 'Fictional courage';
+    const form = document.getElementById('edit-reason-form');
+
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    saving.resolve({ success: true });
+    await flush();
+
+    expect(endpoints.updateHonor).toHaveBeenCalledTimes(1);
+  });
+
   test('an answer arriving after the person left draws nothing', async () => {
     const answer = deferred();
     ajax.getHonorsAndParticipants.mockReturnValue(answer.promise);
