@@ -415,5 +415,36 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
       expect(await current(copied.body.data.id)).toBe(true);
     });
   });
+
+  describe('budget input', () => {
+    test('a batch with one invalid line names it and records nothing', async () => {
+      const { mine } = ids;
+      const before = await count('budget_expenses WHERE organization_id = $1', [mine.id]);
+      const res = await call('post', '/api/v1/expenses/bulk', mine).send({ expenses: [
+        { amount: 10, expense_date: '2026-11-03', description: 'Fictional rope' },
+        { amount: 'ten', expense_date: '2026-02-30', description: 42 },
+      ] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors.map((entry) => entry.path)).toEqual(['expenses[1].amount', 'expenses[1].expense_date', 'expenses[1].description']);
+      expect(await count('budget_expenses WHERE organization_id = $1', [mine.id])).toBe(before);
+    });
+
+    test('emptying an expense\'s category, item or notes clears them; leaving a field out keeps it', async () => {
+      const { mine } = ids;
+      const created = await call('post', '/api/v1/budget/expenses', mine).send({ amount: 4, expense_date: '2026-11-04',
+        description: 'Fictional tape', budget_category_id: mine.category, budget_item_id: mine.item, notes: 'Keep receipt' });
+      const updated = await call('put', `/api/v1/budget/expenses/${created.body.data.id}`, mine)
+        .send({ budget_category_id: null, budget_item_id: '', notes: '' });
+
+      expect(updated.status).toBe(200);
+      expect(updated.body.data).toMatchObject({ budget_category_id: null, budget_item_id: null, notes: null, description: 'Fictional tape', amount: 4 });
+    });
+
+    test('a description that is not text is a 400, not a 500', async () => {
+      const res = await call('post', '/api/v1/budget/expenses', ids.mine).send({ amount: 4, expense_date: '2026-11-04', description: 42 });
+      expect(res.status).toBe(400);
+    });
+  });
 });
 
