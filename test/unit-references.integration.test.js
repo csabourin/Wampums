@@ -206,6 +206,23 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
       expect(res.body.errors).toEqual([expect.objectContaining({ path: 'budget_item_id', msg: 'budget_item_not_in_category' })]);
     });
 
+    test('an item created without a type, as the budget screen does, is saved and holds both', async () => {
+      const { mine } = ids;
+      const created = await call('post', '/api/v1/budget/items', mine).send({ name: 'Fictional tents', budget_category_id: mine.category });
+      const refused = await call('post', '/api/v1/budget/items', mine).send({ name: 'Fictional pegs', budget_category_id: mine.category, item_type: 'other' });
+      const changed = await call('put', `/api/v1/budget/items/${created.body.data.id}`, mine).send({ item_type: 'revenue' });
+      const wrong = await call('put', `/api/v1/budget/items/${created.body.data.id}`, mine).send({ item_type: 'gift' });
+
+      expect(created.status).toBe(201);
+      expect(created.body.data.item_type).toBe('both');
+      expect(refused.status).toBe(400);
+      expect(refused.body.errors).toEqual([expect.objectContaining({ path: 'item_type', msg: 'budget_item_type_invalid' })]);
+      expect(changed.body.data.item_type).toBe('revenue');
+      expect(wrong.status).toBe(400);
+      expect(await one("SELECT column_default FROM information_schema.columns WHERE table_name = 'budget_items' AND column_name = 'item_type'"))
+        .toMatch(/'both'/);
+    });
+
     test('the expense list never names another unit\'s category or item', async () => {
       const { mine, theirs } = ids;
       // A row recorded before the check existed, pointing across units.

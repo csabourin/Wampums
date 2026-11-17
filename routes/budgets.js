@@ -8,6 +8,17 @@ const { toNumeric, validateMoney, validateDate } = require('../utils/validation-
 
 // Configuration constants
 const MAX_BULK_EXPENSES = 100;
+
+/**
+ * What a budget item may hold (budget_items_item_type_check). An item named
+ * without one holds both: the budget screen never asks.
+ */
+const BUDGET_ITEM_TYPES = ['revenue', 'expense', 'both'];
+const DEFAULT_BUDGET_ITEM_TYPE = 'both';
+
+/** Refuse an item type the database would reject. */
+const refuseItemType = (res) => error(res, 'Invalid item type', HTTP_STATUS.BAD_REQUEST,
+  [{ path: 'item_type', location: 'body', msg: 'budget_item_type_invalid' }]);
 const POSTGRES_INT_MAX = 2147483647;
 
 /** A reference the request named, as a database id, or null when it named none. */
@@ -224,6 +235,9 @@ module.exports = (pool, logger) => {
     if (!budget_category_id || !name) {
       return error(res, 'Category ID and name are required', HTTP_STATUS.BAD_REQUEST);
     }
+    if (referenceId(item_type) !== null && !BUDGET_ITEM_TYPES.includes(item_type)) {
+      return refuseItemType(res);
+    }
 
     const referenceErrors = await checkBudgetReferences(pool, organizationId, { categoryId: budget_category_id });
     if (referenceErrors.length > 0) {
@@ -249,7 +263,7 @@ module.exports = (pool, logger) => {
         budget_category_id,
         name.trim(),
         description,
-        item_type || 'other',
+        item_type || DEFAULT_BUDGET_ITEM_TYPE,
         unit_price,
         estimated_quantity,
         display_order || 0
@@ -277,6 +291,10 @@ module.exports = (pool, logger) => {
       display_order,
       active
     } = req.body;
+
+    if (referenceId(item_type) !== null && !BUDGET_ITEM_TYPES.includes(item_type)) {
+      return refuseItemType(res);
+    }
 
     // Validate unit_price if provided
     if (unit_price !== undefined && unit_price !== null) {
