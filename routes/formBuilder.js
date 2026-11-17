@@ -16,7 +16,7 @@ const { HTTP_STATUS } = require('../utils/http-status');
 const router = express.Router();
 
 // Import middleware
-const { authenticate, requirePermission, blockDemoRoles } = require('../middleware/auth');
+const { authenticate, requirePermission, blockDemoRoles, userHasPermission } = require('../middleware/auth');
 const { success, error: errorResponse, forbidden, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
 
@@ -30,6 +30,60 @@ const FIELD_TEXT_PROPERTIES = ['labelText', 'infoHtml'];
 /** Longest text accepted for one language, so a form format stays a sane size. */
 const MAX_FIELD_TEXT_LENGTH = 20000;
 const HTTP_BAD_REQUEST = 400;
+
+/**
+ * Make the form's current version the structure it shows. A form shows
+ * organization_form_formats.form_structure, and a submission records the
+ * current version (form_submissions.form_version_id): when the two differ,
+ * record the shown structure as a new version and publish it, so every
+ * submission names the structure it was filled in.
+ *
+ * @param {Object} client - Client inside the transaction that changed the form
+ * @param {number} formFormatId - Form
+ * @param {string} userId - Who changed it
+ * @param {string} description - Why a version was recorded
+ * @returns {Promise<number|null>} The new version, or null when the current one already matched
+ */
+async function syncCurrentVersion(client, formFormatId, userId, description) {
+  const state = await client.query(
+    `SELECT off.form_structure, ffv.form_structure IS NOT DISTINCT FROM off.form_structure AS matches
+       FROM organization_form_formats off
+       LEFT JOIN form_format_versions ffv ON ffv.id = off.current_version_id
+      WHERE off.id = $1`,
+    [formFormatId]
+  );
+  if (!state.rows.length || state.rows[0].matches) {
+    return null;
+  }
+  const created = await client.query(
+    'SELECT create_new_form_version($1, $2::jsonb, NULL, $3, $4) AS version_id',
+    [formFormatId, JSON.stringify(state.rows[0].form_structure), description, userId]
+  );
+  const versionId = created.rows[0].version_id;
+  await client.query('SELECT publish_form_version($1)', [versionId]);
+  return versionId;
+}
+
+/**
+ * Run a form change in one transaction.
+ * @param {Object} pool - Database pool
+ * @param {function(Object): Promise<*>} work - The change, given the client
+ * @returns {Promise<*>} What work returned
+ */
+async function inFormTransaction(pool, work) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await work(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
 /**
  * Check the per-language texts of a form structure's fields.
@@ -230,13 +284,17 @@ module.exports = (pool, logger) => {
         return errorResponse(res, 'Form type already exists for this organization', HTTP_STATUS.CONFLICT);
       }
 
-      const result = await pool.query(
-        `INSERT INTO organization_form_formats
-         (organization_id, form_type, form_structure, display_type, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, NOW(), NOW())
-         RETURNING id, form_type, form_structure, display_type, created_at, updated_at`,
-        [organizationId, form_type, JSON.stringify(form_structure), display_type || null]
-      );
+      const result = await inFormTransaction(pool, async (client) => {
+        const inserted = await client.query(
+          `INSERT INTO organization_form_formats
+           (organization_id, form_type, form_structure, display_type, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, NOW(), NOW())
+           RETURNING id, form_type, form_structure, display_type, created_at, updated_at`,
+          [organizationId, form_type, JSON.stringify(form_structure), display_type || null]
+        );
+        await syncCurrentVersion(client, inserted.rows[0].id, req.user.id, 'Created in the form builder');
+        return inserted;
+      });
 
       logger.info(`Form format created: ${form_type} for organization ${organizationId}`);
       return success(res, result.rows[0], 'Form format created successfully', HTTP_STATUS.CREATED);
@@ -310,20 +368,24 @@ module.exports = (pool, logger) => {
         return reservedFieldNamesResponse(res, reservedNames);
       }
 
-      const result = await pool.query(
-        `UPDATE organization_form_formats
-         SET form_structure = COALESCE($1, form_structure),
-             display_type = COALESCE($2, display_type),
-             updated_at = NOW()
-         WHERE id = $3 AND organization_id = $4
-         RETURNING id, form_type, form_structure, display_type, created_at, updated_at`,
-        [
-          form_structure ? JSON.stringify(form_structure) : null,
-          display_type !== undefined ? display_type : null,
-          formFormatId,
-          organizationId
-        ]
-      );
+      const result = await inFormTransaction(pool, async (client) => {
+        const updated = await client.query(
+          `UPDATE organization_form_formats
+           SET form_structure = COALESCE($1, form_structure),
+               display_type = COALESCE($2, display_type),
+               updated_at = NOW()
+           WHERE id = $3 AND organization_id = $4
+           RETURNING id, form_type, form_structure, display_type, created_at, updated_at`,
+          [
+            form_structure ? JSON.stringify(form_structure) : null,
+            display_type !== undefined ? display_type : null,
+            formFormatId,
+            organizationId
+          ]
+        );
+        await syncCurrentVersion(client, formFormatId, req.user.id, 'Edited in the form builder');
+        return updated;
+      });
 
       logger.info(`Form format updated: ${formFormatId} for organization ${organizationId}`);
       return success(res, result.rows[0], 'Form format updated successfully');
@@ -503,15 +565,9 @@ module.exports = (pool, logger) => {
       const formType = req.params.formType;
       const userId = req.user.id;
 
-      // Verify user is still an active member of the source organization
-      const accessCheck = await pool.query(
-        `SELECT 1 FROM user_organizations
-         WHERE user_id = $1 AND organization_id = $2 AND status = 'active'`,
-        [userId, sourceOrgId]
-      );
-
-      if (accessCheck.rows.length === 0) {
-        return forbidden(res, 'Access denied to source organization', [], []);
+      // Reading another unit's forms takes forms.view there, as reading them in it would.
+      if (!(await userHasPermission(req, pool, sourceOrgId, 'forms.view'))) {
+        return forbidden(res, 'Access denied to source organization', ['forms.view'], ['forms.view']);
       }
 
       // Get source form format
@@ -526,33 +582,32 @@ module.exports = (pool, logger) => {
         return errorResponse(res, 'Source form format not found', HTTP_STATUS.NOT_FOUND);
       }
 
-      // Check if form type already exists in target organization
-      const existingCheck = await pool.query(
-        `SELECT id FROM organization_form_formats
-         WHERE organization_id = $1 AND form_type = $2`,
-        [organizationId, formType]
-      );
-
-      let result;
-      if (existingCheck.rows.length > 0) {
-        // Update existing
-        result = await pool.query(
-          `UPDATE organization_form_formats
-           SET form_structure = $1, display_type = $2, updated_at = NOW()
-           WHERE organization_id = $3 AND form_type = $4
-           RETURNING id, form_type, form_structure, display_type, created_at, updated_at`,
-          [sourceFormat.rows[0].form_structure, sourceFormat.rows[0].display_type, organizationId, formType]
+      const result = await inFormTransaction(pool, async (client) => {
+        const existingCheck = await client.query(
+          `SELECT id FROM organization_form_formats
+           WHERE organization_id = $1 AND form_type = $2
+           FOR UPDATE`,
+          [organizationId, formType]
         );
-      } else {
-        // Insert new
-        result = await pool.query(
-          `INSERT INTO organization_form_formats
-           (organization_id, form_type, form_structure, display_type, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, NOW(), NOW())
-           RETURNING id, form_type, form_structure, display_type, created_at, updated_at`,
-          [organizationId, formType, sourceFormat.rows[0].form_structure, sourceFormat.rows[0].display_type]
-        );
-      }
+        const written = existingCheck.rows.length > 0
+          ? await client.query(
+            `UPDATE organization_form_formats
+             SET form_structure = $1, display_type = $2, updated_at = NOW()
+             WHERE organization_id = $3 AND form_type = $4
+             RETURNING id, form_type, form_structure, display_type, created_at, updated_at`,
+            [sourceFormat.rows[0].form_structure, sourceFormat.rows[0].display_type, organizationId, formType]
+          )
+          : await client.query(
+            `INSERT INTO organization_form_formats
+             (organization_id, form_type, form_structure, display_type, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, NOW(), NOW())
+             RETURNING id, form_type, form_structure, display_type, created_at, updated_at`,
+            [organizationId, formType, sourceFormat.rows[0].form_structure, sourceFormat.rows[0].display_type]
+          );
+        // The copy is a version of its own: submissions made afterwards name it.
+        await syncCurrentVersion(client, written.rows[0].id, userId, `Copied from unit ${sourceOrgId}`);
+        return written;
+      });
 
       logger.info(`Form format copied: ${formType} from org ${sourceOrgId} to org ${organizationId}`);
       return success(res, result.rows[0], 'Form format copied successfully', HTTP_STATUS.CREATED);
@@ -713,6 +768,13 @@ module.exports = (pool, logger) => {
 
       // Publish the version using helper function
       await client.query('SELECT publish_form_version($1)', [versionId]);
+      // The published version is what the form shows from now on.
+      await client.query(
+        `UPDATE organization_form_formats off SET form_structure = ffv.form_structure, updated_at = NOW()
+           FROM form_format_versions ffv
+          WHERE ffv.id = $1 AND off.id = ffv.form_format_id AND off.organization_id = $2`,
+        [versionId, organizationId]
+      );
 
       await client.query('COMMIT');
 

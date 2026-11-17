@@ -71,6 +71,7 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
     app.use('/api/v1/incidents', require('../routes/incidents')(pool, logger));
     app.use('/api/v1/resources', require('../routes/resources')(pool, logger));
     app.use('/api/v1/program-progress', require('../routes/programProgress')(pool, logger));
+    app.use('/api/v1/form-builder', require('../routes/formBuilder')(pool, logger));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
   });
 
@@ -78,7 +79,10 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
     if (!pool) { return; }
     const units = [ids.mine?.id, ids.theirs?.id].filter(Boolean);
     await pool.query('DELETE FROM equipment_item_organizations WHERE organization_id = ANY($1::int[])', [units]);
-    for (const table of ['participant_credentials', 'pab_reviews', 'pab_plans', 'equipment_reservations', 'equipment_items', 'incident_email_queue', 'incident_escalation_contacts', 'incident_reports', 'form_submissions', 'objective_achievements', 'activity_distribution_rules', 'year_plan_meeting_activities', 'budget_expenses',
+    await pool.query(`DELETE FROM form_format_versions WHERE form_format_id IN (
+      SELECT id FROM organization_form_formats WHERE organization_id = ANY($1::int[]))`, [units]);
+    await pool.query('UPDATE organization_form_formats SET current_version_id = NULL WHERE organization_id = ANY($1::int[])', [units]);
+    for (const table of ['organization_form_formats', 'participant_credentials', 'pab_reviews', 'pab_plans', 'equipment_reservations', 'equipment_items', 'incident_email_queue', 'incident_escalation_contacts', 'incident_reports', 'form_submissions', 'objective_achievements', 'activity_distribution_rules', 'year_plan_meeting_activities', 'budget_expenses',
       'budget_plans', 'budget_items', 'budget_categories', 'activity_library', 'year_plan_objectives', 'year_plan_meetings',
       'year_plans', 'activities', 'participant_enrollments', 'scout_years', 'user_organizations']) {
       // eslint-disable-next-line no-await-in-loop -- dependants first, one table at a time
@@ -363,6 +367,52 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
       expect(credential.body.data.programRecord.credential_key).toBe('fictional_first_aid');
       expect(review.status).toBe(400);
       expect(await count('pab_reviews WHERE pab_plan_id = $1', [theirPlan])).toBe(0);
+    });
+  });
+
+  describe('form versions', () => {
+    const structure = (label) => ({ fields: [{ name: 'fictional_field', type: 'text', label }] });
+    const current = (formId) => one(
+      `SELECT ffv.form_structure = off.form_structure FROM organization_form_formats off
+         JOIN form_format_versions ffv ON ffv.id = off.current_version_id WHERE off.id = $1`, [formId]);
+
+    test('creating and editing a form each publish the structure it shows', async () => {
+      const { mine } = ids;
+      const created = await call('post', '/api/v1/form-builder/form-formats', mine)
+        .send({ form_type: 'fictional_form', form_structure: structure('First') });
+      const formId = created.body.data.id;
+      expect(await current(formId)).toBe(true);
+
+      await call('put', `/api/v1/form-builder/form-formats/${formId}`, mine).send({ form_structure: structure('Second') });
+
+      expect(await current(formId)).toBe(true);
+      expect(await count('form_format_versions WHERE form_format_id = $1', [formId])).toBe(2);
+    });
+
+    test('publishing an earlier version makes the form show it again', async () => {
+      const { mine } = ids;
+      const formId = await one("SELECT id FROM organization_form_formats WHERE organization_id = $1 AND form_type = 'fictional_form'", [mine.id]);
+      const first = await one('SELECT id FROM form_format_versions WHERE form_format_id = $1 AND version_number = 1', [formId]);
+
+      await call('post', `/api/v1/form-builder/form-versions/${first}/publish`, mine).expect(200);
+
+      expect(await one("SELECT form_structure->'fields'->0->>'label' FROM organization_form_formats WHERE id = $1", [formId])).toBe('First');
+      expect(await current(formId)).toBe(true);
+    });
+
+    test('copying a form takes forms.view in the unit it comes from, and the copy is a version', async () => {
+      const { mine, theirs } = ids;
+      await call('post', '/api/v1/form-builder/form-formats', theirs).send({ form_type: 'their_form', form_structure: structure('Theirs') });
+
+      const refused = await call('post', `/api/v1/form-builder/form-formats/${theirs.id}/their_form/copy`, mine);
+      await pool.query("INSERT INTO user_organizations (organization_id, user_id, role_ids, status) SELECT $1, $2, role_ids, 'active' FROM user_organizations WHERE user_id = $2 AND organization_id = $3",
+        [theirs.id, mine.admin, mine.id]);
+      const copied = await call('post', `/api/v1/form-builder/form-formats/${theirs.id}/their_form/copy`, mine);
+
+      expect(refused.status).toBe(403);
+      expect(refused.body.missing).toEqual(['forms.view']);
+      expect(copied.status).toBe(201);
+      expect(await current(copied.body.data.id)).toBe(true);
     });
   });
 });
