@@ -12,7 +12,8 @@ const { randomUUID } = require('crypto');
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId, userHasPermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { check } = require('express-validator');
-const { checkValidation, validateIdParam, validateIdBody } = require('../middleware/validation');
+const { checkValidation, validateIdParam, validateIdBody, validateIdBodyOptional } = require('../middleware/validation');
+const { isCalendarDate } = require('../utils/calendar-date');
 const { getMeetingDefaults, computeEndTime, formatLocalDate } = require('../utils/meeting-defaults');
 const { ensureActiveScoutYear } = require('../services/scoutYear');
 const {
@@ -109,6 +110,45 @@ const FIXED_MEETING_PARAMS = 2;
 
 /** Upper bound on a single batch placement: a school year holds far fewer dates. */
 const MAX_BATCH_MEETINGS = 60;
+
+/** Largest id a PostgreSQL integer holds. */
+const POSTGRES_INT_MAX = 2147483647;
+const ID_RANGE = { min: 1, max: POSTGRES_INT_MAX };
+/** Most youths one achievement grant names: a whole unit's roster. */
+const MAX_ACHIEVEMENT_PARTICIPANTS = 500;
+/** How an achievement was recorded (objective_achievements_attribution_source_check). */
+const ATTRIBUTION_SOURCES = ['auto', 'manual'];
+const ACHIEVEMENT_NOTES_MAX_LENGTH = 4000;
+
+/**
+ * Whether a library activity named in a request belongs to the unit. The
+ * library is per unit: an id from another unit would put its activity's name
+ * and category on this unit's schedule.
+ * @param {Object} db - Pool or client
+ * @param {number} organizationId - The authenticated unit
+ * @param {*} libraryId - Id from the request; empty means none
+ * @returns {Promise<boolean>} True when empty or the unit's own
+ */
+async function isOwnLibraryActivity(db, organizationId, libraryId) {
+  if (libraryId === undefined || libraryId === null || libraryId === '') {
+    return true;
+  }
+  const id = Number(libraryId);
+  if (!Number.isInteger(id) || id < 1 || id > POSTGRES_INT_MAX) {
+    return false;
+  }
+  const found = await db.query(
+    'SELECT 1 FROM activity_library WHERE id = $1 AND organization_id = $2',
+    [id, organizationId]
+  );
+  return found.rows.length > 0;
+}
+
+/** Refuse a library activity that is not the unit's own. */
+const refuseLibraryActivity = (res) => error(
+  res, 'activity_library_not_found', HTTP_BAD_REQUEST,
+  [{ path: 'activity_library_id', location: 'body', msg: 'activity_library_not_found' }]
+);
 
 /** Kinds that get a linked activities row (consent + carpooling) by default. */
 const ACTIVITY_EVENT_KINDS = ['weekend', 'camp'];
@@ -260,7 +300,7 @@ function isDayInSpan(dayOffset, context) {
   return Number.isInteger(dayOffset) && dayOffset >= 0 && dayOffset < Number(context?.span_days || 1);
 }
 
-module.exports = (pool, logger) => {
+module.exports = (pool, _logger) => {
   const router = express.Router();
 
   // =========================================================================
@@ -1175,7 +1215,7 @@ module.exports = (pool, logger) => {
         pool.query(
           `SELECT a.*, al.name as library_name, al.category as library_category
            FROM year_plan_meeting_activities a
-           LEFT JOIN activity_library al ON a.activity_library_id = al.id
+           LEFT JOIN activity_library al ON a.activity_library_id = al.id AND al.organization_id = a.organization_id
            WHERE a.meeting_id = $1 AND a.organization_id = $2
            ORDER BY a.sort_order`,
           [meetingId, organizationId]
@@ -1864,6 +1904,9 @@ module.exports = (pool, logger) => {
         sort_order, objective_ids, series_id, series_occurrence, metadata,
         day_offset, start_time, activity_type, responsable, material
       } = req.body;
+      if (!(await isOwnLibraryActivity(pool, organizationId, activity_library_id))) {
+        return refuseLibraryActivity(res);
+      }
       const dayOffset = day_offset === null || day_offset === undefined ? 0 : parseInt(day_offset, 10);
       if (!isDayInSpan(dayOffset, context)) {
         return error(res, 'day_offset is outside the meeting span', HTTP_STATUS.BAD_REQUEST);
@@ -2086,6 +2129,9 @@ module.exports = (pool, logger) => {
       const planId = Number(req.params.planId);
       const { activity, as_series: asSeries, series_label: seriesLabel } = req.body;
       const meetingIds = req.body.meeting_ids.map(id => parseInt(id, 10));
+      if (!(await isOwnLibraryActivity(pool, organizationId, activity.activity_library_id))) {
+        return refuseLibraryActivity(res);
+      }
 
       // One query both verifies existence and scopes to the organization: ids
       // from the client are never trusted.
@@ -2498,41 +2544,80 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('meetings.manage'),
+    [
+      validateIdBody('objective_id'),
+      check('participant_ids').isArray({ min: 1, max: MAX_ACHIEVEMENT_PARTICIPANTS }),
+      check('participant_ids.*').isInt(ID_RANGE),
+      validateIdBodyOptional('meeting_id'),
+      check('achieved_date').optional({ values: 'null' }).custom(isCalendarDate),
+      check('attribution_source').optional().isIn(ATTRIBUTION_SOURCES),
+      check('notes').optional({ values: 'null' }).isString().isLength({ max: ACHIEVEMENT_NOTES_MAX_LENGTH }),
+      checkValidation
+    ],
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
-      const { objective_id, participant_ids, meeting_id, achieved_date, attribution_source, notes } = req.body;
+      const objectiveId = Number(req.body.objective_id);
+      const meetingId = req.body.meeting_id ? Number(req.body.meeting_id) : null;
+      const participantIds = [...new Set(req.body.participant_ids.map(Number))];
+      const { achieved_date: achievedDate, attribution_source: source, notes } = req.body;
 
-      if (!objective_id || !participant_ids || !Array.isArray(participant_ids) || participant_ids.length === 0) {
-        return error(res, 'objective_id and participant_ids array required', HTTP_STATUS.BAD_REQUEST);
-      }
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
 
-      const inserted = [];
-      for (const participantId of participant_ids) {
-        try {
-          const result = await pool.query(
-            `INSERT INTO objective_achievements
-             (organization_id, objective_id, participant_id, meeting_id, achieved_date, attribution_source, notes, created_by)
-             VALUES ($1, $2, $3, $4, COALESCE($5::date, unit_today($1)), $6, $7, $8)
-             ON CONFLICT (organization_id, objective_id, participant_id) DO NOTHING
-             RETURNING *`,
-            [
-              organizationId, objective_id, participantId,
-              meeting_id || null,
-              achieved_date || null,
-              attribution_source || 'manual',
-              notes || null,
-              req.user.id
-            ]
-          );
-          if (result.rows.length > 0) {
-            inserted.push(result.rows[0]);
-          }
-        } catch (err) {
-          logger.warn(`Failed to insert achievement for participant ${participantId}:`, err.message);
+        // Every id comes from the request: each must be this unit's own.
+        const objective = await client.query(
+          'SELECT 1 FROM year_plan_objectives WHERE id = $1 AND organization_id = $2',
+          [objectiveId, organizationId]
+        );
+        if (objective.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return error(res, 'Objective not found', HTTP_NOT_FOUND);
         }
-      }
+        if (meetingId) {
+          const meeting = await client.query(
+            'SELECT 1 FROM year_plan_meetings WHERE id = $1 AND organization_id = $2',
+            [meetingId, organizationId]
+          );
+          if (meeting.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return error(res, 'Meeting not found', HTTP_NOT_FOUND);
+          }
+        }
+        // A youth of the unit is one enrolled in it, in any of its scout years.
+        const outside = await client.query(
+          `SELECT id FROM unnest($1::int[]) AS id
+            WHERE NOT EXISTS (SELECT 1 FROM participant_enrollments e
+                               WHERE e.participant_id = id AND e.organization_id = $2)
+            ORDER BY id`,
+          [participantIds, organizationId]
+        );
+        if (outside.rows.length > 0) {
+          await client.query('ROLLBACK');
+          return error(res, 'achievement_participants_not_in_unit', HTTP_BAD_REQUEST,
+            outside.rows.map((row) => ({
+              path: 'participant_ids', location: 'body', value: row.id, msg: 'achievement_participants_not_in_unit',
+            })));
+        }
 
-      return success(res, inserted, `${inserted.length} achievements granted`, HTTP_STATUS.CREATED);
+        const result = await client.query(
+          `INSERT INTO objective_achievements
+             (organization_id, objective_id, participant_id, meeting_id, achieved_date, attribution_source, notes, created_by)
+           SELECT $1, $2, participant_id, $4, COALESCE($5::date, unit_today($1)), $6, $7, $8
+             FROM unnest($3::int[]) AS participant_id
+           ON CONFLICT (organization_id, objective_id, participant_id) DO NOTHING
+           RETURNING *`,
+          [organizationId, objectiveId, participantIds, meetingId, achievedDate || null, source || 'manual', notes || null, req.user.id]
+        );
+        await client.query('COMMIT');
+
+        return success(res, result.rows, `${result.rows.length} achievements granted`, HTTP_STATUS.CREATED);
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
     })
   );
 
@@ -2543,6 +2628,10 @@ module.exports = (pool, logger) => {
   router.get('/achievements',
     authenticate,
     requirePermission('meetings.view'),
+    check('objective_id').optional().isInt(ID_RANGE),
+    check('participant_id').optional().isInt(ID_RANGE),
+    check('meeting_id').optional().isInt(ID_RANGE),
+    checkValidation,
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const { objective_id, participant_id, meeting_id } = req.query;
@@ -2550,25 +2639,27 @@ module.exports = (pool, logger) => {
       let query = `
         SELECT a.*, o.title as objective_title, p.first_name, p.last_name
         FROM objective_achievements a
-        JOIN year_plan_objectives o ON a.objective_id = o.id
+        JOIN year_plan_objectives o ON a.objective_id = o.id AND o.organization_id = a.organization_id
         JOIN participants p ON a.participant_id = p.id
-        WHERE a.organization_id = $1`;
+        WHERE a.organization_id = $1
+          AND EXISTS (SELECT 1 FROM participant_enrollments e
+                       WHERE e.participant_id = a.participant_id AND e.organization_id = a.organization_id)`;
       const params = [organizationId];
       let idx = 2;
 
       if (objective_id) {
         query += ` AND a.objective_id = $${idx}`;
-        params.push(parseInt(objective_id));
+        params.push(Number(objective_id));
         idx++;
       }
       if (participant_id) {
         query += ` AND a.participant_id = $${idx}`;
-        params.push(parseInt(participant_id));
+        params.push(Number(participant_id));
         idx++;
       }
       if (meeting_id) {
         query += ` AND a.meeting_id = $${idx}`;
-        params.push(parseInt(meeting_id));
+        params.push(Number(meeting_id));
         idx++;
       }
 
@@ -2625,7 +2716,7 @@ module.exports = (pool, logger) => {
       const result = await pool.query(
         `SELECT dr.*, al.name as library_activity_name, al.category
          FROM activity_distribution_rules dr
-         LEFT JOIN activity_library al ON dr.activity_library_id = al.id
+         LEFT JOIN activity_library al ON dr.activity_library_id = al.id AND al.organization_id = dr.organization_id
          WHERE dr.year_plan_id = $1 AND dr.organization_id = $2
          ORDER BY dr.activity_name`,
         [planId, organizationId]
@@ -2657,6 +2748,9 @@ module.exports = (pool, logger) => {
         activity_library_id, activity_name, distribution_scope,
         placement_rule, occurrences_per_scope, settings
       } = req.body;
+      if (!(await isOwnLibraryActivity(pool, organizationId, activity_library_id))) {
+        return refuseLibraryActivity(res);
+      }
 
       const planCheck = await pool.query(
         'SELECT id FROM year_plans WHERE id = $1 AND organization_id = $2 AND is_active = TRUE',
