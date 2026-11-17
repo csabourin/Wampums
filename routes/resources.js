@@ -419,10 +419,17 @@ module.exports = (pool, logger) => {
   /** Refuse a change to an item the unit only uses. */
   const refuseNotManaged = (res) => forbidden(res, 'equipment_managed_by_owner', ['inventory.manage'], []);
 
+  /**
+   * Refuse an item the unit may not use as one that does not exist for it, as
+   * another unit's resource is (CLAUDE.md §12): saying it exists would leak it.
+   * @param {number} equipmentId - Item
+   * @param {number} organizationId - The authenticated unit
+   * @returns {Promise<void>} Throws a 404 error when the unit has no access
+   */
   async function verifyEquipmentAccess(equipmentId, organizationId) {
     if (!await isEquipmentAccessible(pool, organizationId, equipmentId)) {
-      const accessError = new Error('Equipment not accessible for organization');
-      accessError.statusCode = HTTP_STATUS.FORBIDDEN;
+      const accessError = new Error('Equipment not found');
+      accessError.statusCode = HTTP_STATUS.NOT_FOUND;
       throw accessError;
     }
   }
