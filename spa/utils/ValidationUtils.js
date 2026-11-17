@@ -402,6 +402,7 @@ export function sanitizeInput(input) {
   if (!input || typeof input !== 'string') {return '';}
 
   // Remove control characters and trim
+  // eslint-disable-next-line no-control-regex -- removing control characters is the purpose
   return input.replace(/[\x00-\x1F\x7F]/g, '').trim();
 }
 

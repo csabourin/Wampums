@@ -222,6 +222,7 @@ export function sanitizeEmail(email) {
 
   if (
     trimmed.length > 254
+    // eslint-disable-next-line no-control-regex -- an address holding a control character is refused
     || /[\u0000-\u001f\u007f<>"\\]/.test(trimmed)
   ) {
     return null;
