@@ -36,6 +36,15 @@ const {
 
 /** The text a slip presents, as one JSON object (services/permissionSlipFingerprint.js). */
 const SLIP_CONTENT_SQL = slipContentSql('ps');
+/** One address however a contact record wrote it: a family is emailed once, not once per spelling. */
+const normalizeAddress = (address) => String(address).trim().toLowerCase();
+
+/** What the public signing page of a slip receives: the text to answer and the answer, nothing else. */
+const PUBLIC_SLIP_FIELDS = [
+  'access_token', 'status', 'participant_name', 'activity_title', 'activity_description',
+  'activity_description_html', 'authorization_text', 'meeting_date', 'deadline_date',
+  'signed_at', 'signed_by', 'declined_at', 'declined_by', 'presented_fingerprint', 'fingerprint_status',
+];
 const { isEquipmentAccessible } = require('../services/equipmentAccess');
 const { OwnershipError, equipmentAccessSql, equipmentManageSql, readEquipmentOwner } = require('../services/equipmentOwnership');
 const EQUIPMENT_UPDATE_PARAM_OFFSET = 2;
@@ -2146,9 +2155,9 @@ module.exports = (pool, logger) => {
 
           // Add guardian emails
           for (const guardian of guardiansResult.rows) {
-            if (guardian.courriel && !emailRecipients.some(r => r.email === guardian.courriel)) {
+            if (guardian.courriel?.trim() && !emailRecipients.some(r => r.email === normalizeAddress(guardian.courriel))) {
               emailRecipients.push({
-                email: guardian.courriel,
+                email: normalizeAddress(guardian.courriel),
                 name: `${guardian.prenom || ''} ${guardian.nom || ''}`.trim(),
                 type: 'guardian',
                 id: guardian.id
@@ -2158,9 +2167,9 @@ module.exports = (pool, logger) => {
 
           // Add parent user emails (if not already included)
           for (const parent of parentUsersResult.rows) {
-            if (parent.email && !emailRecipients.some(r => r.email === parent.email)) {
+            if (parent.email?.trim() && !emailRecipients.some(r => r.email === normalizeAddress(parent.email))) {
               emailRecipients.push({
-                email: parent.email,
+                email: normalizeAddress(parent.email),
                 name: parent.full_name || '',
                 type: 'parent_user',
                 id: parent.id
@@ -2405,6 +2414,25 @@ module.exports = (pool, logger) => {
         const sender = await resolveOrganizationEmailSender(pool, organizationId);
 
         for (const slip of slipsResult.rows) {
+          // Claim the slip's reminder before sending: a second request at the
+          // same moment (two leaders, a double click) finds it claimed and skips it.
+          // eslint-disable-next-line no-await-in-loop -- one slip at a time, as the sends below
+          const claim = await pool.query(
+            `WITH previous AS (
+               SELECT id, reminder_sent, reminder_sent_at FROM permission_slips WHERE id = $1 FOR UPDATE
+             )
+             UPDATE permission_slips ps
+                SET reminder_sent = true, reminder_sent_at = CURRENT_TIMESTAMP
+               FROM previous
+              WHERE ps.id = previous.id AND ps.status = 'pending'
+                AND (previous.reminder_sent_at IS NULL OR previous.reminder_sent_at < NOW() - INTERVAL '1 day')
+              RETURNING previous.reminder_sent, previous.reminder_sent_at`,
+            [slip.id],
+          );
+          if (claim.rows.length === 0) {
+            continue;
+          }
+
           // Get ALL guardians linked to this participant
           const guardiansResult = await pool.query(
             `SELECT DISTINCT g.id, g.prenom, g.nom, g.courriel
@@ -2436,9 +2464,9 @@ module.exports = (pool, logger) => {
 
           // Add guardian emails
           for (const guardian of guardiansResult.rows) {
-            if (guardian.courriel && !emailRecipients.some(r => r.email === guardian.courriel)) {
+            if (guardian.courriel?.trim() && !emailRecipients.some(r => r.email === normalizeAddress(guardian.courriel))) {
               emailRecipients.push({
-                email: guardian.courriel,
+                email: normalizeAddress(guardian.courriel),
                 name: `${guardian.prenom || ''} ${guardian.nom || ''}`.trim(),
                 type: 'guardian',
                 id: guardian.id
@@ -2448,9 +2476,9 @@ module.exports = (pool, logger) => {
 
           // Add parent user emails (if not already included)
           for (const parent of parentUsersResult.rows) {
-            if (parent.email && !emailRecipients.some(r => r.email === parent.email)) {
+            if (parent.email?.trim() && !emailRecipients.some(r => r.email === normalizeAddress(parent.email))) {
               emailRecipients.push({
-                email: parent.email,
+                email: normalizeAddress(parent.email),
                 name: parent.full_name || '',
                 type: 'parent_user',
                 id: parent.id
@@ -2464,6 +2492,11 @@ module.exports = (pool, logger) => {
               participant_name: `${slip.first_name} ${slip.last_name}`,
               reason: 'No guardian or parent email addresses found',
             });
+            // eslint-disable-next-line no-await-in-loop -- one slip at a time, as the sends below
+            await pool.query(
+              'UPDATE permission_slips SET reminder_sent = $2, reminder_sent_at = $3 WHERE id = $1',
+              [slip.id, claim.rows[0].reminder_sent, claim.rows[0].reminder_sent_at],
+            );
             continue;
           }
 
@@ -2519,13 +2552,11 @@ module.exports = (pool, logger) => {
             }
           }
 
-          // Mark reminder as sent if at least one email was successfully sent
-          if (slipSentCount > 0) {
+          // Nothing went out: give the claim back, so the next request may try again.
+          if (slipSentCount === 0) {
             await pool.query(
-              `UPDATE permission_slips
-               SET reminder_sent = true, reminder_sent_at = CURRENT_TIMESTAMP
-               WHERE id = $1`,
-              [slip.id],
+              'UPDATE permission_slips SET reminder_sent = $2, reminder_sent_at = $3 WHERE id = $1',
+              [slip.id, claim.rows[0].reminder_sent, claim.rows[0].reminder_sent_at],
             );
           }
         }
@@ -3045,7 +3076,10 @@ module.exports = (pool, logger) => {
           return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
         }
 
-        return success(res, describeSlip(slipResult.rows[0]));
+        // Whoever holds the link (a forwarded email, a mail scanner) sees what
+        // signing needs, not the row: no ids, contacts or recorded payloads.
+        const described = describeSlip(slipResult.rows[0]);
+        return success(res, Object.fromEntries(PUBLIC_SLIP_FIELDS.map((field) => [field, described[field] ?? null])));
       } catch (err) {
         return error(res, err.message || 'Error fetching permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }
