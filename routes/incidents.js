@@ -28,7 +28,7 @@ const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdParam, checkValidation } = require('../middleware/validation');
-const { sendEmail } = require('../utils/index');
+const { sendEmail, getTranslationsByCode, getUserEmailLanguage } = require('../utils/index');
 const { resolveOrganizationEmailSender } = require('../services/emailSender');
 const { escapeHtml } = require('../utils/api-helpers');
 
@@ -112,95 +112,72 @@ const EMAIL_QUEUE_STALE_SENDING_MINUTES = 15;
 // ============================================================
 
 /**
- * Build escalation email content from incident form data
- * @param {Object} formData - The form submission data JSONB
- * @param {Object} submitter - The user who submitted { full_name, email }
- * @param {string} orgName - Organization name (optional)
- * @returns {{ subject: string, text: string, html: string }}
+ * The escalation email of a submitted incident report, in the recipient's
+ * language (an optional language falls back to English key by key).
+ * @param {Object} formData - The report's answers
+ * @param {{full_name?: string, email?: string}} submitter - Who submitted it
+ * @param {string} orgName - The unit's name
+ * @param {string} [languageCode] - Recipient's language
+ * @returns {{subject: string, text: string, html: string}} Email parts
  */
-function buildIncidentEscalationEmail(formData, submitter, orgName) {
-  const victimName = `${formData.victim_first_name || ''} ${formData.victim_last_name || ''}`.trim() || 'Unknown';
-  const date = formData.incident_date || 'N/A';
+function buildIncidentEscalationEmail(formData, submitter, orgName, languageCode = 'fr') {
+  const bundle = getTranslationsByCode(languageCode);
+  const english = getTranslationsByCode('en');
+  const t = (key) => bundle[key] || english[key] || key;
+  const notGiven = t('incident_email_not_given');
+  const victimName = `${formData.victim_first_name || ''} ${formData.victim_last_name || ''}`.trim() || t('incident_email_unknown');
+  const date = formData.incident_date || notGiven;
   const time = formData.incident_time || '';
-  const location = formData.activity_location || 'N/A';
+  const location = formData.activity_location || notGiven;
   const exactLocation = formData.exact_incident_location || '';
-  const description = formData.incident_description || 'N/A';
-  const activityNature = formData.activity_nature || 'N/A';
+  const description = formData.incident_description || notGiven;
+  const activityNature = formData.activity_nature || notGiven;
   const injuryNature = formData.injury_nature || '';
   const bodyRegions = formData.body_regions || '';
   const firstAid = formData.first_aid_nature || '';
-  const submitterName = submitter.full_name || submitter.email || 'Unknown';
+  const submitterName = submitter.full_name || submitter.email || t('incident_email_unknown');
+  const when = time ? `${date} ${time}` : date;
 
-  const subject = `[INCIDENT REPORT] ${victimName} - ${date}`;
+  const subject = t('incident_email_subject').replace('{victim}', victimName).replace('{date}', date);
+  const rows = [
+    ['incident_email_victim', victimName],
+    ['incident_email_date_time', when],
+    ['incident_email_activity', activityNature],
+    ['incident_email_location', exactLocation ? `${location} — ${exactLocation}` : location],
+    ['incident_email_description', description, true],
+    ['incident_email_injury_type', injuryNature],
+    ['incident_email_body_regions', bodyRegions],
+    ['incident_email_first_aid', firstAid, true],
+  ].filter(([, value]) => value);
 
   const text = [
-    'INCIDENT / ACCIDENT REPORT',
-    '==========================',
+    t('incident_email_title'),
     '',
-    `Victim: ${victimName}`,
-    `Date: ${date} ${time}`,
-    `Activity: ${activityNature}`,
-    `Location: ${location}${exactLocation ? ` - ${  exactLocation}` : ''}`,
+    ...rows.map(([key, value]) => `${t(key)}: ${value}`),
     '',
-    `Description: ${description}`,
+    `${t('incident_email_submitted_by')}: ${submitterName}`,
+    orgName ? `${t('incident_email_organization')}: ${orgName}` : '',
     '',
-    injuryNature ? `Injury Type: ${injuryNature}` : '',
-    bodyRegions ? `Body Regions: ${bodyRegions}` : '',
-    firstAid ? `First Aid: ${firstAid}` : '',
-    '',
-    `Submitted by: ${submitterName}`,
-    orgName ? `Organization: ${orgName}` : '',
-    '',
-    'This is an automated notification. Please review the full report in Wampums.'
-  ].filter(Boolean).join('\n');
+    t('incident_email_automated'),
+  ].filter((line, index, lines) => line !== '' || lines[index - 1] !== '').join('\n');
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
       <div style="background-color: #d9534f; color: white; padding: 16px 24px;">
-        <h2 style="margin: 0;">Incident / Accident Report</h2>
+        <h2 style="margin: 0;">${escapeHtml(t('incident_email_title'))}</h2>
         ${orgName ? `<p style="margin: 4px 0 0; opacity: 0.9; font-size: 14px;">${escapeHtml(orgName)}</p>` : ''}
       </div>
       <div style="padding: 24px;">
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+          ${rows.map(([key, value, long]) => `
           <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px 8px; font-weight: bold; width: 160px; color: #555;">Victim</td>
-            <td style="padding: 10px 8px;">${escapeHtml(victimName)}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px 8px; font-weight: bold; color: #555;">Date / Time</td>
-            <td style="padding: 10px 8px;">${escapeHtml(date)}${time ? ` at ${  escapeHtml(time)}` : ''}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px 8px; font-weight: bold; color: #555;">Activity</td>
-            <td style="padding: 10px 8px;">${escapeHtml(activityNature)}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px 8px; font-weight: bold; color: #555;">Location</td>
-            <td style="padding: 10px 8px;">${escapeHtml(location)}${exactLocation ? ` &mdash; ${  escapeHtml(exactLocation)}` : ''}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px 8px; font-weight: bold; color: #555; vertical-align: top;">Description</td>
-            <td style="padding: 10px 8px; white-space: pre-wrap;">${escapeHtml(description)}</td>
-          </tr>
-          ${injuryNature ? `
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px 8px; font-weight: bold; color: #555;">Injury Type</td>
-            <td style="padding: 10px 8px;">${escapeHtml(injuryNature)}</td>
-          </tr>` : ''}
-          ${bodyRegions ? `
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px 8px; font-weight: bold; color: #555;">Body Regions</td>
-            <td style="padding: 10px 8px;">${escapeHtml(bodyRegions)}</td>
-          </tr>` : ''}
-          ${firstAid ? `
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px 8px; font-weight: bold; color: #555;">First Aid</td>
-            <td style="padding: 10px 8px; white-space: pre-wrap;">${escapeHtml(firstAid)}</td>
-          </tr>` : ''}
+            <td style="padding: 10px 8px; font-weight: bold; width: 160px; color: #555; vertical-align: top;">${escapeHtml(t(key))}</td>
+            <td style="padding: 10px 8px;${long ? ' white-space: pre-wrap;' : ''}">${escapeHtml(value)}</td>
+          </tr>`).join('')}
         </table>
         <p style="color: #888; font-size: 13px; margin-top: 20px; border-top: 1px solid #eee; padding-top: 12px;">
-          Submitted by <strong>${escapeHtml(submitterName)}</strong><br/>
-          <em>This is an automated notification. Please review the full report in Wampums.</em>
+          ${escapeHtml(t('incident_email_submitted_by'))} <strong>${escapeHtml(submitterName)}</strong><br/>
+          <em>${escapeHtml(t('incident_email_automated'))}</em>
         </p>
       </div>
     </div>`;
@@ -679,15 +656,16 @@ module.exports = (pool, logger) => {
       try {
         await client.query('BEGIN');
 
-        // 1. Create form_submission record
+        // 1. Create form_submission record. It names no youth: the report does
+        // (victim_participant_id). A youth may be in several reports, while a
+        // youth has one submission of each form type (form_submissions_unique_constraint).
         const formSubmission = await client.query(
           `INSERT INTO form_submissions
            (organization_id, participant_id, form_type, submission_data, user_id, status)
-           VALUES ($1, $2, 'incident_report', $3, $4, 'draft')
+           VALUES ($1, NULL, 'incident_report', $2, $3, 'draft')
            RETURNING id`,
           [
             organizationId,
-            victim_type === 'participant' && victim_participant_id ? victim_participant_id : null,
             JSON.stringify(form_data || {}),
             userId
           ]
@@ -869,10 +847,16 @@ module.exports = (pool, logger) => {
         await client.query('BEGIN');
 
         // Delete incident_reports first (FK cascade will not handle form_submissions)
-        await client.query(
-          'DELETE FROM incident_reports WHERE id = $1 AND organization_id = $2',
+        // Still a draft at the moment of deleting: one submitted meanwhile stays.
+        const deleted = await client.query(
+          `DELETE FROM incident_reports WHERE id = $1 AND organization_id = $2 AND status = 'draft'
+           RETURNING id`,
           [incidentId, organizationId]
         );
+        if (deleted.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return error(res, 'Cannot delete a submitted report', HTTP_STATUS.CONFLICT);
+        }
 
         // Delete associated form_submission
         if (existing.rows[0].form_submission_id) {
@@ -912,11 +896,13 @@ module.exports = (pool, logger) => {
         await client.query('BEGIN');
 
         // 1. Verify ownership and draft status
+        // Locked: a second submit at the same moment waits, then finds it submitted.
         const existing = await client.query(
           `SELECT ir.*, fs.submission_data
            FROM incident_reports ir
            LEFT JOIN form_submissions fs ON ir.form_submission_id = fs.id
-           WHERE ir.id = $1 AND ir.organization_id = $2`,
+           WHERE ir.id = $1 AND ir.organization_id = $2
+           FOR UPDATE OF ir`,
           [incidentId, organizationId]
         );
 
@@ -975,9 +961,10 @@ module.exports = (pool, logger) => {
           );
           const submitterInfo = submitter.rows[0] || { full_name: 'Unknown', email: '' };
 
-          const emailContent = buildIncidentEscalationEmail(formData, submitterInfo, orgName);
-
           for (const contact of contacts.rows) {
+            // eslint-disable-next-line no-await-in-loop -- each contact reads the report in their own language
+            const languageCode = await getUserEmailLanguage(client, contact.email, organizationId);
+            const emailContent = buildIncidentEscalationEmail(formData, submitterInfo, orgName, languageCode);
             await client.query(
               `INSERT INTO incident_email_queue
                (organization_id, incident_report_id, recipient_email, recipient_name,

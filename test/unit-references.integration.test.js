@@ -75,7 +75,7 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
   afterAll(async () => {
     if (!pool) { return; }
     const units = [ids.mine?.id, ids.theirs?.id].filter(Boolean);
-    for (const table of ['incident_reports', 'form_submissions', 'objective_achievements', 'activity_distribution_rules', 'year_plan_meeting_activities', 'budget_expenses',
+    for (const table of ['incident_email_queue', 'incident_escalation_contacts', 'incident_reports', 'form_submissions', 'objective_achievements', 'activity_distribution_rules', 'year_plan_meeting_activities', 'budget_expenses',
       'budget_plans', 'budget_items', 'budget_categories', 'activity_library', 'year_plan_objectives', 'year_plan_meetings',
       'year_plans', 'activities', 'participant_enrollments', 'scout_years', 'user_organizations']) {
       // eslint-disable-next-line no-await-in-loop -- dependants first, one table at a time
@@ -278,6 +278,31 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
 
       expect(detail.status).toBe(200);
       expect(JSON.stringify([detail.body, list.body])).not.toMatch(/Margaret|Hedy/);
+    });
+
+    test('a youth can be in a second report', async () => {
+      const { mine } = ids;
+      const first = await call('post', '/api/v1/incidents', mine).send({ victim_type: 'participant', victim_participant_id: mine.youth });
+      const second = await call('post', '/api/v1/incidents', mine).send({ victim_type: 'participant', victim_participant_id: mine.youth });
+
+      expect([first.status, second.status]).toEqual([201, 201]);
+    });
+
+    test('a report submitted twice at once warns each contact once, in the unit\'s language', async () => {
+      const { mine } = ids;
+      await pool.query("INSERT INTO incident_escalation_contacts (organization_id, email, name) VALUES ($1, 'escalation@example.test', 'Fictional director')", [mine.id]);
+      const draft = await call('post', '/api/v1/incidents', mine)
+        .send({ victim_type: 'participant', victim_participant_id: mine.youth, form_data: { incident_date: '2026-11-10' } });
+
+      expect(draft.body).toMatchObject({ success: true });
+      const results = await Promise.all([1, 2].map(() => call('post', `/api/v1/incidents/${draft.body.data.id}/submit`, mine)));
+      const removed = await call('delete', `/api/v1/incidents/${draft.body.data.id}`, mine);
+
+      expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+      const queued = (await pool.query('SELECT subject FROM incident_email_queue WHERE incident_report_id = $1', [draft.body.data.id])).rows;
+      expect(queued).toHaveLength(1);
+      expect(queued[0].subject).toMatch(/^\[Rapport d’incident\]/);
+      expect(removed.status).toBe(409);
     });
   });
 });
