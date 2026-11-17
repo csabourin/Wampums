@@ -70,6 +70,7 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
     app.use('/api', require('../routes/budgets')(pool, logger));
     app.use('/api/v1/incidents', require('../routes/incidents')(pool, logger));
     app.use('/api/v1/resources', require('../routes/resources')(pool, logger));
+    app.use('/api/v1/program-progress', require('../routes/programProgress')(pool, logger));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
   });
 
@@ -77,7 +78,7 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
     if (!pool) { return; }
     const units = [ids.mine?.id, ids.theirs?.id].filter(Boolean);
     await pool.query('DELETE FROM equipment_item_organizations WHERE organization_id = ANY($1::int[])', [units]);
-    for (const table of ['equipment_reservations', 'equipment_items', 'incident_email_queue', 'incident_escalation_contacts', 'incident_reports', 'form_submissions', 'objective_achievements', 'activity_distribution_rules', 'year_plan_meeting_activities', 'budget_expenses',
+    for (const table of ['participant_credentials', 'pab_reviews', 'pab_plans', 'equipment_reservations', 'equipment_items', 'incident_email_queue', 'incident_escalation_contacts', 'incident_reports', 'form_submissions', 'objective_achievements', 'activity_distribution_rules', 'year_plan_meeting_activities', 'budget_expenses',
       'budget_plans', 'budget_items', 'budget_categories', 'activity_library', 'year_plan_objectives', 'year_plan_meetings',
       'year_plans', 'activities', 'participant_enrollments', 'scout_years', 'user_organizations']) {
       // eslint-disable-next-line no-await-in-loop -- dependants first, one table at a time
@@ -345,6 +346,23 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
       expect(res.status).toBe(409);
       expect(await one("SELECT quantity_total || '/' || description FROM equipment_items WHERE organization_id = $1 AND name = 'Fictional tarp'", [mine.id]))
         .toBe('6/Blue');
+    });
+  });
+
+  describe('programme progression', () => {
+    test('a progression is recorded, and only on the youth\'s own plan in the unit', async () => {
+      const { mine, theirs } = ids;
+      const theirPlan = await one("INSERT INTO pab_plans (organization_id, participant_id, title) VALUES ($1, $2, 'Fictional plan') RETURNING id", [theirs.id, theirs.youth]);
+
+      const credential = await call('post', '/api/v1/program-progress/award', mine)
+        .send({ participant_id: mine.youth, program_type: 'credential', program_data: { credential_key: 'fictional_first_aid', status: 'active' } });
+      const review = await call('post', '/api/v1/program-progress/award', mine)
+        .send({ participant_id: mine.youth, program_type: 'pab_review', program_data: { pab_plan_id: theirPlan, notes: 'Fictional' } });
+
+      expect(credential.status).toBe(201);
+      expect(credential.body.data.programRecord.credential_key).toBe('fictional_first_aid');
+      expect(review.status).toBe(400);
+      expect(await count('pab_reviews WHERE pab_plan_id = $1', [theirPlan])).toBe(0);
     });
   });
 });

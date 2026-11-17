@@ -136,4 +136,17 @@ describe.skipIf(!DATABASE_URL)('Badge approval points', () => {
     await as('post', '/approve', { badge_id: res.body.data.id }).expect(200);
     expect(await pointsOf(ids.otherYouth)).toBe(before + 5);
   });
+
+  test('recordings of the same badge at the same moment give each star once', async () => {
+    const youth = await one("INSERT INTO participants (first_name, last_name, date_naissance) VALUES ('Hedy', 'Lamarr', '2016-03-03') RETURNING id");
+    await pool.query('INSERT INTO participant_organizations (participant_id, organization_id) VALUES ($1, $2)', [youth, ids.unit]);
+
+    // Three levels, four recordings at once: three stars, each once, and one refusal.
+    const results = await Promise.all(Array.from({ length: 4 }, () =>
+      as('post', '/progress', { participant_id: youth, badge_template_id: ids.template })));
+
+    expect(results.map((result) => result.status).sort()).toEqual([200, 200, 200, 400]);
+    expect(await one('SELECT array_agg(etoiles ORDER BY etoiles)::text FROM badge_progress WHERE participant_id = $1', [youth])).toBe('{1,2,3}');
+  });
 });
+
