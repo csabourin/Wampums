@@ -6475,5 +6475,6 @@
   "sisc_row_cannot_grant_parent": "vous ne pouvez pas donner le rôle de parent, aucun compte parent n’a été créé pour cette ligne.",
   "sisc_row_invalid_situation": "la situation n’est ni jeune (J) ni animateur (A), la ligne a été ignorée.",
   "sisc_row_invalid_birth_date": "la date de naissance n’est pas un vrai jour (format attendu AAAAMMJJ), la ligne a été ignorée.",
-  "sisc_row_not_saved": "cette ligne n’a pas pu être enregistrée et a été ignorée. Les autres lignes ont été importées."
+  "sisc_row_not_saved": "cette ligne n’a pas pu être enregistrée et a été ignorée. Les autres lignes ont été importées.",
+  "badges_submitted_for_approval": "Envoyés pour approbation : les badges comptent une fois approuvés par un animateur qui en a le droit."
 }

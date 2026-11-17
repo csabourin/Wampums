@@ -28,8 +28,8 @@ describe.skipIf(!DATABASE_URL)('Badge approval points', () => {
     return Object.values(result.rows[0] || {})[0];
   }
 
-  function as(method, path, body) {
-    const token = signJWTToken({ user_id: ids.leader, organizationId: ids.unit });
+  function as(method, path, body, userId = ids.leader) {
+    const token = signJWTToken({ user_id: userId, organizationId: ids.unit });
     return request(app)[method](`/api/v1/badges${path}`).set('Authorization', `Bearer ${token}`).send(body);
   }
 
@@ -69,6 +69,17 @@ describe.skipIf(!DATABASE_URL)('Badge approval points', () => {
     await pool.query("INSERT INTO user_organizations (user_id, organization_id, role_ids, status) VALUES ($1, $2, $3::jsonb, 'active')",
       [ids.leader, ids.unit, JSON.stringify([roleId])]);
 
+    const proposerRole = await one('INSERT INTO roles (role_name, display_name, data_scope) VALUES ($1, $1, \'organization\') RETURNING id',
+      [`proposer_${randomUUID()}`]);
+    await pool.query('INSERT INTO role_permissions (role_id, permission_id) SELECT $1, id FROM permissions WHERE permission_key = ANY($2::text[])',
+      [proposerRole, ['badges.view', 'badges.manage']]);
+    ids.proposer = await one('INSERT INTO users (email, password, full_name) VALUES ($1, \'x\', \'Ada Proposer\') RETURNING id',
+      [`${randomUUID()}@example.test`]);
+    await pool.query("INSERT INTO user_organizations (user_id, organization_id, role_ids, status) VALUES ($1, $2, $3::jsonb, 'active')",
+      [ids.proposer, ids.unit, JSON.stringify([proposerRole])]);
+    ids.otherYouth = await one("INSERT INTO participants (first_name, last_name, date_naissance) VALUES ('Grace', 'Hopper', '2016-02-02') RETURNING id");
+    await pool.query('INSERT INTO participant_organizations (participant_id, organization_id) VALUES ($1, $2)', [ids.otherYouth, ids.unit]);
+
     app = express();
     app.use(express.json());
     app.locals.pool = pool;
@@ -105,5 +116,24 @@ describe.skipIf(!DATABASE_URL)('Badge approval points', () => {
     await as('put', `/badge-progress/${level}`, { reviewer_comments: 'Bravo' }).expect(400);
     const edited = await as('put', `/badge-progress/${level}`, { description: 'Bravo', reviewer_comments: 'Bravo' }).expect(200);
     expect(edited.body.data.description).toBe('Bravo');
+  });
+
+  test('someone who may only propose a badge cannot record it as already approved', async () => {
+    const before = await pointsOf(ids.otherYouth);
+    const res = await as('post', '/progress', { participant_id: ids.otherYouth, badge_template_id: ids.template, status: 'approved' }, ids.proposer);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('pending');
+    expect(await pointsOf(ids.otherYouth)).toBe(before);
+  });
+
+  test('a level recorded as approved by someone who may approve earns its points, once', async () => {
+    const before = await pointsOf(ids.otherYouth);
+    const res = await as('post', '/progress', { participant_id: ids.otherYouth, badge_template_id: ids.template, status: 'approved' });
+
+    expect(res.body.data.status).toBe('approved');
+    expect(await pointsOf(ids.otherYouth)).toBe(before + 5);
+    await as('post', '/approve', { badge_id: res.body.data.id }).expect(200);
+    expect(await pointsOf(ids.otherYouth)).toBe(before + 5);
   });
 });

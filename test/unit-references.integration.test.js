@@ -51,8 +51,12 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
     const library = await one("INSERT INTO activity_library (organization_id, name, category, created_by) VALUES ($1, $2, 'game', $3) RETURNING id", [id, `${name} secret game`, admin]);
     const category = await one('INSERT INTO budget_categories (organization_id, name) VALUES ($1, $2) RETURNING id', [id, `${name} secret category`]);
     const item = await one("INSERT INTO budget_items (organization_id, budget_category_id, name, item_type) VALUES ($1, $2, $3, 'expense') RETURNING id", [id, category, `${name} secret item`]);
+    const activity = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+        meeting_time_going, departure_time_going, activity_start_date, activity_start_time, activity_end_date, activity_end_time)
+      VALUES ($1, $2, $3, CURRENT_DATE + 14, 'Hall', '09:00', '09:15', CURRENT_DATE + 14, '09:00', CURRENT_DATE + 14, '16:00')
+      RETURNING id`, [id, admin, `${name} secret outing`]);
     const token = `Bearer ${jwt.sign({ user_id: admin, organizationId: id }, process.env.JWT_SECRET_KEY)}`;
-    return { id, admin, youth, plan, meeting, objective, library, category, item, token };
+    return { id, admin, youth, plan, meeting, objective, library, category, item, activity, token };
   }
 
   const call = (method, path, who) => request(app)[method](path).set('Authorization', who.token);
@@ -64,15 +68,16 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
     app = express(); app.locals.pool = pool; app.use(express.json());
     app.use('/api/v1/yearly-planner', require('../routes/yearlyPlanner')(pool, logger));
     app.use('/api', require('../routes/budgets')(pool, logger));
+    app.use('/api/v1/incidents', require('../routes/incidents')(pool, logger));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
   });
 
   afterAll(async () => {
     if (!pool) { return; }
     const units = [ids.mine?.id, ids.theirs?.id].filter(Boolean);
-    for (const table of ['objective_achievements', 'activity_distribution_rules', 'year_plan_meeting_activities', 'budget_expenses',
+    for (const table of ['incident_reports', 'form_submissions', 'objective_achievements', 'activity_distribution_rules', 'year_plan_meeting_activities', 'budget_expenses',
       'budget_plans', 'budget_items', 'budget_categories', 'activity_library', 'year_plan_objectives', 'year_plan_meetings',
-      'year_plans', 'participant_enrollments', 'scout_years', 'user_organizations']) {
+      'year_plans', 'activities', 'participant_enrollments', 'scout_years', 'user_organizations']) {
       // eslint-disable-next-line no-await-in-loop -- dependants first, one table at a time
       await pool.query(`DELETE FROM ${table} WHERE organization_id = ANY($1::int[])`, [units]);
     }
@@ -233,6 +238,46 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
 
       expect(res.status).toBe(200);
       expect(JSON.stringify(res.body)).not.toContain('Hedy');
+    });
+  });
+
+  describe('incident reports', () => {
+    test('a report cannot name a youth, an adult or an outing of another unit, and nothing is written', async () => {
+      const { mine, theirs } = ids;
+      const youth = await call('post', '/api/v1/incidents', mine).send({ victim_type: 'participant', victim_participant_id: theirs.youth });
+      const adult = await call('post', '/api/v1/incidents', mine).send({ victim_type: 'leader', victim_user_id: theirs.admin });
+      const outing = await call('post', '/api/v1/incidents', mine).send({ victim_type: 'other', victim_name: 'Fictional visitor', activity_id: theirs.activity });
+
+      expect([youth.status, adult.status, outing.status]).toEqual([400, 400, 400]);
+      expect(youth.body.errors).toEqual([expect.objectContaining({ path: 'victim_participant_id' })]);
+      expect(adult.body.errors).toEqual([expect.objectContaining({ path: 'victim_user_id' })]);
+      expect(outing.body.errors).toEqual([expect.objectContaining({ path: 'activity_id' })]);
+      expect(await count('incident_reports WHERE organization_id = $1', [mine.id])).toBe(0);
+      expect(await count('form_submissions WHERE organization_id = $1 AND form_type = $2', [mine.id, 'incident_report'])).toBe(0);
+    });
+
+    test('a draft cannot be changed to name another unit\'s youth', async () => {
+      const { mine, theirs } = ids;
+      const draft = await call('post', '/api/v1/incidents', mine)
+        .send({ victim_type: 'participant', victim_participant_id: mine.youth, activity_id: mine.activity });
+      const moved = await call('patch', `/api/v1/incidents/${draft.body.data.id}`, mine)
+        .send({ victim_type: 'participant', victim_participant_id: theirs.youth });
+
+      expect(draft.status).toBe(201);
+      expect(moved.status).toBe(400);
+      expect(await one('SELECT victim_participant_id FROM incident_reports WHERE id = $1', [draft.body.data.id])).toBe(mine.youth);
+    });
+
+    test('a report recorded before the check never shows another unit\'s names', async () => {
+      const { mine, theirs } = ids;
+      const id = await one(`INSERT INTO incident_reports (organization_id, status, victim_type, victim_participant_id, victim_user_id, activity_id, created_by)
+        VALUES ($1, 'draft', 'participant', $2, $3, $4, $5) RETURNING id`, [mine.id, theirs.youth, theirs.admin, theirs.activity, mine.admin]);
+
+      const detail = await call('get', `/api/v1/incidents/${id}`, mine);
+      const list = await call('get', '/api/v1/incidents', mine);
+
+      expect(detail.status).toBe(200);
+      expect(JSON.stringify([detail.body, list.body])).not.toMatch(/Margaret|Hedy/);
     });
   });
 });

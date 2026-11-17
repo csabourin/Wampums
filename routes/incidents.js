@@ -34,6 +34,77 @@ const { escapeHtml } = require('../utils/api-helpers');
 
 // Incident escalation email queue
 const EMAIL_QUEUE_BATCH_SIZE = 50;
+const POSTGRES_INT_MAX = 2147483647;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A positive PostgreSQL integer id, or null when the value is not one. */
+const asIntegerId = (value) => {
+  const id = Number(value);
+  return Number.isInteger(id) && id >= 1 && id <= POSTGRES_INT_MAX ? id : null;
+};
+
+/**
+ * Check the youth, account and activity a report names. Each must be the
+ * unit's own: the foreign keys only say the row exists, in any unit, and the
+ * report then shows their names.
+ *
+ * @param {Object} db - Pool or client
+ * @param {number} organizationId - The authenticated unit
+ * @param {{participantId: *, userId: *, activityId: *}} references - Ids the report will store (null for none)
+ * @returns {Promise<Array<{path: string, location: string, msg: string}>>} Field errors; empty when all fit
+ */
+async function checkIncidentReferences(db, organizationId, { participantId, userId, activityId }) {
+  const errors = [];
+  const refuse = (path) => errors.push({ path, location: 'body', msg: 'incident_reference_not_in_unit' });
+  if (participantId !== null) {
+    const id = asIntegerId(participantId);
+    const found = id && await db.query(
+      'SELECT 1 FROM participant_enrollments WHERE participant_id = $1 AND organization_id = $2 LIMIT 1',
+      [id, organizationId]
+    );
+    if (!found?.rows.length) {refuse('victim_participant_id');}
+  }
+  if (userId !== null) {
+    const found = typeof userId === 'string' && UUID_PATTERN.test(userId) && await db.query(
+      'SELECT 1 FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+      [userId, organizationId]
+    );
+    if (!found?.rows.length) {refuse('victim_user_id');}
+  }
+  if (activityId !== null) {
+    const id = asIntegerId(activityId);
+    const found = id && await db.query(
+      'SELECT 1 FROM activities WHERE id = $1 AND organization_id = $2',
+      [id, organizationId]
+    );
+    if (!found?.rows.length) {refuse('activity_id');}
+  }
+  return errors;
+}
+
+/**
+ * The ids a report stores, from its request: the youth only for a youth, the
+ * account only for a leader or a parent.
+ * @param {Object} body - Request body
+ * @returns {{participantId: *, userId: *, activityId: *}} Ids, null for none
+ */
+function incidentReferences(body) {
+  const { victim_type: victimType, victim_participant_id: participantId, victim_user_id: userId, activity_id: activityId } = body;
+  return {
+    participantId: victimType === 'participant' && participantId ? participantId : null,
+    userId: ['leader', 'parent'].includes(victimType) && userId ? userId : null,
+    activityId: activityId || null,
+  };
+}
+
+/** Joins naming a report's youth, account and activity, each only when it is the report's unit's own. */
+const INCIDENT_NAME_JOINS = `
+        LEFT JOIN participants p ON ir.victim_participant_id = p.id
+          AND EXISTS (SELECT 1 FROM participant_enrollments pe
+                       WHERE pe.participant_id = p.id AND pe.organization_id = ir.organization_id)
+        LEFT JOIN users u_victim ON ir.victim_user_id = u_victim.id
+          AND EXISTS (SELECT 1 FROM user_organizations uo
+                       WHERE uo.user_id = u_victim.id AND uo.organization_id = ir.organization_id)`;
 const EMAIL_QUEUE_STALE_SENDING_MINUTES = 15;
 
 // ============================================================
@@ -521,10 +592,9 @@ module.exports = (pool, logger) => {
                a.name AS activity_name
         FROM incident_reports ir
         LEFT JOIN form_submissions fs ON ir.form_submission_id = fs.id
-        LEFT JOIN participants p ON ir.victim_participant_id = p.id
-        LEFT JOIN users u_victim ON ir.victim_user_id = u_victim.id
+        ${INCIDENT_NAME_JOINS}
         LEFT JOIN users u_author ON ir.created_by = u_author.id
-        LEFT JOIN activities a ON ir.activity_id = a.id
+        LEFT JOIN activities a ON ir.activity_id = a.id AND a.organization_id = ir.organization_id
         WHERE ir.organization_id = $1`;
 
       const params = [organizationId];
@@ -563,10 +633,9 @@ module.exports = (pool, logger) => {
                 a.name AS activity_name
          FROM incident_reports ir
          LEFT JOIN form_submissions fs ON ir.form_submission_id = fs.id
-         LEFT JOIN participants p ON ir.victim_participant_id = p.id
-         LEFT JOIN users u_victim ON ir.victim_user_id = u_victim.id
+         ${INCIDENT_NAME_JOINS}
          LEFT JOIN users u_author ON ir.created_by = u_author.id
-         LEFT JOIN activities a ON ir.activity_id = a.id
+         LEFT JOIN activities a ON ir.activity_id = a.id AND a.organization_id = ir.organization_id
          WHERE ir.id = $1 AND ir.organization_id = $2`,
         [incidentId, organizationId]
       );
@@ -599,6 +668,12 @@ module.exports = (pool, logger) => {
         activity_id,
         form_data
       } = req.body;
+
+      const references = incidentReferences(req.body);
+      const referenceErrors = await checkIncidentReferences(pool, organizationId, references);
+      if (referenceErrors.length > 0) {
+        return error(res, 'incident_reference_not_in_unit', HTTP_STATUS.BAD_REQUEST, referenceErrors);
+      }
 
       const client = await pool.connect();
       try {
@@ -679,6 +754,11 @@ module.exports = (pool, logger) => {
         activity_id,
         form_data
       } = req.body;
+
+      const referenceErrors = await checkIncidentReferences(pool, organizationId, incidentReferences(req.body));
+      if (referenceErrors.length > 0) {
+        return error(res, 'incident_reference_not_in_unit', HTTP_STATUS.BAD_REQUEST, referenceErrors);
+      }
 
       const client = await pool.connect();
       try {

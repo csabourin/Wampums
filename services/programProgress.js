@@ -208,7 +208,8 @@ async function insertBadgeProgressMirror({ client, organizationId, participantId
 
   const participantSection = participantSectionResult.rows[0]?.section || 'general';
   const achievedDate = badgeData.date_obtention || await unitToday(client, organizationId);
-  const status = badgeData.status === 'approved' ? 'approved' : 'pending';
+  // A level is approved through the badge approval (badges.approve), which also grants its points.
+  const status = 'pending';
 
   const result = await client.query(
     `INSERT INTO badge_progress

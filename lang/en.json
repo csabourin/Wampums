@@ -6475,5 +6475,6 @@
   "sisc_row_cannot_grant_parent": "you cannot give the parent role, so no parent account was created for this row.",
   "sisc_row_invalid_situation": "the situation is neither a youth (J) nor a leader (A), so the row was skipped.",
   "sisc_row_invalid_birth_date": "the birth date is not a real day (expected YYYYMMDD), so the row was skipped.",
-  "sisc_row_not_saved": "this row could not be saved and was skipped. The other rows were imported."
+  "sisc_row_not_saved": "this row could not be saved and was skipped. The other rows were imported.",
+  "badges_submitted_for_approval": "Sent for approval: the badges count once a leader who may approve them has done so."
 }

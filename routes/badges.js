@@ -13,7 +13,7 @@ const router = express.Router();
 
 // Import utilities
 const { getPointSystemRules } = require('../utils/api-helpers');
-const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear, userHasPermission } = require('../middleware/auth');
 const { asyncHandler, success, error: errorResponse } = require('../middleware/response');
 const { validateIdBody, validateIdParam, validateIdQuery, checkValidation } = require('../middleware/validation');
 
@@ -369,7 +369,10 @@ module.exports = (pool, logger) => {
       const hasStarType = columnCheck.rows.length > 0;
 
       // Determine status (default to pending, allow approved if passed)
-      const validStatus = (req.body.status === 'approved') ? 'approved' : 'pending';
+      // Recording a level as already approved is approving it: only someone who
+      // may approve (badges.approve) does so; anyone else submits it for approval.
+      const validStatus = req.body.status === 'approved'
+        && await userHasPermission(req, pool, organizationId, 'badges.approve') ? 'approved' : 'pending';
       // If approved, set approval_date
       const approvalDate = (validStatus === 'approved') ? new Date().toISOString() : null;
 
@@ -422,9 +425,14 @@ module.exports = (pool, logger) => {
         );
       }
 
+      // An approved level earns its points as one approved later does.
+      const points = validStatus === 'approved'
+        ? await grantBadgeEarnPoints(client, organizationId, result.rows[0]) : 0;
+
       await client.query('COMMIT');
       const inserted = {
         ...result.rows[0],
+        points_awarded: points || result.rows[0].points_awarded,
         badge_name: template.name,
         translation_key: template.translation_key,
         badge_section: template.section,
