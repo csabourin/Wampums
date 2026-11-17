@@ -822,7 +822,7 @@ export class Inventory {
               </div>
             </div>
             <div class="equipment-card-actions">
-              ${this.canEdit ? `<button type="button" class="button button--secondary edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
+              ${this.canEdit && item.can_manage !== false ? `<button type="button" class="button button--secondary edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
               <button type="button" class="button button--danger delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>` : ''}
             </div>
           </div>
@@ -885,7 +885,7 @@ export class Inventory {
                 <td data-label="${escapeAttribute(translate('equipment_item_value'))}">${escapeHTML(this.formatCurrency(item.item_value))}</td>
                 <td data-label="${escapeAttribute(translate('actions'))}">
                   <div class="table-actions">
-                    ${this.canEdit ? `<button type="button" class="button button--secondary button--small edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
+                    ${this.canEdit && item.can_manage !== false ? `<button type="button" class="button button--secondary button--small edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
                     <button type="button" class="button button--danger button--small delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>` : ''}
                   </div>
                 </td>

@@ -37,7 +37,7 @@ const {
 /** The text a slip presents, as one JSON object (services/permissionSlipFingerprint.js). */
 const SLIP_CONTENT_SQL = slipContentSql('ps');
 const { isEquipmentAccessible } = require('../services/equipmentAccess');
-const { OwnershipError, equipmentAccessSql, readEquipmentOwner } = require('../services/equipmentOwnership');
+const { OwnershipError, equipmentAccessSql, equipmentManageSql, readEquipmentOwner } = require('../services/equipmentOwnership');
 const EQUIPMENT_UPDATE_PARAM_OFFSET = 2;
 const { EQUIPMENT_CATEGORIES } = require('../services/equipmentCategories');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
@@ -392,6 +392,24 @@ module.exports = (pool, logger) => {
     return linkCheck.rows.length > 0;
   }
 
+  /**
+   * Whether the unit maintains the item (services/equipmentOwnership.js): a unit
+   * the item is only shared with reserves and borrows it, nothing more.
+   * @param {number} equipmentId - Item
+   * @param {number} organizationId - The authenticated unit
+   * @returns {Promise<boolean>}
+   */
+  async function mayManageEquipment(equipmentId, organizationId) {
+    const result = await pool.query(
+      `SELECT 1 FROM equipment_items e WHERE e.id = $1 AND ${equipmentManageSql('e', '$2')}`,
+      [equipmentId, organizationId],
+    );
+    return result.rows.length > 0;
+  }
+
+  /** Refuse a change to an item the unit only uses. */
+  const refuseNotManaged = (res) => forbidden(res, 'equipment_managed_by_owner', ['inventory.manage'], []);
+
   async function verifyEquipmentAccess(equipmentId, organizationId) {
     if (!await isEquipmentAccessible(pool, organizationId, equipmentId)) {
       const accessError = new Error('Equipment not accessible for organization');
@@ -466,6 +484,7 @@ module.exports = (pool, logger) => {
                FROM accessible_equipment e
            )
            SELECT e.*,
+                  ${equipmentManageSql('e', '$1')} AS can_manage,
                   COALESCE((
                     SELECT SUM(er.reserved_quantity)
                     FROM equipment_reservations er
@@ -606,21 +625,9 @@ module.exports = (pool, logger) => {
           `INSERT INTO equipment_items
            (organization_id, name, category, description, quantity_total, quantity_available, condition_note, attributes, item_value, photo_url, acquisition_date, location_type, location_details, owner_type, owner_local_group_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-           ON CONFLICT (organization_id, name)
-           DO UPDATE SET
-             category = EXCLUDED.category,
-             description = EXCLUDED.description,
-             quantity_total = EXCLUDED.quantity_total,
-             quantity_available = EXCLUDED.quantity_available,
-             condition_note = EXCLUDED.condition_note,
-             attributes = EXCLUDED.attributes,
-             item_value = EXCLUDED.item_value,
-             photo_url = EXCLUDED.photo_url,
-             acquisition_date = EXCLUDED.acquisition_date,
-             location_type = EXCLUDED.location_type,
-             location_details = EXCLUDED.location_details,
-             updated_at = CURRENT_TIMESTAMP
-           WHERE NOT $16::boolean
+           -- A name already in the unit is a conflict: adding an item never
+           -- overwrites another one's quantity, description or photo.
+           ON CONFLICT (organization_id, name) DO NOTHING
            RETURNING *`,
           [
             organizationId,
@@ -637,7 +644,7 @@ module.exports = (pool, logger) => {
             normalizedAcquisitionDate,
             location_type || LOCATION_TYPES[0],
             location_details ?? '',
-            owner.owner_type, owner.owner_local_group_id, Object.hasOwn(req.body, 'owner_type'),
+            owner.owner_type, owner.owner_local_group_id,
           ],
         );
 
@@ -719,6 +726,9 @@ module.exports = (pool, logger) => {
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
+        if (!(await mayManageEquipment(equipmentId, organizationId))) {
+          return refuseNotManaged(res);
+        }
 
         const existingEquipment = await pool.query(
           `SELECT * FROM equipment_items WHERE id = $1`,
@@ -832,7 +842,7 @@ module.exports = (pool, logger) => {
           );
         }
 
-        // Update equipment (any organization with access can update)
+        // Update equipment (the unit maintaining it, checked above)
         const queryText = `WITH previous AS (
             SELECT id, name, category, organization_id FROM equipment_items WHERE id = $1 FOR UPDATE
           ), changed AS (
@@ -948,6 +958,9 @@ module.exports = (pool, logger) => {
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
+        if (!(await mayManageEquipment(equipmentId, organizationId))) {
+          return refuseNotManaged(res);
+        }
 
         // Check if equipment has active reservations
         const reservationCheck = await pool.query(
@@ -965,7 +978,7 @@ module.exports = (pool, logger) => {
           );
         }
 
-        // Soft delete: set is_active = false (any organization with access can delete)
+        // Soft delete: set is_active = false (the unit maintaining it, checked above)
         const result = await pool.query(
           `UPDATE equipment_items
            SET is_active = false, updated_at = CURRENT_TIMESTAMP
@@ -1028,6 +1041,9 @@ module.exports = (pool, logger) => {
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
+        if (!(await mayManageEquipment(equipmentId, organizationId))) {
+          return refuseNotManaged(res);
+        }
 
         // Get current photo URL
         const equipmentCheck = await pool.query(
@@ -1134,6 +1150,9 @@ module.exports = (pool, logger) => {
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
+        if (!(await mayManageEquipment(equipmentId, organizationId))) {
+          return refuseNotManaged(res);
+        }
 
         // Get current photo URL
         const equipmentCheck = await pool.query(
@@ -1162,7 +1181,7 @@ module.exports = (pool, logger) => {
           }
         }
 
-        // Update equipment to remove photo URL (any organization with access can delete)
+        // Update equipment to remove photo URL (the unit maintaining it, checked above)
         const updateResult = await pool.query(
           `UPDATE equipment_items
            SET photo_url = NULL, updated_at = CURRENT_TIMESTAMP
@@ -1309,7 +1328,7 @@ module.exports = (pool, logger) => {
       check('date_from').optional().isISO8601(),
       check('date_to').optional().isISO8601(),
       check('meeting_id').optional().isInt({ min: 1 }),
-      check('reserved_quantity').optional().isInt({ min: 1 }),
+      check('reserved_quantity').optional().isInt({ min: 1 }).toInt(),
       check('reserved_for').optional().isString().trim().isLength({ max: 200 }),
       check('status')
         .optional()
@@ -1395,10 +1414,9 @@ module.exports = (pool, logger) => {
              FROM equipment_reservations
              WHERE equipment_id = $1
                AND status IN ('reserved', 'confirmed')
-               AND (
-                 (date_from <= $3 AND date_to >= $2) OR  -- overlaps with our date range
-                 (date_from >= $2 AND date_to <= $3)     -- completely contained within our date range
-               )
+               -- Overlaps the range; a reservation of the older form has only its meeting_date.
+               AND COALESCE(date_from, meeting_date) <= $3
+               AND COALESCE(date_to, meeting_date) >= $2
                AND NOT (
                  organization_id = $4
                  AND meeting_date = $5
@@ -1486,7 +1504,7 @@ module.exports = (pool, logger) => {
     requirePermission('inventory.reserve'),
     [
       validateIdParam('id'),
-      check('reserved_quantity').optional().isInt({ min: 1 }),
+      check('reserved_quantity').optional().isInt({ min: 1 }).toInt(),
       check('reserved_for').optional().isString().trim().isLength({ max: 200 }),
       check('status')
         .optional()
@@ -1525,7 +1543,8 @@ module.exports = (pool, logger) => {
           if (req.body.reserved_quantity !== undefined || reacquiresStock) {
             // Get current reservation details
             const currentReservation = await client.query(
-              `SELECT equipment_id, date_from, date_to, reserved_quantity, status, activity_id
+              `SELECT equipment_id, COALESCE(date_from, meeting_date) AS date_from,
+                      COALESCE(date_to, meeting_date) AS date_to, reserved_quantity, status, activity_id
                FROM equipment_reservations
                WHERE id = $1 AND organization_id = $2`,
               [reservationId, organizationId],
@@ -1562,10 +1581,9 @@ module.exports = (pool, logger) => {
                  WHERE equipment_id = $1
                    AND id != $2
                    AND status IN ('reserved', 'confirmed')
-                   AND (
-                     (date_from <= $4 AND date_to >= $3) OR  -- overlaps with our date range
-                     (date_from >= $3 AND date_to <= $4)     -- completely contained within our date range
-                   )`,
+                   -- Overlaps the range; a reservation of the older form has only its meeting_date.
+                   AND COALESCE(date_from, meeting_date) <= $4
+                   AND COALESCE(date_to, meeting_date) >= $3`,
                 [
                   reservation.equipment_id,
                   reservationId,
@@ -1771,10 +1789,9 @@ module.exports = (pool, logger) => {
                FROM equipment_reservations
                WHERE equipment_id = $1
                  AND status IN ('reserved', 'confirmed')
-                 AND (
-                   (date_from <= $3 AND date_to >= $2) OR  -- overlaps with our date range
-                   (date_from >= $2 AND date_to <= $3)     -- completely contained within our date range
-                 )`,
+                 -- Overlaps the range; a reservation of the older form has only its meeting_date.
+                 AND COALESCE(date_from, meeting_date) <= $3
+                 AND COALESCE(date_to, meeting_date) >= $2`,
               [item.equipment_id, normalizedDateFrom, normalizedDateTo, req.body.activity_id || null],
             );
 

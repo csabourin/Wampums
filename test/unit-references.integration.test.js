@@ -69,13 +69,15 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
     app.use('/api/v1/yearly-planner', require('../routes/yearlyPlanner')(pool, logger));
     app.use('/api', require('../routes/budgets')(pool, logger));
     app.use('/api/v1/incidents', require('../routes/incidents')(pool, logger));
+    app.use('/api/v1/resources', require('../routes/resources')(pool, logger));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
   });
 
   afterAll(async () => {
     if (!pool) { return; }
     const units = [ids.mine?.id, ids.theirs?.id].filter(Boolean);
-    for (const table of ['incident_email_queue', 'incident_escalation_contacts', 'incident_reports', 'form_submissions', 'objective_achievements', 'activity_distribution_rules', 'year_plan_meeting_activities', 'budget_expenses',
+    await pool.query('DELETE FROM equipment_item_organizations WHERE organization_id = ANY($1::int[])', [units]);
+    for (const table of ['equipment_reservations', 'equipment_items', 'incident_email_queue', 'incident_escalation_contacts', 'incident_reports', 'form_submissions', 'objective_achievements', 'activity_distribution_rules', 'year_plan_meeting_activities', 'budget_expenses',
       'budget_plans', 'budget_items', 'budget_categories', 'activity_library', 'year_plan_objectives', 'year_plan_meetings',
       'year_plans', 'activities', 'participant_enrollments', 'scout_years', 'user_organizations']) {
       // eslint-disable-next-line no-await-in-loop -- dependants first, one table at a time
@@ -305,4 +307,45 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
       expect(removed.status).toBe(409);
     });
   });
+
+  describe('equipment', () => {
+    test('a unit an item is only shared with may reserve it but not rename, recount or delete it', async () => {
+      const { mine, theirs } = ids;
+      const tent = await one("INSERT INTO equipment_items (organization_id, name, quantity_total) VALUES ($1, 'Fictional shared tent', 4) RETURNING id", [theirs.id]);
+      await pool.query('INSERT INTO equipment_item_organizations (equipment_id, organization_id) VALUES ($1, $2)', [tent, mine.id]);
+
+      const renamed = await call('put', `/api/v1/resources/equipment/${tent}`, mine).send({ name: 'Mine now', quantity_total: 1 });
+      const removed = await call('delete', `/api/v1/resources/equipment/${tent}`, mine);
+      const reserved = await call('post', '/api/v1/resources/equipment/reservations', mine)
+        .send({ equipment_id: tent, meeting_date: '2027-01-10', reserved_quantity: 1, reserved_for: 'Fictional outing' });
+
+      expect([renamed.status, removed.status, reserved.status]).toEqual([403, 403, 201]);
+      expect(await one('SELECT name || \'/\' || quantity_total || \'/\' || is_active FROM equipment_items WHERE id = $1', [tent]))
+        .toBe('Fictional shared tent/4/true');
+    });
+
+    test('a reservation of the older form, with only its meeting date, still holds stock', async () => {
+      const { mine } = ids;
+      const stove = await one("INSERT INTO equipment_items (organization_id, name, quantity_total) VALUES ($1, 'Fictional stove', 1) RETURNING id", [mine.id]);
+      await pool.query(`INSERT INTO equipment_reservations (organization_id, equipment_id, meeting_date, reserved_quantity, reserved_for, status)
+        VALUES ($1, $2, '2027-02-06', 1, 'Older booking', 'reserved')`, [mine.id, stove]);
+
+      const res = await call('post', '/api/v1/resources/equipment/reservations', mine)
+        .send({ equipment_id: stove, date_from: '2027-02-05', date_to: '2027-02-07', reserved_quantity: 1, reserved_for: 'New booking' });
+
+      expect(res.status).toBe(400);
+    });
+
+    test('adding an item under a name the unit already uses is a conflict, never an overwrite', async () => {
+      const { mine } = ids;
+      await one("INSERT INTO equipment_items (organization_id, name, quantity_total, description) VALUES ($1, 'Fictional tarp', 6, 'Blue') RETURNING id", [mine.id]);
+
+      const res = await call('post', '/api/v1/resources/equipment', mine).send({ name: 'Fictional tarp', quantity_total: 1 });
+
+      expect(res.status).toBe(409);
+      expect(await one("SELECT quantity_total || '/' || description FROM equipment_items WHERE organization_id = $1 AND name = 'Fictional tarp'", [mine.id]))
+        .toBe('6/Blue');
+    });
+  });
 });
+

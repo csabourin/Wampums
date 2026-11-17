@@ -45,3 +45,14 @@ the task form filled for the camp with its material reminder.
 Meeting preparation sends a change to the server once the date (and the youth of honour, where
 the unit requires one) is filled; the leader in charge and the place are optional, as on the
 server. Until then the change stays on the device and the status names what is missing.
+
+## Who changes an item
+
+Every unit an item is shared with (explicitly, or through its local group) sees it, reserves it and
+borrows it. Only the unit that keeps its record, or a unit of the Scout group that owns it
+(`owner_type = 'group'`), renames it, changes its quantity, deletes it or changes its photo
+(`equipmentManageSql`, `services/equipmentOwnership.js`; 403 `equipment_managed_by_owner` otherwise).
+The inventory list says so per item (`can_manage`), and the screen offers edit and delete only then.
+Adding an item under a name the unit already uses is a 409 (`material_stock_name_exists`), never an
+overwrite. Stock checks count a reservation of the older form, which has only its `meeting_date`.
+

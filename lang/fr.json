@@ -6491,5 +6491,6 @@
   "incident_email_organization": "Unité",
   "incident_email_automated": "Ceci est un avis automatique. Lisez le rapport complet dans Wampums.",
   "incident_email_unknown": "Inconnu",
-  "incident_email_not_given": "Non indiqué"
+  "incident_email_not_given": "Non indiqué",
+  "equipment_managed_by_owner": "Seule l’unité qui tient cet article, ou son groupe scout, peut le modifier. Vous pouvez toujours le réserver."
 }
