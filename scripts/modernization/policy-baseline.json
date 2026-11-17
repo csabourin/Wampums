@@ -36,7 +36,7 @@
     "routes/userProfile.js": 5,
     "routes/users.js": 3,
     "routes/whatsapp-baileys.js": 6,
-    "routes/yearlyPlanner.js": 7,
+    "routes/yearlyPlanner.js": 6,
     "scripts/find-mismatches.js": 4,
     "scripts/fix-whatsapp-buffer-serialization.js": 2,
     "scripts/generate-splash-screens.js": 1,

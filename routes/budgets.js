@@ -8,6 +8,56 @@ const { toNumeric, validateMoney, validateDate } = require('../utils/validation-
 
 // Configuration constants
 const MAX_BULK_EXPENSES = 100;
+const POSTGRES_INT_MAX = 2147483647;
+
+/** A reference the request named, as a database id, or null when it named none. */
+function referenceId(value) {
+  return value === undefined || value === null || value === '' ? null : value;
+}
+
+/**
+ * Check the budget category and item a write names. Both must be the unit's
+ * own, and an item must sit in the category named with it: the foreign keys
+ * only say the row exists, in any unit.
+ *
+ * @param {Object} db - Pool or client
+ * @param {number} organizationId - The authenticated unit
+ * @param {{categoryId?: *, itemId?: *, field?: string}} references - Ids from the request
+ * @returns {Promise<Array<{path: string, location: string, msg: string}>>} Field errors; empty when both fit
+ */
+async function checkBudgetReferences(db, organizationId, { categoryId = null, itemId = null, field = '' }) {
+  const asId = (value) => {
+    const id = Number(value);
+    return Number.isInteger(id) && id >= 1 && id <= POSTGRES_INT_MAX ? id : -1;
+  };
+  const errors = [];
+  if (referenceId(categoryId) !== null) {
+    const found = await db.query(
+      'SELECT 1 FROM budget_categories WHERE id = $1 AND organization_id = $2',
+      [asId(categoryId), organizationId]
+    );
+    if (found.rows.length === 0) {
+      errors.push({ path: `${field}budget_category_id`, location: 'body', msg: 'budget_category_not_found' });
+    }
+  }
+  if (referenceId(itemId) !== null) {
+    const found = await db.query(
+      'SELECT budget_category_id FROM budget_items WHERE id = $1 AND organization_id = $2',
+      [asId(itemId), organizationId]
+    );
+    const item = found.rows[0];
+    if (!item) {
+      errors.push({ path: `${field}budget_item_id`, location: 'body', msg: 'budget_item_not_found' });
+    } else if (referenceId(categoryId) !== null && errors.length === 0
+      && Number(item.budget_category_id) !== Number(categoryId)) {
+      errors.push({ path: `${field}budget_item_id`, location: 'body', msg: 'budget_item_not_in_category' });
+    }
+  }
+  return errors;
+}
+
+/** Refuse a write naming a budget category or item that is not the unit's own. */
+const refuseReferences = (res, errors) => error(res, 'Invalid budget reference', HTTP_STATUS.BAD_REQUEST, errors);
 
 module.exports = (pool, logger) => {
   // ===== BUDGET CATEGORIES =====
@@ -31,7 +81,7 @@ module.exports = (pool, logger) => {
         bc.created_at,
         COUNT(bi.id) as item_count
       FROM budget_categories bc
-      LEFT JOIN budget_items bi ON bc.id = bi.budget_category_id AND bi.active = true
+      LEFT JOIN budget_items bi ON bc.id = bi.budget_category_id AND bi.organization_id = bc.organization_id AND bi.active = true
       WHERE bc.organization_id = $1 AND bc.active = true
       GROUP BY bc.id
       ORDER BY bc.display_order, bc.name`,
@@ -138,7 +188,7 @@ module.exports = (pool, logger) => {
         bc.name as category_name,
         bc.category_type
       FROM budget_items bi
-      JOIN budget_categories bc ON bi.budget_category_id = bc.id
+      JOIN budget_categories bc ON bi.budget_category_id = bc.id AND bc.organization_id = bi.organization_id
       WHERE bi.organization_id = $1 AND bi.active = true
     `;
     const params = [organizationId];
@@ -173,6 +223,11 @@ module.exports = (pool, logger) => {
 
     if (!budget_category_id || !name) {
       return error(res, 'Category ID and name are required', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    const referenceErrors = await checkBudgetReferences(pool, organizationId, { categoryId: budget_category_id });
+    if (referenceErrors.length > 0) {
+      return refuseReferences(res, referenceErrors);
     }
 
     // Validate unit_price if provided
@@ -296,8 +351,8 @@ module.exports = (pool, logger) => {
         bi.name as item_name,
         u.full_name as created_by_name
       FROM budget_expenses be
-      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
-      LEFT JOIN budget_items bi ON be.budget_item_id = bi.id
+      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id AND bc.organization_id = be.organization_id
+      LEFT JOIN budget_items bi ON be.budget_item_id = bi.id AND bi.organization_id = be.organization_id
       LEFT JOIN users u ON be.created_by = u.id
       WHERE be.organization_id = $1
     `;
@@ -372,6 +427,13 @@ module.exports = (pool, logger) => {
       return error(res, 'Description is required', HTTP_STATUS.BAD_REQUEST);
     }
 
+    const referenceErrors = await checkBudgetReferences(pool, organizationId, {
+      categoryId: budget_category_id, itemId: budget_item_id,
+    });
+    if (referenceErrors.length > 0) {
+      return refuseReferences(res, referenceErrors);
+    }
+
     const result = await pool.query(
       `INSERT INTO budget_expenses
         (organization_id, budget_category_id, budget_item_id, amount, expense_date,
@@ -437,6 +499,13 @@ module.exports = (pool, logger) => {
       if (!validation.valid) {
         return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
+    }
+
+    const referenceErrors = await checkBudgetReferences(pool, organizationId, {
+      categoryId: budget_category_id, itemId: budget_item_id,
+    });
+    if (referenceErrors.length > 0) {
+      return refuseReferences(res, referenceErrors);
     }
 
     const result = await pool.query(
@@ -553,7 +622,7 @@ module.exports = (pool, logger) => {
           bc.name as category_name,
           SUM(be.amount) as total_expense
         FROM budget_expenses be
-        LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
+        LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id AND bc.organization_id = be.organization_id
         WHERE be.organization_id = $1
           AND be.expense_date BETWEEN $2 AND $3
         GROUP BY be.budget_category_id, bc.name`,
@@ -720,8 +789,8 @@ module.exports = (pool, logger) => {
         bi.name as item_name,
         bc.name as category_name
       FROM budget_plans bp
-      LEFT JOIN budget_items bi ON bp.budget_item_id = bi.id
-      LEFT JOIN budget_categories bc ON bi.budget_category_id = bc.id
+      LEFT JOIN budget_items bi ON bp.budget_item_id = bi.id AND bi.organization_id = bp.organization_id
+      LEFT JOIN budget_categories bc ON bi.budget_category_id = bc.id AND bc.organization_id = bi.organization_id
       WHERE bp.organization_id = $1
     `;
     const params = [organizationId];
@@ -791,6 +860,11 @@ module.exports = (pool, logger) => {
       if (!validation.valid) {
         return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
+    }
+
+    const referenceErrors = await checkBudgetReferences(pool, organizationId, { itemId: budget_item_id });
+    if (referenceErrors.length > 0) {
+      return refuseReferences(res, referenceErrors);
     }
 
     const result = await pool.query(
@@ -866,6 +940,11 @@ module.exports = (pool, logger) => {
       if (!validation.valid) {
         return error(res, validation.message, HTTP_STATUS.BAD_REQUEST);
       }
+    }
+
+    const referenceErrors = await checkBudgetReferences(pool, organizationId, { itemId: budget_item_id });
+    if (referenceErrors.length > 0) {
+      return refuseReferences(res, referenceErrors);
     }
 
     const result = await pool.query(
@@ -950,7 +1029,7 @@ module.exports = (pool, logger) => {
         MIN(be.expense_date) as first_expense_date,
         MAX(be.expense_date) as last_expense_date
       FROM budget_expenses be
-      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
+      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id AND bc.organization_id = be.organization_id
       WHERE be.organization_id = $1
     `;
     const params = [organizationId];
@@ -1013,7 +1092,7 @@ module.exports = (pool, logger) => {
         COUNT(*) as expense_count,
         SUM(be.amount) as total_amount
       FROM budget_expenses be
-      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
+      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id AND bc.organization_id = be.organization_id
       WHERE be.organization_id = $1
     `;
     const params = [organizationId];
@@ -1063,6 +1142,15 @@ module.exports = (pool, logger) => {
 
     if (expenses.length > MAX_BULK_EXPENSES) {
       return error(res, `Maximum ${MAX_BULK_EXPENSES} expenses can be created at once`, HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Every line names only the unit's own categories and items, checked before anything is written.
+    const referenceErrors = (await Promise.all(expenses.map((expense, index) => checkBudgetReferences(
+      pool, organizationId,
+      { categoryId: expense?.budget_category_id, itemId: expense?.budget_item_id, field: `expenses[${index}].` }
+    )))).flat();
+    if (referenceErrors.length > 0) {
+      return refuseReferences(res, referenceErrors);
     }
 
     const client = await pool.connect();
@@ -1319,8 +1407,8 @@ module.exports = (pool, logger) => {
         bc.name as category_name,
         SUM(bp.budgeted_revenue) as budgeted_revenue
       FROM budget_plans bp
-      LEFT JOIN budget_items bi ON bp.budget_item_id = bi.id
-      LEFT JOIN budget_categories bc ON bi.budget_category_id = bc.id
+      LEFT JOIN budget_items bi ON bp.budget_item_id = bi.id AND bi.organization_id = bp.organization_id
+      LEFT JOIN budget_categories bc ON bi.budget_category_id = bc.id AND bc.organization_id = bi.organization_id
       WHERE bp.organization_id = $1
         AND bp.fiscal_year_start = $2
         AND bp.fiscal_year_end = $3

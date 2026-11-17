@@ -538,9 +538,11 @@ describe('POST /api/v1/yearly-planner/plans/:planId/meetings/batch-activity', ()
    * @param {Array} rows - Rows the verification query returns
    * @returns {void}
    */
+  const LIBRARY_ID = 5;
+
   function stubBatch(rows = MEETINGS) {
     const { __mClient, __mPool } = require('pg');
-    mockQueryImplementation(__mClient, __mPool, (query) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       const stub = authStubs(query);
       if (stub) { return stub; }
       if (query.includes('FROM year_plan_meetings') && query.includes('ANY($1::int[])')) {
@@ -548,6 +550,10 @@ describe('POST /api/v1/yearly-planner/plans/:planId/meetings/batch-activity', ()
       }
       if (query.includes('INSERT INTO year_plan_meeting_activities')) {
         return Promise.resolve({ rows: rows.map((r, i) => ({ id: 900 + i, meeting_id: r.id })) });
+      }
+      // The unit's own library holds activity 5; any other id belongs to another unit.
+      if (query.includes('FROM activity_library WHERE id = $1 AND organization_id = $2')) {
+        return Promise.resolve({ rows: params[0] === LIBRARY_ID && params[1] === ORG_ID ? [{ '?column?': 1 }] : [] });
       }
       return Promise.resolve({ rows: [] });
     });
@@ -694,6 +700,19 @@ describe('POST /api/v1/yearly-planner/plans/:planId/meetings/batch-activity', ()
     );
     expect(updates).toHaveLength(1);
     expect(updates[0][1]).toContain(3);
+  });
+
+  test('an activity from another unit\'s library is refused, and nothing is placed', async () => {
+    stubBatch();
+
+    const res = await request(app)
+      .post(`/api/v1/yearly-planner/plans/${PLAN_ID}/meetings/batch-activity`)
+      .set('Authorization', `Bearer ${generateToken()}`)
+      .send({ meeting_ids: [10, 20, 30], activity: { name: 'Jeu', activity_library_id: 77 } });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toEqual([{ path: 'activity_library_id', location: 'body', msg: 'activity_library_not_found' }]);
+    expect(insertCall()).toBeUndefined();
   });
 
   test('rejects an empty or oversized batch', async () => {
