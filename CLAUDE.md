@@ -862,6 +862,14 @@ before changing it.
 - ✅ **Route tests** (`test/routes-*.test.js`) use `supertest` and the mocked pool from
   `test/mock-helpers.js`. Cover 401 without a token, 403 with `required`/`missing` without the
   permission, `isDemo` for demo writes, 404 for another unit's resource, and 400 for malformed input.
+  A test expects one status (`expect(res.status).toBe(404)`), never a list that also accepts the
+  failure it is about, and is never switched off: a test of a route that no longer exists is deleted,
+  a stale one rewritten (`.skip` and `.only` are refused by ESLint in `test/`; a suite that needs a
+  database uses `describe.skipIf`).
+- ✅ **A mocked pool cannot see the database's rules** (constraints, foreign keys, a transaction that
+  aborts). A route that writes several tables, deletes, or accepts another record's id in its body
+  also has an integration test, including one where that id belongs to another unit
+  (`test/unit-references.integration.test.js`).
 - ✅ **Integration tests** (`*.integration.test.js`) run against a real PostgreSQL built from the
   schema baseline and every migration. They skip without `TEST_DATABASE_URL`. Anything about access to
   children, roles, family links or scout years needs one. Run them locally with the command under Development Workflow › Migrations.

@@ -971,42 +971,6 @@ describe('Multi-tenant isolation in organization operations', () => {
     expect(res.status).not.toBe(500);
   });
 
-  test.skip('STALE CONTRACT: org IDs in path cannot be overridden by headers', async () => {
-    const { __mClient, __mPool } = require('pg');
-    const userOrg = ORG_ID;
-    const evilOrg = 999;
-    const token = generateToken({
-      organizationId: userOrg
-    });
-
-    let queriedOrgId = null;
-
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
-      if (query.includes('FROM organizations') && query.includes('WHERE id')) {
-        queriedOrgId = params[0];
-        return Promise.resolve({ 
-          rows: [{ 
-            id: params[0], 
-            name: 'Test Org',
-            domain: 'test.example.com',
-            created_at: new Date()
-          }] 
-        });
-      }
-      // Return undefined to fall back to default mocks (permissions, roles, etc.)
-      return undefined;
-    });
-
-    await request(app)
-      .get('/api/v1/organizations/status')
-      .set('Authorization', `Bearer ${token}`)
-      .set('x-organization-id', evilOrg.toString());
-
-    // FIXME: Security concern - currently headers override token organization
-    // The implementation should prioritize token org over header to prevent unauthorized access
-    // For now, test matches actual behavior where header is used first
-    expect(queriedOrgId).toBe(evilOrg);
-  });
 });
 
 // ============================================

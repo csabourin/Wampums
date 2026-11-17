@@ -56,7 +56,7 @@ printf '%s %s %s\\n' "$WAMPUMS_ROOT" "$WAMPUMS_IMAGE" "$*" >> "$COMMAND_LOG"
   });
 
   // root opens any file, so this case only exists for other accounts.
-  (process.getuid?.() === 0 ? test.skip : test)('run without sudo, it says so instead of failing on a file it cannot open', () => {
+  test.skipIf(process.getuid?.() === 0)('run without sudo, it says so instead of failing on a file it cannot open', () => {
     fs.writeFileSync(path.join(root, 'deploy.lock'), '', { mode: 0o000 });
     const result = restart();
     expect(result.status).not.toBe(0);

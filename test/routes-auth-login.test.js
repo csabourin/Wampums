@@ -357,37 +357,6 @@ describe('POST /public/login', () => {
     expect(res.status).toBe(400);
   });
 
-  test.skip('rate limits login attempts (6 attempts per 15 minutes)', async () => {
-    // NOTE: Rate limiting is disabled in test environment (max: 100 instead of 6)
-    // This test is skipped because it would require 100+ requests to test properly
-    const { __mClient, __mPool } = require('pg');
-
-    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
-      if (query.includes('FROM users u')) {
-        return Promise.resolve({ rows: [] });
-      }
-      return Promise.resolve({ rows: [] });
-    });
-
-    // Make multiple failed login attempts
-    const requests = [];
-    for (let i = 0; i < 7; i++) {
-      requests.push(
-        request(app)
-          .post('/public/login')
-          .send({
-            email: validEmail,
-            password: 'WrongPassword123!'
-          })
-      );
-    }
-
-    const responses = await Promise.all(requests);
-
-    // Some should be blocked by rate limiting
-    const rateLimited = responses.filter(r => r.status === 429);
-    expect(rateLimited.length).toBeGreaterThanOrEqual(1);
-  });
 });
 
 // ============================================
@@ -545,42 +514,6 @@ describe('Password reset flow', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.message).toMatch(/sent|reset/i);
-  });
-
-  test.skip('POST /api/auth/request-reset rate limits requests (5 per hour)', async () => {
-    // NOTE: Rate limiting is disabled in test environment (max: 100 instead of 5)
-    // This test is skipped because it would require 100+ requests to test properly
-    const { __mClient, __mPool } = require('pg');
-
-    mockQueryImplementation(__mClient, __mPool, (query, _params) => {
-      if (query.includes('FROM users u')) {
-        return Promise.resolve({
-          rows: [{
-            id: 2,
-            email: 'ratelimit-reset@example.com',
-            is_verified: true
-          }]
-        });
-      }
-      return Promise.resolve({ rows: [] });
-    });
-
-    // Make multiple requests
-    const requests = [];
-    for (let i = 0; i < 6; i++) {
-      requests.push(
-        request(app)
-          .post('/api/auth/request-reset')
-          .send({
-            email: 'ratelimit-reset@example.com'
-          })
-      );
-    }
-
-    const responses = await Promise.all(requests);
-    const rateLimited = responses.filter(r => r.status === 429);
-
-    expect(rateLimited.length).toBeGreaterThanOrEqual(1);
   });
 
   test('POST /api/auth/reset-password updates password with valid token', async () => {

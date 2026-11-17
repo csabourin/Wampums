@@ -20,7 +20,7 @@ jest.mock('../middleware/auth', () => ({
 }));
 jest.mock('../services/scoutYear', () => ({ ensureActiveScoutYear: () => Promise.resolve({ id: 1 }) }));
 
-const describeWithDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
+const describeWithDatabase = describe.skipIf(!process.env.TEST_DATABASE_URL);
 
 describeWithDatabase('points replay receipts in PostgreSQL', () => {
   let admin;

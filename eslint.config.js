@@ -191,4 +191,21 @@ module.exports = [
       'no-script-url': 'off',
     },
   },
+  // A test switched off stays green without testing anything: delete a test of
+  // a route that no longer exists, rewrite a stale one. Suites that need a
+  // database use describe.skipIf (test/jest-conditional-helpers.js).
+  {
+    files: ['test/**/*.js'],
+    ignores: ['test/jest-conditional-helpers.js'],
+    rules: {
+      'no-restricted-properties': ['error',
+        ...['test', 'it', 'describe'].map((object) => ({
+          object, property: 'skip', message: 'Delete or rewrite the test instead of skipping it (#1463).',
+        })),
+        ...['test', 'it', 'describe'].map((object) => ({
+          object, property: 'only', message: 'A focused test hides every other one.',
+        })),
+      ],
+    },
+  },
 ];
