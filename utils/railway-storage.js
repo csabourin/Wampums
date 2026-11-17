@@ -357,6 +357,7 @@ function normalizeObjectKey(value) {
   if (
     !key ||
     key.split('/').includes('..') ||
+    // eslint-disable-next-line no-control-regex -- a storage key holding a control character is refused
     /[\u0000-\u001f\u007f]/.test(key)
   ) {
     return null;

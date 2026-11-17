@@ -8,6 +8,7 @@ const REWRITE_TONES = new Set(['professional', 'friendly', 'concise', 'clear']);
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 const TIME_PATTERN = /^\d{1,3}:\d{2}$/u;
 const TERM_KEY_PATTERN = /^[a-z][a-z0-9_]{0,49}$/u;
+// eslint-disable-next-line no-control-regex -- the pattern exists to refuse control characters
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/u;
 
 function isPlainObject(value) {

@@ -1,27 +1,2 @@
 {
-  "spa/utils/SecurityUtils.js": {
-    "no-control-regex": {
-      "count": 1
-    }
-  },
-  "spa/utils/ValidationUtils.js": {
-    "no-control-regex": {
-      "count": 1
-    }
-  },
-  "utils/aiPayloadValidation.js": {
-    "no-control-regex": {
-      "count": 1
-    }
-  },
-  "utils/railway-storage.js": {
-    "no-control-regex": {
-      "count": 1
-    }
-  },
-  "utils/unitCustomization.js": {
-    "no-control-regex": {
-      "count": 1
-    }
-  }
 }

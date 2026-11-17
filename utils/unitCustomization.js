@@ -3,6 +3,7 @@ const customizationConfig = require('../config/unit_customization.json');
 const CUSTOM_PROFILE = 'custom';
 const SUPPORTED_VOCABULARY_LOCALES = new Set(['en', 'fr']);
 const MAXIMUM_TERM_LENGTH = 80;
+// eslint-disable-next-line no-control-regex -- the pattern exists to refuse control characters
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F]/u;
 const HTML_DELIMITER_PATTERN = /[<>"`]/u;
 const vocabularyTermKeys = new Set(
