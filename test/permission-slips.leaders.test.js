@@ -42,6 +42,8 @@ const SLIP_ID = 41;
 const ACTIVITY_ID = 9;
 // Made per run: a slip's signing token is a bearer credential
 const ACCESS_TOKEN = randomUUID();
+/** A signing link as an email carries it: a 256-bit base64url token (services/permissionSlipLinks.js). */
+const SIGN_LINK = /\/permission-slip\/[A-Za-z0-9_-]{43}\b/;
 let app;
 
 const token = (permissions) => jwt.sign({
@@ -125,6 +127,7 @@ function mockDatabase({ permissions = ['permission_slips.sign'], ownChild = fals
       return { rows: [SLIP] };
     }
     if (query.includes('INSERT INTO permission_slip_deliveries')) {return { rows: [{ id: 1 }] };}
+    if (query.includes('INSERT INTO permission_slip_links')) {return { rows: [{ id: 1 }] };}
     if (query.includes('FROM participant_guardians pg')) {
       return { rows: [{ id: 2, prenom: 'Julie', nom: 'Tremblay', courriel: 'julie@famille.test' }] };
     }
@@ -311,8 +314,10 @@ describe('emailing an activity\'s permission slips', () => {
     expect(htmlBody).not.toContain(ACCESS_TOKEN);
     expect(textBody).toContain(`https://meute.wampums.app/permission-slips/${ACTIVITY_ID}`);
 
+    // The family's email signs with a link of its own: never the slip's stored generation.
     const parentEmail = sendEmail.mock.calls.find(([to]) => to === 'julie@famille.test');
-    expect(parentEmail[2]).toContain(ACCESS_TOKEN);
+    expect(parentEmail[2]).toMatch(SIGN_LINK);
+    expect(parentEmail[2]).not.toContain(ACCESS_TOKEN);
   });
 
   test('a leader who is the parent of an invited child gets the parent\'s email, not a copy', async () => {
@@ -322,7 +327,7 @@ describe('emailing an activity\'s permission slips', () => {
 
     const toBaloo = sendEmail.mock.calls.filter(([to]) => to === 'baloo@unit.test');
     expect(toBaloo).toHaveLength(1);
-    expect(toBaloo[0][2]).toContain(ACCESS_TOKEN);
+    expect(toBaloo[0][2]).toMatch(SIGN_LINK);
   });
 
   test('a leader-parent whose family email failed still gets the copy', async () => {

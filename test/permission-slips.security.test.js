@@ -109,7 +109,8 @@ describe('Permission Slip Security', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.access_token).toBe(TEST_TOKEN);
+      // The slip's stored generation never leaves the server, not even to the link's holder.
+      expect(res.body.data).not.toHaveProperty('access_token');
       // The page sends this back with the answer, naming the text it showed
       expect(res.body.data.presented_fingerprint).toBe(FINGERPRINT);
       expect(res.body.data).not.toHaveProperty('slip_content');

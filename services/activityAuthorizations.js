@@ -1,6 +1,7 @@
 'use strict';
 
 const { sendEmail, getUserEmailLanguage } = require('../utils/index');
+const { issueSlipLink } = require('./permissionSlipLinks');
 const { buildPermissionSlipEmailContent } = require('../utils/permission-slip-email');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
 const { resolveOrganizationEmailSender } = require('./emailSender');
@@ -162,7 +163,7 @@ async function deliver(pool, organizationId, slip, email, sender, content) {
       deadlineDate: slip.deadline_date,
       participantFirstName: slip.first_name,
       participantLastName: slip.last_name,
-      signLink: `${await resolveOrganizationBaseUrl(pool, organizationId)}/permission-slip/${slip.access_token}`,
+      signLink: `${await resolveOrganizationBaseUrl(pool, organizationId)}/permission-slip/${await issueSlipLink(pool, organizationId, slip.id)}`,
       languageCode: await getUserEmailLanguage(pool, normalized, organizationId),
       isReminder: false,
     });

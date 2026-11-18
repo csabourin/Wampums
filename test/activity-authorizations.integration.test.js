@@ -15,6 +15,7 @@ jest.mock('../services/permissionSlipCopies', () => () => ({ recordFamilyDeliver
 
 const flow = require('../services/activityAuthorizations');
 const { sendEmail } = require('../utils/index');
+const { issueSlipLink } = require('../services/permissionSlipLinks');
 
 const DATABASE_URL = process.env.TEST_DATABASE_URL;
 describe.skipIf(!DATABASE_URL)('One activity permission workflow', () => {
@@ -33,6 +34,9 @@ describe.skipIf(!DATABASE_URL)('One activity permission workflow', () => {
   };
   const one = async (sql, params = []) => Object.values((await pool.query(sql, params)).rows[0] || {})[0];
   const token = (userId) => signJWTToken({ user_id: userId, organizationId: ids.unit });
+  /** A signing link for the activity's slip, as an email would carry it (only its digest is stored). */
+  const linkFor = async (activityId) => issueSlipLink(pool, ids.unit,
+    await one('SELECT id FROM permission_slips WHERE activity_id = $1 ORDER BY id LIMIT 1', [activityId]));
   const call = (method, path, userId = ids.staff) => request(app)[method](path).set('Authorization', `Bearer ${token(userId)}`);
 
   async function member(keys, scope = 'organization', unit = ids.unit) {
@@ -168,7 +172,7 @@ describe.skipIf(!DATABASE_URL)('One activity permission workflow', () => {
   test('the emailed link shows what to answer, not the slip\'s ids, contacts or recorded payloads', async () => {
     const id = await create();
     await call('post', `/api/v1/activity-authorizations/${id}`).send({});
-    const token = await one('SELECT access_token FROM permission_slips WHERE activity_id = $1 LIMIT 1', [id]);
+    const token = await linkFor(id);
 
     const shown = (await request(app).get(`/api/v1/resources/permission-slips/v/${token}`)).body.data;
 
@@ -176,6 +180,38 @@ describe.skipIf(!DATABASE_URL)('One activity permission workflow', () => {
     for (const field of ['id', 'organization_id', 'participant_id', 'guardian_id', 'guardians_emailed', 'contact_confirmation', 'consent_payload', 'signature_hash']) {
       expect(shown).not.toHaveProperty(field);
     }
+  });
+
+  test('no stored value opens a slip: only the links sent, each its own, until the text is reissued', async () => {
+    const id = await create();
+    await call('post', `/api/v1/activity-authorizations/${id}`).send({});
+    const view = (token) => request(app).get(`/api/v1/resources/permission-slips/v/${token}`);
+    const slipId = await one('SELECT id FROM permission_slips WHERE activity_id = $1 ORDER BY id LIMIT 1', [id]);
+    const stored = await one('SELECT access_token FROM permission_slips WHERE id = $1', [slipId]);
+    const emailed = sendEmail.mock.calls.map(([, , text]) => text).join(' ').match(/permission-slip\/([A-Za-z0-9_-]{43})/)[1];
+    const second = await issueSlipLink(pool, ids.unit, slipId);
+
+    expect((await view(stored)).status).toBe(404);
+    expect((await view(emailed)).status).toBe(200);
+    expect((await view(second)).status).toBe(200);
+    expect(await one('SELECT COUNT(*)::int FROM permission_slip_links WHERE token_digest IN ($1, $2)', [stored, emailed])).toBe(0);
+
+    // Reissuing the text is a new generation: every earlier link closes.
+    await pool.query('UPDATE permission_slips SET access_token = gen_random_uuid() WHERE id = $1', [slipId]);
+    expect((await view(second)).status).toBe(404);
+  });
+
+  test('a link emailed before links were digests keeps opening its slip, and its token is no longer stored', async () => {
+    const id = await create();
+    await call('post', `/api/v1/activity-authorizations/${id}`).send({});
+    const slipId = await one('SELECT id FROM permission_slips WHERE activity_id = $1 ORDER BY id LIMIT 1', [id]);
+    const oldLink = await one("UPDATE permission_slips SET access_token = gen_random_uuid() WHERE id = $1 RETURNING access_token::text", [slipId]);
+    await pool.query('DELETE FROM permission_slip_links WHERE slip_id = $1', [slipId]);
+
+    await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../migrations/091_permission_slip_links.sql'), 'utf8'));
+
+    expect((await request(app).get(`/api/v1/resources/permission-slips/v/${oldLink}`)).status).toBe(200);
+    expect(await one('SELECT access_token::text FROM permission_slips WHERE id = $1', [slipId])).not.toBe(oldLink);
   });
 
   test('one action creates all invited requests and reports missing contact details', async () => {
@@ -232,7 +268,7 @@ describe.skipIf(!DATABASE_URL)('One activity permission workflow', () => {
   test('a parent\'s answer freezes the text they read; a text changed while they read it is refused', async () => {
     const id = await create({ invites_everyone: false, invited_participant_ids: [ids.ada] });
     await flow.prepare(pool, ids.unit, id);
-    const accessToken = await one('SELECT access_token FROM permission_slips WHERE activity_id = $1', [id]);
+    const accessToken = await linkFor(id);
     const read = async () => (await request(app).get(`/api/v1/resources/permission-slips/v/${accessToken}`)).body.data;
 
     const shown = await read();
@@ -266,7 +302,7 @@ describe.skipIf(!DATABASE_URL)('One activity permission workflow', () => {
     const id = await create({ invites_everyone: false, invited_participant_ids: [ids.ada] });
     await flow.prepare(pool, ids.unit, id);
     await pool.query("UPDATE permission_slips SET status = 'signed', signed_by = 'Fictional Guardian', signed_at = NOW(), signature_hash = 'legacy-value' WHERE activity_id = $1", [id]);
-    const accessToken = await one('SELECT access_token FROM permission_slips WHERE activity_id = $1', [id]);
+    const accessToken = await linkFor(id);
 
     const slip = (await request(app).get(`/api/v1/resources/permission-slips/v/${accessToken}`)).body.data;
 

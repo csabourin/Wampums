@@ -341,8 +341,8 @@ describe('the parent dashboard', () => {
 
     const links = [...document.querySelectorAll('.family-tasks .js-family-read-slip')];
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
-      '/permission-slip/00000000-0000-4000-8000-000000000091',
-      '/permission-slip/00000000-0000-4000-8000-000000000092',
+      '/permission-slip/slip-91',
+      '/permission-slip/slip-92',
     ]);
     // Each link names its child for a screen reader, and the task names the activity
     expect(links[0].textContent).toContain('permission_slip_read_and_answer');
@@ -361,7 +361,8 @@ describe('the parent dashboard', () => {
 
     const links = [...document.querySelectorAll('.family-tasks .js-family-read-slip')];
     expect(links).toHaveLength(1);
-    expect(links[0].getAttribute('href')).toBe('/permission-slip/00000000-0000-4000-8000-000000000091');
+    // Opened by id as the signed-in family: an emailed link's token is not stored (services/permissionSlipLinks.js).
+    expect(links[0].getAttribute('href')).toBe('/permission-slip/slip-91');
     page.destroy();
   });
 

@@ -26,6 +26,7 @@ const {
 } = require('../utils/permission-slip-email');
 const { deliver: deliverAuthorization } = require('../services/activityAuthorizations');
 const createPermissionSlipCopies = require('../services/permissionSlipCopies');
+const { LINK_TOKEN_PATTERN, slipByLinkSql, issueSlipLink, linkDigest } = require('../services/permissionSlipLinks');
 const {
   FINGERPRINT_PATTERN,
   TEXT_CHANGED: PERMISSION_SLIP_TEXT_CHANGED,
@@ -41,7 +42,7 @@ const normalizeAddress = (address) => String(address).trim().toLowerCase();
 
 /** What the public signing page of a slip receives: the text to answer and the answer, nothing else. */
 const PUBLIC_SLIP_FIELDS = [
-  'access_token', 'status', 'participant_name', 'activity_title', 'activity_description',
+  'status', 'participant_name', 'activity_title', 'activity_description',
   'activity_description_html', 'authorization_text', 'meeting_date', 'deadline_date',
   'signed_at', 'signed_by', 'declined_at', 'declined_by', 'presented_fingerprint', 'fingerprint_status',
 ];
@@ -2194,7 +2195,9 @@ module.exports = (pool, logger) => {
           }
 
           const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
-          const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
+          // A link of this email's own; only its digest is kept (services/permissionSlipLinks.js).
+          // eslint-disable-next-line no-await-in-loop -- one link per slip, as the sends that carry it
+          const signLink = `${baseUrl}/permission-slip/${await issueSlipLink(pool, organizationId, slip.id)}`;
 
           // Send to ALL recipients
           let slipSentCount = 0;
@@ -2508,7 +2511,9 @@ module.exports = (pool, logger) => {
           }
 
           const baseUrl = await resolveOrganizationBaseUrl(pool, organizationId);
-          const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
+          // A link of the reminder's own; the first email's link stays valid too.
+          // eslint-disable-next-line no-await-in-loop -- one link per slip, as the sends that carry it
+          const signLink = `${baseUrl}/permission-slip/${await issueSlipLink(pool, organizationId, slip.id)}`;
 
           // Send to ALL recipients
           let slipSentCount = 0;
@@ -3063,11 +3068,11 @@ module.exports = (pool, logger) => {
   // New Public route to view a permission slip by access_token
   router.get(
     '/permission-slips/v/:token',
-    [param('token').isUUID()],
+    [param('token').matches(LINK_TOKEN_PATTERN)],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const { token } = req.params;
+        const digest = linkDigest(req.params.token);
 
         const slipResult = await pool.query(
           `SELECT ps.*, p.first_name, p.last_name,
@@ -3075,8 +3080,8 @@ module.exports = (pool, logger) => {
                   ${SLIP_CONTENT_SQL} AS slip_content
            FROM permission_slips ps
            JOIN participants p ON p.id = ps.participant_id
-           WHERE ps.access_token = $1`,
-          [token],
+           WHERE ${slipByLinkSql('$1')}`,
+          [digest],
         );
 
         if (slipResult.rows.length === 0) {
@@ -3098,7 +3103,7 @@ module.exports = (pool, logger) => {
     '/permission-slips/s/:token',
     ...demoAccountsReadOnly,
     [
-      param('token').isUUID(),
+      param('token').matches(LINK_TOKEN_PATTERN),
       check('signed_by').isString().trim().isLength({ min: 2, max: 200 }),
       presentedFingerprintRule(),
     ],
@@ -3106,8 +3111,8 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       try {
         const result = await recordAnswer(pool, {
-          where: 'ps.access_token = $1',
-          params: [req.params.token],
+          where: slipByLinkSql('$1'),
+          params: [linkDigest(req.params.token)],
           isReadOnlyUnit: (slip, client) => isDemoSignInUnit(client, slip.organization_id),
           answer: 'signed',
           answeredBy: req.body.signed_by,
@@ -3126,7 +3131,7 @@ module.exports = (pool, logger) => {
     '/permission-slips/public/:token',
     ...demoAccountsReadOnly,
     [
-      param('token').isUUID(),
+      param('token').matches(LINK_TOKEN_PATTERN),
       check('status').equals('declined'),
       check('declined_by').isString().trim().isLength({ min: 2, max: 200 }),
       presentedFingerprintRule(),
@@ -3135,8 +3140,8 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       try {
         const result = await recordAnswer(pool, {
-          where: 'ps.access_token = $1',
-          params: [req.params.token],
+          where: slipByLinkSql('$1'),
+          params: [linkDigest(req.params.token)],
           isReadOnlyUnit: (slip, client) => isDemoSignInUnit(client, slip.organization_id),
           answer: 'declined',
           answeredBy: req.body.declined_by,

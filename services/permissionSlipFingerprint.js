@@ -142,7 +142,8 @@ function fingerprintStatus(row) {
  * @returns {Object} Slip for the response
  */
 function describeSlip(row) {
-  const { slip_content: content, answered_content: _frozen, ...slip } = row;
+  // access_token is the slip's generation (migration 091), never a link: it is not sent.
+  const { slip_content: content, answered_content: _frozen, access_token: _generation, ...slip } = row;
   return {
     ...slip,
     presented_fingerprint: row.status === 'pending' && content ? presentedFingerprint(content) : null,

@@ -1,4 +1,5 @@
 import { ActivityAuthorizationPanel } from '../activities/ActivityAuthorizationPanel.js';
+import { ownSlipRef } from '../../api/api-permission-slips.js';
 import { translate } from '../../app.js';
 import { debugError, debugLog } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
@@ -642,8 +643,8 @@ export class PermissionSlipDashboard {
                       ${[
     // Only a child's own family answers its slip: a leader signs for their own children only
     // Answered on the slip's own page, where its current text is read first (#1410)
-    slip.status === 'pending' && slip.is_own_child === true && this.canSign && slip.access_token
-      ? `<a href="/permission-slip/${encodeURIComponent(slip.access_token)}" class="button button--secondary button--small sign-slip">${escapeHTML(translate('permission_slip_read_and_answer'))}<span class="visually-hidden"> — ${escapeHTML(slip.first_name)} ${escapeHTML(slip.last_name)}</span></a>`
+    slip.status === 'pending' && slip.is_own_child === true && this.canSign
+      ? `<a href="/permission-slip/${encodeURIComponent(ownSlipRef(slip.id))}" class="button button--secondary button--small sign-slip">${escapeHTML(translate('permission_slip_read_and_answer'))}<span class="visually-hidden"> — ${escapeHTML(slip.first_name)} ${escapeHTML(slip.last_name)}</span></a>`
       : '',
     !slip.email_sent
       ? `<button class="button button--danger delete-slip" data-id="${slip.id}">${escapeHTML(translate('delete'))}</button>`

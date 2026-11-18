@@ -4,8 +4,10 @@
 import { translate } from '../../app.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import {
+  declinePermissionSlip,
   declinePublicPermissionSlip,
   getPublicPermissionSlip,
+  signPermissionSlip,
   signPublicPermissionSlip,
 } from '../../api/api-endpoints.js';
 import { CONFIG } from '../../config.js';
@@ -20,6 +22,7 @@ import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { apiErrorMessage } from '../../utils/ApiErrorUtils.js';
 import { isSlipTextChanged } from '../../utils/PermissionSlipFingerprintUtils.js';
 import { showPageLoading, showPageError } from '../../utils/PageStateUtils.js';
+import { getOwnPermissionSlip, slipIdFromRef } from '../../api/api-permission-slips.js';
 
 const HTTP_NOT_FOUND = 404;
 const HTTP_GONE = 410;
@@ -32,6 +35,9 @@ export class PermissionSlipSign {
   constructor(app, token) {
     this.app = app;
     this.token = token;
+    // From the dashboard a family opens its own child's slip by id; an emailed
+    // link carries a token instead (services/permissionSlipLinks.js).
+    this.slipId = slipIdFromRef(token);
     this.slip = null;
     this.loadError = null;
     this.destroyed = false;
@@ -64,8 +70,10 @@ export class PermissionSlipSign {
 
   async loadPermissionSlip({ forceRefresh = false } = {}) {
     try {
-      // Public endpoint to view permission slip - no auth required (uses token)
-      const data = await getPublicPermissionSlip(this.token, { forceRefresh });
+      // An emailed link reads the slip as whoever holds it; the dashboard, as the signed-in family.
+      const data = this.slipId
+        ? await getOwnPermissionSlip(this.slipId)
+        : await getPublicPermissionSlip(this.token, { forceRefresh });
 
       if (!data?.success) {
         throw Object.assign(new Error('permission_slip_not_found'), { status: data?.status ?? HTTP_NOT_FOUND });
@@ -235,7 +243,9 @@ export class PermissionSlipSign {
     signBtn.disabled = true;
     setContent(signBtn, `<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> ${translate('signing')}`);
     try {
-      const response = await signPublicPermissionSlip(this.token, {
+      const response = await (this.slipId
+        ? (payload) => signPermissionSlip(this.slipId, payload)
+        : (payload) => signPublicPermissionSlip(this.token, payload))({
         signed_by: guardianName,
         presented_fingerprint: this.slip.presented_fingerprint,
       });
@@ -275,7 +285,9 @@ export class PermissionSlipSign {
       `<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> ${escapeHTML(translate('permission_slip_decline'))}`,
     );
     try {
-      const response = await declinePublicPermissionSlip(this.token, {
+      const response = await (this.slipId
+        ? (payload) => declinePermissionSlip(this.slipId, payload)
+        : (payload) => declinePublicPermissionSlip(this.token, payload))({
         declined_by: guardianName,
         presented_fingerprint: this.slip.presented_fingerprint,
       });
