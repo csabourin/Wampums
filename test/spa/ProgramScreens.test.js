@@ -407,6 +407,29 @@ describe('upcoming meeting', () => {
     expect(await violations()).toEqual([]);
   });
 
+  test('the notes written while preparing the meeting are shown, as text, with their line breaks', async () => {
+    const NOTES = `Apporter les foulards\n${HOSTILE}`;
+    ajax.getReunionDates.mockResolvedValue({ data: [{ date: FUTURE_MEETING }] });
+    ajax.getParticipants.mockResolvedValue({ data: [] });
+    ajax.getReunionPreparation.mockResolvedValue({ data: { meeting: { endroit: 'Local', notes: NOTES, activities: [] } } });
+    await new UpcomingMeeting(makeApp()).init();
+
+    const section = page().querySelector('section[aria-labelledby="upcoming-meeting-notes-title"]');
+    expect(section.querySelector('h2').textContent).toBe('notes');
+    expect(section.querySelector('.upcoming-meeting__notes-text').textContent).toBe(NOTES);
+    expect(page().querySelector('img[src="x"]')).toBeNull();
+    expect(await violations()).toEqual([]);
+  });
+
+  test('a meeting without notes shows no empty notes section', async () => {
+    ajax.getReunionDates.mockResolvedValue({ data: [{ date: FUTURE_MEETING }] });
+    ajax.getParticipants.mockResolvedValue({ data: [] });
+    ajax.getReunionPreparation.mockResolvedValue({ data: { meeting: { endroit: 'Local', notes: '  ', activities: [] } } });
+    await new UpcomingMeeting(makeApp()).init();
+
+    expect(page().querySelector('#upcoming-meeting-notes-title')).toBeNull();
+  });
+
   test('inside the meetings tab the error has no title of its own', async () => {
     document.body.innerHTML = '<main id="app"><h1>host</h1><div id="tab-panel"></div></main>';
     ajax.getReunionDates.mockRejectedValue(new Error('offline'));

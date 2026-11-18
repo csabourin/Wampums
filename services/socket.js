@@ -3,6 +3,56 @@ const logger = require('../config/logger');
 const { verifyJWT } = require('../utils/api-helpers');
 const { isAllowedOrigin, allowSocketRequest } = require('../config/cors');
 const { syncStateFor } = require('./liveSyncState');
+const { loadMembership } = require('../middleware/auth');
+const presence = require('./onlinePresence');
+
+/** Sent to administrators: how many accounts of their unit are online. */
+const ONLINE_COUNT_EVENT = 'online-count';
+/** Who may see that count (migration 092). */
+const VIEW_ONLINE_PERMISSION = 'users.view_online';
+
+/**
+ * @param {number|string} organizationId - Unit
+ * @returns {string} Room of the unit's connections allowed to see its count
+ */
+function onlineRoom(organizationId) {
+  return `org-${organizationId}-online`;
+}
+
+/**
+ * Tell the unit's administrators the new count.
+ * @param {number|string} organizationId - Unit
+ * @returns {void}
+ */
+function broadcastOnlineCount(organizationId) {
+  io.to(onlineRoom(organizationId)).emit(ONLINE_COUNT_EVENT, { count: presence.onlineCount(organizationId) });
+}
+
+/**
+ * Count a connection among the unit's accounts online, once its membership is
+ * confirmed by the authorization engine: the token alone is a snapshot. An
+ * administrator's connection also joins the room told the count.
+ * @param {import('pg').Pool} pool - Database pool
+ * @param {Object} socket - Authenticated connection
+ * @returns {Promise<void>}
+ */
+async function trackPresence(pool, socket) {
+  const { organizationId, userId } = socket;
+  const membership = await loadMembership(userId, pool, organizationId);
+  // Closed while the membership loaded, or no longer a member: not counted.
+  if (socket.presenceClosed || !membership.active) {
+    return;
+  }
+  socket.presenceCounted = true;
+  const isNewAccount = presence.addConnection(organizationId, userId);
+  if (membership.permissions.includes(VIEW_ONLINE_PERMISSION)) {
+    socket.join(onlineRoom(organizationId));
+    socket.emit(ONLINE_COUNT_EVENT, { count: presence.onlineCount(organizationId) });
+  }
+  if (isNewAccount) {
+    broadcastOnlineCount(organizationId);
+  }
+}
 
 let io;
 
@@ -59,11 +109,17 @@ function init(server, pool) {
         syncStateFor(pool, socket.organizationId)
           .then((state) => socket.emit('sync-state', { ...state, connection: true }))
           .catch((error) => logger.warn(`Live sync state unavailable: ${error.message}`));
+        trackPresence(pool, socket)
+          .catch((error) => logger.warn(`Online presence unavailable: ${error.message}`));
       }
     }
 
     socket.on('disconnect', () => {
       logger.info(`Socket.io disconnected: ${socket.id}`);
+      socket.presenceClosed = true;
+      if (socket.presenceCounted && presence.removeConnection(socket.organizationId, socket.userId)) {
+        broadcastOnlineCount(socket.organizationId);
+      }
     });
   });
 

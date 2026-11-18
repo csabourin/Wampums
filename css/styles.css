@@ -6586,6 +6586,12 @@ html.has-programme-bar .badge-tracker__fab {
   border-block-end: none;
 }
 
+/* The leader's notes for the meeting, line breaks kept. */
+.upcoming-meeting__notes-text {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
 .upcoming-meeting .actions {
   display: flex;
   justify-content: space-around;

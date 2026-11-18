@@ -549,3 +549,34 @@ describe('returning from the background', () => {
     expect(applyInvalidation).not.toHaveBeenCalled();
   });
 });
+
+describe('accounts online', () => {
+  const { getOnlineCount } = jest.requireActual('../../spa/modules/live-sync/OnlinePresence.js');
+
+  beforeEach(async () => {
+    localStorage.setItem('jwtToken', 'token');
+    liveDataSync.stop();
+    await liveDataSync.start();
+    mockSocketHandlers.connect();
+  });
+
+  afterEach(() => liveDataSync.stop());
+
+  test('the count the server sends is kept for the banner, and dropped once disconnected', () => {
+    mockSocketHandlers['online-count']({ count: 4 });
+    expect(getOnlineCount()).toBe(4);
+
+    mockSocketHandlers['online-count']({ count: 'many' });
+    expect(getOnlineCount()).toBeNull();
+
+    mockSocketHandlers['online-count']({ count: 2 });
+    mockSocketHandlers.disconnect();
+    expect(getOnlineCount()).toBeNull();
+  });
+
+  test('signing out forgets the count', () => {
+    mockSocketHandlers['online-count']({ count: 3 });
+    liveDataSync.stop();
+    expect(getOnlineCount()).toBeNull();
+  });
+});
