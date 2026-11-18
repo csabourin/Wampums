@@ -1021,3 +1021,26 @@ body.cmd-palette-open {
     animation: none;
   }
 }
+
+/* Accounts online, for administrators: quiet, at the end of the banner. */
+.dashboard-v2__online {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #5d7369);
+  white-space: nowrap;
+}
+
+.dashboard-v2__online[hidden] {
+  display: none;
+}
+
+.dashboard-v2__online-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-success, #167a5c);
+}

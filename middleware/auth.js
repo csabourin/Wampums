@@ -538,6 +538,20 @@ exports.userHasPermission = async (req, pool, organizationId, permissionKey) => 
 };
 
 /**
+ * Current membership of an account outside an HTTP request (a live-sync
+ * connection), read by the same engine as `requirePermission`.
+ *
+ * @param {string} userId - UUID of the account
+ * @param {Object} pool - Database pool
+ * @param {number} organizationId - Unit the connection names
+ * @returns {Promise<{active: boolean, permissions: string[]}>} Membership state
+ */
+exports.loadMembership = async (userId, pool, organizationId) => {
+  const context = await loadAuthorizationContext({ user: { id: userId } }, pool, organizationId);
+  return { active: context.active, permissions: context.permissions };
+};
+
+/**
  * Helper function to check if user has any of the specified permissions
  * Use this in route handlers when you need conditional logic based on permissions
  *

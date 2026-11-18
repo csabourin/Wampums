@@ -24,9 +24,12 @@ import {
   setLiveSyncClientId,
   takeWriteState,
 } from './LiveSyncState.js';
+import { setOnlineCount } from './OnlinePresence.js';
 
 const DATA_CHANGED_EVENT = 'data-changed';
 const SYNC_STATE_EVENT = 'sync-state';
+/** Accounts of the unit online, sent only to those allowed to see it. */
+const ONLINE_COUNT_EVENT = 'online-count';
 const TOKEN_STORAGE_KEY = 'jwtToken';
 
 /** Wait for a burst of changes (a leader awarding points) to settle before redrawing. */
@@ -240,7 +243,12 @@ class LiveDataSync {
     });
 
     this.socket.on('connect', () => this.handleConnect());
-    this.socket.on('disconnect', () => setLiveSyncClientId(null));
+    this.socket.on('disconnect', () => {
+      setLiveSyncClientId(null);
+      // Disconnected, the count is no longer live: it is hidden until the next one.
+      setOnlineCount(null);
+    });
+    this.socket.on(ONLINE_COUNT_EVENT, (payload) => setOnlineCount(payload?.count));
     this.socket.on('connect_error', (error) => this.handleConnectError(error));
     this.socket.on(SYNC_STATE_EVENT, (state) => this.handleSyncState(state));
     // The server pings every connection: the last ping marks when this one was last alive.
@@ -269,6 +277,7 @@ class LiveDataSync {
     this.socket = null;
     this.hasConnectedBefore = false;
     setLiveSyncClientId(null);
+    setOnlineCount(null);
   }
 
   handleConnect() {

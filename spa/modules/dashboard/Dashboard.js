@@ -58,6 +58,11 @@ import {
 import { hasVisibleTab } from '../../config/tabbed-pages.js';
 import { CommandPalette } from '../CommandPalette.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
+import { translatePlural } from '../../utils/PluralUtils.js';
+import { getOnlineCount, onOnlineCountChange } from '../live-sync/OnlinePresence.js';
+
+/** Who sees, live, how many of the unit's accounts are online (migration 092). */
+const VIEW_ONLINE_PERMISSION = 'users.view_online';
 import { youthDisplayName, youthFirstName } from '../../utils/DisplayNameUtils.js';
 import { renderCampReadinessSummary } from '../offline/CampReadiness.js';
 import {
@@ -173,6 +178,7 @@ export class Dashboard extends BaseModule {
 
       this.attachEventListeners();
       this.listenForConnectivityChanges();
+      this._watchOnlineCount();
 
       // Prefetch critical pages data after dashboard is ready
       // This is non-blocking and runs in background
@@ -1067,8 +1073,53 @@ export class Dashboard extends BaseModule {
             <span>${subtitle}</span>
           </span>
         </div>
+        ${this._renderOnlineCount()}
       </div>
     `;
+  }
+
+  /**
+   * How many of the unit's accounts are online, for administrators: a quiet
+   * label at the end of the banner, hidden while the count is unknown.
+   * @returns {string} HTML, empty without users.view_online
+   */
+  _renderOnlineCount() {
+    if (!hasPermission(VIEW_ONLINE_PERMISSION)) {
+      return '';
+    }
+    const count = getOnlineCount();
+    return `<p id="dashboard-online-count" class="dashboard-v2__online"${count === null ? ' hidden' : ''}>${this._onlineCountMarkup(count)}</p>`;
+  }
+
+  /**
+   * @param {?number} count - Accounts online, null while unknown
+   * @returns {string} The label's content
+   */
+  _onlineCountMarkup(count) {
+    if (count === null) {
+      return '';
+    }
+    const text = translatePlural('dashboard_online_count', count, this.app?.lang || this.app?.currentLanguage)
+      .replace('{count}', String(count));
+    return `<span class="dashboard-v2__online-dot" aria-hidden="true"></span>${escapeHTML(text)}`;
+  }
+
+  /**
+   * Keep the banner's count current as accounts come and go.
+   * @returns {void}
+   */
+  _watchOnlineCount() {
+    if (!hasPermission(VIEW_ONLINE_PERMISSION)) {
+      return;
+    }
+    this.addSubscription('onlineCount', onOnlineCountChange((count) => {
+      const label = document.getElementById('dashboard-online-count');
+      if (!label) {
+        return;
+      }
+      setContent(label, this._onlineCountMarkup(count));
+      label.hidden = count === null;
+    }));
   }
 
   _renderHero(nowTiles) {

@@ -516,6 +516,14 @@ export class UpcomingMeeting {
             '',
           )
         : `<li>${translate('no_activities_scheduled')}</li>`;
+    const notes = String(this.meetingDetails?.notes || '').trim();
+    // Line breaks the leader typed in the preparation are kept (CSS pre-line).
+    const notesHtml = notes
+      ? `<section class="upcoming-meeting__notes" aria-labelledby="upcoming-meeting-notes-title">
+           <h2 id="upcoming-meeting-notes-title">${translate('notes')}</h2>
+           <p class="upcoming-meeting__notes-text">${escapeHTML(notes)}</p>
+         </section>`
+      : '';
     const birthdays = this.getUpcomingBirthdays(this.closestMeeting);
     const birthdayRangeLabel = birthdays.startDate && birthdays.endDate
       ? `${translate('birthdays_between')} ${formatDate(birthdays.startDate, this.app.lang, { month: 'long', day: 'numeric' })} - ${formatDate(birthdays.endDate, this.app.lang, { month: 'long', day: 'numeric' })}`
@@ -555,6 +563,7 @@ export class UpcomingMeeting {
                                                                                 ${replacement ? `<p class="meeting-replaced" id="meeting-replaced"><strong>${escapeHTML(replacement)}</strong></p>` : ''}
                                                                                 <p><strong>${translate('location')}:</strong> ${location}</p>
                                                                 </div>
+                                                                ${notesHtml}
                                                                 <div class="meeting-details">
                                                                                 <h2>${translate('upcoming_birthdays')}</h2>
                                                                                 <p class="section-description">${birthdayRangeLabel}</p>

@@ -110,6 +110,7 @@ import {
 } from '../../spa/config/dashboard-tiles.js';
 import { DOMAINS, PALETTES } from '../../spa/config/dashboard-customization.js';
 import customizationConfig from '../../config/unit_customization.json';
+import { setOnlineCount } from '../../spa/modules/live-sync/OnlinePresence.js';
 
 beforeEach(() => {
   document.body.innerHTML = '<div id="app"></div>';
@@ -562,6 +563,60 @@ describe('a shorter leaders\' dashboard (#1430)', () => {
     expect(document.querySelector('#app img')).toBeNull();
     const results = await axe.run(document.querySelector('.dashboard-v2'), {
       runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      rules: { 'color-contrast': { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
+  });
+});
+
+describe('administrators see, live, how many accounts are online', () => {
+  const renderLeader = (permissions) => {
+    permissions.forEach((permission) => mockPermissions.add(permission));
+    mockIsParent = false;
+    const dashboard = new Dashboard({ userRoles: ['leader'], lang: 'en' });
+    dashboard.isLoading = false;
+    dashboard.organizationSettings = {};
+    dashboard.render();
+    dashboard._watchOnlineCount();
+    return dashboard;
+  };
+  const label = () => document.getElementById('dashboard-online-count');
+
+  afterEach(() => setOnlineCount(null));
+
+  test('the count sits in the banner and follows accounts as they come and go', () => {
+    setOnlineCount(3);
+    const dashboard = renderLeader(['users.view_online']);
+
+    expect(document.querySelector('.dashboard-v2__topbar #dashboard-online-count')).not.toBeNull();
+    expect(label().hidden).toBe(false);
+    expect(label().textContent).toBe('dashboard_online_count_other');
+
+    setOnlineCount(1);
+    expect(label().textContent).toBe('dashboard_online_count_one');
+
+    // Disconnected, the count is no longer live: it is hidden, not left stale.
+    setOnlineCount(null);
+    expect(label().hidden).toBe(true);
+
+    dashboard.destroy();
+    setOnlineCount(2);
+    expect(label().hidden).toBe(true);
+  });
+
+  test('without the permission, the banner shows no count', () => {
+    setOnlineCount(4);
+    renderLeader(['participants.view']);
+
+    expect(label()).toBeNull();
+  });
+
+  test('the banner with its count has no WCAG A/AA violations', async () => {
+    setOnlineCount(2);
+    renderLeader(['users.view_online']);
+    const results = await axe.run(document.querySelector('.dashboard-v2__topbar'), {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      // jsdom does no layout, so contrast cannot be computed here.
       rules: { 'color-contrast': { enabled: false } },
     });
     expect(results.violations).toEqual([]);
