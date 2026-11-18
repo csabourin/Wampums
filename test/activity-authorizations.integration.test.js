@@ -205,7 +205,7 @@ describe.skipIf(!DATABASE_URL)('One activity permission workflow', () => {
     const id = await create();
     await call('post', `/api/v1/activity-authorizations/${id}`).send({});
     const slipId = await one('SELECT id FROM permission_slips WHERE activity_id = $1 ORDER BY id LIMIT 1', [id]);
-    const oldLink = await one("UPDATE permission_slips SET access_token = gen_random_uuid() WHERE id = $1 RETURNING access_token::text", [slipId]);
+    const oldLink = await one('UPDATE permission_slips SET access_token = gen_random_uuid() WHERE id = $1 RETURNING access_token::text', [slipId]);
     await pool.query('DELETE FROM permission_slip_links WHERE slip_id = $1', [slipId]);
 
     await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../migrations/091_permission_slip_links.sql'), 'utf8'));
