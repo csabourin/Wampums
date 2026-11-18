@@ -6,7 +6,7 @@ const { Pool } = require('pg');
 const { recordChange, recordSharedChange, syncStateFor } = require('../services/liveSyncState');
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
-const describeWithDatabase = databaseUrl ? describe : describe.skip;
+const describeWithDatabase = describe.skipIf(!databaseUrl);
 /** Unit ids no seeded unit uses. */
 const UNIT = 2000000001;
 const OTHER_UNIT = 2000000002;

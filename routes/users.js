@@ -176,7 +176,7 @@ module.exports = (pool, logger) => {
          u.id,
          u.email,
          u.full_name,
-         u.is_verified,
+         (u.is_verified AND uo.status <> 'pending') AS is_verified,
          uo.role_ids,
          uo.status,
          COALESCE(
@@ -231,7 +231,7 @@ module.exports = (pool, logger) => {
          u.id,
          u.email,
          u.full_name,
-         u.is_verified,
+         (u.is_verified AND uo.status <> 'pending') AS is_verified,
          u.created_at,
          uo.role_ids,
          COALESCE(
@@ -242,7 +242,7 @@ module.exports = (pool, logger) => {
          ) as roles
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
-       WHERE uo.organization_id = $1 AND u.is_verified = false
+       WHERE uo.organization_id = $1 AND (uo.status = 'pending' OR u.is_verified = false)
        ORDER BY u.created_at DESC`,
       [organizationId]
     );
@@ -406,23 +406,30 @@ module.exports = (pool, logger) => {
       return error(res, 'User ID is required', HTTP_STATUS.BAD_REQUEST);
     }
 
-    // Verify target user exists and belongs to this organization
-    const userCheck = await pool.query(
-      `SELECT u.id, u.email FROM users u
-       JOIN user_organizations uo ON u.id = uo.user_id
-       WHERE u.id = $1 AND uo.organization_id = $2`,
+    // A unit approves its own membership. Approving a leader here opens this
+    // unit only: their membership in another unit waits for that unit.
+    const approved = await pool.query(
+      `UPDATE user_organizations SET status = 'active'
+        WHERE user_id = $1 AND organization_id = $2 AND status = 'pending'
+        RETURNING id`,
       [user_id, organizationId]
     );
 
-    if (userCheck.rows.length === 0) {
-      return error(res, 'User not found in this organization', HTTP_STATUS.NOT_FOUND);
+    if (approved.rows.length === 0) {
+      // An account that never set up access (an import's guardian) is verified by
+      // the unit that knows it, only when no other unit holds a membership of it.
+      const unverified = await pool.query(
+        `UPDATE users u SET is_verified = true
+          WHERE u.id = $1 AND u.is_verified = false
+            AND EXISTS (SELECT 1 FROM user_organizations uo WHERE uo.user_id = u.id AND uo.organization_id = $2)
+            AND NOT EXISTS (SELECT 1 FROM user_organizations other WHERE other.user_id = u.id AND other.organization_id <> $2)
+          RETURNING u.id`,
+        [user_id, organizationId]
+      );
+      if (unverified.rows.length === 0) {
+        return error(res, 'User not found in this organization', HTTP_STATUS.NOT_FOUND);
+      }
     }
-
-    // Update user verification status
-    await pool.query(
-      `UPDATE users SET is_verified = true WHERE id = $1`,
-      [user_id]
-    );
 
     logger.info(`User ${user_id} approved by admin ${req.user.id}`);
     return success(res, null, 'User approved successfully');

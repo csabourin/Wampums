@@ -64,6 +64,11 @@ jest.mock('../../spa/api/api-endpoints.js', () => ({
   getPublicPermissionSlip: jest.fn(),
   signPublicPermissionSlip: jest.fn(),
 }));
+const mockGetOwnPermissionSlip = jest.fn();
+jest.mock('../../spa/api/api-permission-slips.js', () => ({
+  ...jest.requireActual('../../spa/api/api-permission-slips.js'),
+  getOwnPermissionSlip: (...args) => mockGetOwnPermissionSlip(...args),
+}));
 jest.mock('../../spa/api/api-scout-years.js', () => ({
   getFormsNeedingReview: jest.fn(),
   confirmFormReview: jest.fn(),
@@ -204,6 +209,33 @@ describe('parent dashboard', () => {
     resolve([]);
     await done;
     expect(page().textContent).toBe('next screen');
+  });
+});
+
+describe('permission slip opened from the family dashboard', () => {
+  const SLIP = {
+    id: 7, status: 'pending', activity_title: 'Fictional canoe', participant_name: 'Ada Roy',
+    meeting_date: '2099-01-07', presented_fingerprint: 'b'.repeat(64),
+  };
+
+  test('reads and answers the family\'s own slip by id, as the signed-in parent', async () => {
+    mockGetOwnPermissionSlip.mockResolvedValue({ success: true, data: SLIP });
+    endpoints.signPermissionSlip.mockResolvedValue({ success: true, data: { permission_slip: { ...SLIP, status: 'signed' } } });
+    await new PermissionSlipSign(makeApp(), 'slip-7').init();
+
+    expect(mockGetOwnPermissionSlip).toHaveBeenCalledWith(7);
+    expect(endpoints.getPublicPermissionSlip).not.toHaveBeenCalled();
+    const name = page().querySelector('#guardian-name');
+    name.value = 'Léa Tremblay';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
+    const consent = page().querySelector('#consent-checkbox');
+    consent.checked = true;
+    consent.dispatchEvent(new Event('change', { bubbles: true }));
+    page().querySelector('#sign-btn').click();
+    await flush();
+
+    expect(endpoints.signPermissionSlip).toHaveBeenCalledWith(7, expect.objectContaining({ signed_by: 'Léa Tremblay', presented_fingerprint: 'b'.repeat(64) }));
+    expect(endpoints.signPublicPermissionSlip).not.toHaveBeenCalled();
   });
 });
 

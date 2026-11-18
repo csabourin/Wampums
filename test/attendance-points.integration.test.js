@@ -19,7 +19,7 @@ jest.mock('../middleware/auth', () => ({
   getOrganizationId: () => Promise.resolve(1),
 }));
 
-const describeWithDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
+const describeWithDatabase = describe.skipIf(!process.env.TEST_DATABASE_URL);
 const SIMULTANEOUS_REQUESTS = 8;
 
 describeWithDatabase('attendance points under simultaneous marking', () => {

@@ -72,6 +72,7 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
     app.use('/api/v1/resources', require('../routes/resources')(pool, logger));
     app.use('/api/v1/program-progress', require('../routes/programProgress')(pool, logger));
     app.use('/api/v1/form-builder', require('../routes/formBuilder')(pool, logger));
+    app.use('/api/v1/users', require('../routes/users')(pool, logger));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
   });
 
@@ -413,6 +414,71 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
       expect(refused.body.missing).toEqual(['forms.view']);
       expect(copied.status).toBe(201);
       expect(await current(copied.body.data.id)).toBe(true);
+    });
+  });
+
+  describe('budget input', () => {
+    test('a batch with one invalid line names it and records nothing', async () => {
+      const { mine } = ids;
+      const before = await count('budget_expenses WHERE organization_id = $1', [mine.id]);
+      const res = await call('post', '/api/v1/expenses/bulk', mine).send({ expenses: [
+        { amount: 10, expense_date: '2026-11-03', description: 'Fictional rope' },
+        { amount: 'ten', expense_date: '2026-02-30', description: 42 },
+      ] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors.map((entry) => entry.path)).toEqual(['expenses[1].amount', 'expenses[1].expense_date', 'expenses[1].description']);
+      expect(await count('budget_expenses WHERE organization_id = $1', [mine.id])).toBe(before);
+    });
+
+    test('emptying an expense\'s category, item or notes clears them; leaving a field out keeps it', async () => {
+      const { mine } = ids;
+      const created = await call('post', '/api/v1/budget/expenses', mine).send({ amount: 4, expense_date: '2026-11-04',
+        description: 'Fictional tape', budget_category_id: mine.category, budget_item_id: mine.item, notes: 'Keep receipt' });
+      const updated = await call('put', `/api/v1/budget/expenses/${created.body.data.id}`, mine)
+        .send({ budget_category_id: null, budget_item_id: '', notes: '' });
+
+      expect(updated.status).toBe(200);
+      expect(updated.body.data).toMatchObject({ budget_category_id: null, budget_item_id: null, notes: null, description: 'Fictional tape', amount: 4 });
+    });
+
+    test('a description that is not text is a 400, not a 500', async () => {
+      const res = await call('post', '/api/v1/budget/expenses', ids.mine).send({ amount: 4, expense_date: '2026-11-04', description: 42 });
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('approving a leader', () => {
+    test('a unit approves its own leaders: another unit\'s approval opens nothing here', async () => {
+      const { mine, theirs } = ids;
+      const leader = await one("INSERT INTO users (email, password, full_name, is_verified) VALUES ('leader-' || gen_random_uuid() || '@example.test', 'x', 'Fictional Leader', TRUE) RETURNING id");
+      ids.users.push(leader);
+      await pool.query("INSERT INTO user_organizations (user_id, organization_id, role_ids, status) VALUES ($1, $2, '[]'::jsonb, 'pending'), ($1, $3, '[]'::jsonb, 'pending')",
+        [leader, mine.id, theirs.id]);
+      const statusIn = (unitId) => one('SELECT status FROM user_organizations WHERE user_id = $1 AND organization_id = $2', [leader, unitId]);
+      const asLeader = `Bearer ${jwt.sign({ user_id: leader, organizationId: mine.id }, process.env.JWT_SECRET_KEY)}`;
+
+      await call('post', '/api/v1/users/approve', theirs).send({ user_id: leader }).expect(200);
+      const stillWaiting = await request(app).get('/api/v1/budget/categories').set('Authorization', asLeader);
+
+      expect(await statusIn(theirs.id)).toBe('active');
+      expect(await statusIn(mine.id)).toBe('pending');
+      expect(stillWaiting.status).toBeGreaterThanOrEqual(401);
+      expect(stillWaiting.status).toBeLessThanOrEqual(403);
+
+      await call('post', '/api/v1/users/approve', mine).send({ user_id: leader }).expect(200);
+      expect(await statusIn(mine.id)).toBe('active');
+    });
+
+    test('the member list says who still waits for this unit', async () => {
+      const { mine } = ids;
+      const waiting = await one("INSERT INTO users (email, password, full_name, is_verified) VALUES ('waiting-' || gen_random_uuid() || '@example.test', 'x', 'Fictional Waiting', TRUE) RETURNING id");
+      ids.users.push(waiting);
+      await pool.query("INSERT INTO user_organizations (user_id, organization_id, role_ids, status) VALUES ($1, $2, '[]'::jsonb, 'pending')", [waiting, mine.id]);
+
+      const pending = await call('get', '/api/v1/users/pending', mine);
+
+      expect(pending.body.data.find((row) => row.id === waiting)).toMatchObject({ is_verified: false });
     });
   });
 });

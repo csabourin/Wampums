@@ -59,7 +59,7 @@ fi
     expect(fs.existsSync(path.join(root, 'releases'))).toBe(false);
   });
 
-  (process.getuid?.() === 0 ? test.skip : test)('an existing archive owned by another account is rejected before upload', () => {
+  test.skipIf(process.getuid?.() === 0)('an existing archive owned by another account is rejected before upload', () => {
     fs.mkdirSync(release, { recursive: true });
     fs.writeFileSync(path.join(release, 'image.tar.gz'), 'partial archive', { mode: 0o400 });
     const result = prepare();

@@ -423,7 +423,7 @@ describe('leaders and signing', () => {
 
     const link = root.querySelector('.sign-slip');
     expect(link.tagName).toBe('A');
-    expect(link.getAttribute('href')).toBe('/permission-slip/00000000-0000-4000-8000-000000000002');
+    expect(link.getAttribute('href')).toBe('/permission-slip/slip-2');
     expect(link.textContent).toContain('permission_slip_read_and_answer');
     expect(link.textContent).toContain('Bob');
     // Nothing is signed from this list, where the slip's current text is not shown

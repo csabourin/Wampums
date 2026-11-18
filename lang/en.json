@@ -6492,5 +6492,8 @@
   "incident_email_automated": "This is an automated notification. Read the full report in Wampums.",
   "incident_email_unknown": "Unknown",
   "incident_email_not_given": "Not given",
-  "equipment_managed_by_owner": "Only the unit that keeps this item, or its Scout group, can change it. You can still reserve it."
+  "equipment_managed_by_owner": "Only the unit that keeps this item, or its Scout group, can change it. You can still reserve it.",
+  "fee_definition_has_payments": "This fee has payments recorded: it cannot be deleted.",
+  "participant_fee_exists": "This youth already has this fee.",
+  "payment_plan_not_found": "This payment plan is not one of this fee’s."
 }

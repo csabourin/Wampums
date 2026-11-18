@@ -145,7 +145,8 @@ describe('POST /api/v1/stripe/webhook', () => {
     expect(insert).toBeDefined();
     expect(insert[1][0]).toBe(String(FEE_ID));
     expect(insert[1][1]).toBe(50);
-    expect(clientSql()).toContain('UPDATE participant_fees SET status = $1 WHERE id = $2');
+    // The status is recalculated from the payments, in the unit the payment was made for.
+    expect(clientSql().some((sql) => sql.startsWith('UPDATE participant_fees pf SET status = CASE'))).toBe(true);
 
     // The unit's open finance screens hear of it as if a leader had entered the payment.
     await settle();

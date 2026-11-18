@@ -56,11 +56,16 @@ function setupConditionalHelpers() {
  */
   if (typeof test !== 'undefined' && !test.skipIf) {
     test.skipIf = function(condition, name, fn) {
+      // Both call styles, as describe.skipIf: test.skipIf(condition)(name, fn) too.
+      if (typeof name === 'undefined' && typeof fn === 'undefined') {
+        return (testName, testFn) => (condition ? test.skip(testName, testFn) : test(testName, testFn));
+      }
       if (condition) {
         test.skip(name, fn);
       } else {
         test(name, fn);
       }
+      return undefined;
     };
   }
 

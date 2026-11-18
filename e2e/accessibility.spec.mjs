@@ -521,7 +521,8 @@ test.describe('permission slips for a parent', () => {
     await openScreen(page, '/parent-dashboard');
     const readSlip = page.locator('.family-tasks .js-family-read-slip').first();
     await expect(readSlip).toBeVisible();
-    await expect(readSlip).toHaveAttribute('href', /^\/permission-slip\/[0-9a-f-]{36}$/);
+    // The family opens its own child's slip by id (spa/api/api-permission-slips.js).
+    await expect(readSlip).toHaveAttribute('href', /^\/permission-slip\/slip-\d+$/);
     // The child's card counts it and leads to the task; the file neither repeats nor signs it.
     await expect(page.locator('.participant-card__todo .js-family-goto-tasks')).not.toHaveCount(0);
     await expect(page.locator('.participant-card').getByRole('button', { name: /^(Signer|Sign)$/ })).toHaveCount(0);

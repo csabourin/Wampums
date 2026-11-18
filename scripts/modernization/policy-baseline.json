@@ -154,7 +154,6 @@
     "test/routes-participants.test.js": 1,
     "test/routes-stripe-payments.test.js": 5,
     "test/routes-user-contract.test.js": 1,
-    "test/routes-users.test.js": 4,
     "test/scout-year-rollback.integration.test.js": 8,
     "test/security.test.js": 2,
     "test/setupJest.js": 6,

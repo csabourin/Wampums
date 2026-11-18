@@ -630,11 +630,11 @@ describe('Equipment sharing and metadata', () => {
       '/api/v1/resources/equipment/2/photo',
     );
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(404);
     expect(getSignedPhotoUrl).not.toHaveBeenCalled();
   });
 
-  test('blocks reservation when requester is outside the local group', async () => {
+  test('an item outside the unit\'s reach cannot be reserved, and reads as not found', async () => {
     getOrganizationId.mockResolvedValueOnce(3);
 
     const response = await request(app)
@@ -646,7 +646,7 @@ describe('Equipment sharing and metadata', () => {
         reserved_for: 'Outside booking',
       });
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(404);
     expect(response.body.success).toBe(false);
   });
 });

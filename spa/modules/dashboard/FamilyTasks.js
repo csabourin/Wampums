@@ -14,6 +14,7 @@
  * @module spa/modules/dashboard/FamilyTasks
  */
 import { translate } from '../../app.js';
+import { ownSlipRef } from '../../api/api-permission-slips.js';
 import { escapeAttribute, escapeHTML } from '../../utils/SecurityUtils.js';
 import { formTypeLabel } from '../../utils/FormLabelUtils.js';
 import { hasUnpackedItems } from '../personal-equipment/packingStorage.js';
@@ -155,7 +156,7 @@ export function buildFamilyTasks(data, filter = ALL_CHILDREN) {
         slipId: Number(slip.id),
         deadline: slip.deadline_date || null,
         // The slip's own page, where its text is read before answering (#1410).
-        accessToken: slip.access_token || null,
+        accessToken: ownSlipRef(slip.id),
       })));
   });
 

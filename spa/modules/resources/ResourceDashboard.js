@@ -2,7 +2,7 @@ import { translate } from '../../app.js';
 import { equipmentCategoryLabel } from '../../utils/EquipmentCategoryUtils.js';
 import { debugError } from '../../utils/DebugUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
-import { setContent } from '../../utils/DOMUtils.js';
+import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import { formatDate, getTodayISO } from '../../utils/DateUtils.js';
 import {
   getEquipmentInventory,
@@ -309,105 +309,111 @@ export class ResourceDashboard {
 
     const equipmentForm = document.getElementById('equipmentForm');
     if (equipmentForm) {
-      equipmentForm.addEventListener('submit', async (event) => {
+      equipmentForm.addEventListener('submit', (event) => {
         event.preventDefault();
-        const formData = new FormData(equipmentForm);
-        const payload = Object.fromEntries(formData.entries());
-        // Field is named equipment_name: DOMPurify strips name="name" inside a
-        // form to prevent DOM clobbering of HTMLFormElement.name. Same
-        // convention as inventory.js.
-        payload.name = payload.equipment_name?.trim() || '';
-        delete payload.equipment_name;
-        payload.quantity_total = payload.quantity_total
-          ? parseInt(payload.quantity_total, 10)
-          : 1;
-        payload.quantity_available = payload.quantity_available
-          ? parseInt(payload.quantity_available, 10)
-          : undefined;
+        // One request per submit: the form's buttons stay disabled until it ends.
+        withFormBusy(equipmentForm, async () => {
+          const formData = new FormData(equipmentForm);
+          const payload = Object.fromEntries(formData.entries());
+          // Field is named equipment_name: DOMPurify strips name="name" inside a
+          // form to prevent DOM clobbering of HTMLFormElement.name. Same
+          // convention as inventory.js.
+          payload.name = payload.equipment_name?.trim() || '';
+          delete payload.equipment_name;
+          payload.quantity_total = payload.quantity_total
+            ? parseInt(payload.quantity_total, 10)
+            : 1;
+          payload.quantity_available = payload.quantity_available
+            ? parseInt(payload.quantity_available, 10)
+            : undefined;
 
-        try {
-          await saveEquipmentItem(payload);
-          this.app.showMessage(translate('inventory_saved'), 'success');
+          try {
+            await saveEquipmentItem(payload);
+            this.app.showMessage(translate('inventory_saved'), 'success');
 
-          // Invalidate cache to ensure fresh data
-          await deleteCachedData('v1/resources/equipment');
+            // Invalidate cache to ensure fresh data
+            await deleteCachedData('v1/resources/equipment');
 
-          await this.reload();
-        } catch (error) {
-          debugError('Error saving equipment', error);
-          this.app.showMessage(
-            apiErrorMessage(error, 'error_saving'),
-            'error',
-          );
-        }
+            await this.reload();
+          } catch (error) {
+            debugError('Error saving equipment', error);
+            this.app.showMessage(
+              apiErrorMessage(error, 'error_saving'),
+              'error',
+            );
+          }
+        });
       });
     }
 
     const reservationForm = document.getElementById('reservationForm');
     if (reservationForm) {
-      reservationForm.addEventListener('submit', async (event) => {
+      reservationForm.addEventListener('submit', (event) => {
         event.preventDefault();
-        const formData = new FormData(reservationForm);
-        const payload = Object.fromEntries(formData.entries());
-        payload.meeting_date = this.meetingDate;
-        payload.equipment_id = parseInt(payload.equipment_id, 10);
-        payload.reserved_quantity = payload.reserved_quantity
-          ? parseInt(payload.reserved_quantity, 10)
-          : 1;
+        // One request per submit: the form's buttons stay disabled until it ends.
+        withFormBusy(reservationForm, async () => {
+          const formData = new FormData(reservationForm);
+          const payload = Object.fromEntries(formData.entries());
+          payload.meeting_date = this.meetingDate;
+          payload.equipment_id = parseInt(payload.equipment_id, 10);
+          payload.reserved_quantity = payload.reserved_quantity
+            ? parseInt(payload.reserved_quantity, 10)
+            : 1;
 
-        try {
-          // Optimistic update: Add reservation to local state immediately
-          const equipment = this.equipment.find(
-            (e) => e.id === payload.equipment_id,
-          );
-          if (equipment) {
-            const optimisticReservation = {
-              id: `temp-${Date.now()}`,
-              equipment_id: payload.equipment_id,
-              equipment_name: equipment.name,
-              reserved_quantity: payload.reserved_quantity,
-              reserved_for: payload.reserved_for,
-              meeting_date: payload.meeting_date,
-              status: payload.status || 'reserved',
-              notes: payload.notes,
-              reservation_organization_id: localStorage.getItem(
-                'currentOrganizationId',
-              ),
-            };
+          try {
+            // Optimistic update: Add reservation to local state immediately
+            const equipment = this.equipment.find(
+              (e) => e.id === payload.equipment_id,
+            );
+            if (equipment) {
+              const optimisticReservation = {
+                id: `temp-${Date.now()}`,
+                equipment_id: payload.equipment_id,
+                equipment_name: equipment.name,
+                reserved_quantity: payload.reserved_quantity,
+                reserved_for: payload.reserved_for,
+                meeting_date: payload.meeting_date,
+                status: payload.status || 'reserved',
+                notes: payload.notes,
+                reservation_organization_id: localStorage.getItem(
+                  'currentOrganizationId',
+                ),
+              };
 
-            // Add to local reservations array
-            this.reservations = [optimisticReservation, ...this.reservations];
+              // Add to local reservations array
+              this.reservations = [optimisticReservation, ...this.reservations];
 
-            // Update equipment reserved quantity optimistically
-            equipment.reserved_quantity =
-              (equipment.reserved_quantity || 0) + payload.reserved_quantity;
+              // Update equipment reserved quantity optimistically
+              equipment.reserved_quantity =
+                (equipment.reserved_quantity || 0) + payload.reserved_quantity;
 
-            // Re-render with optimistic data
-            this.render();
-            this.attachEventHandlers();
+              // Re-render with optimistic data
+              this.render();
+              this.attachEventHandlers();
+            }
+
+            // Save to backend
+            await saveEquipmentReservation(payload);
+            this.app.showMessage(translate('reservation_saved'), 'success');
+
+            // Invalidate cache to ensure fresh data
+            await deleteCachedData('v1/resources/equipment');
+            await deleteCachedData('v1/resources/equipment/reservations');
+            await deleteCachedData('v1/resources/status/dashboard');
+
+            // Refresh from server to get actual IDs and updated quantities
+            await this.reload();
+          } catch (error) {
+            debugError('Error saving reservation', error);
+            this.app.showMessage(
+              apiErrorMessage(error, 'error_saving'),
+              'error',
+            );
+
+            // Revert optimistic update on error
+            await this.reload();
           }
-
-          // Save to backend
-          await saveEquipmentReservation(payload);
-          this.app.showMessage(translate('reservation_saved'), 'success');
-
-          // Invalidate cache to ensure fresh data
-          await deleteCachedData('v1/resources/equipment');
-          await deleteCachedData('v1/resources/equipment/reservations');
-          await deleteCachedData('v1/resources/status/dashboard');
-
-          // Refresh from server to get actual IDs and updated quantities
-          await this.reload();
-        } catch (error) {
-          debugError('Error saving reservation', error);
-          this.app.showMessage(
-            apiErrorMessage(error, 'error_saving'),
-            'error',
-          );
-
-          // Revert optimistic update on error
-          await this.reload();
-        }
+        });
       });
     }
   }

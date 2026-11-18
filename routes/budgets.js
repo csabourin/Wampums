@@ -67,6 +67,32 @@ async function checkBudgetReferences(db, organizationId, { categoryId = null, it
   return errors;
 }
 
+/** A text field as stored: empty means none. */
+const textOrNull = (value) => (value === '' || value === undefined ? null : value);
+
+/**
+ * SET clauses for the fields a request names, so a field sent empty is
+ * cleared and one left out is kept (COALESCE could not clear anything).
+ * @param {Object} body - Request body
+ * @param {Object<string, function(*): *>} fields - Column name -> how to store the sent value (trusted names)
+ * @param {number} firstIndex - Number of the first placeholder
+ * @returns {{sets: string[], values: Array}} Clauses and their values
+ */
+function namedFieldUpdates(body, fields, firstIndex) {
+  const sets = [];
+  const values = [];
+  for (const [field, store] of Object.entries(fields)) {
+    if (Object.prototype.hasOwnProperty.call(body, field)) {
+      values.push(store(body[field]));
+      sets.push(`${field} = $${firstIndex + values.length - 1}`);
+    }
+  }
+  return { sets, values };
+}
+
+/** Required text: present and not blank. */
+const isFilledText = (value) => typeof value === 'string' && value.trim().length > 0;
+
 /** Refuse a write naming a budget category or item that is not the unit's own. */
 const refuseReferences = (res, errors) => error(res, 'Invalid budget reference', HTTP_STATUS.BAD_REQUEST, errors);
 
@@ -111,7 +137,7 @@ module.exports = (pool, logger) => {
 
     const { name, description, category_type, display_order } = req.body;
 
-    if (!name || name.trim().length === 0) {
+    if (!isFilledText(name)) {
       return error(res, 'Category name is required', HTTP_STATUS.BAD_REQUEST);
     }
 
@@ -232,7 +258,7 @@ module.exports = (pool, logger) => {
       display_order
     } = req.body;
 
-    if (!budget_category_id || !name) {
+    if (!budget_category_id || !isFilledText(name)) {
       return error(res, 'Category ID and name are required', HTTP_STATUS.BAD_REQUEST);
     }
     if (referenceId(item_type) !== null && !BUDGET_ITEM_TYPES.includes(item_type)) {
@@ -282,15 +308,7 @@ module.exports = (pool, logger) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
-    const {
-      name,
-      description,
-      item_type,
-      unit_price,
-      estimated_quantity,
-      display_order,
-      active
-    } = req.body;
+    const { name, item_type, unit_price } = req.body;
 
     if (referenceId(item_type) !== null && !BUDGET_ITEM_TYPES.includes(item_type)) {
       return refuseItemType(res);
@@ -304,20 +322,25 @@ module.exports = (pool, logger) => {
       }
     }
 
-    const result = await pool.query(
-      `UPDATE budget_items
-      SET name = COALESCE($1, name),
-          description = COALESCE($2, description),
-          item_type = COALESCE($3, item_type),
-          unit_price = COALESCE($4, unit_price),
-          estimated_quantity = COALESCE($5, estimated_quantity),
-          display_order = COALESCE($6, display_order),
-          active = COALESCE($7, active),
-          updated_at = NOW()
-      WHERE id = $8 AND organization_id = $9
-      RETURNING *`,
-      [name, description, item_type, unit_price, estimated_quantity, display_order, active, id, organizationId]
-    );
+    if (Object.prototype.hasOwnProperty.call(req.body, 'name') && !isFilledText(name)) {
+      return error(res, 'Name is required', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // A field sent empty is cleared; one left out is kept.
+    const { sets, values } = namedFieldUpdates(req.body, {
+      name: (value) => value.trim(),
+      description: textOrNull,
+      item_type: (value) => value || DEFAULT_BUDGET_ITEM_TYPE,
+      unit_price: textOrNull,
+      estimated_quantity: textOrNull,
+      display_order: (value) => value || 0,
+      active: (value) => value !== false,
+    }, 1);
+    const updateText = `UPDATE budget_items
+      SET ${[...sets, 'updated_at = NOW()'].join(', ')}
+      WHERE id = $${values.length + 1} AND organization_id = $${values.length + 1 + 1}
+      RETURNING *`;
+    const result = await pool.query(updateText, [...values, id, organizationId]);
 
     if (result.rows.length === 0) {
       return error(res, 'Budget item not found', HTTP_STATUS.NOT_FOUND);
@@ -441,7 +464,7 @@ module.exports = (pool, logger) => {
       return error(res, amountValidation.message || dateValidation.message, HTTP_STATUS.BAD_REQUEST);
     }
 
-    if (!description || description.trim().length === 0) {
+    if (!isFilledText(description)) {
       return error(res, 'Description is required', HTTP_STATUS.BAD_REQUEST);
     }
 
@@ -491,17 +514,7 @@ module.exports = (pool, logger) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { id } = req.params;
-    const {
-      budget_category_id,
-      budget_item_id,
-      amount,
-      expense_date,
-      description,
-      payment_method,
-      reference_number,
-      receipt_url,
-      notes
-    } = req.body;
+    const { budget_category_id, budget_item_id, amount, expense_date, description } = req.body;
 
     // Validate amount if provided
     if (amount !== undefined && amount !== null) {
@@ -526,34 +539,30 @@ module.exports = (pool, logger) => {
       return refuseReferences(res, referenceErrors);
     }
 
-    const result = await pool.query(
-      `UPDATE budget_expenses
-      SET budget_category_id = COALESCE($1, budget_category_id),
-          budget_item_id = COALESCE($2, budget_item_id),
-          amount = COALESCE($3, amount),
-          expense_date = COALESCE($4, expense_date),
-          description = COALESCE($5, description),
-          payment_method = COALESCE($6, payment_method),
-          reference_number = COALESCE($7, reference_number),
-          receipt_url = COALESCE($8, receipt_url),
-          notes = COALESCE($9, notes),
-          updated_at = NOW()
-      WHERE id = $10 AND organization_id = $11
-      RETURNING *`,
-      [
-        budget_category_id,
-        budget_item_id,
-        amount,
-        expense_date,
-        description,
-        payment_method,
-        reference_number,
-        receipt_url,
-        notes,
-        id,
-        organizationId
-      ]
-    );
+    // An amount, a date and a description are always required; the rest may be cleared.
+    const sent = (field) => Object.prototype.hasOwnProperty.call(req.body, field);
+    if ((sent('amount') && (amount === null || amount === '')) || (sent('expense_date') && !expense_date)
+      || (sent('description') && !isFilledText(description))) {
+      return error(res, 'Amount, date and description are required', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // A field sent empty is cleared; one left out is kept.
+    const { sets, values } = namedFieldUpdates(req.body, {
+      budget_category_id: textOrNull,
+      budget_item_id: textOrNull,
+      amount: (value) => validateMoney(value, 'amount').value,
+      expense_date: (value) => value,
+      description: (value) => value.trim(),
+      payment_method: textOrNull,
+      reference_number: textOrNull,
+      receipt_url: textOrNull,
+      notes: textOrNull,
+    }, 1);
+    const updateText = `UPDATE budget_expenses
+      SET ${[...sets, 'updated_at = NOW()'].join(', ')}
+      WHERE id = $${values.length + 1} AND organization_id = $${values.length + 1 + 1}
+      RETURNING *`;
+    const result = await pool.query(updateText, [...values, id, organizationId]);
 
     if (result.rows.length === 0) {
       return error(res, 'Expense not found', HTTP_STATUS.NOT_FOUND);
@@ -1162,6 +1171,21 @@ module.exports = (pool, logger) => {
       return error(res, `Maximum ${MAX_BULK_EXPENSES} expenses can be created at once`, HTTP_STATUS.BAD_REQUEST);
     }
 
+    // Every line is checked before anything is written, and a refusal names the
+    // line and the field to correct instead of failing the whole batch with a 500.
+    const lineErrors = expenses.flatMap((expense, index) => {
+      const at = (field, msg) => ({ path: `expenses[${index}].${field}`, location: 'body', msg });
+      if (!expense || typeof expense !== 'object') { return [at('', 'invalid_expense')]; }
+      const problems = [];
+      if (!validateMoney(expense.amount, 'amount').valid) { problems.push(at('amount', 'invalid_amount')); }
+      if (!validateDate(expense.expense_date, 'expense_date').valid) { problems.push(at('expense_date', 'invalid_date')); }
+      if (!isFilledText(expense.description)) { problems.push(at('description', 'description_required')); }
+      return problems;
+    });
+    if (lineErrors.length > 0) {
+      return error(res, 'Invalid expenses', HTTP_STATUS.BAD_REQUEST, lineErrors);
+    }
+
     // Every line names only the unit's own categories and items, checked before anything is written.
     const referenceErrors = (await Promise.all(expenses.map((expense, index) => checkBudgetReferences(
       pool, organizationId,
@@ -1189,17 +1213,8 @@ module.exports = (pool, logger) => {
           notes
         } = expense;
 
-        // Validation
+        // Checked above, before the transaction.
         const amountValidation = validateMoney(amount, 'amount');
-        const dateValidation = validateDate(expense_date, 'expense_date');
-
-        if (!amountValidation.valid || !dateValidation.valid) {
-          throw new Error(amountValidation.message || dateValidation.message);
-        }
-
-        if (!description || description.trim().length === 0) {
-          throw new Error('Description is required for all expenses');
-        }
 
         const result = await client.query(
           `INSERT INTO budget_expenses

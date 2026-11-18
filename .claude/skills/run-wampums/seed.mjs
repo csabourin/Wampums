@@ -302,10 +302,12 @@ try {
     [organizationId, tarpsId, campId, childId, adminId]
   );
 
-  const slipToken = await one(
-    'SELECT access_token AS id FROM permission_slips WHERE organization_id = $1 AND activity_id = $2',
+  // An emailed link of the slip: only its digest is stored (services/permissionSlipLinks.js).
+  const { issueSlipLink } = require(path.join(ROOT, 'services/permissionSlipLinks.js'));
+  const slipToken = await issueSlipLink(pool, organizationId, await one(
+    'SELECT id FROM permission_slips WHERE organization_id = $1 AND activity_id = $2',
     [organizationId, activityId]
-  );
+  ));
 
   const { createCatalogItem } = require(path.join(ROOT, 'services/equipmentCatalog.js'));
   const tentArticle = await createCatalogItem(pool, organizationId, adminId, {
