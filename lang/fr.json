@@ -6475,5 +6475,22 @@
   "sisc_row_cannot_grant_parent": "vous ne pouvez pas donner le rôle de parent, aucun compte parent n’a été créé pour cette ligne.",
   "sisc_row_invalid_situation": "la situation n’est ni jeune (J) ni animateur (A), la ligne a été ignorée.",
   "sisc_row_invalid_birth_date": "la date de naissance n’est pas un vrai jour (format attendu AAAAMMJJ), la ligne a été ignorée.",
-  "sisc_row_not_saved": "cette ligne n’a pas pu être enregistrée et a été ignorée. Les autres lignes ont été importées."
+  "sisc_row_not_saved": "cette ligne n’a pas pu être enregistrée et a été ignorée. Les autres lignes ont été importées.",
+  "badges_submitted_for_approval": "Envoyés pour approbation : les badges comptent une fois approuvés par un animateur qui en a le droit.",
+  "incident_email_subject": "[Rapport d’incident] {victim} — {date}",
+  "incident_email_title": "Rapport d’incident / d’accident",
+  "incident_email_victim": "Personne concernée",
+  "incident_email_date_time": "Date et heure",
+  "incident_email_activity": "Activité",
+  "incident_email_location": "Lieu",
+  "incident_email_description": "Description",
+  "incident_email_injury_type": "Type de blessure",
+  "incident_email_body_regions": "Régions du corps",
+  "incident_email_first_aid": "Premiers soins donnés",
+  "incident_email_submitted_by": "Soumis par",
+  "incident_email_organization": "Unité",
+  "incident_email_automated": "Ceci est un avis automatique. Lisez le rapport complet dans Wampums.",
+  "incident_email_unknown": "Inconnu",
+  "incident_email_not_given": "Non indiqué",
+  "equipment_managed_by_owner": "Seule l’unité qui tient cet article, ou son groupe scout, peut le modifier. Vous pouvez toujours le réserver."
 }

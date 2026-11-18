@@ -51,8 +51,12 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
     const library = await one("INSERT INTO activity_library (organization_id, name, category, created_by) VALUES ($1, $2, 'game', $3) RETURNING id", [id, `${name} secret game`, admin]);
     const category = await one('INSERT INTO budget_categories (organization_id, name) VALUES ($1, $2) RETURNING id', [id, `${name} secret category`]);
     const item = await one("INSERT INTO budget_items (organization_id, budget_category_id, name, item_type) VALUES ($1, $2, $3, 'expense') RETURNING id", [id, category, `${name} secret item`]);
+    const activity = await one(`INSERT INTO activities (organization_id, created_by, name, activity_date, meeting_location_going,
+        meeting_time_going, departure_time_going, activity_start_date, activity_start_time, activity_end_date, activity_end_time)
+      VALUES ($1, $2, $3, CURRENT_DATE + 14, 'Hall', '09:00', '09:15', CURRENT_DATE + 14, '09:00', CURRENT_DATE + 14, '16:00')
+      RETURNING id`, [id, admin, `${name} secret outing`]);
     const token = `Bearer ${jwt.sign({ user_id: admin, organizationId: id }, process.env.JWT_SECRET_KEY)}`;
-    return { id, admin, youth, plan, meeting, objective, library, category, item, token };
+    return { id, admin, youth, plan, meeting, objective, library, category, item, activity, token };
   }
 
   const call = (method, path, who) => request(app)[method](path).set('Authorization', who.token);
@@ -64,15 +68,23 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
     app = express(); app.locals.pool = pool; app.use(express.json());
     app.use('/api/v1/yearly-planner', require('../routes/yearlyPlanner')(pool, logger));
     app.use('/api', require('../routes/budgets')(pool, logger));
+    app.use('/api/v1/incidents', require('../routes/incidents')(pool, logger));
+    app.use('/api/v1/resources', require('../routes/resources')(pool, logger));
+    app.use('/api/v1/program-progress', require('../routes/programProgress')(pool, logger));
+    app.use('/api/v1/form-builder', require('../routes/formBuilder')(pool, logger));
     app.use((err, _req, res, _next) => res.status(500).json({ success: false, message: 'internal_server_error' }));
   });
 
   afterAll(async () => {
     if (!pool) { return; }
     const units = [ids.mine?.id, ids.theirs?.id].filter(Boolean);
-    for (const table of ['objective_achievements', 'activity_distribution_rules', 'year_plan_meeting_activities', 'budget_expenses',
+    await pool.query('DELETE FROM equipment_item_organizations WHERE organization_id = ANY($1::int[])', [units]);
+    await pool.query(`DELETE FROM form_format_versions WHERE form_format_id IN (
+      SELECT id FROM organization_form_formats WHERE organization_id = ANY($1::int[]))`, [units]);
+    await pool.query('UPDATE organization_form_formats SET current_version_id = NULL WHERE organization_id = ANY($1::int[])', [units]);
+    for (const table of ['organization_form_formats', 'participant_credentials', 'pab_reviews', 'pab_plans', 'equipment_reservations', 'equipment_items', 'incident_email_queue', 'incident_escalation_contacts', 'incident_reports', 'form_submissions', 'objective_achievements', 'activity_distribution_rules', 'year_plan_meeting_activities', 'budget_expenses',
       'budget_plans', 'budget_items', 'budget_categories', 'activity_library', 'year_plan_objectives', 'year_plan_meetings',
-      'year_plans', 'participant_enrollments', 'scout_years', 'user_organizations']) {
+      'year_plans', 'activities', 'participant_enrollments', 'scout_years', 'user_organizations']) {
       // eslint-disable-next-line no-await-in-loop -- dependants first, one table at a time
       await pool.query(`DELETE FROM ${table} WHERE organization_id = ANY($1::int[])`, [units]);
     }
@@ -235,4 +247,173 @@ describe.skipIf(!DATABASE_URL)('writes name only the unit\'s own records', () =>
       expect(JSON.stringify(res.body)).not.toContain('Hedy');
     });
   });
+
+  describe('incident reports', () => {
+    test('a report cannot name a youth, an adult or an outing of another unit, and nothing is written', async () => {
+      const { mine, theirs } = ids;
+      const youth = await call('post', '/api/v1/incidents', mine).send({ victim_type: 'participant', victim_participant_id: theirs.youth });
+      const adult = await call('post', '/api/v1/incidents', mine).send({ victim_type: 'leader', victim_user_id: theirs.admin });
+      const outing = await call('post', '/api/v1/incidents', mine).send({ victim_type: 'other', victim_name: 'Fictional visitor', activity_id: theirs.activity });
+
+      expect([youth.status, adult.status, outing.status]).toEqual([400, 400, 400]);
+      expect(youth.body.errors).toEqual([expect.objectContaining({ path: 'victim_participant_id' })]);
+      expect(adult.body.errors).toEqual([expect.objectContaining({ path: 'victim_user_id' })]);
+      expect(outing.body.errors).toEqual([expect.objectContaining({ path: 'activity_id' })]);
+      expect(await count('incident_reports WHERE organization_id = $1', [mine.id])).toBe(0);
+      expect(await count('form_submissions WHERE organization_id = $1 AND form_type = $2', [mine.id, 'incident_report'])).toBe(0);
+    });
+
+    test('a draft cannot be changed to name another unit\'s youth', async () => {
+      const { mine, theirs } = ids;
+      const draft = await call('post', '/api/v1/incidents', mine)
+        .send({ victim_type: 'participant', victim_participant_id: mine.youth, activity_id: mine.activity });
+      const moved = await call('patch', `/api/v1/incidents/${draft.body.data.id}`, mine)
+        .send({ victim_type: 'participant', victim_participant_id: theirs.youth });
+
+      expect(draft.status).toBe(201);
+      expect(moved.status).toBe(400);
+      expect(await one('SELECT victim_participant_id FROM incident_reports WHERE id = $1', [draft.body.data.id])).toBe(mine.youth);
+    });
+
+    test('a report recorded before the check never shows another unit\'s names', async () => {
+      const { mine, theirs } = ids;
+      const id = await one(`INSERT INTO incident_reports (organization_id, status, victim_type, victim_participant_id, victim_user_id, activity_id, created_by)
+        VALUES ($1, 'draft', 'participant', $2, $3, $4, $5) RETURNING id`, [mine.id, theirs.youth, theirs.admin, theirs.activity, mine.admin]);
+
+      const detail = await call('get', `/api/v1/incidents/${id}`, mine);
+      const list = await call('get', '/api/v1/incidents', mine);
+
+      expect(detail.status).toBe(200);
+      expect(JSON.stringify([detail.body, list.body])).not.toMatch(/Margaret|Hedy/);
+    });
+
+    test('a youth can be in a second report', async () => {
+      const { mine } = ids;
+      const first = await call('post', '/api/v1/incidents', mine).send({ victim_type: 'participant', victim_participant_id: mine.youth });
+      const second = await call('post', '/api/v1/incidents', mine).send({ victim_type: 'participant', victim_participant_id: mine.youth });
+
+      expect([first.status, second.status]).toEqual([201, 201]);
+    });
+
+    test('a report submitted twice at once warns each contact once, in the unit\'s language', async () => {
+      const { mine } = ids;
+      await pool.query("INSERT INTO incident_escalation_contacts (organization_id, email, name) VALUES ($1, 'escalation@example.test', 'Fictional director')", [mine.id]);
+      const draft = await call('post', '/api/v1/incidents', mine)
+        .send({ victim_type: 'participant', victim_participant_id: mine.youth, form_data: { incident_date: '2026-11-10' } });
+
+      expect(draft.body).toMatchObject({ success: true });
+      const results = await Promise.all([1, 2].map(() => call('post', `/api/v1/incidents/${draft.body.data.id}/submit`, mine)));
+      const removed = await call('delete', `/api/v1/incidents/${draft.body.data.id}`, mine);
+
+      expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+      const queued = (await pool.query('SELECT subject FROM incident_email_queue WHERE incident_report_id = $1', [draft.body.data.id])).rows;
+      expect(queued).toHaveLength(1);
+      expect(queued[0].subject).toMatch(/^\[Rapport d’incident\]/);
+      expect(removed.status).toBe(409);
+    });
+  });
+
+  describe('equipment', () => {
+    test('a unit an item is only shared with may reserve it but not rename, recount or delete it', async () => {
+      const { mine, theirs } = ids;
+      const tent = await one("INSERT INTO equipment_items (organization_id, name, quantity_total) VALUES ($1, 'Fictional shared tent', 4) RETURNING id", [theirs.id]);
+      await pool.query('INSERT INTO equipment_item_organizations (equipment_id, organization_id) VALUES ($1, $2)', [tent, mine.id]);
+
+      const renamed = await call('put', `/api/v1/resources/equipment/${tent}`, mine).send({ name: 'Mine now', quantity_total: 1 });
+      const removed = await call('delete', `/api/v1/resources/equipment/${tent}`, mine);
+      const reserved = await call('post', '/api/v1/resources/equipment/reservations', mine)
+        .send({ equipment_id: tent, meeting_date: '2027-01-10', reserved_quantity: 1, reserved_for: 'Fictional outing' });
+
+      expect([renamed.status, removed.status, reserved.status]).toEqual([403, 403, 201]);
+      expect(await one('SELECT name || \'/\' || quantity_total || \'/\' || is_active FROM equipment_items WHERE id = $1', [tent]))
+        .toBe('Fictional shared tent/4/true');
+    });
+
+    test('a reservation of the older form, with only its meeting date, still holds stock', async () => {
+      const { mine } = ids;
+      const stove = await one("INSERT INTO equipment_items (organization_id, name, quantity_total) VALUES ($1, 'Fictional stove', 1) RETURNING id", [mine.id]);
+      await pool.query(`INSERT INTO equipment_reservations (organization_id, equipment_id, meeting_date, reserved_quantity, reserved_for, status)
+        VALUES ($1, $2, '2027-02-06', 1, 'Older booking', 'reserved')`, [mine.id, stove]);
+
+      const res = await call('post', '/api/v1/resources/equipment/reservations', mine)
+        .send({ equipment_id: stove, date_from: '2027-02-05', date_to: '2027-02-07', reserved_quantity: 1, reserved_for: 'New booking' });
+
+      expect(res.status).toBe(400);
+    });
+
+    test('adding an item under a name the unit already uses is a conflict, never an overwrite', async () => {
+      const { mine } = ids;
+      await one("INSERT INTO equipment_items (organization_id, name, quantity_total, description) VALUES ($1, 'Fictional tarp', 6, 'Blue') RETURNING id", [mine.id]);
+
+      const res = await call('post', '/api/v1/resources/equipment', mine).send({ name: 'Fictional tarp', quantity_total: 1 });
+
+      expect(res.status).toBe(409);
+      expect(await one("SELECT quantity_total || '/' || description FROM equipment_items WHERE organization_id = $1 AND name = 'Fictional tarp'", [mine.id]))
+        .toBe('6/Blue');
+    });
+  });
+
+  describe('programme progression', () => {
+    test('a progression is recorded, and only on the youth\'s own plan in the unit', async () => {
+      const { mine, theirs } = ids;
+      const theirPlan = await one("INSERT INTO pab_plans (organization_id, participant_id, title) VALUES ($1, $2, 'Fictional plan') RETURNING id", [theirs.id, theirs.youth]);
+
+      const credential = await call('post', '/api/v1/program-progress/award', mine)
+        .send({ participant_id: mine.youth, program_type: 'credential', program_data: { credential_key: 'fictional_first_aid', status: 'active' } });
+      const review = await call('post', '/api/v1/program-progress/award', mine)
+        .send({ participant_id: mine.youth, program_type: 'pab_review', program_data: { pab_plan_id: theirPlan, notes: 'Fictional' } });
+
+      expect(credential.status).toBe(201);
+      expect(credential.body.data.programRecord.credential_key).toBe('fictional_first_aid');
+      expect(review.status).toBe(400);
+      expect(await count('pab_reviews WHERE pab_plan_id = $1', [theirPlan])).toBe(0);
+    });
+  });
+
+  describe('form versions', () => {
+    const structure = (label) => ({ fields: [{ name: 'fictional_field', type: 'text', label }] });
+    const current = (formId) => one(
+      `SELECT ffv.form_structure = off.form_structure FROM organization_form_formats off
+         JOIN form_format_versions ffv ON ffv.id = off.current_version_id WHERE off.id = $1`, [formId]);
+
+    test('creating and editing a form each publish the structure it shows', async () => {
+      const { mine } = ids;
+      const created = await call('post', '/api/v1/form-builder/form-formats', mine)
+        .send({ form_type: 'fictional_form', form_structure: structure('First') });
+      const formId = created.body.data.id;
+      expect(await current(formId)).toBe(true);
+
+      await call('put', `/api/v1/form-builder/form-formats/${formId}`, mine).send({ form_structure: structure('Second') });
+
+      expect(await current(formId)).toBe(true);
+      expect(await count('form_format_versions WHERE form_format_id = $1', [formId])).toBe(2);
+    });
+
+    test('publishing an earlier version makes the form show it again', async () => {
+      const { mine } = ids;
+      const formId = await one("SELECT id FROM organization_form_formats WHERE organization_id = $1 AND form_type = 'fictional_form'", [mine.id]);
+      const first = await one('SELECT id FROM form_format_versions WHERE form_format_id = $1 AND version_number = 1', [formId]);
+
+      await call('post', `/api/v1/form-builder/form-versions/${first}/publish`, mine).expect(200);
+
+      expect(await one("SELECT form_structure->'fields'->0->>'label' FROM organization_form_formats WHERE id = $1", [formId])).toBe('First');
+      expect(await current(formId)).toBe(true);
+    });
+
+    test('copying a form takes forms.view in the unit it comes from, and the copy is a version', async () => {
+      const { mine, theirs } = ids;
+      await call('post', '/api/v1/form-builder/form-formats', theirs).send({ form_type: 'their_form', form_structure: structure('Theirs') });
+
+      const refused = await call('post', `/api/v1/form-builder/form-formats/${theirs.id}/their_form/copy`, mine);
+      await pool.query("INSERT INTO user_organizations (organization_id, user_id, role_ids, status) SELECT $1, $2, role_ids, 'active' FROM user_organizations WHERE user_id = $2 AND organization_id = $3",
+        [theirs.id, mine.admin, mine.id]);
+      const copied = await call('post', `/api/v1/form-builder/form-formats/${theirs.id}/their_form/copy`, mine);
+
+      expect(refused.status).toBe(403);
+      expect(refused.body.missing).toEqual(['forms.view']);
+      expect(copied.status).toBe(201);
+      expect(await current(copied.body.data.id)).toBe(true);
+    });
+  });
 });
+

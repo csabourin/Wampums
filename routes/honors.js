@@ -11,6 +11,7 @@
 const express = require('express');
 const { eligibleActionParticipants } = require('../services/actionRoster');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { isCalendarDate } = require('../utils/calendar-date');
 const { rowPlaceholders } = require('../utils/sql-placeholders');
 const router = express.Router();
 
@@ -357,8 +358,8 @@ module.exports = (pool, logger) => {
 
       if (date) {
         // Validate date format (YYYY-MM-DD)
-        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-        if (!dateRegex.test(date) || isNaN(new Date(date).getTime())) {
+        // A real day: `new Date('2026-02-30')` would roll over to 2 March.
+        if (!isCalendarDate(date)) {
           return errorResponse(res, 'Invalid date format. Use YYYY-MM-DD', HTTP_STATUS.BAD_REQUEST);
         }
       }
@@ -378,11 +379,12 @@ module.exports = (pool, logger) => {
 
         // Verify honor exists and belongs to organization
         const checkResult = await client.query(
-          `SELECT h.id, h.date, h.participant_id
+          // The honor's own unit, not the youth's: a youth enrolled in two units
+          // has honors in each, and each unit edits only its own.
+          `SELECT h.id, h.date::text AS date, h.participant_id
            FROM honors h
-           JOIN participants p ON h.participant_id = p.id
-           JOIN participant_organizations po ON p.id = po.participant_id
-           WHERE h.id = $1 AND po.organization_id = $2`,
+           WHERE h.id = $1 AND h.organization_id = $2
+           FOR UPDATE`,
           [honorId, organizationId]
         );
 
@@ -483,12 +485,12 @@ module.exports = (pool, logger) => {
 
         // Verify honor exists and belongs to organization, get details for logging
         const checkResult = await client.query(
-          `SELECT h.id, h.participant_id, h.date, h.reason,
+          `SELECT h.id, h.participant_id, h.date::text AS date, h.reason,
                   p.first_name, p.last_name
            FROM honors h
            JOIN participants p ON h.participant_id = p.id
-           JOIN participant_organizations po ON p.id = po.participant_id
-           WHERE h.id = $1 AND po.organization_id = $2`,
+           WHERE h.id = $1 AND h.organization_id = $2
+           FOR UPDATE OF h`,
           [honorId, organizationId]
         );
 

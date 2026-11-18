@@ -278,6 +278,12 @@ describe('Equipment sharing and metadata', () => {
           return { rows: [] };
         }
 
+        // Who maintains an item: the unit keeping its record (no group-owned items here).
+        if (text.includes('manager_group') && text.includes('FROM equipment_items e WHERE e.id = $1')) {
+          const [equipmentId, orgId] = params;
+          return equipmentItems[equipmentId]?.organization_id === orgId ? { rows: [{ '?column?': 1 }] } : { rows: [] };
+        }
+
         if (
           text.includes('SELECT DISTINCT ei.id') &&
           text.includes('equipment_items ei') &&
@@ -513,7 +519,20 @@ describe('Equipment sharing and metadata', () => {
     expect(equipmentItems[1].photo_url).toBeNull();
   });
 
-  test('uses the owner organization when a shared equipment photo is updated', async () => {
+  test('a unit an item is only shared with cannot change it, its photo included', async () => {
+    const response = await request(app)
+      .put('/api/v1/resources/equipment/2')
+      .send({ photo_url: 'org_2/equipment_2_456.webp', name: 'Renamed' });
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toBe('equipment_managed_by_owner');
+    expect(response.body.required).toEqual(['inventory.manage']);
+    expect(equipmentItems[2].photo_url).toBeNull();
+    expect(equipmentItems[2].name).toBe('Tent');
+  });
+
+  test('the unit keeping a shared item still changes its photo under its own folder', async () => {
+    getOrganizationId.mockResolvedValueOnce(2);
     const response = await request(app)
       .put('/api/v1/resources/equipment/2')
       .send({ photo_url: 'org_2/equipment_2_456.webp' });

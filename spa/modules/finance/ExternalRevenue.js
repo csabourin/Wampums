@@ -19,7 +19,7 @@ import {
   retryWithBackoff,
 } from '../../utils/PerformanceUtils.js';
 import { canApproveFinance, canManageFinance } from '../../utils/PermissionUtils.js';
-import { setContent } from '../../utils/DOMUtils.js';
+import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { renderBackLink } from '../../utils/BackLinkUtils.js';
 import { showPageError } from '../../utils/PageStateUtils.js';
@@ -645,11 +645,12 @@ export class ExternalRevenue {
       `,
     });
 
-    document
-      .getElementById('revenue-form')
+    const revenueForm = document.getElementById('revenue-form');
+    revenueForm
       .addEventListener('submit', async (e) => {
         e.preventDefault();
-        await this.saveRevenue(revenue?.id);
+        // One revenue per click: the footer's submit button names the form and is disabled with it.
+        await withFormBusy(revenueForm, () => this.saveRevenue(revenue?.id));
       });
   }
 

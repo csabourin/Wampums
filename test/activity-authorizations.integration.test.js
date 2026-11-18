@@ -140,6 +140,44 @@ describe.skipIf(!DATABASE_URL)('One activity permission workflow', () => {
     expect(changed.status).toBe(409);
   });
 
+  test('two reminder requests at the same moment remind each family once', async () => {
+    const id = await create();
+    await call('post', `/api/v1/activity-authorizations/${id}`).send({});
+    await pool.query('UPDATE permission_slips SET email_sent = true WHERE activity_id = $1', [id]);
+    sendEmail.mockClear();
+
+    const results = await Promise.all([1, 2].map(() => call('post', '/api/v1/resources/permission-slips/send-reminders').send({ activity_id: id })));
+
+    results.forEach((result) => expect(result.status).toBe(200));
+    expect(sendEmail.mock.calls.map(([email]) => email).sort()).toEqual(['first@example.test', 'second@example.test']);
+  });
+
+  test('a reminder nobody received can be sent again at once', async () => {
+    const id = await create();
+    await call('post', `/api/v1/activity-authorizations/${id}`).send({});
+    await pool.query('UPDATE permission_slips SET email_sent = true WHERE activity_id = $1', [id]);
+    sendEmail.mockReset().mockResolvedValue(false);
+    await call('post', '/api/v1/resources/permission-slips/send-reminders').send({ activity_id: id });
+    sendEmail.mockReset().mockResolvedValue(true);
+
+    await call('post', '/api/v1/resources/permission-slips/send-reminders').send({ activity_id: id });
+
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+  });
+
+  test('the emailed link shows what to answer, not the slip\'s ids, contacts or recorded payloads', async () => {
+    const id = await create();
+    await call('post', `/api/v1/activity-authorizations/${id}`).send({});
+    const token = await one('SELECT access_token FROM permission_slips WHERE activity_id = $1 LIMIT 1', [id]);
+
+    const shown = (await request(app).get(`/api/v1/resources/permission-slips/v/${token}`)).body.data;
+
+    expect(shown.activity_title).toBeTruthy();
+    for (const field of ['id', 'organization_id', 'participant_id', 'guardian_id', 'guardians_emailed', 'contact_confirmation', 'consent_payload', 'signature_hash']) {
+      expect(shown).not.toHaveProperty(field);
+    }
+  });
+
   test('one action creates all invited requests and reports missing contact details', async () => {
     const id = await create();
     const response = await call('post', `/api/v1/activity-authorizations/${id}`).send({});

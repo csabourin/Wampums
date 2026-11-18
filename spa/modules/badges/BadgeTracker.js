@@ -1529,7 +1529,7 @@ export class BadgeTracker {
           badge_template_id: templateId,
           level: 1,
           star_type: starType,
-          status: 'approved',
+          status: this.canApprove ? 'approved' : 'pending',
           date_obtention: date,
           comments: `Catch-up award for meeting ${date}`,
         });
@@ -1547,7 +1547,7 @@ export class BadgeTracker {
 
       closeModal('award-modal');
       this.showToast(
-        translate('achievements_awarded_success'),
+        translate(this.canApprove ? 'achievements_awarded_success' : 'badges_submitted_for_approval'),
         'success',
       );
       this.loadData(true);
@@ -1757,7 +1757,7 @@ export class BadgeTracker {
           badge_template_id: templateId,
           etoiles: nextStar,
           star_type: 'battue',
-          status: 'approved',
+          status: this.canApprove ? 'approved' : 'pending',
           date_obtention: date,
           objectif: template?.name || 'Badge de groupe',
           comments: `Attribution rétrospective - ${date}`,
@@ -1769,7 +1769,7 @@ export class BadgeTracker {
       if (updates.length > 0) {
         await Promise.all(updates);
         this.showToast(
-          translate('retroactive_badge_success'),
+          translate(this.canApprove ? 'retroactive_badge_success' : 'badges_submitted_for_approval'),
           'success',
         );
       } else {

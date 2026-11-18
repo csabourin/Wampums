@@ -36,8 +36,17 @@ const {
 
 /** The text a slip presents, as one JSON object (services/permissionSlipFingerprint.js). */
 const SLIP_CONTENT_SQL = slipContentSql('ps');
+/** One address however a contact record wrote it: a family is emailed once, not once per spelling. */
+const normalizeAddress = (address) => String(address).trim().toLowerCase();
+
+/** What the public signing page of a slip receives: the text to answer and the answer, nothing else. */
+const PUBLIC_SLIP_FIELDS = [
+  'access_token', 'status', 'participant_name', 'activity_title', 'activity_description',
+  'activity_description_html', 'authorization_text', 'meeting_date', 'deadline_date',
+  'signed_at', 'signed_by', 'declined_at', 'declined_by', 'presented_fingerprint', 'fingerprint_status',
+];
 const { isEquipmentAccessible } = require('../services/equipmentAccess');
-const { OwnershipError, equipmentAccessSql, readEquipmentOwner } = require('../services/equipmentOwnership');
+const { OwnershipError, equipmentAccessSql, equipmentManageSql, readEquipmentOwner } = require('../services/equipmentOwnership');
 const EQUIPMENT_UPDATE_PARAM_OFFSET = 2;
 const { EQUIPMENT_CATEGORIES } = require('../services/equipmentCategories');
 const { resolveOrganizationBaseUrl } = require('../utils/public-url');
@@ -392,6 +401,24 @@ module.exports = (pool, logger) => {
     return linkCheck.rows.length > 0;
   }
 
+  /**
+   * Whether the unit maintains the item (services/equipmentOwnership.js): a unit
+   * the item is only shared with reserves and borrows it, nothing more.
+   * @param {number} equipmentId - Item
+   * @param {number} organizationId - The authenticated unit
+   * @returns {Promise<boolean>}
+   */
+  async function mayManageEquipment(equipmentId, organizationId) {
+    const result = await pool.query(
+      `SELECT 1 FROM equipment_items e WHERE e.id = $1 AND ${equipmentManageSql('e', '$2')}`,
+      [equipmentId, organizationId],
+    );
+    return result.rows.length > 0;
+  }
+
+  /** Refuse a change to an item the unit only uses. */
+  const refuseNotManaged = (res) => forbidden(res, 'equipment_managed_by_owner', ['inventory.manage'], []);
+
   async function verifyEquipmentAccess(equipmentId, organizationId) {
     if (!await isEquipmentAccessible(pool, organizationId, equipmentId)) {
       const accessError = new Error('Equipment not accessible for organization');
@@ -466,6 +493,7 @@ module.exports = (pool, logger) => {
                FROM accessible_equipment e
            )
            SELECT e.*,
+                  ${equipmentManageSql('e', '$1')} AS can_manage,
                   COALESCE((
                     SELECT SUM(er.reserved_quantity)
                     FROM equipment_reservations er
@@ -606,21 +634,9 @@ module.exports = (pool, logger) => {
           `INSERT INTO equipment_items
            (organization_id, name, category, description, quantity_total, quantity_available, condition_note, attributes, item_value, photo_url, acquisition_date, location_type, location_details, owner_type, owner_local_group_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-           ON CONFLICT (organization_id, name)
-           DO UPDATE SET
-             category = EXCLUDED.category,
-             description = EXCLUDED.description,
-             quantity_total = EXCLUDED.quantity_total,
-             quantity_available = EXCLUDED.quantity_available,
-             condition_note = EXCLUDED.condition_note,
-             attributes = EXCLUDED.attributes,
-             item_value = EXCLUDED.item_value,
-             photo_url = EXCLUDED.photo_url,
-             acquisition_date = EXCLUDED.acquisition_date,
-             location_type = EXCLUDED.location_type,
-             location_details = EXCLUDED.location_details,
-             updated_at = CURRENT_TIMESTAMP
-           WHERE NOT $16::boolean
+           -- A name already in the unit is a conflict: adding an item never
+           -- overwrites another one's quantity, description or photo.
+           ON CONFLICT (organization_id, name) DO NOTHING
            RETURNING *`,
           [
             organizationId,
@@ -637,7 +653,7 @@ module.exports = (pool, logger) => {
             normalizedAcquisitionDate,
             location_type || LOCATION_TYPES[0],
             location_details ?? '',
-            owner.owner_type, owner.owner_local_group_id, Object.hasOwn(req.body, 'owner_type'),
+            owner.owner_type, owner.owner_local_group_id,
           ],
         );
 
@@ -719,6 +735,9 @@ module.exports = (pool, logger) => {
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
+        if (!(await mayManageEquipment(equipmentId, organizationId))) {
+          return refuseNotManaged(res);
+        }
 
         const existingEquipment = await pool.query(
           `SELECT * FROM equipment_items WHERE id = $1`,
@@ -832,7 +851,7 @@ module.exports = (pool, logger) => {
           );
         }
 
-        // Update equipment (any organization with access can update)
+        // Update equipment (the unit maintaining it, checked above)
         const queryText = `WITH previous AS (
             SELECT id, name, category, organization_id FROM equipment_items WHERE id = $1 FOR UPDATE
           ), changed AS (
@@ -948,6 +967,9 @@ module.exports = (pool, logger) => {
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
+        if (!(await mayManageEquipment(equipmentId, organizationId))) {
+          return refuseNotManaged(res);
+        }
 
         // Check if equipment has active reservations
         const reservationCheck = await pool.query(
@@ -965,7 +987,7 @@ module.exports = (pool, logger) => {
           );
         }
 
-        // Soft delete: set is_active = false (any organization with access can delete)
+        // Soft delete: set is_active = false (the unit maintaining it, checked above)
         const result = await pool.query(
           `UPDATE equipment_items
            SET is_active = false, updated_at = CURRENT_TIMESTAMP
@@ -1028,6 +1050,9 @@ module.exports = (pool, logger) => {
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
+        if (!(await mayManageEquipment(equipmentId, organizationId))) {
+          return refuseNotManaged(res);
+        }
 
         // Get current photo URL
         const equipmentCheck = await pool.query(
@@ -1134,6 +1159,9 @@ module.exports = (pool, logger) => {
 
         // Verify organization has access to this equipment (owner or shared)
         await verifyEquipmentAccess(equipmentId, organizationId);
+        if (!(await mayManageEquipment(equipmentId, organizationId))) {
+          return refuseNotManaged(res);
+        }
 
         // Get current photo URL
         const equipmentCheck = await pool.query(
@@ -1162,7 +1190,7 @@ module.exports = (pool, logger) => {
           }
         }
 
-        // Update equipment to remove photo URL (any organization with access can delete)
+        // Update equipment to remove photo URL (the unit maintaining it, checked above)
         const updateResult = await pool.query(
           `UPDATE equipment_items
            SET photo_url = NULL, updated_at = CURRENT_TIMESTAMP
@@ -1309,7 +1337,7 @@ module.exports = (pool, logger) => {
       check('date_from').optional().isISO8601(),
       check('date_to').optional().isISO8601(),
       check('meeting_id').optional().isInt({ min: 1 }),
-      check('reserved_quantity').optional().isInt({ min: 1 }),
+      check('reserved_quantity').optional().isInt({ min: 1 }).toInt(),
       check('reserved_for').optional().isString().trim().isLength({ max: 200 }),
       check('status')
         .optional()
@@ -1395,10 +1423,9 @@ module.exports = (pool, logger) => {
              FROM equipment_reservations
              WHERE equipment_id = $1
                AND status IN ('reserved', 'confirmed')
-               AND (
-                 (date_from <= $3 AND date_to >= $2) OR  -- overlaps with our date range
-                 (date_from >= $2 AND date_to <= $3)     -- completely contained within our date range
-               )
+               -- Overlaps the range; a reservation of the older form has only its meeting_date.
+               AND COALESCE(date_from, meeting_date) <= $3
+               AND COALESCE(date_to, meeting_date) >= $2
                AND NOT (
                  organization_id = $4
                  AND meeting_date = $5
@@ -1486,7 +1513,7 @@ module.exports = (pool, logger) => {
     requirePermission('inventory.reserve'),
     [
       validateIdParam('id'),
-      check('reserved_quantity').optional().isInt({ min: 1 }),
+      check('reserved_quantity').optional().isInt({ min: 1 }).toInt(),
       check('reserved_for').optional().isString().trim().isLength({ max: 200 }),
       check('status')
         .optional()
@@ -1525,7 +1552,8 @@ module.exports = (pool, logger) => {
           if (req.body.reserved_quantity !== undefined || reacquiresStock) {
             // Get current reservation details
             const currentReservation = await client.query(
-              `SELECT equipment_id, date_from, date_to, reserved_quantity, status, activity_id
+              `SELECT equipment_id, COALESCE(date_from, meeting_date) AS date_from,
+                      COALESCE(date_to, meeting_date) AS date_to, reserved_quantity, status, activity_id
                FROM equipment_reservations
                WHERE id = $1 AND organization_id = $2`,
               [reservationId, organizationId],
@@ -1562,10 +1590,9 @@ module.exports = (pool, logger) => {
                  WHERE equipment_id = $1
                    AND id != $2
                    AND status IN ('reserved', 'confirmed')
-                   AND (
-                     (date_from <= $4 AND date_to >= $3) OR  -- overlaps with our date range
-                     (date_from >= $3 AND date_to <= $4)     -- completely contained within our date range
-                   )`,
+                   -- Overlaps the range; a reservation of the older form has only its meeting_date.
+                   AND COALESCE(date_from, meeting_date) <= $4
+                   AND COALESCE(date_to, meeting_date) >= $3`,
                 [
                   reservation.equipment_id,
                   reservationId,
@@ -1771,10 +1798,9 @@ module.exports = (pool, logger) => {
                FROM equipment_reservations
                WHERE equipment_id = $1
                  AND status IN ('reserved', 'confirmed')
-                 AND (
-                   (date_from <= $3 AND date_to >= $2) OR  -- overlaps with our date range
-                   (date_from >= $2 AND date_to <= $3)     -- completely contained within our date range
-                 )`,
+                 -- Overlaps the range; a reservation of the older form has only its meeting_date.
+                 AND COALESCE(date_from, meeting_date) <= $3
+                 AND COALESCE(date_to, meeting_date) >= $2`,
               [item.equipment_id, normalizedDateFrom, normalizedDateTo, req.body.activity_id || null],
             );
 
@@ -2129,9 +2155,9 @@ module.exports = (pool, logger) => {
 
           // Add guardian emails
           for (const guardian of guardiansResult.rows) {
-            if (guardian.courriel && !emailRecipients.some(r => r.email === guardian.courriel)) {
+            if (guardian.courriel?.trim() && !emailRecipients.some(r => r.email === normalizeAddress(guardian.courriel))) {
               emailRecipients.push({
-                email: guardian.courriel,
+                email: normalizeAddress(guardian.courriel),
                 name: `${guardian.prenom || ''} ${guardian.nom || ''}`.trim(),
                 type: 'guardian',
                 id: guardian.id
@@ -2141,9 +2167,9 @@ module.exports = (pool, logger) => {
 
           // Add parent user emails (if not already included)
           for (const parent of parentUsersResult.rows) {
-            if (parent.email && !emailRecipients.some(r => r.email === parent.email)) {
+            if (parent.email?.trim() && !emailRecipients.some(r => r.email === normalizeAddress(parent.email))) {
               emailRecipients.push({
-                email: parent.email,
+                email: normalizeAddress(parent.email),
                 name: parent.full_name || '',
                 type: 'parent_user',
                 id: parent.id
@@ -2388,6 +2414,25 @@ module.exports = (pool, logger) => {
         const sender = await resolveOrganizationEmailSender(pool, organizationId);
 
         for (const slip of slipsResult.rows) {
+          // Claim the slip's reminder before sending: a second request at the
+          // same moment (two leaders, a double click) finds it claimed and skips it.
+          // eslint-disable-next-line no-await-in-loop -- one slip at a time, as the sends below
+          const claim = await pool.query(
+            `WITH previous AS (
+               SELECT id, reminder_sent, reminder_sent_at FROM permission_slips WHERE id = $1 FOR UPDATE
+             )
+             UPDATE permission_slips ps
+                SET reminder_sent = true, reminder_sent_at = CURRENT_TIMESTAMP
+               FROM previous
+              WHERE ps.id = previous.id AND ps.status = 'pending'
+                AND (previous.reminder_sent_at IS NULL OR previous.reminder_sent_at < NOW() - INTERVAL '1 day')
+              RETURNING previous.reminder_sent, previous.reminder_sent_at`,
+            [slip.id],
+          );
+          if (claim.rows.length === 0) {
+            continue;
+          }
+
           // Get ALL guardians linked to this participant
           const guardiansResult = await pool.query(
             `SELECT DISTINCT g.id, g.prenom, g.nom, g.courriel
@@ -2419,9 +2464,9 @@ module.exports = (pool, logger) => {
 
           // Add guardian emails
           for (const guardian of guardiansResult.rows) {
-            if (guardian.courriel && !emailRecipients.some(r => r.email === guardian.courriel)) {
+            if (guardian.courriel?.trim() && !emailRecipients.some(r => r.email === normalizeAddress(guardian.courriel))) {
               emailRecipients.push({
-                email: guardian.courriel,
+                email: normalizeAddress(guardian.courriel),
                 name: `${guardian.prenom || ''} ${guardian.nom || ''}`.trim(),
                 type: 'guardian',
                 id: guardian.id
@@ -2431,9 +2476,9 @@ module.exports = (pool, logger) => {
 
           // Add parent user emails (if not already included)
           for (const parent of parentUsersResult.rows) {
-            if (parent.email && !emailRecipients.some(r => r.email === parent.email)) {
+            if (parent.email?.trim() && !emailRecipients.some(r => r.email === normalizeAddress(parent.email))) {
               emailRecipients.push({
-                email: parent.email,
+                email: normalizeAddress(parent.email),
                 name: parent.full_name || '',
                 type: 'parent_user',
                 id: parent.id
@@ -2447,6 +2492,11 @@ module.exports = (pool, logger) => {
               participant_name: `${slip.first_name} ${slip.last_name}`,
               reason: 'No guardian or parent email addresses found',
             });
+            // eslint-disable-next-line no-await-in-loop -- one slip at a time, as the sends below
+            await pool.query(
+              'UPDATE permission_slips SET reminder_sent = $2, reminder_sent_at = $3 WHERE id = $1',
+              [slip.id, claim.rows[0].reminder_sent, claim.rows[0].reminder_sent_at],
+            );
             continue;
           }
 
@@ -2502,13 +2552,11 @@ module.exports = (pool, logger) => {
             }
           }
 
-          // Mark reminder as sent if at least one email was successfully sent
-          if (slipSentCount > 0) {
+          // Nothing went out: give the claim back, so the next request may try again.
+          if (slipSentCount === 0) {
             await pool.query(
-              `UPDATE permission_slips
-               SET reminder_sent = true, reminder_sent_at = CURRENT_TIMESTAMP
-               WHERE id = $1`,
-              [slip.id],
+              'UPDATE permission_slips SET reminder_sent = $2, reminder_sent_at = $3 WHERE id = $1',
+              [slip.id, claim.rows[0].reminder_sent, claim.rows[0].reminder_sent_at],
             );
           }
         }
@@ -3028,7 +3076,10 @@ module.exports = (pool, logger) => {
           return error(res, 'Permission slip not found', HTTP_STATUS.NOT_FOUND);
         }
 
-        return success(res, describeSlip(slipResult.rows[0]));
+        // Whoever holds the link (a forwarded email, a mail scanner) sees what
+        // signing needs, not the row: no ids, contacts or recorded payloads.
+        const described = describeSlip(slipResult.rows[0]);
+        return success(res, Object.fromEntries(PUBLIC_SLIP_FIELDS.map((field) => [field, described[field] ?? null])));
       } catch (err) {
         return error(res, err.message || 'Error fetching permission slip', err.statusCode || HTTP_STATUS.INTERNAL_ERROR);
       }

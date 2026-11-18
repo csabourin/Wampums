@@ -9,11 +9,12 @@
 
 const express = require('express');
 const { HTTP_STATUS } = require('../utils/http-status');
+const { isCalendarDate } = require('../utils/calendar-date');
 const router = express.Router();
 
 // Import utilities
 const { getPointSystemRules } = require('../utils/api-helpers');
-const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, withScoutYear, userHasPermission } = require('../middleware/auth');
 const { asyncHandler, success, error: errorResponse } = require('../middleware/response');
 const { validateIdBody, validateIdParam, validateIdQuery, checkValidation } = require('../middleware/validation');
 
@@ -61,6 +62,22 @@ async function grantBadgeEarnPoints(client, organizationId, badge) {
     [value, badge.id, organizationId]
   );
   return value;
+}
+
+/**
+ * Hold one youth's levels of one badge until the transaction ends, so two
+ * recordings at the same moment do not both read "next is 2" and both write it.
+ * @param {Object} client - Client inside the transaction recording the level
+ * @param {number} organizationId - Unit
+ * @param {number} participantId - Youth
+ * @param {number} templateId - Badge
+ * @returns {Promise<void>}
+ */
+async function lockBadgeLevels(client, organizationId, participantId, templateId) {
+  await client.query(
+    "SELECT pg_advisory_xact_lock(hashtextextended('badge_levels:' || $1::text || ':' || $2::text || ':' || $3::text, 0))",
+    [organizationId, participantId, templateId]
+  );
 }
 
 const toIntegerId = (value) => {
@@ -303,6 +320,9 @@ module.exports = (pool, logger) => {
     if (!participant_id || !badge_template_id) {
       return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Participant ID and badge_template_id are required' });
     }
+    if (date_obtention !== undefined && date_obtention !== null && date_obtention !== '' && !isCalendarDate(date_obtention)) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'invalid_date' });
+    }
 
     const client = await pool.connect();
     try {
@@ -339,6 +359,7 @@ module.exports = (pool, logger) => {
 
       const templateLevels = normalizeLevels(template.levels, template.level_count);
       const templateLevelCount = getLevelCount(templateLevels, template.level_count);
+      await lockBadgeLevels(client, organizationId, participant_id, template.id);
       const existingLevelsResult = await client.query(
         `SELECT etoiles FROM badge_progress
            WHERE participant_id = $1 AND badge_template_id = $2 AND organization_id = $3`,
@@ -362,69 +383,47 @@ module.exports = (pool, logger) => {
       }
 
       // Check if star_type column exists
-      const columnCheck = await client.query(
-        `SELECT column_name FROM information_schema.columns
-           WHERE table_name = 'badge_progress' AND column_name = 'star_type'`
-      );
-      const hasStarType = columnCheck.rows.length > 0;
 
       // Determine status (default to pending, allow approved if passed)
-      const validStatus = (req.body.status === 'approved') ? 'approved' : 'pending';
+      // Recording a level as already approved is approving it: only someone who
+      // may approve (badges.approve) does so; anyone else submits it for approval.
+      const validStatus = req.body.status === 'approved'
+        && await userHasPermission(req, pool, organizationId, 'badges.approve') ? 'approved' : 'pending';
       // If approved, set approval_date
       const approvalDate = (validStatus === 'approved') ? new Date().toISOString() : null;
 
-      let result;
-      if (hasStarType) {
-        result = await client.query(
-          `INSERT INTO badge_progress
-             (participant_id, organization_id, badge_template_id, territoire_chasse, section, objectif, description, fierte, raison, date_obtention, etoiles, status, star_type, approval_date)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $13, $12, $14)
-             RETURNING *`,
-          [
-            participant_id,
-            organizationId,
-            template.id,
-            template.name,
-            template.section || participantSection || 'general',
-            objectif,
-            description,
-            fierte || false,
-            raison,
-            date_obtention,
-            nextLevel,
-            validStarType,
-            validStatus,
-            approvalDate
-          ]
-        );
-      } else {
-        // Fallback without star_type column
-        result = await client.query(
-          `INSERT INTO badge_progress
-             (participant_id, organization_id, badge_template_id, territoire_chasse, section, objectif, description, fierte, raison, date_obtention, etoiles, status, approval_date)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-             RETURNING *`,
-          [
-            participant_id,
-            organizationId,
-            template.id,
-            template.name,
-            template.section || participantSection || 'general',
-            objectif,
-            description,
-            fierte || false,
-            raison,
-            date_obtention,
-            nextLevel,
-            validStatus,
-            approvalDate
-          ]
-        );
-      }
+      // star_type is in the schema baseline (no information_schema probe on every request).
+      const result = await client.query(
+        `INSERT INTO badge_progress
+           (participant_id, organization_id, badge_template_id, territoire_chasse, section, objectif, description, fierte, raison, date_obtention, etoiles, status, star_type, approval_date)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $13, $12, $14)
+           RETURNING *`,
+        [
+          participant_id,
+          organizationId,
+          template.id,
+          template.name,
+          template.section || participantSection || 'general',
+          objectif,
+          description,
+          fierte || false,
+          raison,
+          date_obtention,
+          nextLevel,
+          validStarType,
+          validStatus,
+          approvalDate
+        ]
+      );
+
+      // An approved level earns its points as one approved later does.
+      const points = validStatus === 'approved'
+        ? await grantBadgeEarnPoints(client, organizationId, result.rows[0]) : 0;
 
       await client.query('COMMIT');
       const inserted = {
         ...result.rows[0],
+        points_awarded: points || result.rows[0].points_awarded,
         badge_name: template.name,
         translation_key: template.translation_key,
         badge_section: template.section,
@@ -501,6 +500,7 @@ module.exports = (pool, logger) => {
           return errorResponse(res, 'Badge template section does not match participant section', BAD_REQUEST_STATUS);
         }
 
+        await lockBadgeLevels(client, organizationId, participantId, template.id);
         const exists = await client.query(
           `SELECT 1 FROM badge_progress
             WHERE participant_id = $1 AND organization_id = $2

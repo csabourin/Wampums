@@ -6,6 +6,15 @@ const { unitToday } = require('../utils/unit-clock');
  * issuance/presentation in badge_progress with source_type/source_id linkage.
  */
 
+/**
+ * Records a progression may point to, kept per unit and youth: a progression
+ * names only the youth's own record in the unit (table name, fixed here).
+ */
+const OWNED_REFERENCES = {
+  pab_plan_id: 'pab_plans',
+  participant_top_award_progress_id: 'participant_top_award_progress',
+};
+
 const PROGRAM_TABLE_CONFIG = {
   oas_competency: {
     table: 'participant_oas_competency',
@@ -114,6 +123,18 @@ async function recordProgression({ pool, organizationId, programType, participan
       throw new Error('No valid program data provided');
     }
 
+    for (const [field, table] of Object.entries(OWNED_REFERENCES)) {
+      if (!Object.prototype.hasOwnProperty.call(programData, field)) {continue;}
+      // eslint-disable-next-line no-await-in-loop -- at most two references, checked in order
+      const owned = await client.query(
+        `SELECT 1 FROM ${table} WHERE id = $1 AND organization_id = $2 AND participant_id = $3`,
+        [programData[field], organizationId, participantId]
+      );
+      if (owned.rowCount === 0) {
+        throw new Error('No valid program data provided');
+      }
+    }
+
     if (insertFields.includes('awarded_by') === false && config.allowedFields.includes('awarded_by') === false && actorUserId) {
       if (await columnExists(client, config.table, 'awarded_by')) {
         insertFields.push('awarded_by');
@@ -144,7 +165,8 @@ async function recordProgression({ pool, organizationId, programType, participan
 
     const placeholders = insertValues.map((_, idx) => `$${idx + 1}`).join(', ');
     const programInsertResult = await client.query(
-      `INSERT INTO ${config.table} (${insertFields.join(', ')}) VALUES (${placeholders}) RETURNING *`
+      `INSERT INTO ${config.table} (${insertFields.join(', ')}) VALUES (${placeholders}) RETURNING *`,
+      insertValues
     );
 
     const programRecord = programInsertResult.rows[0];
@@ -208,7 +230,8 @@ async function insertBadgeProgressMirror({ client, organizationId, participantId
 
   const participantSection = participantSectionResult.rows[0]?.section || 'general';
   const achievedDate = badgeData.date_obtention || await unitToday(client, organizationId);
-  const status = badgeData.status === 'approved' ? 'approved' : 'pending';
+  // A level is approved through the badge approval (badges.approve), which also grants its points.
+  const status = 'pending';
 
   const result = await client.query(
     `INSERT INTO badge_progress

@@ -3,7 +3,7 @@ import { EQUIPMENT_CATEGORIES, equipmentCategoryLabel, equipmentCategoryOptions 
 import { debugError, debugLog, debugWarn } from '../../utils/DebugUtils.js';
 import { escapeHTML, escapeAttribute } from '../../utils/SecurityUtils.js';
 import { localeForLanguage } from '../../utils/InterfaceLanguageUtils.js';
-import { setContent } from '../../utils/DOMUtils.js';
+import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import { CONFIG } from '../../config.js';
 import {
   getEquipmentInventory,
@@ -822,7 +822,7 @@ export class Inventory {
               </div>
             </div>
             <div class="equipment-card-actions">
-              ${this.canEdit ? `<button type="button" class="button button--secondary edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
+              ${this.canEdit && item.can_manage !== false ? `<button type="button" class="button button--secondary edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
               <button type="button" class="button button--danger delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>` : ''}
             </div>
           </div>
@@ -885,7 +885,7 @@ export class Inventory {
                 <td data-label="${escapeAttribute(translate('equipment_item_value'))}">${escapeHTML(this.formatCurrency(item.item_value))}</td>
                 <td data-label="${escapeAttribute(translate('actions'))}">
                   <div class="table-actions">
-                    ${this.canEdit ? `<button type="button" class="button button--secondary button--small edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
+                    ${this.canEdit && item.can_manage !== false ? `<button type="button" class="button button--secondary button--small edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate('edit'))}</button>
                     <button type="button" class="button button--danger button--small delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate('delete'))}</button>` : ''}
                   </div>
                 </td>
@@ -927,7 +927,7 @@ export class Inventory {
       bindOwnershipFields(equipmentForm);
       equipmentForm.addEventListener('submit', async (event) => {
         event.preventDefault();
-        await this.handleCreateSubmit();
+        await withFormBusy(equipmentForm, () => this.handleCreateSubmit());
       });
     }
 
@@ -1742,9 +1742,10 @@ export class Inventory {
       },
     });
     bindOwnershipFields(document.getElementById('editEquipmentForm'));
-    document.getElementById('editEquipmentForm').addEventListener('submit', async (e) => {
+    const editForm = document.getElementById('editEquipmentForm');
+    editForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      await this.handleEditSubmit();
+      await withFormBusy(editForm, () => this.handleEditSubmit());
     });
     this.setupPhotoUpload('modal-photo-upload-container', 'modal-photo-input', 'modal-photo-preview-img', 'modal-photo-placeholder', 'modal-remove-photo-btn', true);
 

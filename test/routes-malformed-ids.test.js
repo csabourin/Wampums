@@ -243,7 +243,10 @@ describe('malformed ids in the URL', () => {
 describe('input the database refuses', () => {
   it.each([
     ['22P02', 'a value it cannot read as its type'],
-    ['22003', 'a value out of its range']
+    ['22003', 'a value out of its range'],
+    ['22007', 'a date or time it cannot read'],
+    ['22008', 'an impossible date, such as 30 February'],
+    ['22001', 'text longer than its column']
   ])('answers 400, not 500, when PostgreSQL refuses %s (%s)', async (code) => {
     databaseRefusal = code;
 
@@ -255,8 +258,8 @@ describe('input the database refuses', () => {
     expect(res.body).toMatchObject({ success: false, message: 'invalid_request' });
   });
 
-  it('any other database failure is still a 500', async () => {
-    databaseRefusal = '57014';
+  it.each(['57014', '23514'])('any other database failure is still a 500 (%s)', async (code) => {
+    databaseRefusal = code;
 
     const res = await request(app)
       .get('/api/v1/participants/42')
@@ -264,4 +267,5 @@ describe('input the database refuses', () => {
 
     expect(res.status).toBe(500);
   });
+
 });

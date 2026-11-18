@@ -26,6 +26,23 @@ function equipmentAccessSql(alias, organizationParam) {
 }
 
 /**
+ * Whether the unit ($param) maintains an item: it keeps the record, or the
+ * item belongs to a Scout group the unit is part of. A unit that only uses the
+ * item (shared with it, or with its local group) reserves and borrows it but
+ * does not rename, recount, delete it or change its photo.
+ * Trusted SQL aliases/parameters only.
+ */
+function equipmentManageSql(alias, organizationParam) {
+  return `(
+    ${alias}.organization_id = ${organizationParam}
+    OR (${alias}.owner_type = 'group' AND EXISTS (
+      SELECT 1 FROM organization_local_groups manager_group
+      WHERE manager_group.organization_id = ${organizationParam} AND manager_group.local_group_id = ${alias}.owner_local_group_id
+    ))
+  )`;
+}
+
+/**
  * Identify an owner explicitly. A historic unit association is never inferred
  * to be ownership. Changing ownership is confined to the record's managing unit.
  */
@@ -47,4 +64,4 @@ async function readEquipmentOwner(db, organizationId, fields, current = null) {
   }
   return { owner_type: type, owner_local_group_id: groupId };
 }
-module.exports = { OwnershipError, equipmentAccessSql, readEquipmentOwner };
+module.exports = { OwnershipError, equipmentAccessSql, equipmentManageSql, readEquipmentOwner };

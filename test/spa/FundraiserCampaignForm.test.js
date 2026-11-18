@@ -42,6 +42,7 @@ jest.mock('../../spa/utils/NumberUtils.js', () => ({
 jest.mock('../../spa/utils/DOMUtils.js', () => {
   const createDOMPurify = require('dompurify');
   return {
+    withFormBusy: jest.requireActual('../../spa/utils/DOMUtils.js').withFormBusy,
     setContent: (element, html) => {
       const purify = createDOMPurify(globalThis);
       element.innerHTML = purify.sanitize(html, {
@@ -187,6 +188,26 @@ describe('campaign payload', () => {
     expect(form.elements.namedItem('campaign_type').value).toBe('container_deposit');
     expect(form.elements.namedItem('start_date').value).toBe('2026-03-01');
     expect(form.elements.namedItem('unit_price').value).toBe('0.1');
+  });
+});
+
+describe('saving once', () => {
+  test('a second click while the campaign is saving creates nothing more', async () => {
+    let finish;
+    mockCreateFundraiser.mockReturnValue(new Promise((done) => { finish = done; }));
+    setup();
+    fill({
+      name: 'Campagne de calendriers', campaign_type: 'fixed_price_sale', start_date: '2026-09-01',
+      end_date: '2026-10-31', unit_price: '12.50', unit_label: 'calendriers', objective: '2500',
+    });
+    const form = document.getElementById('fundraiser-form');
+
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    finish({ success: true, data: { fundraiser: { id: 1 } } });
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+
+    expect(mockCreateFundraiser).toHaveBeenCalledTimes(1);
   });
 });
 

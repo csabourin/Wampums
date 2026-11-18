@@ -8,7 +8,7 @@ import {
   canEditFundraisers,
   canViewFundraisers,
 } from '../../utils/PermissionUtils.js';
-import { setContent } from '../../utils/DOMUtils.js';
+import { setContent, withFormBusy } from '../../utils/DOMUtils.js';
 import { openModal, closeModal } from '../../utils/ModalUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { confirmDestructive } from '../../utils/DialogUtils.js';
@@ -528,7 +528,7 @@ export class Fundraisers {
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      await this.saveFundraiser();
+      await withFormBusy(form, () => this.saveFundraiser());
     });
   }
 
