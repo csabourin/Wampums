@@ -400,6 +400,14 @@ module.exports = (pool, logger) => {
           });
         }
 
+        // A leader this unit has not approved yet waits, whatever another unit decided.
+        if (user.membership_status === 'pending') {
+          return res.status(HTTP_STATUS.FORBIDDEN).json({
+            success: false,
+            message: 'account_not_verified_login'
+          });
+        }
+
         // A membership deactivated at the year transition keeps its account and
         // history, but can no longer sign in to the organization.
         if (user.membership_status && user.membership_status !== 'active') {
@@ -773,13 +781,13 @@ module.exports = (pool, logger) => {
         // Hash password
         const hashedPassword = await bcrypt.hash(trimmedPassword, BCRYPT_SALT_ROUNDS);
 
-        // Insert user
-        // Parent role users are auto-verified, animation role requires admin approval
+        // The account is verified; a leader's membership waits for this unit's
+        // approval ('pending'), so no other unit can approve it for this one.
         const result = await client.query(
           `INSERT INTO users (email, password, full_name, is_verified)
-           VALUES ($1, $2, $3, $4)
+           VALUES ($1, $2, $3, TRUE)
            RETURNING id, email, full_name, is_verified`,
-          [normalizedEmail, hashedPassword, full_name, role === 'parent']
+          [normalizedEmail, hashedPassword, full_name]
         );
 
         let createdUser = result.rows && result.rows.length > 0 ? result.rows[0] : null;
@@ -815,9 +823,9 @@ module.exports = (pool, logger) => {
 
         // Link user to organization with the requested role (parent by default)
         await client.query(
-          `INSERT INTO user_organizations (user_id, organization_id, role_ids)
-           VALUES ($1, $2, $3)`,
-          [userId, organizationId, JSON.stringify([roleId])]
+          `INSERT INTO user_organizations (user_id, organization_id, role_ids, status)
+           VALUES ($1, $2, $3, $4)`,
+          [userId, organizationId, JSON.stringify([roleId]), role === 'animation' ? 'pending' : 'active']
         );
 
         await client.query('COMMIT');

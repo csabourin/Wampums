@@ -241,6 +241,23 @@ describe('POST /public/login', () => {
     expect(res.body.message).toBe(message);
   });
 
+  test('a leader this unit has not approved yet is told to wait, whatever another unit decided', async () => {
+    const { __mClient, __mPool } = require('pg');
+    mockQueryImplementation(__mClient, __mPool, (query) => {
+      if (query.includes('FROM users u')) {
+        return Promise.resolve({ rows: [{
+          id: 1, email: validEmail, password: hashedPassword, is_verified: true, full_name: 'Test User', membership_status: 'pending',
+        }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app).post('/public/login').send({ email: validEmail, password: validPassword });
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toBe('account_not_verified_login');
+  });
+
   test('bypasses 2FA for demo users', async () => {
     const { __mClient, __mPool } = require('pg');
 
@@ -572,6 +589,37 @@ describe('Password reset flow', () => {
 // ============================================
 
 describe('POST /public/register', () => {
+  test.each([['parent', 'active'], ['animation', 'pending']])('a %s who registers starts as %s in this unit only', async (userType, status) => {
+    const { __mClient, __mPool } = require('pg');
+    const memberships = [];
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('FROM users WHERE email')) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('INSERT INTO users')) {
+        return Promise.resolve({ rows: [{ id: 100, email: 'newuser@example.com', full_name: 'New User', is_verified: true }] });
+      }
+      if (query.includes('FROM roles b')) {
+        return Promise.resolve({ rows: [{ id: 3 }] });
+      }
+      if (query.includes('INSERT INTO user_organizations')) {
+        memberships.push(params);
+        return Promise.resolve({ rows: [{ id: 1 }] });
+      }
+      if (query.includes('organization_domains')) {
+        return Promise.resolve({ rows: [{ organization_id: 1 }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app).post('/public/register')
+      .send({ email: 'newuser@example.com', password: 'SecurePass123!', full_name: 'New User', user_type: userType });
+
+    expect(res.status).toBe(201);
+    // The account is verified; a leader's membership waits for this unit's approval.
+    expect(memberships).toEqual([[100, expect.anything(), expect.any(String), status]]);
+  });
+
   test('creates new user account with valid registration data', async () => {
     const { __mClient, __mPool } = require('pg');
 

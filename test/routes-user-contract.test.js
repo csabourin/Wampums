@@ -38,7 +38,10 @@ function createFixture(organizations, permissions = ['users.edit']) {
       if (query.includes('SELECT u.id, u.email')) {
         return { rows: [{ id: PENDING_USER_ID, email: 'pending@example.com' }] };
       }
-      if (query.includes('UPDATE users SET is_verified')) {
+      if (query.includes("UPDATE user_organizations SET status = 'active'")) {
+        return { rows: [{ id: 1 }] };
+      }
+      if (query.includes('UPDATE users u SET is_verified')) {
         return { rows: [] };
       }
       return { rows: [] };
@@ -92,9 +95,10 @@ test('approves a pending user through the mounted users endpoint', async () => {
     success: true,
     message: 'User approved successfully',
   }));
+  // The membership in this unit is approved, not the account for every unit.
   expect(pool.query).toHaveBeenCalledWith(
-    expect.stringContaining('UPDATE users SET is_verified = true'),
-    [PENDING_USER_ID]
+    expect.stringContaining("UPDATE user_organizations SET status = 'active'"),
+    [PENDING_USER_ID, ORGANIZATION_ID]
   );
 });
 
